@@ -1,36 +1,61 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+## Backend for Clerk privateMetadata sync
 
-## Getting Started
+### Stack
 
-First, run the development server:
+- **Next.js (App Router, TypeScript)**
+- **@clerk/backend** for token verification and user updates
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+### Environment
+
+Create a `.env` file based on `.env.example`:
+
+```
+CLERK_SECRET_KEY=sk_test_xxx
+CORS_ORIGIN=http://localhost:19006
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+### Development
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm install
+npm run dev
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+Local server runs at `http://localhost:3000`.
 
-## Learn More
+### Endpoints
 
-To learn more about Next.js, take a look at the following resources:
+- **GET `/api/health`** → `{"ok": true}`
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+- **POST `/api/clerk/users/me/metadata`**
+  - **Headers**: `Authorization: Bearer <Clerk session token>`, `Content-Type: application/json`
+  - **Body**:
+    ```json
+    { "privateMetadata": { "userType": "agent" } }
+    ```
+  - **Responses**:
+    - `200` → `{ "ok": true }`
+    - `400/401` → `{ "error": "message" }`
+  - **CORS**: Allows `POST, OPTIONS`, headers `Content-Type, Authorization`, origin `CORS_ORIGIN`.
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Security
 
-## Deploy on Vercel
+- Uses `CLERK_SECRET_KEY` server-side only.
+- Validates payload; only `privateMetadata.userType` of `agent` or `regular` is accepted.
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Client Contract (Expo)
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+Call after signup/SSO:
+
+```http
+POST {EXPO_PUBLIC_API_URL}/api/clerk/users/me/metadata
+Authorization: Bearer <token>
+Content-Type: application/json
+
+{ "privateMetadata": { "userType": "agent" } }
+```
+
+### Verify locally
+
+- `GET /api/health` → `{ ok: true }`
+- Test POST with a valid Clerk session token.
