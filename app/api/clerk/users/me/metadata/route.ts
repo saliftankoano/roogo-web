@@ -1,12 +1,20 @@
-import { NextResponse } from "next/server";
 import { createClerkClient, verifyToken } from "@clerk/backend";
+import { NextResponse } from "next/server";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
-
+/**
+ * @description Handle OPTIONS request for CORS
+ * @returns
+ */
 export async function OPTIONS() {
   return cors(NextResponse.json({ ok: true }));
 }
 
+/**
+ * @description Handle POST request to update user metadata
+ * @param req - Request object
+ * @returns Response object
+ */
 export async function POST(req: Request) {
   try {
     const auth = req.headers.get("authorization") ?? "";
@@ -39,11 +47,16 @@ export async function POST(req: Request) {
       return cors(json({ error: "privateMetadata object required" }, 400));
     }
 
-    const userType = (privateMetadata as unknown as { userType: string })
-      .userType;
+    const { userType, sex, dateOfBirth } = privateMetadata as unknown as {
+      userType?: string;
+      sex?: string;
+      dateOfBirth?: string;
+    };
+
+    // Validate userType if provided
     if (
-      typeof userType !== "string" ||
-      !["agent", "regular"].includes(userType)
+      userType &&
+      (typeof userType !== "string" || !["agent", "regular"].includes(userType))
     ) {
       return cors(
         json(
@@ -53,7 +66,31 @@ export async function POST(req: Request) {
       );
     }
 
-    const sanitizedPrivateMetadata = { userType };
+    // Validate sex if provided
+    if (
+      sex &&
+      (typeof sex !== "string" || !["Masculin", "Féminin"].includes(sex))
+    ) {
+      return cors(
+        json(
+          { error: "privateMetadata.sex must be 'Masculin' or 'Féminin'" },
+          400
+        )
+      );
+    }
+
+    // Validate dateOfBirth if provided (basic format check)
+    if (dateOfBirth && typeof dateOfBirth !== "string") {
+      return cors(
+        json({ error: "privateMetadata.dateOfBirth must be a string" }, 400)
+      );
+    }
+
+    // Build sanitized metadata object with only provided fields
+    const sanitizedPrivateMetadata: Record<string, string> = {};
+    if (userType) sanitizedPrivateMetadata.userType = userType;
+    if (sex) sanitizedPrivateMetadata.sex = sex;
+    if (dateOfBirth) sanitizedPrivateMetadata.dateOfBirth = dateOfBirth;
 
     await clerk.users.updateUser(userId, {
       privateMetadata: sanitizedPrivateMetadata,
