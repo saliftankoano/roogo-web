@@ -1,11 +1,20 @@
 import { NextResponse } from "next/server";
 import { headers } from "next/headers";
-import { createHmac } from "crypto";
+import { Webhook } from "svix";
 import {
   createUserInSupabase,
   updateUserInSupabase,
   deleteUserFromSupabase,
-} from "@/lib/user-sync";
+} from "../../../../lib/user-sync";
+
+interface WebhookEvent {
+  type: string;
+  data: {
+    id: string;
+    email_addresses?: Array<{ email_address: string }>;
+    [key: string]: unknown;
+  };
+}
 
 /**
  * @description Handle Clerk webhook events for user synchronization
@@ -14,55 +23,95 @@ import {
  */
 export async function POST(req: Request) {
   try {
+    console.log("Webhook received - starting processing");
+
     const headersList = await headers();
+    const svixId = headersList.get("svix-id");
+    const svixTimestamp = headersList.get("svix-timestamp");
     const svixSignature = headersList.get("svix-signature");
 
-    if (!svixSignature) {
+    console.log("Headers:", {
+      svixSignature: svixSignature ? "present" : "missing",
+      svixId: svixId ? "present" : "missing",
+      svixTimestamp: svixTimestamp ? "present" : "missing",
+    });
+
+    if (!svixId || !svixTimestamp || !svixSignature) {
+      console.error("Missing svix headers");
       return NextResponse.json(
-        { error: "Missing svix signature" },
+        { error: "Missing svix headers" },
         { status: 400 }
       );
     }
 
     const body = await req.text();
+    console.log("Webhook body length:", body.length);
 
-    // Verify webhook signature using HMAC
-    const webhookSecret = process.env.CLERK_WEBHOOK_SECRET!;
-    const expectedSignature = createHmac("sha256", webhookSecret)
-      .update(body)
-      .digest("hex");
-
-    const providedSignature = svixSignature.replace("v1,", "");
-
-    if (expectedSignature !== providedSignature) {
-      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    // Verify webhook signature using svix
+    const webhookSecret = process.env.CLERK_WEBHOOK_SECRET;
+    if (!webhookSecret) {
+      console.error("CLERK_WEBHOOK_SECRET not set");
+      return NextResponse.json(
+        { error: "Webhook secret not configured" },
+        { status: 500 }
+      );
     }
 
-    const evt = JSON.parse(body);
+    const wh = new Webhook(webhookSecret);
+    let evt: WebhookEvent;
+
+    try {
+      evt = wh.verify(body, {
+        "svix-id": svixId,
+        "svix-timestamp": svixTimestamp,
+        "svix-signature": svixSignature,
+      }) as WebhookEvent;
+    } catch (err) {
+      console.error("Error verifying webhook:", err);
+      return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
+    }
     const { type, data } = evt;
 
-    console.log(`Received webhook event: ${type}`);
+    console.log(`Received webhook event: ${type}`, {
+      userId: data?.id,
+      email: data?.email_addresses?.[0]?.email_address,
+    });
 
+    let result;
     switch (type) {
       case "user.created":
-        await createUserInSupabase(data);
+        console.log("Processing user.created");
+        result = await createUserInSupabase(data);
+        console.log("User created result:", result);
         break;
       case "user.updated":
-        await updateUserInSupabase(data);
+        console.log("Processing user.updated");
+        result = await updateUserInSupabase(data);
+        console.log("User updated result:", result);
         break;
       case "user.deleted":
-        await deleteUserFromSupabase(data.id);
+        console.log("Processing user.deleted");
+        result = await deleteUserFromSupabase(data.id);
+        console.log("User deleted result:", result);
         break;
       default:
         console.log(`Unhandled webhook event type: ${type}`);
     }
 
-    return NextResponse.json({ received: true });
+    console.log("Webhook processing completed successfully");
+    return NextResponse.json({ received: true, processed: true });
   } catch (error) {
     console.error("Webhook error:", error);
+    console.error(
+      "Error stack:",
+      error instanceof Error ? error.stack : "No stack trace"
+    );
     return NextResponse.json(
-      { error: "Webhook processing failed" },
-      { status: 400 }
+      {
+        error: "Webhook processing failed",
+        details: error instanceof Error ? error.message : "Unknown error",
+      },
+      { status: 500 }
     );
   }
 }

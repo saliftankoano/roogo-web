@@ -14,9 +14,13 @@ Create a `.env` file with the following variables:
 CLERK_SECRET_KEY=sk_test_xxx
 CLERK_WEBHOOK_SECRET=whsec_xxx
 
-# Supabase Configuration
-SUPABASE_URL=https://your-project.supabase.co
+# Supabase Configuration (use either naming convention)
+EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
 SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+
+# Or use these variable names (both work):
+# SUPABASE_URL=https://your-project.supabase.co
+# SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # CORS Configuration
 CORS_ORIGIN=http://localhost:19006
@@ -52,6 +56,10 @@ Local server runs at `http://localhost:3000`.
   - **Body**: Clerk webhook payload
   - **Purpose**: Automatically syncs user data between Clerk and Supabase
   - **Events**: `user.created`, `user.updated`, `user.deleted`
+  - **User Type Mapping**:
+    - Clerk `"owner"` → Supabase `"agent"`
+    - Clerk `"renter"` → Supabase `"buyer"`
+  - **Security**: Uses `svix` library to verify webhook signatures
 
 ### Security
 

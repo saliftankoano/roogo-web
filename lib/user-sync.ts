@@ -1,9 +1,26 @@
 import { createClient } from "@supabase/supabase-js";
 
-const supabase = createClient(
-  process.env.SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+// Initialize Supabase client with environment variables
+// Try both SUPABASE_URL and EXPO_PUBLIC_SUPABASE_URL for compatibility
+const supabaseUrl =
+  process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
+const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+if (!supabaseUrl || !supabaseKey) {
+  console.warn(
+    "Supabase environment variables not set. Webhook will not work properly."
+  );
+}
+
+const supabase =
+  supabaseUrl && supabaseKey
+    ? createClient(supabaseUrl, supabaseKey, {
+        auth: {
+          autoRefreshToken: false,
+          persistSession: false,
+        },
+      })
+    : null;
 
 export interface ClerkUserData {
   id: string;
@@ -17,6 +34,9 @@ export interface ClerkUserData {
     sex?: string;
     dateOfBirth?: string;
   };
+  unsafe_metadata?: {
+    userType?: string;
+  };
 }
 
 /**
@@ -24,6 +44,17 @@ export interface ClerkUserData {
  */
 export async function createUserInSupabase(data: ClerkUserData) {
   try {
+    console.log(
+      "createUserInSupabase called with data:",
+      JSON.stringify(data, null, 2)
+    );
+
+    if (!supabase) {
+      throw new Error(
+        "Supabase client not initialized. Check environment variables."
+      );
+    }
+
     const {
       id: clerkId,
       email_addresses,
@@ -32,6 +63,7 @@ export async function createUserInSupabase(data: ClerkUserData) {
       image_url,
       phone_numbers,
       private_metadata,
+      unsafe_metadata,
     } = data;
 
     const email = email_addresses?.[0]?.email_address;
@@ -40,10 +72,31 @@ export async function createUserInSupabase(data: ClerkUserData) {
         ? `${first_name} ${last_name}`
         : first_name || last_name;
     const phone = phone_numbers?.[0]?.phone_number;
-    const userType = private_metadata?.userType || "buyer";
+    // Check both private_metadata and unsafe_metadata for userType
+    const userType =
+      private_metadata?.userType || unsafe_metadata?.userType || "renter";
+
+    const validUserTypes = ["owner", "renter", "staff"];
+    const supabaseUserType = validUserTypes.includes(userType)
+      ? userType
+      : "renter"; // Default to renter for unknown types
+
+    console.log("Extracted data:", {
+      clerkId,
+      email,
+      fullName,
+      phone,
+      userType,
+      supabaseUserType,
+      image_url,
+    });
 
     if (!email) {
       throw new Error("No email found for user");
+    }
+
+    if (!clerkId) {
+      throw new Error("No clerk ID found for user");
     }
 
     const { data: user, error } = await supabase
@@ -54,7 +107,7 @@ export async function createUserInSupabase(data: ClerkUserData) {
         full_name: fullName,
         avatar_url: image_url,
         phone,
-        user_type: userType,
+        user_type: supabaseUserType,
       })
       .select()
       .single();
@@ -77,6 +130,17 @@ export async function createUserInSupabase(data: ClerkUserData) {
  */
 export async function updateUserInSupabase(data: ClerkUserData) {
   try {
+    console.log(
+      "updateUserInSupabase called with data:",
+      JSON.stringify(data, null, 2)
+    );
+
+    if (!supabase) {
+      throw new Error(
+        "Supabase client not initialized. Check environment variables."
+      );
+    }
+
     const {
       id: clerkId,
       email_addresses,
@@ -85,6 +149,7 @@ export async function updateUserInSupabase(data: ClerkUserData) {
       image_url,
       phone_numbers,
       private_metadata,
+      unsafe_metadata,
     } = data;
 
     const email = email_addresses?.[0]?.email_address;
@@ -93,10 +158,31 @@ export async function updateUserInSupabase(data: ClerkUserData) {
         ? `${first_name} ${last_name}`
         : first_name || last_name;
     const phone = phone_numbers?.[0]?.phone_number;
-    const userType = private_metadata?.userType;
+    // Check both private_metadata and unsafe_metadata for userType
+    const userType = private_metadata?.userType || unsafe_metadata?.userType;
+
+    // Use consistent terminology - no mapping needed
+    // Valid types: "owner", "renter", "staff"
+    const validUserTypes = ["owner", "renter", "staff"];
+    const supabaseUserType =
+      userType && validUserTypes.includes(userType) ? userType : undefined;
+
+    console.log("Extracted data for update:", {
+      clerkId,
+      email,
+      fullName,
+      phone,
+      userType,
+      supabaseUserType,
+      image_url,
+    });
 
     if (!email) {
       throw new Error("No email found for user");
+    }
+
+    if (!clerkId) {
+      throw new Error("No clerk ID found for user");
     }
 
     const updateData: Record<string, string | undefined> = {
@@ -104,12 +190,11 @@ export async function updateUserInSupabase(data: ClerkUserData) {
       full_name: fullName,
       avatar_url: image_url,
       phone,
-      user_type: userType,
     };
 
-    // Only update user_type if it's provided in private_metadata
-    if (userType) {
-      updateData.user_type = userType;
+    // Only update user_type if it's provided
+    if (supabaseUserType) {
+      updateData.user_type = supabaseUserType;
     }
 
     const { data: user, error } = await supabase
@@ -137,6 +222,12 @@ export async function updateUserInSupabase(data: ClerkUserData) {
  */
 export async function deleteUserFromSupabase(clerkId: string) {
   try {
+    if (!supabase) {
+      throw new Error(
+        "Supabase client not initialized. Check environment variables."
+      );
+    }
+
     const { error } = await supabase
       .from("users")
       .delete()
@@ -160,6 +251,12 @@ export async function deleteUserFromSupabase(clerkId: string) {
  */
 export async function getUserByClerkId(clerkId: string) {
   try {
+    if (!supabase) {
+      throw new Error(
+        "Supabase client not initialized. Check environment variables."
+      );
+    }
+
     const { data: user, error } = await supabase
       .from("users")
       .select("*")
