@@ -275,3 +275,16 @@ export async function getUserByClerkId(clerkId: string) {
     throw error;
   }
 }
+
+/**
+ * Get Supabase client for use in API routes
+ * This uses the service role key and bypasses RLS
+ */
+export function getSupabaseClient() {
+  if (!supabase) {
+    throw new Error(
+      "Supabase client not initialized. Check environment variables."
+    );
+  }
+  return supabase;
+}
