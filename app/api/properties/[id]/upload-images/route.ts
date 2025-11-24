@@ -2,6 +2,10 @@ import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 
+// Increase body size limit for image uploads (Next.js App Router)
+export const maxDuration = 60; // 60 seconds
+export const runtime = "nodejs";
+
 /**
  * @description Handle OPTIONS request for CORS
  */
@@ -20,21 +24,26 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    console.log("Received POST request to /api/properties/[id]/upload-images");
     const { id: propertyId } = await params;
+    console.log("Property ID:", propertyId);
 
     // 1. Verify Clerk token
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
     if (!token) {
+      console.error("Missing authorization token");
       return cors(json({ error: "Missing token" }, 401));
     }
 
     let clerkUserId: string | undefined;
     try {
+      console.log("Verifying Clerk token...");
       const { sub } = await verifyToken(token, {
         secretKey: process.env.CLERK_SECRET_KEY!,
       });
       clerkUserId = sub as string | undefined;
+      console.log("Clerk token verified for user:", clerkUserId);
     } catch (error) {
       console.error("Token verification failed:", error);
       return cors(json({ error: "Invalid token" }, 401));
@@ -45,8 +54,17 @@ export async function POST(
     }
 
     // 2. Parse JSON body with base64 images
-    const body = await req.json();
+    console.log("Parsing request body...");
+    let body;
+    try {
+      body = await req.json();
+    } catch (parseError) {
+      console.error("Error parsing request body:", parseError);
+      return cors(json({ error: "Invalid request body" }, 400));
+    }
+
     const { images } = body;
+    console.log(`Received ${images?.length || 0} images`);
 
     if (!images || !Array.isArray(images) || images.length === 0) {
       return cors(json({ error: "No images provided" }, 400));
