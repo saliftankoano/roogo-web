@@ -1,6 +1,7 @@
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
+import { convertIdsToLabels } from "@/lib/interdictions";
 
 /**
  * @description Handle OPTIONS request for CORS
@@ -80,7 +81,10 @@ export async function POST(req: Request) {
     // 5. Get Supabase client (service role - bypasses RLS)
     const supabase = getSupabaseClient();
 
-    // 6. Map form data to database schema
+    // 6. Map interdiction IDs to labels (plain text)
+    const interdictionsLabels = convertIdsToLabels(listingData.interdictions);
+
+    // 7. Map form data to database schema
     const propertyData = {
       agent_id: user.id,
       title: listingData.titre,
@@ -97,11 +101,11 @@ export async function POST(req: Request) {
       city: listingData.ville,
       quartier: listingData.quartier,
       caution_mois: listingData.cautionMois || null,
-      interdictions: listingData.interdictions || null,
+      interdictions: interdictionsLabels,
       period: "month",
     };
 
-    // 7. Insert property
+    // 8. Insert property
     console.log("Inserting property into database...");
     const { data: property, error: propertyError } = await supabase
       .from("properties")
