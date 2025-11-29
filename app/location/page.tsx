@@ -7,8 +7,7 @@ import { Navbar } from "../../components/Navbar";
 import { PropertyCard } from "../../components/PropertyCard";
 import { properties } from "../../lib/data";
 import { Button } from "../../components/ui/Button";
-import { MagnifyingGlass, CaretDown } from "@phosphor-icons/react";
-import { motion, AnimatePresence } from "framer-motion";
+import { MagnifyingGlassIcon, CaretDownIcon } from "@phosphor-icons/react";
 
 type FilterState = {
   category: "all" | "Residential" | "Business";
@@ -94,7 +93,7 @@ export default function PropertiesPage() {
               onChange={(e) => setSearchQuery(e.target.value)}
               className="w-full pl-4 pr-10 py-2.5 rounded-md border border-neutral-300 text-sm focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary bg-white shadow-sm"
             />
-            <MagnifyingGlass
+            <MagnifyingGlassIcon
               className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-500"
               size={20}
             />
@@ -107,14 +106,14 @@ export default function PropertiesPage() {
             {/* For Rent (Static for now as per user flow) */}
             <div className="relative group">
               <button className="flex items-center gap-2 px-4 py-2.5 rounded-md border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 whitespace-nowrap transition-colors shadow-sm">
-                À Louer <CaretDown size={16} weight="bold" />
+                À Louer <CaretDownIcon size={16} weight="bold" />
               </button>
             </div>
 
             {/* Price Filter */}
             <div className="relative group">
               <button className="flex items-center gap-2 px-4 py-2.5 rounded-md border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 whitespace-nowrap transition-colors shadow-sm">
-                Prix <CaretDown size={16} weight="bold" />
+                Prix <CaretDownIcon size={16} weight="bold" />
               </button>
               {/* Dropdown could go here */}
             </div>
@@ -122,7 +121,7 @@ export default function PropertiesPage() {
             {/* Beds & Baths Filter */}
             <div className="relative group">
               <button className="flex items-center gap-2 px-4 py-2.5 rounded-md border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 whitespace-nowrap transition-colors shadow-sm">
-                Chambres / Douches <CaretDown size={16} weight="bold" />
+                Chambres / Douches <CaretDownIcon size={16} weight="bold" />
               </button>
 
               {/* Simple dropdown implementation for demo purposes */}
@@ -168,7 +167,7 @@ export default function PropertiesPage() {
             {/* Home Type Filter */}
             <div className="relative group">
               <button className="flex items-center gap-2 px-4 py-2.5 rounded-md border border-neutral-300 bg-white hover:bg-neutral-50 text-sm font-medium text-neutral-700 whitespace-nowrap transition-colors shadow-sm">
-                Type de bien <CaretDown size={16} weight="bold" />
+                Type de bien <CaretDownIcon size={16} weight="bold" />
               </button>
               <div className="absolute top-full left-0 mt-2 w-48 bg-white rounded-lg shadow-xl border border-neutral-200 p-2 hidden group-hover:block z-50">
                 <div
@@ -256,7 +255,7 @@ export default function PropertiesPage() {
         ) : (
           <div className="flex flex-col items-center justify-center py-20 text-center">
             <div className="bg-white p-8 rounded-2xl shadow-sm border border-neutral-100 max-w-md">
-              <MagnifyingGlass
+              <MagnifyingGlassIcon
                 size={48}
                 className="text-neutral-300 mx-auto mb-4"
               />
@@ -264,8 +263,8 @@ export default function PropertiesPage() {
                 Aucun résultat trouvé
               </h3>
               <p className="text-neutral-500 mb-6">
-                Nous n'avons trouvé aucune propriété correspondant à vos
-                critères. Essayez d'élargir votre recherche.
+                Nous n&apos;avons trouvé aucune propriété correspondant à vos
+                critères. Essayez d&apos;élargir votre recherche.
               </p>
               <Button
                 variant="outline"

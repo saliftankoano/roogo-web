@@ -5,11 +5,10 @@ import { Footer } from "../../components/Footer";
 import { motion } from "framer-motion";
 import { Button } from "../../components/ui/Button";
 import {
-  EnvelopeSimple,
-  Lightbulb,
-  User,
+  EnvelopeSimpleIcon,
+  LightbulbIcon,
   UserIcon,
-  UsersThree,
+  UsersThreeIcon,
 } from "@phosphor-icons/react";
 import Image from "next/image";
 export default function CareersPage() {
@@ -81,7 +80,7 @@ export default function CareersPage() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
               <motion.div variants={item}>
                 <div className="bg-primary/5 p-8 rounded-3xl">
-                  <Lightbulb
+                  <LightbulbIcon
                     size={48}
                     className="text-primary mb-6"
                     weight="duotone"
@@ -143,7 +142,7 @@ export default function CareersPage() {
             viewport={{ once: true }}
           >
             <div className="text-center mb-12">
-              <UsersThree
+              <UsersThreeIcon
                 size={48}
                 className="text-primary mx-auto mb-4"
                 weight="duotone"
@@ -208,7 +207,7 @@ export default function CareersPage() {
               size="lg"
               className="inline-flex items-center gap-2"
             >
-              <EnvelopeSimple size={20} weight="bold" />
+              <EnvelopeSimpleIcon size={20} weight="bold" />
               Candidature Spontanée
             </Button>
           </motion.div>
