@@ -1,6 +1,23 @@
 @import "tailwindcss";
 
 :root {
+  /* Roogo Brand Colors */
+  --color-roogo-primary-500: #c96a2e; /* Terracotta Ember */
+  --color-roogo-primary-600: #8a4924; /* Clay Brown */
+  --color-roogo-primary-700: #5a321a; /* Earth Umber */
+
+  --color-roogo-secondary-100: #f4e8d7; /* Sand Dune */
+  --color-roogo-secondary-200: #e8d8c5; /* Warm Linen */
+  --color-roogo-secondary-800: #2b241d; /* Desert Night */
+
+  --color-roogo-accent-500: #3fa6d9; /* Sahel Sky */
+  --color-roogo-accent-600: #1f7ca5; /* Deep Oasis */
+
+  --color-roogo-neutral-900: #1a1a1a;
+  --color-roogo-neutral-700: #323232;
+  --color-roogo-neutral-500: #6a6a6a;
+  --color-roogo-neutral-100: #f8f8f8;
+
   --background: #ffffff;
   --foreground: #171717;
 }
@@ -10,6 +27,16 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+
+  --color-primary: var(--color-roogo-primary-500);
+  --color-primary-hover: var(--color-roogo-primary-600);
+  --color-secondary: var(--color-roogo-secondary-100);
+  --color-accent: var(--color-roogo-accent-500);
+
+  --color-neutral-900: var(--color-roogo-neutral-900);
+  --color-neutral-700: var(--color-roogo-neutral-700);
+  --color-neutral-500: var(--color-roogo-neutral-500);
+  --color-neutral-100: var(--color-roogo-neutral-100);
 }
 
 @media (prefers-color-scheme: dark) {
@@ -22,5 +49,5 @@
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
 }
