@@ -67,9 +67,10 @@ export async function POST(req: Request) {
     const currency = "XOF";
     const supabase = getSupabaseClient();
 
+    // Map provider to PawaPay v2 format (for database storage)
     let payerClientCode = provider;
-    if (provider === "ORANGE_MONEY") payerClientCode = "ORANGE_MONEY_BFA";
-    if (provider === "MOOV_MONEY") payerClientCode = "MOOV_MONEY_BFA";
+    if (provider === "ORANGE_MONEY") payerClientCode = "ORANGE_BFA";
+    if (provider === "MOOV_MONEY") payerClientCode = "MOOV_BFA";
 
     const { error: dbError } = await supabase.from("transactions").insert({
       deposit_id: depositId,
@@ -125,8 +126,10 @@ export async function POST(req: Request) {
     formattedPhone = "226" + formattedPhone.slice(0, 8);
 
     // Map provider to PawaPay format
+    // Map provider to PawaPay v2 API format
+    // According to docs: Orange = ORANGE_BFA, Moov = MOOV_BFA
     const pawaProvider =
-      provider === "ORANGE_MONEY" ? "ORANGE_MONEY_BFA" : "MOOV_MONEY_BFA";
+      provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
 
     // Prepare customer message (4-22 chars required if provided)
     const customerMessage = (description || "Roogo Payment").slice(0, 22);
