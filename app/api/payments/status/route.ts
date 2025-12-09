@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
+import { getSupabaseClient } from "@/lib/user-sync";
 
 export async function OPTIONS() {
   return cors(NextResponse.json({ ok: true }));
@@ -38,8 +39,9 @@ export async function POST(req: Request) {
     }
 
     // 3. Call PawaPay API
-    const pawaUrl =
+    const pawaUrlBase =
       process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
+    const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN;
 
     if (!pawaToken) {
@@ -51,7 +53,9 @@ export async function POST(req: Request) {
       );
     }
 
-    const response = await fetch(`${pawaUrl}/deposits/${depositId}`, {
+    console.log(`Checking PawaPay status for ${depositId} at ${pawaUrl}/v2/deposits/${depositId}`);
+
+    const response = await fetch(`${pawaUrl}/v2/deposits/${depositId}`, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -70,7 +74,6 @@ export async function POST(req: Request) {
     }
 
     if (!response.ok) {
-      // If 404, maybe it's not propagated yet?
       return cors(
         NextResponse.json(
           {
@@ -84,11 +87,24 @@ export async function POST(req: Request) {
 
     // PawaPay response usually has result[0] if array or just object
     const statusData = Array.isArray(result) ? result[0] : result;
+    const status = statusData.status;
+
+    // 4. Update Supabase
+    if (status) {
+      const supabase = getSupabaseClient();
+      await supabase
+        .from("transactions")
+        .update({
+          status: status.toLowerCase(),
+          metadata: statusData,
+        })
+        .eq("deposit_id", depositId);
+    }
 
     return cors(
       NextResponse.json({
         success: true,
-        status: statusData.status,
+        status: status,
         raw: statusData,
       })
     );
