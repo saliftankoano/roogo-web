@@ -5,7 +5,7 @@ import Image from "next/image";
 import { Button } from "./ui/Button";
 import { motion, useScroll, useMotionValueEvent } from "framer-motion";
 import { useState } from "react";
-import { List, X } from "@phosphor-icons/react";
+import { ListIcon, XIcon } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 
 export function Navbar() {
@@ -13,7 +13,7 @@ export function Navbar() {
   const [hidden, setHidden] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const { isSignedIn } = useUser();
+  const { isSignedIn, isLoaded, user } = useUser();
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const previous = scrollY.getPrevious() || 0;
@@ -58,21 +58,7 @@ export function Navbar() {
           {/* Desktop Navigation - Centered */}
           <div className="hidden md:flex items-center justify-center gap-8 absolute left-1/2 -translate-x-1/2">
             <Link
-              href="/residential"
-              className="text-sm font-medium text-neutral-600 hover:text-primary transition-colors relative group whitespace-nowrap"
-            >
-              Résidentiel
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
-            </Link>
-            <Link
-              href="/commercial"
-              className="text-sm font-medium text-neutral-600 hover:text-primary transition-colors relative group whitespace-nowrap"
-            >
-              Commercial
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
-            </Link>
-            <Link
-              href="/careers"
+              href="/carrieres"
               className="text-sm font-medium text-neutral-600 hover:text-primary transition-colors relative group whitespace-nowrap"
             >
               Carrières
@@ -89,8 +75,21 @@ export function Navbar() {
 
           {/* Desktop Actions */}
           <div className="hidden md:flex items-center gap-4 shrink-0">
-            {isSignedIn ? (
+            {!isLoaded ? (
+              <div className="w-24 h-10" /> // Placeholder to prevent layout shift
+            ) : isSignedIn ? (
               <>
+                {(user?.publicMetadata?.role === "admin" ||
+                  user?.publicMetadata?.role === "staff" ||
+                  user?.emailAddresses.some((email) =>
+                    email.emailAddress.endsWith("@roogobf.com")
+                  )) && (
+                  <Link href="/admin">
+                    <Button variant="ghost" size="md">
+                      Gestion
+                    </Button>
+                  </Link>
+                )}
                 <Link href="/location">
                   <Button variant="ghost" size="md">
                     Mes biens
@@ -124,7 +123,7 @@ export function Navbar() {
             className="md:hidden p-2 text-neutral-600 hover:text-primary transition-colors"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
           >
-            {mobileMenuOpen ? <X size={24} /> : <List size={24} />}
+            {mobileMenuOpen ? <XIcon size={24} /> : <ListIcon size={24} />}
           </button>
         </nav>
 
@@ -139,21 +138,7 @@ export function Navbar() {
         >
           <div className="flex flex-col p-4 gap-4">
             <Link
-              href="/residential"
-              className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Résidentiel
-            </Link>
-            <Link
-              href="/commercial"
-              className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Commercial
-            </Link>
-            <Link
-              href="/careers"
+              href="/carrieres"
               className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
               onClick={() => setMobileMenuOpen(false)}
             >
@@ -167,8 +152,21 @@ export function Navbar() {
               Nous contacter
             </Link>
             <div className="h-px bg-neutral-100 my-2" />
-            {isSignedIn ? (
+            {!isLoaded ? null : isSignedIn ? (
               <>
+                {(user?.publicMetadata?.role === "admin" ||
+                  user?.publicMetadata?.role === "staff" ||
+                  user?.emailAddresses.some((email) =>
+                    email.emailAddress.endsWith("@roogobf.com")
+                  )) && (
+                  <Link
+                    href="/admin"
+                    className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
+                    onClick={() => setMobileMenuOpen(false)}
+                  >
+                    Gestion
+                  </Link>
+                )}
                 <Link
                   href="/location"
                   className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"

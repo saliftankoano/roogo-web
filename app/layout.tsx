@@ -31,12 +31,12 @@ export default function RootLayout({
   return (
     <ClerkProvider>
       <html lang="fr">
-        <body
-          className={`${geistSans.variable} ${geistMono.variable} antialiased`}
-        >
-          {children}
-        </body>
-      </html>
+      <body
+        className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+      >
+        {children}
+      </body>
+    </html>
     </ClerkProvider>
   );
 }

@@ -2,7 +2,15 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { FacebookLogo, InstagramLogo, XLogo, LinkedinLogo, EnvelopeSimple, Phone, MapPin } from "@phosphor-icons/react";
+import {
+  FacebookLogo,
+  InstagramLogo,
+  XLogo,
+  LinkedinLogo,
+  EnvelopeSimple,
+  Phone,
+  MapPin,
+} from "@phosphor-icons/react";
 
 export function Footer() {
   return (
@@ -12,11 +20,11 @@ export function Footer() {
           {/* Brand Column */}
           <div>
             <div className="flex items-center gap-2 mb-6">
-              <Image 
-                src="/logo.png" 
-                alt="Roogo Logo" 
-                width={160} 
-                height={64} 
+              <Image
+                src="/logo.png"
+                alt="Roogo Logo"
+                width={160}
+                height={64}
                 className="object-contain h-14 w-auto"
               />
             </div>
@@ -24,16 +32,28 @@ export function Footer() {
               La référence de la location immobilière au Burkina Faso.
             </p>
             <div className="flex gap-4">
-              <a href="#" className="text-neutral-400 hover:text-primary transition-colors">
+              <a
+                href="#"
+                className="text-neutral-400 hover:text-primary transition-colors"
+              >
                 <FacebookLogo size={24} weight="fill" />
               </a>
-              <a href="#" className="text-neutral-400 hover:text-primary transition-colors">
+              <a
+                href="#"
+                className="text-neutral-400 hover:text-primary transition-colors"
+              >
                 <InstagramLogo size={24} weight="fill" />
               </a>
-              <a href="#" className="text-neutral-400 hover:text-primary transition-colors">
+              <a
+                href="#"
+                className="text-neutral-400 hover:text-primary transition-colors"
+              >
                 <XLogo size={24} weight="fill" />
               </a>
-              <a href="#" className="text-neutral-400 hover:text-primary transition-colors">
+              <a
+                href="#"
+                className="text-neutral-400 hover:text-primary transition-colors"
+              >
                 <LinkedinLogo size={24} weight="fill" />
               </a>
             </div>
@@ -43,10 +63,38 @@ export function Footer() {
           <div>
             <h4 className="font-bold text-neutral-900 mb-6">Immobilier</h4>
             <ul className="space-y-4">
-              <li><Link href="/rent/residential" className="text-neutral-500 hover:text-primary transition-colors">Louer un logement</Link></li>
-              <li><Link href="/rent/commercial" className="text-neutral-500 hover:text-primary transition-colors">Louer un local</Link></li>
-              <li><Link href="/list-property" className="text-neutral-500 hover:text-primary transition-colors">Publier une annonce</Link></li>
-              <li><Link href="/contact" className="text-neutral-500 hover:text-primary transition-colors">Nous contacter</Link></li>
+              <li>
+                <Link
+                  href="/rent/residential"
+                  className="text-neutral-500 hover:text-primary transition-colors"
+                >
+                  Louer un logement
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/rent/commercial"
+                  className="text-neutral-500 hover:text-primary transition-colors"
+                >
+                  Louer un local
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/list-property"
+                  className="text-neutral-500 hover:text-primary transition-colors"
+                >
+                  Publier une annonce
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/contact"
+                  className="text-neutral-500 hover:text-primary transition-colors"
+                >
+                  Nous contacter
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -54,9 +102,30 @@ export function Footer() {
           <div>
             <h4 className="font-bold text-neutral-900 mb-6">Entreprise</h4>
             <ul className="space-y-4">
-              <li><Link href="/about" className="text-neutral-500 hover:text-primary transition-colors">À propos</Link></li>
-              <li><Link href="/careers" className="text-neutral-500 hover:text-primary transition-colors">Carrières</Link></li>
-              <li><Link href="/contact" className="text-neutral-500 hover:text-primary transition-colors">Contact</Link></li>
+              <li>
+                <Link
+                  href="/about"
+                  className="text-neutral-500 hover:text-primary transition-colors"
+                >
+                  À propos
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/carrieres"
+                  className="text-neutral-500 hover:text-primary transition-colors"
+                >
+                  Carrières
+                </Link>
+              </li>
+              <li>
+                <Link
+                  href="/contact"
+                  className="text-neutral-500 hover:text-primary transition-colors"
+                >
+                  Contact
+                </Link>
+              </li>
             </ul>
           </div>
 
@@ -85,9 +154,15 @@ export function Footer() {
             © {new Date().getFullYear()} Roogo. Tous droits réservés.
           </p>
           <div className="flex gap-6 text-sm text-neutral-400">
-            <Link href="/privacy" className="hover:text-neutral-600">Confidentialité</Link>
-            <Link href="/terms" className="hover:text-neutral-600">Conditions</Link>
-            <Link href="/sitemap" className="hover:text-neutral-600">Plan du site</Link>
+            <Link href="/privacy" className="hover:text-neutral-600">
+              Confidentialité
+            </Link>
+            <Link href="/terms" className="hover:text-neutral-600">
+              Conditions
+            </Link>
+            <Link href="/sitemap" className="hover:text-neutral-600">
+              Plan du site
+            </Link>
           </div>
         </div>
       </div>
