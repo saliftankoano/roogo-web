@@ -11,7 +11,9 @@ export async function POST(req: Request) {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
     if (!token) {
-      return cors(NextResponse.json({ error: "Missing token" }, { status: 401 }));
+      return cors(
+        NextResponse.json({ error: "Missing token" }, { status: 401 })
+      );
     }
 
     try {
@@ -20,7 +22,9 @@ export async function POST(req: Request) {
       });
     } catch (error) {
       console.error("Token verification failed:", error);
-      return cors(NextResponse.json({ error: "Invalid token" }, { status: 401 }));
+      return cors(
+        NextResponse.json({ error: "Invalid token" }, { status: 401 })
+      );
     }
 
     // 2. Parse Body
@@ -28,15 +32,23 @@ export async function POST(req: Request) {
     const { depositId } = body;
 
     if (!depositId) {
-      return cors(NextResponse.json({ error: "Missing depositId" }, { status: 400 }));
+      return cors(
+        NextResponse.json({ error: "Missing depositId" }, { status: 400 })
+      );
     }
 
     // 3. Call PawaPay API
-    const pawaUrl = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
+    const pawaUrl =
+      process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
     const pawaToken = process.env.PAWAPAY_API_TOKEN;
 
     if (!pawaToken) {
-      return cors(NextResponse.json({ error: "Server configuration error" }, { status: 500 }));
+      return cors(
+        NextResponse.json(
+          { error: "Server configuration error" },
+          { status: 500 }
+        )
+      );
     }
 
     const response = await fetch(`${pawaUrl}/deposits/${depositId}`, {
@@ -77,20 +89,29 @@ export async function POST(req: Request) {
       NextResponse.json({
         success: true,
         status: statusData.status,
-        raw: statusData
+        raw: statusData,
       })
     );
-
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Payment status check error:", error);
-    return cors(NextResponse.json({ error: error.message }, { status: 500 }));
+    return cors(
+      NextResponse.json(
+        { error: error instanceof Error ? error.message : String(error) },
+        { status: 500 }
+      )
+    );
   }
 }
 
 function cors(res: NextResponse) {
-  res.headers.set("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
-  res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.headers.set(
+    "Access-Control-Allow-Origin",
+    process.env.CORS_ORIGIN || "*"
+  );
+  res.headers.set(
+    "Access-Control-Allow-Headers",
+    "Content-Type, Authorization"
+  );
   res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   return res;
 }
-
