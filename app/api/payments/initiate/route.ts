@@ -96,7 +96,12 @@ export async function POST(req: Request) {
     // 5. Call PawaPay API
     const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
     const pawaUrl = pawaUrlBase.replace(/\/+$/, ""); // Remove trailing slashes
-    const pawaToken = process.env.PAWAPAY_API_TOKEN;
+    const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
+
+    // Log token info for debugging (first 20 chars only for security)
+    console.log(
+      `PawaPay API: ${pawaUrl}, Token present: ${!!pawaToken}, Token preview: ${pawaToken?.substring(0, 20)}...`
+    );
 
     if (!pawaToken) {
       console.error("PAWAPAY_API_TOKEN is not set");
@@ -120,6 +125,10 @@ export async function POST(req: Request) {
         },
       },
       payerClientCode,
+      correspondent: {
+        type: "MERCHANT",
+        name: "Roogo",
+      },
       description: description || "Roogo Payment",
       statementDescription: "Roogo",
     };
@@ -149,6 +158,10 @@ export async function POST(req: Request) {
     }
 
     if (!response.ok) {
+      console.error(
+        `PawaPay API error: Status ${response.status}, Error:`,
+        result
+      );
       // Update transaction to failed
       await supabase
         .from("transactions")
