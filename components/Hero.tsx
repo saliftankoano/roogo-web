@@ -3,8 +3,24 @@
 import Image from "next/image";
 import { Button } from "./ui/Button";
 import { motion } from "framer-motion";
+import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 export function Hero() {
+  const router = useRouter();
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const handleSearch = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (searchQuery.trim()) {
+      // Assuming /location accepts a query param like 'q' or 'search'
+      // Standard is often 'q' or just handling filters. I'll use 'q'.
+      router.push(`/location?q=${encodeURIComponent(searchQuery)}`);
+    } else {
+      router.push("/location");
+    }
+  };
+
   return (
     <div className="relative h-[500px] sm:h-[600px] w-full flex items-center justify-center overflow-hidden">
       {/* Background Image */}
@@ -34,7 +50,8 @@ export function Hero() {
         </motion.div>
 
         {/* Search Bar */}
-        <motion.div 
+        <motion.form 
+          onSubmit={handleSearch}
           className="bg-white p-4 rounded-2xl shadow-xl max-w-3xl mx-auto flex flex-col sm:flex-row gap-4"
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
@@ -43,14 +60,16 @@ export function Hero() {
           <div className="flex-1 relative">
             <input 
               type="text" 
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
               placeholder="Entrez une adresse, un quartier ou une ville" 
               className="w-full h-12 px-4 text-neutral-900 placeholder-neutral-500 outline-none rounded-lg focus:ring-2 focus:ring-primary/20"
             />
           </div>
-          <Button size="md" className="sm:w-auto w-full">
+          <Button type="submit" size="md" className="sm:w-auto w-full">
             Rechercher
           </Button>
-        </motion.div>
+        </motion.form>
       </div>
     </div>
   );
