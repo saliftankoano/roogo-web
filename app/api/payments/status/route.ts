@@ -40,7 +40,7 @@ export async function POST(req: Request) {
 
     // 3. Call PawaPay API
     const pawaUrlBase =
-      process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
+      process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN;
 
