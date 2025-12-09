@@ -94,8 +94,8 @@ export async function POST(req: Request) {
     }
 
     // 5. Call PawaPay API
-    const pawaUrl =
-      process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
+    const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
+    const pawaUrl = pawaUrlBase.replace(/\/+$/, ""); // Remove trailing slashes
     const pawaToken = process.env.PAWAPAY_API_TOKEN;
 
     if (!pawaToken) {
