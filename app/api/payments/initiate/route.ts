@@ -113,6 +113,16 @@ export async function POST(req: Request) {
       );
     }
 
+    // Format phone number: clean and use local format
+    // Since country is specified separately, use local format (8 digits for BFA)
+    let formattedPhone = phoneNumber.replace(/\s/g, ""); // Remove spaces
+    // Remove leading 0 if present (e.g., 076192846 -> 76192846)
+    if (formattedPhone.startsWith("0")) {
+      formattedPhone = formattedPhone.substring(1);
+    }
+    // Ensure it's exactly 8 digits for Burkina Faso
+    formattedPhone = formattedPhone.slice(0, 8);
+
     const payload = {
       depositId,
       amount: amount.toString(),
@@ -121,7 +131,7 @@ export async function POST(req: Request) {
       payer: {
         type: "MSISDN",
         address: {
-          value: phoneNumber,
+          value: formattedPhone,
         },
       },
       payerClientCode,
@@ -159,9 +169,10 @@ export async function POST(req: Request) {
 
     if (!response.ok) {
       console.error(
-        `PawaPay API error: Status ${response.status}, Error:`,
-        result
+        `PawaPay API error: Status ${response.status}`,
+        JSON.stringify(result, null, 2)
       );
+      console.error("Request payload:", JSON.stringify(payload, null, 2));
       // Update transaction to failed
       await supabase
         .from("transactions")
