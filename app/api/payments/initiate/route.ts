@@ -189,11 +189,20 @@ export async function POST(req: Request) {
         })
         .eq("deposit_id", depositId);
 
+      // Extract failure reason for better error messages
+      const failureReason = result.details?.failureReason;
+      const errorMessage =
+        failureReason?.failureMessage ||
+        result.details?.errorMessage ||
+        result.error ||
+        "Payment initiation failed";
+
       return cors(
         NextResponse.json(
           {
-            error: "Payment initiation failed",
+            error: errorMessage,
             details: result,
+            failureCode: failureReason?.failureCode,
           },
           { status: response.status }
         )
