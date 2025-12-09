@@ -113,34 +113,37 @@ export async function POST(req: Request) {
       );
     }
 
-    // Format phone number: clean and use local format
-    // Since country is specified separately, use local format (8 digits for BFA)
+    // Format phone number for PawaPay v2 API
+    // Requirements: Only digits, no spaces, no separators, no '+', no leading zero
+    // Country code is mandatory (Burkina Faso = 226)
     let formattedPhone = phoneNumber.replace(/\s/g, ""); // Remove spaces
-    // Remove leading 0 if present (e.g., 076192846 -> 76192846)
+    // Remove leading 0 if present
     if (formattedPhone.startsWith("0")) {
       formattedPhone = formattedPhone.substring(1);
     }
-    // Ensure it's exactly 8 digits for Burkina Faso
-    formattedPhone = formattedPhone.slice(0, 8);
+    // Ensure it's exactly 8 digits, then prepend country code 226
+    formattedPhone = "226" + formattedPhone.slice(0, 8);
 
+    // Map provider to PawaPay format
+    const pawaProvider =
+      provider === "ORANGE_MONEY" ? "ORANGE_MONEY_BFA" : "MOOV_MONEY_BFA";
+
+    // Prepare customer message (4-22 chars required if provided)
+    const customerMessage = (description || "Roogo Payment").slice(0, 22);
+
+    // PawaPay v2 API payload structure
     const payload = {
       depositId,
-      amount: amount.toString(),
-      currency,
-      country,
       payer: {
-        type: "MSISDN",
-        address: {
-          value: formattedPhone,
+        type: "MMO",
+        accountDetails: {
+          phoneNumber: formattedPhone,
+          provider: pawaProvider,
         },
       },
-      payerClientCode,
-      correspondent: {
-        type: "MERCHANT",
-        name: "Roogo",
-      },
-      description: description || "Roogo Payment",
-      statementDescription: "Roogo",
+      amount: amount.toString(),
+      currency,
+      customerMessage,
     };
 
     console.log(
@@ -148,7 +151,7 @@ export async function POST(req: Request) {
       JSON.stringify(payload, null, 2)
     );
 
-    const response = await fetch(`${pawaUrl}/deposits`, {
+    const response = await fetch(`${pawaUrl}/v2/deposits`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
