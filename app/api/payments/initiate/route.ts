@@ -63,7 +63,6 @@ export async function POST(req: Request) {
 
     // 4. Create Transaction Record in Supabase (Pending)
     const depositId = crypto.randomUUID();
-    const country = "BFA"; // Burkina Faso
     const currency = "XOF";
     const supabase = getSupabaseClient();
 
@@ -95,13 +94,17 @@ export async function POST(req: Request) {
     }
 
     // 5. Call PawaPay API
-    const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.cloud";
+    const pawaUrlBase =
+      process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
     const pawaUrl = pawaUrlBase.replace(/\/+$/, ""); // Remove trailing slashes
     const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
 
     // Log token info for debugging (first 20 chars only for security)
     console.log(
-      `PawaPay API: ${pawaUrl}, Token present: ${!!pawaToken}, Token preview: ${pawaToken?.substring(0, 20)}...`
+      `PawaPay API: ${pawaUrl}, Token present: ${!!pawaToken}, Token preview: ${pawaToken?.substring(
+        0,
+        20
+      )}...`
     );
 
     if (!pawaToken) {
@@ -118,10 +121,14 @@ export async function POST(req: Request) {
     // Requirements: Only digits, no spaces, no separators, no '+', no leading zero
     // Country code is mandatory (Burkina Faso = 226)
     let formattedPhone = phoneNumber.replace(/\s/g, ""); // Remove spaces
-    // Remove leading 0 if present
-    if (formattedPhone.startsWith("0")) {
+
+    // Check if it's 8 digits (standard BF) or 9 digits (with leading 0)
+    // If 9 digits and starts with 0, remove it.
+    // If 8 digits, keep it as is (could be a test number starting with 0 like 07...)
+    if (formattedPhone.length === 9 && formattedPhone.startsWith("0")) {
       formattedPhone = formattedPhone.substring(1);
     }
+
     // Ensure it's exactly 8 digits, then prepend country code 226
     formattedPhone = "226" + formattedPhone.slice(0, 8);
 
