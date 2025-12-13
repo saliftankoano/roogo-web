@@ -18,7 +18,7 @@
     "framer-motion": "^12.23.24",
     "lucide-react": "^0.555.0",
     "motion": "^12.23.24",
-    "next": "15.5.7",
+    "next": "15.5.9",
     "react": "19.1.2",
     "react-dom": "19.1.2",
     "svix": "^1.15.0",
