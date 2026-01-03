@@ -53,7 +53,9 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(`Checking PawaPay status for ${depositId} at ${pawaUrl}/v2/deposits/${depositId}`);
+    console.log(
+      `Checking PawaPay status for ${depositId} at ${pawaUrl}/v2/deposits/${depositId}`
+    );
 
     const response = await fetch(`${pawaUrl}/v2/deposits/${depositId}`, {
       method: "GET",
@@ -64,7 +66,11 @@ export async function POST(req: Request) {
     });
 
     const responseText = await response.text();
-    // console.log("PawaPay status response:", response.status, responseText);
+    console.log(
+      `PawaPay status response for ${depositId}:`,
+      response.status,
+      responseText
+    );
 
     let result;
     try {
@@ -74,9 +80,33 @@ export async function POST(req: Request) {
     }
 
     if (!response.ok) {
+      console.error(
+        `PawaPay status check failed (HTTP ${response.status}):`,
+        result
+      );
+
+      // If deposit not found (404), it means it was never created in PawaPay
+      if (response.status === 404) {
+        console.error(
+          `Deposit ${depositId} not found in PawaPay - it may have failed to create`
+        );
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              status: "NOT_FOUND",
+              error: "Deposit not found in PawaPay system",
+              raw: result,
+            },
+            { status: 200 }
+          )
+        );
+      }
+
       return cors(
         NextResponse.json(
           {
+            success: false,
             error: "Failed to check status",
             details: result,
           },
@@ -87,18 +117,30 @@ export async function POST(req: Request) {
 
     // PawaPay response usually has result[0] if array or just object
     const statusData = Array.isArray(result) ? result[0] : result;
-    const status = statusData.status;
+    const status = statusData?.status || statusData?.depositStatus;
+    console.log(`Deposit ${depositId} status from PawaPay: ${status}`);
 
     // 4. Update Supabase
     if (status) {
       const supabase = getSupabaseClient();
-      await supabase
+      const { error: updateError } = await supabase
         .from("transactions")
         .update({
           status: status.toLowerCase(),
           metadata: statusData,
         })
         .eq("deposit_id", depositId);
+
+      if (updateError) {
+        console.error(
+          `Failed to update transaction ${depositId}:`,
+          updateError
+        );
+      } else {
+        console.log(
+          `Updated transaction ${depositId} status to: ${status.toLowerCase()}`
+        );
+      }
     }
 
     return cors(
