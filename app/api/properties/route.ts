@@ -86,8 +86,8 @@ export async function POST(req: Request) {
 
     // 7. Map form data to database schema
     const TIERS_CONFIG = {
-      essentiel: { photo_limit: 8, slot_limit: 25, video_included: false, open_house_limit: 1, base_fee: 15000 },
-      standard: { photo_limit: 8, slot_limit: 50, video_included: true, open_house_limit: 2, base_fee: 25000 },
+      essentiel: { photo_limit: 8, slot_limit: 25, video_included: false, open_house_limit: 1, base_fee: 15000, has_badge: false },
+      standard: { photo_limit: 8, slot_limit: 50, video_included: true, open_house_limit: 2, base_fee: 25000, has_badge: false },
       premium: { photo_limit: 15, slot_limit: 100, video_included: true, open_house_limit: 3, base_fee: 45000, has_badge: true },
     };
 
