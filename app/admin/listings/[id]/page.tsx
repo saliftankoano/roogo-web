@@ -13,7 +13,7 @@ import PhotoManager from "@/components/admin/PhotoManager";
 import OpenHouseSlotManager from "@/components/admin/OpenHouseSlotManager";
 
 interface ListingDetail {
-  id: string | string[];
+  id: string;
   titre: string;
   type: string;
   prixMensuel: number;
@@ -34,7 +34,8 @@ interface ListingDetail {
 }
 
 export default function ListingDetailPage() {
-  const { id } = useParams();
+  const params = useParams();
+  const id = params.id as string;
   const router = useRouter();
   const [listing, setListing] = useState<ListingDetail | null>(null);
   const [loading, setLoading] = useState(true);
