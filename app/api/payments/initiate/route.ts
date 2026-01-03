@@ -2,6 +2,21 @@ import { NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
 
+interface PawaPayDepositPayload {
+  depositId: string;
+  payer: {
+    type: "MMO";
+    accountDetails: {
+      phoneNumber: string;
+      provider: string;
+    };
+  };
+  amount: string;
+  currency: string;
+  customerMessage: string;
+  preAuthorisationCode?: string;
+}
+
 export async function OPTIONS() {
   return cors(NextResponse.json({ ok: true }));
 }
@@ -53,11 +68,22 @@ export async function POST(req: Request) {
       description,
       transactionType,
       propertyId,
+      preAuthorisationCode,
     } = body;
 
     if (!amount || !phoneNumber || !provider || !transactionType) {
       return cors(
         NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+      );
+    }
+
+    // Validation for Orange Burkina Faso which requires a pre-authorisation code
+    if (provider === "ORANGE_MONEY" && !preAuthorisationCode) {
+      return cors(
+        NextResponse.json(
+          { error: "Un code d'autorisation est requis pour Orange Money" },
+          { status: 400 }
+        )
       );
     }
 
@@ -142,7 +168,7 @@ export async function POST(req: Request) {
     const customerMessage = (description || "Roogo Payment").slice(0, 22);
 
     // PawaPay v2 API payload structure
-    const payload = {
+    const payload: PawaPayDepositPayload = {
       depositId,
       payer: {
         type: "MMO",
@@ -155,6 +181,11 @@ export async function POST(req: Request) {
       currency,
       customerMessage,
     };
+
+    // Add pre-authorisation code if provided (required for ORANGE_BFA)
+    if (preAuthorisationCode) {
+      payload.preAuthorisationCode = preAuthorisationCode;
+    }
 
     console.log(
       "Initiating PawaPay deposit:",
