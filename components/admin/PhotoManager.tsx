@@ -4,7 +4,6 @@ import { useState } from "react";
 import { 
   ImageIcon, 
   CheckIcon, 
-  XIcon, 
   CloudArrowUpIcon,
   TrashIcon
 } from "@phosphor-icons/react";
@@ -18,7 +17,7 @@ interface PhotoManagerProps {
   onPhotosUpdated: (isPro: boolean) => void;
 }
 
-export default function PhotoManager({ propertyId, initialPhotos = [], isProfessional, onPhotosUpdated }: PhotoManagerProps) {
+export default function PhotoManager({ initialPhotos = [], isProfessional, onPhotosUpdated }: PhotoManagerProps) {
   const [photos, setPhotos] = useState<string[]>(initialPhotos);
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
@@ -90,14 +89,14 @@ export default function PhotoManager({ propertyId, initialPhotos = [], isProfess
         <div className="pt-4 border-t border-neutral-100">
           <p className="text-xs text-neutral-500 mb-4 bg-blue-50 p-3 rounded-lg border border-blue-100 flex items-start gap-2">
             <CheckIcon size={16} className="text-blue-500 mt-0.5" />
-            Une fois que vous avez téléchargé les photos professionnelles, validez-les pour mettre l'annonce en ligne.
+            Une fois que vous avez téléchargé les photos professionnelles, validez-les pour mettre l&apos;annonce en ligne.
           </p>
           <Button 
             className="w-full bg-primary text-white hover:bg-primary/90 h-12 rounded-xl shadow-lg shadow-primary/20 transition-transform active:scale-[0.98]"
             onClick={toggleProfessional}
           >
             <CheckIcon size={20} className="mr-2" weight="bold" />
-            Valider et Publier l'Annonce
+            Valider et Publier l&apos;Annonce
           </Button>
         </div>
       )}

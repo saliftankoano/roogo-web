@@ -3,24 +3,40 @@
 import { useState, useEffect } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { 
-  CheckIcon, 
-  XIcon, 
-  ImageIcon, 
   UsersIcon, 
-  CalendarIcon,
   CaretLeftIcon,
   TrendUpIcon,
-  HouseIcon,
   MapPinIcon
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import OpenHouseSlotManager from "@/components/admin/OpenHouseSlotManager";
 
+interface ListingDetail {
+  id: string | string[];
+  titre: string;
+  type: string;
+  prixMensuel: number;
+  quartier: string;
+  ville: string;
+  status: string;
+  tier_id: string;
+  slot_limit: number;
+  slots_filled: number;
+  open_house_limit: number;
+  photos_are_professional: boolean;
+  owner: {
+    name: string;
+    email: string;
+    phone: string;
+  };
+  photos: string[];
+}
+
 export default function ListingDetailPage() {
   const { id } = useParams();
   const router = useRouter();
-  const [listing, setListing] = useState<any>(null);
+  const [listing, setListing] = useState<ListingDetail | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -139,7 +155,7 @@ export default function ListingDetailPage() {
                 />
               </div>
               <p className="text-xs text-neutral-400 leading-relaxed italic">
-                L'annonce sera automatiquement fermée dans 3 jours une fois que tous les slots seront remplis.
+                L&apos;annonce sera automatiquement fermée dans 3 jours une fois que tous les slots seront remplis.
               </p>
             </div>
           </section>
