@@ -3,10 +3,8 @@
 import { useState } from "react";
 import { 
   CalendarIcon, 
-  ClockIcon, 
   TrashIcon, 
-  PlusIcon,
-  UsersIcon
+  PlusIcon
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 
@@ -25,11 +23,11 @@ interface OpenHouseSlotManagerProps {
   existingSlots: OpenHouseSlot[];
 }
 
-export default function OpenHouseSlotManager({ propertyId, limit, existingSlots = [] }: OpenHouseSlotManagerProps) {
+export default function OpenHouseSlotManager({ limit, existingSlots = [] }: OpenHouseSlotManagerProps) {
   const [slots, setSlots] = useState<OpenHouseSlot[]>(existingSlots);
   const [isAdding, setIsAdding] = useState(false);
   
-  const [newDate, setNewNewDate] = useState("");
+  const [newDate, setNewDate] = useState("");
   const [newStart, setNewStartTime] = useState("10:00");
   const [newEnd, setNewEndTime] = useState("12:00");
   const [newCapacity, setNewCapacity] = useState(10);
@@ -48,7 +46,7 @@ export default function OpenHouseSlotManager({ propertyId, limit, existingSlots 
     
     setSlots([...slots, newSlot]);
     setIsAdding(false);
-    setNewNewDate("");
+    setNewDate("");
   };
 
   const removeSlot = (id: string) => {
@@ -95,7 +93,7 @@ export default function OpenHouseSlotManager({ propertyId, limit, existingSlots 
                   type="date" 
                   className="w-full p-2 rounded-lg border border-neutral-200 text-sm" 
                   value={newDate}
-                  onChange={(e) => setNewNewDate(e.target.value)}
+                  onChange={(e) => setNewDate(e.target.value)}
                 />
               </div>
               <div className="space-y-1.5">
