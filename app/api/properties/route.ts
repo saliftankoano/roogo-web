@@ -85,6 +85,17 @@ export async function POST(req: Request) {
     const interdictionsLabels = convertIdsToLabels(listingData.interdictions);
 
     // 7. Map form data to database schema
+    const TIERS_CONFIG = {
+      essentiel: { photo_limit: 8, slot_limit: 25, video_included: false, open_house_limit: 1, base_fee: 15000 },
+      standard: { photo_limit: 8, slot_limit: 50, video_included: true, open_house_limit: 2, base_fee: 25000 },
+      premium: { photo_limit: 15, slot_limit: 100, video_included: true, open_house_limit: 3, base_fee: 45000, has_badge: true },
+    };
+
+    const selectedTier = listingData.tier_id ? TIERS_CONFIG[listingData.tier_id as keyof typeof TIERS_CONFIG] : null;
+    const tierPrice = selectedTier 
+      ? (selectedTier.base_fee + (listingData.prixMensuel * 0.05))
+      : null;
+
     const propertyData = {
       agent_id: user.id,
       title: listingData.titre,
@@ -103,6 +114,14 @@ export async function POST(req: Request) {
       caution_mois: listingData.cautionMois || null,
       interdictions: interdictionsLabels,
       period: "month",
+      // Tier information
+      tier_id: listingData.tier_id || null,
+      tier_price: tierPrice,
+      slot_limit: selectedTier?.slot_limit || null,
+      open_house_limit: selectedTier?.open_house_limit || null,
+      photo_limit: selectedTier?.photo_limit || null,
+      video_included: selectedTier?.video_included || false,
+      has_premium_badge: selectedTier?.has_badge || false,
     };
 
     // 8. Insert property
