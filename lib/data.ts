@@ -67,7 +67,7 @@ export async function fetchProperties(): Promise<Property[]> {
     return [];
   }
 
-  return (data as DBProperty[] || []).map((p) => ({
+  return ((data as DBProperty[]) || []).map((p) => ({
     id: p.id,
     title: p.title,
     location: `${p.quartier}, ${p.city}`,
