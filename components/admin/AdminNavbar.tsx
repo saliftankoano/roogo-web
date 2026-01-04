@@ -42,11 +42,11 @@ export function AdminNavbar() {
   });
 
   const navItems = [
-    { label: "Dashboard", icon: GridFourIcon, href: "/admin" },
+    { label: "Tableau de bord", icon: GridFourIcon, href: "/admin" },
     { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
-    { label: "Property", icon: BuildingsIcon, href: "/admin/listings" },
-    { label: "Calendar", icon: CalendarBlankIcon, href: "/admin/calendar" },
-    { label: "Content", icon: NoteIcon, href: "/admin/content" },
+    { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
+    { label: "Calendrier", icon: CalendarBlankIcon, href: "/admin/calendar" },
+    { label: "Contenu", icon: NoteIcon, href: "/admin/content" },
   ];
 
   return (
@@ -125,7 +125,7 @@ export function AdminNavbar() {
             <div className="flex items-center gap-3">
               <div className="hidden lg:flex flex-col items-end leading-tight">
                 <span className="text-sm font-bold text-neutral-900 line-clamp-1">
-                  {user?.fullName || "Admin User"}
+                  {user?.fullName || "Administrateur"}
                 </span>
                 <span className="text-[11px] text-neutral-500 font-medium line-clamp-1 opacity-70">
                   {user?.primaryEmailAddress?.emailAddress}
