@@ -30,6 +30,32 @@ export type Property = {
   };
 };
 
+interface DBProperty {
+  id: string;
+  title: string;
+  quartier: string;
+  city: string;
+  address: string;
+  price: number;
+  bedrooms: number | null;
+  bathrooms: number | null;
+  area: number | null;
+  parking_spaces: number | null;
+  period: string;
+  images: string[] | null;
+  property_type: string;
+  has_premium_badge: boolean | null;
+  status: string;
+  description: string | null;
+  amenities: string[] | null;
+  views_count: number | null;
+  favorites_count: number | null;
+  created_at: string;
+  agent_name: string | null;
+  agent_phone: string | null;
+  agent_avatar: string | null;
+}
+
 export async function fetchProperties(): Promise<Property[]> {
   const { data, error } = await supabase
     .from("property_details")
@@ -41,7 +67,7 @@ export async function fetchProperties(): Promise<Property[]> {
     return [];
   }
 
-  return (data || []).map((p: any) => ({
+  return (data as DBProperty[] || []).map((p) => ({
     id: p.id,
     title: p.title,
     location: `${p.quartier}, ${p.city}`,
@@ -59,8 +85,8 @@ export async function fetchProperties(): Promise<Property[]> {
     propertyType: p.property_type,
     description: p.description || "",
     amenities: p.amenities || [],
-    views: p.views_count,
-    favorites: p.favorites_count,
+    views: p.views_count || 0,
+    favorites: p.favorites_count || 0,
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
