@@ -27,7 +27,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
   return (
     <div className="bg-white rounded-[32px] overflow-hidden border border-neutral-100 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col h-full">
       {/* Image Container */}
-      <div className="relative aspect-[4/3] w-full p-4">
+      <div className="relative aspect-4/3 w-full p-4">
         <div className="relative h-full w-full overflow-hidden rounded-[24px]">
           <Image
             src={property.image}
@@ -39,7 +39,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
       </div>
 
       {/* Content */}
-      <div className="px-6 pb-6 pt-2 flex flex-col flex-grow">
+      <div className="px-6 pb-6 pt-2 flex flex-col grow">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-2xl font-bold text-neutral-900">
             {parseInt(property.price).toLocaleString()} F
@@ -53,7 +53,7 @@ export function PropertyCard({ property }: PropertyCardProps) {
           {property.title}
         </h3>
 
-        <p className="text-sm text-neutral-500 line-clamp-2 mb-4 flex-grow">
+        <p className="text-sm text-neutral-500 line-clamp-2 mb-4 grow">
           {property.description}
         </p>
 
