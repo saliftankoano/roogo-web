@@ -12,6 +12,7 @@ export type Property = {
   parking: number;
   period?: string;
   image: string;
+  images: string[];
   category: "Residential" | "Business";
   isSponsored: boolean;
   status: string;
@@ -79,6 +80,7 @@ export async function fetchProperties(): Promise<Property[]> {
     parking: p.parking_spaces || 0,
     period: p.period === "month" ? "Mois" : p.period,
     image: p.images?.[0] || "/hero-bg.jpg",
+    images: p.images || [],
     category: p.property_type === "commercial" ? "Business" : "Residential",
     isSponsored: p.has_premium_badge || false,
     status: p.status,
@@ -123,6 +125,7 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     parking: p.parking_spaces || 0,
     period: p.period === "month" ? "Mois" : p.period,
     image: p.images?.[0] || "/hero-bg.jpg",
+    images: p.images || [],
     category: p.property_type === "commercial" ? "Business" : "Residential",
     isSponsored: p.has_premium_badge || false,
     status: p.status,
@@ -155,6 +158,7 @@ export const properties: Property[] = [
     parking: 2,
     period: "Mois",
     image: "/hero-bg.jpg",
+    images: ["/hero-bg.jpg"],
     category: "Residential",
     isSponsored: true,
     status: "Disponible",
@@ -177,6 +181,7 @@ export const properties: Property[] = [
     parking: 1,
     period: "Mois",
     image: "/hero-bg.jpg",
+    images: ["/hero-bg.jpg"],
     category: "Residential",
     isSponsored: true,
     status: "Disponible",
@@ -226,6 +231,7 @@ export const properties: Property[] = [
     parking: 2,
     period: "Mois",
     image: "/hero-bg.jpg",
+    images: ["/hero-bg.jpg"],
     category: "Residential",
     isSponsored: false,
     status: "Disponible",

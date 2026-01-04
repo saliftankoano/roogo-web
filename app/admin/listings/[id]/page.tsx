@@ -122,7 +122,7 @@ export default function ListingDetailPage() {
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
             <PhotoManager
               propertyId={listing.id}
-              initialPhotos={[listing.image]} // For now showing main image
+              initialPhotos={listing.images}
               isProfessional={listing.status === "en_ligne"}
               onPhotosUpdated={() => {}}
             />
@@ -143,7 +143,11 @@ export default function ListingDetailPage() {
           {/* Price Card */}
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
             <h3 className="font-bold text-neutral-900 flex items-center gap-2">
-              <CurrencyCircleDollarIcon size={24} weight="bold" className="text-primary" />
+              <CurrencyCircleDollarIcon
+                size={24}
+                weight="bold"
+                className="text-primary"
+              />
               Détails Financiers
             </h3>
             <div className="space-y-1">
@@ -156,12 +160,20 @@ export default function ListingDetailPage() {
             </div>
             <div className="pt-4 border-t border-neutral-50 grid grid-cols-2 gap-4">
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Type</p>
-                <p className="text-sm font-bold text-neutral-900">{listing.propertyType}</p>
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                  Type
+                </p>
+                <p className="text-sm font-bold text-neutral-900">
+                  {listing.propertyType}
+                </p>
               </div>
               <div className="space-y-1">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">Surface</p>
-                <p className="text-sm font-bold text-neutral-900">{listing.area} m²</p>
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                  Surface
+                </p>
+                <p className="text-sm font-bold text-neutral-900">
+                  {listing.area} m²
+                </p>
               </div>
             </div>
           </section>
