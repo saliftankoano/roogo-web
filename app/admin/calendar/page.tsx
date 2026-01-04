@@ -1,6 +1,6 @@
 "use client";
 
-import { CalendarBlankIcon, ClockIcon, MapPinIcon, UsersIcon, PlusIcon } from "@phosphor-icons/react";
+import { CalendarBlank, Clock, MapPin, Users, Plus } from "@phosphor-icons/react";
 
 export default function AdminCalendarPage() {
   const upcomingSlots = [
@@ -37,24 +37,24 @@ export default function AdminCalendarPage() {
     <div className="space-y-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900">Calendrier Open House</h1>
-          <p className="text-neutral-500 mt-1">Gérez les créneaux de visite et les séances photo.</p>
+          <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">Calendrier Open House</h1>
+          <p className="text-neutral-500 font-medium mt-1">Gérez les créneaux de visite et les séances photo.</p>
         </div>
         
-        <button className="flex items-center justify-center gap-2 bg-primary text-white px-6 py-3 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95">
-          <PlusIcon size={20} weight="bold" />
+        <button className="flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95 text-sm uppercase tracking-wider">
+          <Plus size={20} weight="bold" />
           Nouveau Créneau
         </button>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* Calendar View Placeholder */}
-        <div className="lg:col-span-2 bg-white rounded-[40px] border border-neutral-100 shadow-sm p-8">
+        <div className="lg:col-span-2 bg-white rounded-[40px] border border-neutral-100 shadow-sm p-8 sm:p-10">
           <div className="flex items-center justify-between mb-8">
-            <h2 className="text-xl font-bold text-neutral-900">Janvier 2026</h2>
-            <div className="flex gap-2">
-              <button className="p-2 hover:bg-neutral-50 rounded-xl border border-neutral-100 transition-all font-bold text-sm">Précédent</button>
-              <button className="p-2 hover:bg-neutral-50 rounded-xl border border-neutral-100 transition-all font-bold text-sm">Suivant</button>
+            <h2 className="text-2xl font-bold text-neutral-900">Janvier 2026</h2>
+            <div className="flex gap-3">
+              <button className="px-4 py-2 hover:bg-neutral-50 rounded-xl border border-neutral-100 transition-all font-bold text-xs uppercase tracking-widest text-neutral-500">Précédent</button>
+              <button className="px-4 py-2 hover:bg-neutral-50 rounded-xl border border-neutral-100 transition-all font-bold text-xs uppercase tracking-widest text-neutral-500">Suivant</button>
             </div>
           </div>
           
@@ -87,40 +87,46 @@ export default function AdminCalendarPage() {
 
         {/* Sidebar: Upcoming Events */}
         <div className="space-y-6">
-          <h2 className="text-xl font-bold text-neutral-900 px-2">Prochainement</h2>
+          <h2 className="text-xl font-bold text-neutral-900 px-2 tracking-tight">Prochainement</h2>
           <div className="space-y-4">
             {upcomingSlots.map(slot => (
-              <div key={slot.id} className="bg-white p-5 rounded-[28px] border border-neutral-100 shadow-sm hover:border-primary/20 transition-all">
-                <div className="flex items-center justify-between mb-3">
+              <div key={slot.id} className="bg-white p-6 rounded-[32px] border border-neutral-100 shadow-sm hover:border-primary/20 transition-all group">
+                <div className="flex items-center justify-between mb-4">
                   <span className={`text-[10px] font-bold px-2.5 py-1 rounded-lg uppercase tracking-wider
-                    ${slot.status === 'Confirmé' ? 'bg-green-50 text-green-600' : 'bg-orange-50 text-orange-600'}
+                    ${slot.status === 'Confirmé' ? 'bg-green-50 text-green-600 border border-green-100' : 'bg-orange-50 text-orange-600 border border-orange-100'}
                   `}>
                     {slot.status}
                   </span>
-                  <span className="text-[11px] font-bold text-neutral-400 uppercase">{slot.date}</span>
+                  <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-tight">{slot.date}</span>
                 </div>
                 
-                <h3 className="font-bold text-neutral-900 mb-4 line-clamp-1">{slot.title}</h3>
+                <h3 className="font-bold text-neutral-900 mb-4 line-clamp-1 group-hover:text-primary transition-colors">{slot.title}</h3>
                 
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-neutral-500">
-                    <ClockIcon size={16} />
-                    <span className="text-xs font-medium">{slot.time}</span>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3 text-neutral-500">
+                    <div className="w-8 h-8 rounded-full bg-neutral-50 flex items-center justify-center shrink-0">
+                      <Clock size={16} weight="bold" />
+                    </div>
+                    <span className="text-xs font-bold">{slot.time}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-neutral-500">
-                    <MapPinIcon size={16} />
-                    <span className="text-xs font-medium">{slot.location}</span>
+                  <div className="flex items-center gap-3 text-neutral-500">
+                    <div className="w-8 h-8 rounded-full bg-neutral-50 flex items-center justify-center shrink-0">
+                      <MapPin size={16} weight="bold" />
+                    </div>
+                    <span className="text-xs font-bold">{slot.location}</span>
                   </div>
-                  <div className="flex items-center gap-2 text-neutral-500">
-                    <UsersIcon size={16} />
-                    <span className="text-xs font-medium">{slot.attendees} Participants</span>
+                  <div className="flex items-center gap-3 text-neutral-500">
+                    <div className="w-8 h-8 rounded-full bg-neutral-50 flex items-center justify-center shrink-0">
+                      <Users size={16} weight="bold" />
+                    </div>
+                    <span className="text-xs font-bold">{slot.attendees} Participants</span>
                   </div>
                 </div>
               </div>
             ))}
           </div>
           
-          <button className="w-full py-4 bg-white border border-neutral-100 text-neutral-600 rounded-2xl text-sm font-bold hover:bg-neutral-50 transition-all">
+          <button className="w-full py-4 bg-white border border-neutral-100 text-neutral-600 rounded-2xl text-sm font-bold hover:bg-neutral-50 hover:text-primary transition-all shadow-sm">
             Voir tous les créneaux
           </button>
         </div>

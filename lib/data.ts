@@ -98,6 +98,50 @@ export async function fetchProperties(): Promise<Property[]> {
   }));
 }
 
+export async function fetchPropertyById(id: string): Promise<Property | null> {
+  const { data, error } = await supabase
+    .from("property_details")
+    .select("*")
+    .eq("id", id)
+    .single();
+
+  if (error) {
+    console.error("Error fetching property by id:", error);
+    return null;
+  }
+
+  const p = data as DBProperty;
+  return {
+    id: p.id,
+    title: p.title,
+    location: `${p.quartier}, ${p.city}`,
+    address: p.address,
+    price: p.price.toString(),
+    bedrooms: p.bedrooms || 0,
+    bathrooms: p.bathrooms || 0,
+    area: p.area?.toString() || "0",
+    parking: p.parking_spaces || 0,
+    period: p.period === "month" ? "Mois" : p.period,
+    image: p.images?.[0] || "/hero-bg.jpg",
+    category: p.property_type === "commercial" ? "Business" : "Residential",
+    isSponsored: p.has_premium_badge || false,
+    status: p.status,
+    propertyType: p.property_type,
+    description: p.description || "",
+    amenities: p.amenities || [],
+    views: p.views_count || 0,
+    favorites: p.favorites_count || 0,
+    city: p.city,
+    quartier: p.quartier,
+    created_at: p.created_at,
+    agent: {
+      full_name: p.agent_name || "Agent Inconnu",
+      phone: p.agent_phone || "",
+      avatar_url: p.agent_avatar || "",
+    },
+  };
+}
+
 export const properties: Property[] = [
   {
     id: "1",
