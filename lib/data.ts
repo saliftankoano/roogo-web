@@ -209,6 +209,7 @@ export const properties: Property[] = [
     parking: 10,
     period: "Mois",
     image: "/hero-bg.jpg",
+    images: ["/hero-bg.jpg"],
     category: "Business",
     isSponsored: false,
     status: "Disponible",
