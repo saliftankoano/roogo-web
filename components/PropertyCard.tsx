@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { Bed, Bathtub, Ruler } from "@phosphor-icons/react";
+import { BedIcon, BathtubIcon, RulerIcon } from "@phosphor-icons/react";
 import { Property } from "@/lib/data";
 
 interface PropertyCardProps {
@@ -60,19 +60,27 @@ export function PropertyCard({ property }: PropertyCardProps) {
         {/* Features Icons */}
         <div className="flex items-center justify-between pt-4 border-t border-neutral-50">
           <div className="flex items-center gap-1.5">
-            <Bed size={20} weight="regular" className="text-neutral-400" />
+            <BedIcon size={20} weight="regular" className="text-neutral-400" />
             <span className="text-xs font-semibold text-neutral-500">
               {property.bedrooms} bd
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Bathtub size={20} weight="regular" className="text-neutral-400" />
+            <BathtubIcon
+              size={20}
+              weight="regular"
+              className="text-neutral-400"
+            />
             <span className="text-xs font-semibold text-neutral-500">
               {property.bathrooms} bt
             </span>
           </div>
           <div className="flex items-center gap-1.5">
-            <Ruler size={20} weight="regular" className="text-neutral-400" />
+            <RulerIcon
+              size={20}
+              weight="regular"
+              className="text-neutral-400"
+            />
             <span className="text-xs font-semibold text-neutral-500">
               {property.area} sq ft
             </span>
