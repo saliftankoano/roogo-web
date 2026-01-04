@@ -1,100 +1,82 @@
 "use client";
 
 import Image from "next/image";
-import { Heart, MapPin, Bed, Bathtub, Ruler, Eye } from "@phosphor-icons/react";
-import { Button } from "./ui/Button";
+import { Bed, Bathtub, Ruler } from "@phosphor-icons/react";
+import { Property } from "@/lib/data";
 
 interface PropertyCardProps {
-  property: {
-    id: number;
-    title: string;
-    location: string;
-    price: string;
-    bedrooms: number;
-    bathrooms: number;
-    area: string;
-    category: "Residential" | "Business";
-    image: string;
-    views?: number;
-    favorites?: number;
-    period?: string;
-  };
+  property: Property;
 }
 
 export function PropertyCard({ property }: PropertyCardProps) {
-  return (
-    <div className="bg-white rounded-2xl overflow-hidden shadow-card hover:shadow-lg transition-shadow duration-300 group border border-neutral-100">
-      {/* Image Container */}
-      <div className="relative h-60 w-full overflow-hidden">
-        <Image
-          src={property.image}
-          alt={property.title}
-          fill
-          className="object-cover transition-transform duration-500 group-hover:scale-105"
-        />
-        
-        {/* Category Badge */}
-        <div className={`absolute top-4 left-4 px-3 py-1 rounded-full text-xs font-bold text-white uppercase tracking-wide ${
-          property.category === "Residential" ? "bg-primary" : "bg-accent"
-        }`}>
-          {property.category === "Residential" ? "Résidentiel" : "Commercial"}
-        </div>
+  const formatTimeAgo = (dateString?: string) => {
+    if (!dateString) return "";
+    const now = new Date();
+    const past = new Date(dateString);
+    const diffInMs = now.getTime() - past.getTime();
+    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+    const diffInDays = Math.floor(diffInHours / 24);
 
-        {/* Favorite Button */}
-        <button className="absolute top-4 right-4 p-2 bg-white/90 backdrop-blur-sm rounded-full hover:bg-white transition-colors shadow-sm">
-          <Heart size={20} weight="bold" className="text-neutral-900 hover:text-red-500 transition-colors" />
-        </button>
+    if (diffInHours < 1) return "À l'instant";
+    if (diffInHours < 24) return `${diffInHours}h ago`;
+    return `${diffInDays} days ago`;
+  };
+
+  const timePosted = formatTimeAgo(property.created_at);
+
+  return (
+    <div className="bg-white rounded-[32px] overflow-hidden border border-neutral-100 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col h-full">
+      {/* Image Container */}
+      <div className="relative aspect-[4/3] w-full p-4">
+        <div className="relative h-full w-full overflow-hidden rounded-[24px]">
+          <Image
+            src={property.image}
+            alt={property.title}
+            fill
+            className="object-cover transition-transform duration-500 group-hover:scale-110"
+          />
+        </div>
       </div>
 
       {/* Content */}
-      <div className="p-5">
-        <div className="flex justify-between items-start mb-2">
-          <div>
-            <h3 className="text-xl font-bold text-neutral-900 line-clamp-1">{property.title}</h3>
-            <div className="flex items-center mt-1 text-neutral-500">
-              <MapPin size={16} weight="fill" className="mr-1" />
-              <span className="text-sm">{property.location}</span>
-            </div>
-          </div>
-          <div className="text-right">
-            <p className="text-xl font-bold text-primary">
-              {parseInt(property.price).toLocaleString()} CFA
-            </p>
-            {property.period && (
-              <p className="text-sm text-neutral-500">/{property.period}</p>
-            )}
-          </div>
+      <div className="px-6 pb-6 pt-2 flex flex-col flex-grow">
+        <div className="flex items-center gap-2 mb-2">
+          <span className="text-2xl font-bold text-neutral-900">
+            {parseInt(property.price).toLocaleString()} F
+          </span>
+          <span className="text-xs text-neutral-400 font-medium">
+            • {timePosted}
+          </span>
         </div>
 
-        {/* Features */}
-        <div className="flex flex-wrap gap-3 mt-4 mb-4">
-          <div className="flex items-center bg-neutral-50 px-3 py-1.5 rounded-lg">
-            <Bed size={16} weight="bold" className="text-neutral-700 mr-2" />
-            <span className="text-sm font-medium text-neutral-700">{property.bedrooms} Ch.</span>
-          </div>
-          <div className="flex items-center bg-neutral-50 px-3 py-1.5 rounded-lg">
-            <Bathtub size={16} weight="bold" className="text-neutral-700 mr-2" />
-            <span className="text-sm font-medium text-neutral-700">{property.bathrooms} Douches</span>
-          </div>
-          <div className="flex items-center bg-neutral-50 px-3 py-1.5 rounded-lg">
-            <Ruler size={16} weight="bold" className="text-neutral-700 mr-2" />
-            <span className="text-sm font-medium text-neutral-700">{property.area} m²</span>
-          </div>
-        </div>
+        <h3 className="text-lg font-bold text-neutral-900 mb-2 line-clamp-1">
+          {property.title}
+        </h3>
 
-        {/* Footer / Actions */}
-        <div className="pt-4 border-t border-neutral-100 flex justify-between items-center">
-          <div className="flex items-center space-x-4">
-            {property.views !== undefined && (
-              <div className="flex items-center text-neutral-500">
-                <Eye size={16} weight="regular" className="mr-1" />
-                <span className="text-xs">{property.views}</span>
-              </div>
-            )}
+        <p className="text-sm text-neutral-500 line-clamp-2 mb-4 flex-grow">
+          {property.description}
+        </p>
+
+        {/* Features Icons */}
+        <div className="flex items-center justify-between pt-4 border-t border-neutral-50">
+          <div className="flex items-center gap-1.5">
+            <Bed size={20} weight="regular" className="text-neutral-400" />
+            <span className="text-xs font-semibold text-neutral-500">
+              {property.bedrooms} bd
+            </span>
           </div>
-          <Button variant="outline" size="sm" className="border-neutral-200">
-            Détails
-          </Button>
+          <div className="flex items-center gap-1.5">
+            <Bathtub size={20} weight="regular" className="text-neutral-400" />
+            <span className="text-xs font-semibold text-neutral-500">
+              {property.bathrooms} bt
+            </span>
+          </div>
+          <div className="flex items-center gap-1.5">
+            <Ruler size={20} weight="regular" className="text-neutral-400" />
+            <span className="text-xs font-semibold text-neutral-500">
+              {property.area} sq ft
+            </span>
+          </div>
         </div>
       </div>
     </div>

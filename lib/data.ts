@@ -1,5 +1,7 @@
+import { getSupabaseClient } from "./user-sync";
+
 export type Property = {
-  id: number;
+  id: string;
   title: string;
   location: string;
   address: string;
@@ -18,7 +20,60 @@ export type Property = {
   amenities: string[];
   views?: number;
   favorites?: number;
+  city?: string;
+  quartier?: string;
+  created_at?: string;
+  agent?: {
+    full_name: string;
+    phone: string;
+    avatar_url: string;
+  };
 };
+
+export async function fetchProperties(): Promise<Property[]> {
+  const supabase = getSupabaseClient();
+  if (!supabase) return [];
+
+  const { data, error } = await supabase
+    .from("property_details")
+    .select("*")
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching properties:", error);
+    return [];
+  }
+
+  return (data || []).map((p: any) => ({
+    id: p.id,
+    title: p.title,
+    location: `${p.quartier}, ${p.city}`,
+    address: p.address,
+    price: p.price.toString(),
+    bedrooms: p.bedrooms || 0,
+    bathrooms: p.bathrooms || 0,
+    area: p.area?.toString() || "0",
+    parking: p.parking_spaces || 0,
+    period: p.period === "month" ? "Mois" : p.period,
+    image: p.images?.[0] || "/hero-bg.jpg",
+    category: p.property_type === "commercial" ? "Business" : "Residential",
+    isSponsored: p.has_premium_badge || false,
+    status: p.status,
+    propertyType: p.property_type,
+    description: p.description || "",
+    amenities: p.amenities || [],
+    views: p.views_count,
+    favorites: p.favorites_count,
+    city: p.city,
+    quartier: p.quartier,
+    created_at: p.created_at,
+    agent: {
+      full_name: p.agent_name || "Agent Inconnu",
+      phone: p.agent_phone || "",
+      avatar_url: p.agent_avatar || "",
+    },
+  }));
+}
 
 export const properties: Property[] = [
   {
