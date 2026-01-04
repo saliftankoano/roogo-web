@@ -24,6 +24,8 @@ export type Property = {
   city?: string;
   quartier?: string;
   created_at?: string;
+  payment_id?: string;
+  transaction_id?: string;
   agent?: {
     full_name: string;
     phone: string;
@@ -55,6 +57,8 @@ interface DBProperty {
   agent_name: string | null;
   agent_phone: string | null;
   agent_avatar: string | null;
+  payment_id: string | null;
+  transaction_id: string | null;
 }
 
 export async function fetchProperties(): Promise<Property[]> {
@@ -92,6 +96,57 @@ export async function fetchProperties(): Promise<Property[]> {
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
+    payment_id: p.payment_id || undefined,
+    transaction_id: p.transaction_id || undefined,
+    agent: {
+      full_name: p.agent_name || "Agent Inconnu",
+      phone: p.agent_phone || "",
+      avatar_url: p.agent_avatar || "",
+    },
+  }));
+}
+
+export async function fetchFeaturedProperties(
+  limit: number = 4
+): Promise<Property[]> {
+  const { data, error } = await supabase
+    .from("property_details")
+    .select("*")
+    .eq("status", "en_ligne")
+    .order("created_at", { ascending: false })
+    .limit(limit);
+
+  if (error) {
+    console.error("Error fetching featured properties:", error);
+    return [];
+  }
+
+  return ((data as DBProperty[]) || []).map((p) => ({
+    id: p.id,
+    title: p.title,
+    location: `${p.quartier}, ${p.city}`,
+    address: p.address,
+    price: p.price.toString(),
+    bedrooms: p.bedrooms || 0,
+    bathrooms: p.bathrooms || 0,
+    area: p.area?.toString() || "0",
+    parking: p.parking_spaces || 0,
+    period: p.period === "month" ? "Mois" : p.period,
+    image: p.images?.[0] || "/hero-bg.jpg",
+    images: p.images || [],
+    category: p.property_type === "commercial" ? "Business" : "Residential",
+    isSponsored: p.has_premium_badge || false,
+    status: p.status,
+    propertyType: p.property_type,
+    description: p.description || "",
+    amenities: p.amenities || [],
+    views: p.views_count || 0,
+    favorites: p.favorites_count || 0,
+    city: p.city,
+    quartier: p.quartier,
+    created_at: p.created_at,
+    payment_id: p.payment_id || undefined,
+    transaction_id: p.transaction_id || undefined,
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
@@ -137,6 +192,8 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
+    payment_id: p.payment_id || undefined,
+    transaction_id: p.transaction_id || undefined,
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
@@ -154,6 +211,8 @@ export type Transaction = {
   type: "listing_submission" | "photography";
   provider: string;
   payer_phone: string;
+  property_id: string | null;
+  user_id: string | null;
   created_at: string;
 };
 
