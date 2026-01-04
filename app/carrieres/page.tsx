@@ -1,6 +1,5 @@
 "use client";
 
-import { Navbar } from "../../components/Navbar";
 import { Footer } from "../../components/Footer";
 import { motion } from "framer-motion";
 import { Button } from "../../components/ui/Button";
@@ -49,9 +48,7 @@ export default function CareersPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <Navbar />
-
-      <main className="flex-grow pt-32 pb-16">
+      <main className="grow pt-40 pb-16">
         <div className="container mx-auto px-4">
           {/* Hero Section */}
           <motion.div
