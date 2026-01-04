@@ -218,7 +218,7 @@ export default function AdminListingsPage() {
       </div>
 
       {/* Grid */}
-      <div className="flex-grow overflow-y-auto pb-20 px-1">
+      <div className="grow overflow-y-auto pb-20 px-1">
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {filteredListings.map((listing) => (
             <Link
