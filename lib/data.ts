@@ -145,6 +145,35 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
   };
 }
 
+export type Transaction = {
+  id: string;
+  deposit_id: string;
+  amount: number;
+  currency: string;
+  status: "pending" | "completed" | "failed" | "refunded";
+  type: "listing_submission" | "photography";
+  provider: string;
+  payer_phone: string;
+  created_at: string;
+};
+
+export async function fetchTransactionsByPropertyId(
+  propertyId: string
+): Promise<Transaction[]> {
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("property_id", propertyId)
+    .order("created_at", { ascending: false });
+
+  if (error) {
+    console.error("Error fetching transactions:", error);
+    return [];
+  }
+
+  return (data as Transaction[]) || [];
+}
+
 export const properties: Property[] = [
   {
     id: "1",
