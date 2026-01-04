@@ -10,6 +10,7 @@ import {
   NoteIcon,
   ListIcon,
   XIcon,
+  ReceiptIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
@@ -45,6 +46,7 @@ export function AdminNavbar() {
     { label: "Tableau de bord", icon: GridFourIcon, href: "/admin" },
     { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
     { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
+    { label: "Transactions", icon: ReceiptIcon, href: "/admin/transactions" },
     { label: "Calendrier", icon: CalendarBlankIcon, href: "/admin/calendar" },
     { label: "Contenu", icon: NoteIcon, href: "/admin/content" },
   ];

@@ -23,6 +23,7 @@ import {
   UsersIcon,
   CalendarBlankIcon,
   NoteIcon,
+  ReceiptIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
@@ -82,6 +83,7 @@ export function Navbar() {
   const staffMenuItems = [
     { name: "Tableau de bord", href: "/admin", icon: GridFourIcon },
     { name: "Propriétés", href: "/admin/listings", icon: BuildingsIcon },
+    { name: "Transactions", href: "/admin/transactions", icon: ReceiptIcon },
     { name: "Agents", href: "/admin/agents", icon: UsersIcon },
     { name: "Calendrier", href: "/admin/calendar", icon: CalendarBlankIcon },
     { name: "Contenu", href: "/admin/content", icon: NoteIcon },
@@ -151,70 +153,70 @@ export function Navbar() {
                 </Link>
               ))}
 
-            {isStaff && (
-              <div className="relative" ref={staffMenuRef}>
-                <button
-                  onClick={() => setStaffMenuOpen(!staffMenuOpen)}
-                  data-id="staff-menu"
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-all duration-200",
-                    pathname.startsWith("/admin") || staffMenuOpen
-                      ? "text-primary"
-                      : "text-neutral-500 hover:text-neutral-900"
-                  )}
-                >
-                  <GearSixIcon
-                    size={18}
-                    weight={pathname.startsWith("/admin") ? "fill" : "bold"}
-                  />
-                  <span>Staff</span>
-                  <CaretDownIcon
-                    size={14}
-                    weight="bold"
+              {isStaff && (
+                <div className="relative" ref={staffMenuRef}>
+                  <button
+                    onClick={() => setStaffMenuOpen(!staffMenuOpen)}
+                    data-id="staff-menu"
                     className={cn(
-                      "transition-transform duration-200",
-                      staffMenuOpen ? "rotate-180" : ""
+                      "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-all duration-200",
+                      pathname.startsWith("/admin") || staffMenuOpen
+                        ? "text-primary"
+                        : "text-neutral-500 hover:text-neutral-900"
                     )}
-                  />
-                </button>
+                  >
+                    <GearSixIcon
+                      size={18}
+                      weight={pathname.startsWith("/admin") ? "fill" : "bold"}
+                    />
+                    <span>Staff</span>
+                    <CaretDownIcon
+                      size={14}
+                      weight="bold"
+                      className={cn(
+                        "transition-transform duration-200",
+                        staffMenuOpen ? "rotate-180" : ""
+                      )}
+                    />
+                  </button>
 
-                <AnimatePresence>
-                  {staffMenuOpen && (
-                    <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute top-full right-0 mt-3 w-56 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 overflow-hidden"
-                    >
-                      <div className="px-3 py-2 mb-1">
-                        <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-                          Administration
-                        </p>
-                      </div>
-                      {staffMenuItems.map((item) => (
-                        <Link
-                          key={item.href}
-                          href={item.href}
-                          onClick={() => setStaffMenuOpen(false)}
-                          className={cn(
-                            "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
-                            pathname === item.href
-                              ? "bg-primary/10 text-primary"
-                              : "text-neutral-600 hover:bg-neutral-50"
-                          )}
-                        >
-                          <item.icon
-                            size={18}
-                            weight={pathname === item.href ? "fill" : "bold"}
-                          />
-                          {item.name}
-                        </Link>
-                      ))}
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            )}
+                  <AnimatePresence>
+                    {staffMenuOpen && (
+                      <motion.div
+                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        animate={{ opacity: 1, y: 0, scale: 1 }}
+                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        className="absolute top-full right-0 mt-3 w-56 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 overflow-hidden"
+                      >
+                        <div className="px-3 py-2 mb-1">
+                          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
+                            Administration
+                          </p>
+                        </div>
+                        {staffMenuItems.map((item) => (
+                          <Link
+                            key={item.href}
+                            href={item.href}
+                            onClick={() => setStaffMenuOpen(false)}
+                            className={cn(
+                              "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
+                              pathname === item.href
+                                ? "bg-primary/10 text-primary"
+                                : "text-neutral-600 hover:bg-neutral-50"
+                            )}
+                          >
+                            <item.icon
+                              size={18}
+                              weight={pathname === item.href ? "fill" : "bold"}
+                            />
+                            {item.name}
+                          </Link>
+                        ))}
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
             </AnimatedBackground>
           </div>
 
