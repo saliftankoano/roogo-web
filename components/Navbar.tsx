@@ -3,10 +3,28 @@
 import Link from "next/link";
 import Image from "next/image";
 import { Button } from "./ui/Button";
-import { motion, useScroll, useMotionValueEvent } from "framer-motion";
+import {
+  motion,
+  useScroll,
+  useMotionValueEvent,
+  AnimatePresence,
+} from "framer-motion";
 import { useState } from "react";
-import { ListIcon, XIcon } from "@phosphor-icons/react";
+import {
+  ListIcon,
+  XIcon,
+  HouseLineIcon,
+  BriefcaseIcon,
+  ChatCircleIcon,
+  BuildingsIcon,
+  BellIcon,
+  ChatTextIcon,
+  GearSixIcon,
+} from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
+import { cn } from "../lib/utils";
+import { AnimatedBackground } from "./motion-primitives/animated-background";
 
 export function Navbar() {
   const { scrollY } = useScroll();
@@ -14,6 +32,7 @@ export function Navbar() {
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { isSignedIn, isLoaded, user } = useUser();
+  const pathname = usePathname();
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const previous = scrollY.getPrevious() || 0;
@@ -25,6 +44,20 @@ export function Navbar() {
     setIsScrolled(latest > 20);
   });
 
+  const navItems = [
+    { name: "Accueil", href: "/", icon: HouseLineIcon },
+    { name: "Location", href: "/location", icon: BuildingsIcon },
+    { name: "Carrières", href: "/carrieres", icon: BriefcaseIcon },
+    { name: "Contact", href: "/contact", icon: ChatCircleIcon },
+  ];
+
+  const isAdmin =
+    user?.publicMetadata?.role === "admin" ||
+    user?.publicMetadata?.role === "staff" ||
+    user?.emailAddresses.some((email) =>
+      email.emailAddress.endsWith("@roogobf.com")
+    );
+
   return (
     <>
       <motion.header
@@ -34,172 +67,234 @@ export function Navbar() {
         }}
         animate={hidden ? "hidden" : "visible"}
         transition={{ duration: 0.35, ease: "easeInOut" }}
-        className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-screen-xl mx-auto z-50"
+        className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-7xl mx-auto z-50"
       >
-        <nav
-          className={`flex items-center justify-between px-8 rounded-full h-20 transition-all duration-300 ${
-            isScrolled
-              ? "bg-white/70 backdrop-blur-xl shadow-lg border border-white/30"
-              : "bg-white shadow-sm border border-neutral-100"
-          }`}
+        <div
+          className={cn(
+            "flex items-center justify-between px-4 sm:px-6 py-2 rounded-full transition-all duration-300 border bg-white/80 backdrop-blur-xl shadow-lg border-white/40",
+            isScrolled ? "h-16" : "h-20"
+          )}
         >
           {/* Logo */}
-          <Link href="/" className="flex items-center shrink-0">
-            <Image
-              src="/logo.png"
-              alt="Roogo Logo"
-              width={120}
-              height={40}
-              className="object-contain h-10 w-auto"
-              priority
-            />
+          <Link href="/" className="flex items-center shrink-0 group">
+            <div className="bg-primary/10 p-2 rounded-2xl mr-3 group-hover:scale-110 transition-transform duration-300">
+              <Image
+                src="/logo.png"
+                alt="Roogo Logo"
+                width={28}
+                height={28}
+                className="object-contain"
+              />
+            </div>
+            <span className="font-bold text-xl tracking-tight text-neutral-900 hidden lg:block">
+              Roogo
+            </span>
           </Link>
 
-          {/* Desktop Navigation - Centered */}
-          <div className="hidden md:flex items-center justify-center gap-8 absolute left-1/2 -translate-x-1/2">
-            <Link
-              href="/carrieres"
-              className="text-sm font-medium text-neutral-600 hover:text-primary transition-colors relative group whitespace-nowrap"
+          {/* Center Navigation - Pill style */}
+          <div className="hidden md:flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30">
+            <AnimatedBackground
+              defaultValue={pathname}
+              className="bg-white rounded-full shadow-sm"
+              transition={{
+                type: "spring",
+                stiffness: 400,
+                damping: 30,
+              }}
             >
-              Carrières
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
-            </Link>
-            <Link
-              href="/contact"
-              className="text-sm font-medium text-neutral-600 hover:text-primary transition-colors relative group whitespace-nowrap"
-            >
-              Nous contacter
-              <span className="absolute -bottom-1 left-0 w-0 h-0.5 bg-primary transition-all duration-300 group-hover:w-full" />
-            </Link>
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  data-id={item.href}
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+                    pathname === item.href
+                      ? "text-primary"
+                      : "text-neutral-500 hover:text-neutral-900"
+                  )}
+                >
+                  <item.icon
+                    size={18}
+                    weight={pathname === item.href ? "fill" : "bold"}
+                  />
+                  <span className="whitespace-nowrap">{item.name}</span>
+                </Link>
+              ))}
+
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  data-id="/admin"
+                  className={cn(
+                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+                    pathname.startsWith("/admin")
+                      ? "text-primary"
+                      : "text-neutral-500 hover:text-neutral-900"
+                  )}
+                >
+                  <GearSixIcon
+                    size={18}
+                    weight={pathname.startsWith("/admin") ? "fill" : "bold"}
+                  />
+                  <span>Gestion</span>
+                </Link>
+              )}
+            </AnimatedBackground>
           </div>
 
-          {/* Desktop Actions */}
-          <div className="hidden md:flex items-center gap-4 shrink-0">
+          {/* Right Actions */}
+          <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+            <div className="hidden sm:flex items-center gap-1 mr-2 border-r border-neutral-200 pr-4">
+              <button className="p-2 text-neutral-500 hover:text-primary hover:bg-primary/5 rounded-full transition-all duration-300 relative group">
+                <ChatTextIcon size={22} weight="bold" />
+                <span className="absolute top-2 right-2 w-2 h-2 bg-primary rounded-full border-2 border-white group-hover:scale-125 transition-transform" />
+              </button>
+              <button className="p-2 text-neutral-500 hover:text-primary hover:bg-primary/5 rounded-full transition-all duration-300">
+                <BellIcon size={22} weight="bold" />
+              </button>
+            </div>
+
             {!isLoaded ? (
-              <div className="w-24 h-10" /> // Placeholder to prevent layout shift
+              <div className="w-10 h-10 rounded-full bg-neutral-100 animate-pulse" />
             ) : isSignedIn ? (
-              <>
-                {(user?.publicMetadata?.role === "admin" ||
-                  user?.publicMetadata?.role === "staff" ||
-                  user?.emailAddresses.some((email) =>
-                    email.emailAddress.endsWith("@roogobf.com")
-                  )) && (
-                  <Link href="/admin">
-                    <Button variant="ghost" size="md">
-                      Gestion
-                    </Button>
-                  </Link>
-                )}
-                <Link href="/location">
-                  <Button variant="ghost" size="md">
-                    Mes biens
-                  </Button>
-                </Link>
-                <UserButton afterSignOutUrl="/" />
-              </>
+              <div className="flex items-center gap-3">
+                <div className="hidden lg:flex flex-col items-end leading-tight">
+                  <span className="text-sm font-bold text-neutral-900 line-clamp-1">
+                    {user.fullName || "Utilisateur"}
+                  </span>
+                  <span className="text-[11px] text-neutral-500 font-medium line-clamp-1 opacity-70">
+                    {user.primaryEmailAddress?.emailAddress}
+                  </span>
+                </div>
+                <UserButton
+                  afterSignOutUrl="/"
+                  appearance={{
+                    elements: {
+                      userButtonAvatarBox:
+                        "w-10 h-10 border-2 border-primary/20 hover:border-primary/50 transition-all duration-300 shadow-sm",
+                    },
+                  }}
+                />
+              </div>
             ) : (
-              <>
-                <Link
-                  href="/sign-in"
-                  className="text-sm font-medium text-neutral-600 hover:text-primary transition-colors whitespace-nowrap"
-                >
-                  Se connecter
+              <div className="flex items-center gap-2">
+                <Link href="/sign-in" className="hidden sm:block">
+                  <Button
+                    variant="ghost"
+                    size="md"
+                    className="font-bold text-neutral-600"
+                  >
+                    Connexion
+                  </Button>
                 </Link>
                 <Link href="/sign-up">
                   <Button
                     variant="primary"
                     size="md"
-                    className="rounded-full shadow-md hover:shadow-lg transition-all duration-300"
+                    className="rounded-full px-6 font-bold shadow-md hover:shadow-lg hover:scale-105 transition-all"
                   >
                     Rejoindre
                   </Button>
                 </Link>
-              </>
+              </div>
             )}
-          </div>
 
-          {/* Mobile Menu Button */}
-          <button
-            className="md:hidden p-2 text-neutral-600 hover:text-primary transition-colors"
-            onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-          >
-            {mobileMenuOpen ? <XIcon size={24} /> : <ListIcon size={24} />}
-          </button>
-        </nav>
+            {/* Mobile Menu Toggle */}
+            <button
+              className="md:hidden p-2 text-neutral-600 hover:text-primary bg-neutral-100 rounded-full transition-all ml-1"
+              onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            >
+              {mobileMenuOpen ? (
+                <XIcon size={22} weight="bold" />
+              ) : (
+                <ListIcon size={22} weight="bold" />
+              )}
+            </button>
+          </div>
+        </div>
 
         {/* Mobile Menu */}
-        <motion.div
-          initial={{ opacity: 0, height: 0 }}
-          animate={{
-            opacity: mobileMenuOpen ? 1 : 0,
-            height: mobileMenuOpen ? "auto" : 0,
-          }}
-          className="md:hidden overflow-hidden bg-white rounded-2xl mt-2 shadow-xl border border-neutral-100"
-        >
-          <div className="flex flex-col p-4 gap-4">
-            <Link
-              href="/carrieres"
-              className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
-              onClick={() => setMobileMenuOpen(false)}
+        <AnimatePresence>
+          {mobileMenuOpen && (
+            <motion.div
+              initial={{ opacity: 0, y: -20, scale: 0.95 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              className="md:hidden absolute top-full left-0 right-0 mt-4 bg-white/95 backdrop-blur-xl rounded-[32px] p-6 shadow-2xl border border-white/50 flex flex-col gap-2"
             >
-              Carrières
-            </Link>
-            <Link
-              href="/contact"
-              className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
-              onClick={() => setMobileMenuOpen(false)}
-            >
-              Nous contacter
-            </Link>
-            <div className="h-px bg-neutral-100 my-2" />
-            {!isLoaded ? null : isSignedIn ? (
-              <>
-                {(user?.publicMetadata?.role === "admin" ||
-                  user?.publicMetadata?.role === "staff" ||
-                  user?.emailAddresses.some((email) =>
-                    email.emailAddress.endsWith("@roogobf.com")
-                  )) && (
+              {navItems.map((item) => (
+                <Link
+                  key={item.href}
+                  href={item.href}
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
+                    pathname === item.href
+                      ? "bg-primary/10 text-primary"
+                      : "text-neutral-600 hover:bg-neutral-50"
+                  )}
+                >
+                  <item.icon
+                    size={24}
+                    weight={pathname === item.href ? "fill" : "bold"}
+                  />
+                  {item.name}
+                </Link>
+              ))}
+
+              {isAdmin && (
+                <Link
+                  href="/admin"
+                  onClick={() => setMobileMenuOpen(false)}
+                  className={cn(
+                    "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
+                    pathname.startsWith("/admin")
+                      ? "bg-primary/10 text-primary"
+                      : "text-neutral-600 hover:bg-neutral-50"
+                  )}
+                >
+                  <GearSixIcon
+                    size={24}
+                    weight={pathname.startsWith("/admin") ? "fill" : "bold"}
+                  />
+                  Gestion
+                </Link>
+              )}
+
+              <div className="h-px bg-neutral-100 my-2 mx-4" />
+
+              {!isSignedIn && (
+                <div className="grid grid-cols-2 gap-3 mt-2">
                   <Link
-                    href="/admin"
-                    className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
+                    href="/sign-in"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Gestion
+                    <Button
+                      variant="ghost"
+                      fullWidth
+                      className="rounded-2xl font-bold py-4"
+                    >
+                      Connexion
+                    </Button>
                   </Link>
-                )}
-                <Link
-                  href="/location"
-                  className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Mes biens
-                </Link>
-                <div className="flex items-center justify-center py-2">
-                  <UserButton afterSignOutUrl="/" />
-                </div>
-              </>
-            ) : (
-              <>
-                <Link
-                  href="/sign-in"
-                  className="text-neutral-600 font-medium hover:text-primary py-2 px-4 rounded-lg hover:bg-neutral-50"
-                  onClick={() => setMobileMenuOpen(false)}
-                >
-                  Se connecter
-                </Link>
-                <Link href="/sign-up">
-                  <Button
-                    variant="primary"
-                    fullWidth
+                  <Link
+                    href="/sign-up"
                     onClick={() => setMobileMenuOpen(false)}
                   >
-                    Rejoindre
-                  </Button>
-                </Link>
-              </>
-            )}
-          </div>
-        </motion.div>
+                    <Button
+                      variant="primary"
+                      fullWidth
+                      className="rounded-2xl font-bold py-4"
+                    >
+                      Rejoindre
+                    </Button>
+                  </Link>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
       </motion.header>
     </>
   );
