@@ -57,7 +57,7 @@ export default function ContactPage() {
 
   return (
     <div className="min-h-screen bg-white flex flex-col">
-      <main className="flex-grow pt-40 pb-16">
+      <main className="grow pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-7xl">
           {/* Header */}
           <motion.div
