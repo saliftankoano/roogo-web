@@ -1,8 +1,17 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { CalendarIcon, TrashIcon, PlusIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
+
+type ApiOpenHouseSlot = {
+  id: unknown;
+  date: unknown;
+  start_time?: unknown;
+  end_time?: unknown;
+  capacity?: unknown;
+  bookings?: unknown;
+};
 
 interface OpenHouseSlot {
   id: string;
@@ -20,36 +29,115 @@ interface OpenHouseSlotManagerProps {
 }
 
 export default function OpenHouseSlotManager({
+  propertyId,
   limit,
   existingSlots = [],
 }: OpenHouseSlotManagerProps) {
   const [slots, setSlots] = useState<OpenHouseSlot[]>(existingSlots);
   const [isAdding, setIsAdding] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const [newDate, setNewDate] = useState("");
   const [newStart, setNewStartTime] = useState("10:00");
   const [newEnd, setNewEndTime] = useState("12:00");
   const [newCapacity, setNewCapacity] = useState(10);
 
-  const handleAddSlot = () => {
-    if (!newDate) return;
+  const remaining = useMemo(() => Math.max(0, limit - slots.length), [limit, slots.length]);
 
-    const newSlot: OpenHouseSlot = {
-      id: Math.random().toString(36).substr(2, 9),
-      date: newDate,
-      startTime: newStart,
-      endTime: newEnd,
-      capacity: newCapacity,
-      bookings: 0,
+  useEffect(() => {
+    let cancelled = false;
+    async function load() {
+      if (!propertyId) return;
+      setLoading(true);
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/open-house-slots?propertyId=${encodeURIComponent(propertyId)}`,
+          { method: "GET" }
+        );
+        const data = (await res.json()) as { slots?: ApiOpenHouseSlot[]; error?: string };
+        if (!res.ok) throw new Error(data?.error || "Failed to load open house slots");
+
+        const mapped: OpenHouseSlot[] = (data.slots || []).map((s) => ({
+          id: String(s.id),
+          date: String(s.date),
+          startTime: String(s.start_time ?? ""),
+          endTime: String(s.end_time ?? ""),
+          capacity: Number(s.capacity ?? 0),
+          bookings: Number(s.bookings ?? 0),
+        }));
+
+        if (!cancelled) setSlots(mapped);
+      } catch (e) {
+        if (!cancelled) {
+          setError(e instanceof Error ? e.message : "Failed to load open house slots");
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => {
+      cancelled = true;
     };
+  }, [propertyId]);
 
-    setSlots([...slots, newSlot]);
-    setIsAdding(false);
-    setNewDate("");
+  const handleAddSlot = async () => {
+    if (!newDate) return;
+    if (!propertyId) return;
+    if (slots.length >= limit) return;
+
+    setSaving(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/open-house-slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          propertyId,
+          date: newDate,
+          startTime: newStart,
+          endTime: newEnd,
+          capacity: newCapacity,
+        }),
+      });
+      const data = (await res.json()) as { slot?: ApiOpenHouseSlot; error?: string };
+      if (!res.ok) throw new Error(data?.error || "Failed to create open house slot");
+
+      const s = data.slot;
+      const created: OpenHouseSlot = {
+        id: String(s?.id),
+        date: String(s?.date),
+        startTime: String(s?.start_time ?? newStart),
+        endTime: String(s?.end_time ?? newEnd),
+        capacity: Number(s?.capacity ?? newCapacity),
+        bookings: 0,
+      };
+
+      setSlots((prev) => [...prev, created]);
+      setIsAdding(false);
+      setNewDate("");
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to create open house slot");
+    } finally {
+      setSaving(false);
+    }
   };
 
-  const removeSlot = (id: string) => {
-    setSlots(slots.filter((s) => s.id !== id));
+  const removeSlot = async (id: string) => {
+    setError(null);
+    try {
+      const res = await fetch(`/api/open-house-slots/${encodeURIComponent(id)}`, {
+        method: "DELETE",
+      });
+      const data = (await res.json()) as { success?: boolean; error?: string };
+      if (!res.ok) throw new Error(data?.error || "Failed to delete open house slot");
+      setSlots((prev) => prev.filter((s) => s.id !== id));
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed to delete open house slot");
+    }
   };
 
   return (
@@ -62,6 +150,18 @@ export default function OpenHouseSlotManager({
       </div>
 
       <div className="space-y-4">
+        {error ? (
+          <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-xs">
+            {error}
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="p-6 rounded-2xl border border-neutral-200 bg-white text-sm text-neutral-500 animate-pulse">
+            Chargement des sessions…
+          </div>
+        ) : null}
+
         {slots.map((slot) => (
           <div
             key={slot.id}
@@ -118,7 +218,10 @@ export default function OpenHouseSlotManager({
                   type="number"
                   className="w-full p-2 rounded-lg border border-neutral-200 text-sm"
                   value={newCapacity}
-                  onChange={(e) => setNewCapacity(parseInt(e.target.value))}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    setNewCapacity(Number.isFinite(v) ? v : 10);
+                  }}
                 />
               </div>
               <div className="space-y-1.5">
@@ -149,6 +252,7 @@ export default function OpenHouseSlotManager({
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsAdding(false)}
+                disabled={saving}
               >
                 Annuler
               </Button>
@@ -156,8 +260,9 @@ export default function OpenHouseSlotManager({
                 size="sm"
                 className="bg-primary text-white"
                 onClick={handleAddSlot}
+                disabled={saving}
               >
-                Enregistrer
+                {saving ? "Enregistrement…" : "Enregistrer"}
               </Button>
             </div>
           </div>
@@ -168,7 +273,7 @@ export default function OpenHouseSlotManager({
             onClick={() => setIsAdding(true)}
           >
             <PlusIcon size={18} className="mr-2" />
-            Ajouter une session
+            Ajouter une session ({remaining} restant{remaining > 1 ? "s" : ""})
           </Button>
         ) : (
           <p className="text-center text-xs text-neutral-400 italic">
