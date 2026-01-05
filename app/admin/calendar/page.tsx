@@ -17,6 +17,7 @@ type Slot = {
   startTime: string; // HH:MM(:SS)
   endTime: string; // HH:MM(:SS)
   capacity: number;
+  bookings: number;
 };
 
 type ApiSlot = {
@@ -26,6 +27,7 @@ type ApiSlot = {
   start_time?: unknown;
   end_time?: unknown;
   capacity?: unknown;
+  bookings?: unknown;
 };
 
 function pad2(n: number) {
@@ -165,6 +167,7 @@ export default function AdminCalendarPage() {
           startTime: String(s.start_time ?? ""),
           endTime: String(s.end_time ?? ""),
           capacity: Number(s.capacity ?? 0),
+          bookings: Number(s.bookings ?? 0),
         }));
 
         if (!cancelled) setSlots(mapped);
@@ -218,6 +221,7 @@ export default function AdminCalendarPage() {
         startTime: String(s?.start_time ?? modalStart),
         endTime: String(s?.end_time ?? modalEnd),
         capacity: Number(s?.capacity ?? modalCapacity),
+        bookings: Number(s?.bookings ?? 0),
       };
 
       setSlots((prev) => [...prev, created]);
@@ -349,7 +353,9 @@ export default function AdminCalendarPage() {
                         <div className="font-bold text-neutral-900">
                           {s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)}
                         </div>
-                        <div className="text-neutral-500 truncate">{title}</div>
+                        <div className="text-neutral-500 truncate">
+                          {title} • {s.bookings}/{s.capacity}
+                        </div>
                       </button>
                     );
                   })}

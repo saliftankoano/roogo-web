@@ -113,7 +113,7 @@ export default function OpenHouseSlotManager({
         startTime: String(s?.start_time ?? newStart),
         endTime: String(s?.end_time ?? newEnd),
         capacity: Number(s?.capacity ?? newCapacity),
-        bookings: 0,
+        bookings: Number(s?.bookings ?? 0),
       };
 
       setSlots((prev) => [...prev, created]);
