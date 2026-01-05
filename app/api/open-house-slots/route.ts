@@ -10,6 +10,7 @@ type OpenHouseSlotRow = {
   start_time: string; // HH:MM(:SS)
   end_time: string; // HH:MM(:SS)
   capacity: number;
+  bookings: number;
   created_at?: string;
 };
 
@@ -26,7 +27,7 @@ async function requireStaff() {
     return { ok: false as const, res: json({ error: "Forbidden" }, 403) };
   }
 
-  return { ok: true as const, clerkUserId: userId };
+  return { ok: true as const, clerkUserId: userId, supabaseUserId: user.id as string };
 }
 
 function isValidDate(date: string) {
@@ -72,7 +73,28 @@ export async function GET(req: Request) {
     const { data, error } = await query;
     if (error) return json({ error: error.message }, 500);
 
-    return json({ slots: (data as OpenHouseSlotRow[]) || [] });
+    const rows = ((data as Omit<OpenHouseSlotRow, "bookings">[]) || []).map((r) => ({
+      ...r,
+      bookings: 0,
+    }));
+
+    const slotIds = rows.map((r) => r.id).filter(Boolean);
+    if (slotIds.length > 0) {
+      const { data: bookings, error: bookingsErr } = await supabase
+        .from("open_house_bookings")
+        .select("slot_id")
+        .in("slot_id", slotIds);
+
+      if (bookingsErr) return json({ error: bookingsErr.message }, 500);
+      const counts = new Map<string, number>();
+      for (const b of bookings || []) {
+        const id = String((b as { slot_id: unknown }).slot_id);
+        counts.set(id, (counts.get(id) || 0) + 1);
+      }
+      for (const r of rows) r.bookings = counts.get(r.id) || 0;
+    }
+
+    return json({ slots: rows });
   } catch (e) {
     return json(
       { error: e instanceof Error ? e.message : "An unexpected error occurred" },
@@ -172,13 +194,14 @@ export async function POST(req: Request) {
         start_time: startTime,
         end_time: endTime,
         capacity: cap,
+        created_by: staff.supabaseUserId,
       })
       .select("id, property_id, date, start_time, end_time, capacity, created_at")
       .single();
 
     if (error) return json({ error: error.message }, 500);
 
-    return json({ slot: created as OpenHouseSlotRow }, 201);
+    return json({ slot: { ...(created as Omit<OpenHouseSlotRow, "bookings">), bookings: 0 } }, 201);
   } catch (e) {
     const err = e as { message?: string; details?: string; code?: string } | PostgrestError;
     return json({ error: err?.message || "An unexpected error occurred" }, 500);
