@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarIcon, TrashIcon, PlusIcon } from "@phosphor-icons/react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "../ui/Button";
 
 type ApiOpenHouseSlot = {
@@ -151,53 +152,77 @@ export default function OpenHouseSlotManager({
 
       <div className="space-y-4">
         {error ? (
-          <div className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-xs">
+          <motion.div
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -6 }}
+            className="p-3 rounded-xl bg-red-50 border border-red-100 text-red-700 text-xs"
+          >
             {error}
-          </div>
+          </motion.div>
         ) : null}
 
         {loading ? (
-          <div className="p-6 rounded-2xl border border-neutral-200 bg-white text-sm text-neutral-500 animate-pulse">
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="p-6 rounded-2xl border border-neutral-200 bg-white text-sm text-neutral-500 animate-pulse"
+          >
             Chargement des sessions…
-          </div>
+          </motion.div>
         ) : null}
 
-        {slots.map((slot) => (
-          <div
-            key={slot.id}
-            className="p-4 border border-neutral-100 rounded-xl bg-neutral-50 flex items-center justify-between"
-          >
-            <div className="flex items-center gap-4">
-              <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">
-                <CalendarIcon size={20} className="text-primary" />
-              </div>
-              <div>
-                <p className="font-bold text-sm">
-                  {new Date(slot.date).toLocaleDateString("fr-FR", {
-                    weekday: "long",
-                    day: "numeric",
-                    month: "long",
-                  })}
-                </p>
-                <p className="text-xs text-neutral-500">
-                  {slot.startTime} - {slot.endTime} • {slot.bookings}/
-                  {slot.capacity} réservations
-                </p>
-              </div>
-            </div>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="text-red-500 hover:bg-red-50"
-              onClick={() => removeSlot(slot.id)}
+        <AnimatePresence initial={false}>
+          {slots.map((slot) => (
+            <motion.div
+              key={slot.id}
+              layout
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 8 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="p-4 border border-neutral-100 rounded-xl bg-neutral-50 flex items-center justify-between"
             >
-              <TrashIcon size={18} />
-            </Button>
-          </div>
-        ))}
+              <div className="flex items-center gap-4">
+                <div className="w-10 h-10 rounded-full bg-white flex items-center justify-center shadow-sm">
+                  <CalendarIcon size={20} className="text-primary" />
+                </div>
+                <div>
+                  <p className="font-bold text-sm">
+                    {new Date(slot.date).toLocaleDateString("fr-FR", {
+                      weekday: "long",
+                      day: "numeric",
+                      month: "long",
+                    })}
+                  </p>
+                  <p className="text-xs text-neutral-500">
+                    {slot.startTime} - {slot.endTime} • {slot.bookings}/
+                    {slot.capacity} réservations
+                  </p>
+                </div>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-red-500 hover:bg-red-50"
+                onClick={() => removeSlot(slot.id)}
+              >
+                <TrashIcon size={18} />
+              </Button>
+            </motion.div>
+          ))}
+        </AnimatePresence>
 
-        {isAdding ? (
-          <div className="p-6 border-2 border-primary/20 rounded-2xl bg-primary/5 space-y-4">
+        <AnimatePresence initial={false}>
+          {isAdding ? (
+            <motion.div
+              key="add-form"
+              initial={{ opacity: 0, y: 10 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 10 }}
+              transition={{ duration: 0.18, ease: "easeOut" }}
+              className="p-6 border-2 border-primary/20 rounded-2xl bg-primary/5 space-y-4"
+            >
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="text-[10px] font-bold text-neutral-500 uppercase">
@@ -265,8 +290,11 @@ export default function OpenHouseSlotManager({
                 {saving ? "Enregistrement…" : "Enregistrer"}
               </Button>
             </div>
-          </div>
-        ) : slots.length < limit ? (
+          </motion.div>
+          ) : null}
+        </AnimatePresence>
+
+        {!isAdding && slots.length < limit ? (
           <Button
             variant="ghost"
             className="w-full border-2 border-dashed border-neutral-200 h-14 rounded-xl text-neutral-500 hover:border-primary/50 hover:text-primary transition-all"
