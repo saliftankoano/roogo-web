@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { Button } from "../../../components/ui/Button";
 
 type PropertyLite = {
@@ -250,6 +251,7 @@ export default function AdminCalendarPage() {
   }
 
   const monthTitle = titleFormatter.format(month);
+  const monthKey = `${month.getFullYear()}-${pad2(month.getMonth() + 1)}`;
 
   return (
     <div className="max-w-6xl mx-auto space-y-8">
@@ -314,74 +316,105 @@ export default function AdminCalendarPage() {
           })}
         </div>
 
-        <div className="grid grid-cols-7 gap-px bg-neutral-100">
-          {days.map((d) => {
-            const ymd = formatDateYmd(d);
-            const inMonth = d.getMonth() === month.getMonth();
-            const daySlots = slotsByDate.get(ymd) || [];
+        <AnimatePresence mode="wait" initial={false}>
+          <motion.div
+            key={monthKey}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -8 }}
+            transition={{ duration: 0.2, ease: "easeOut" }}
+            className="grid grid-cols-7 gap-px bg-neutral-100"
+          >
+            {days.map((d) => {
+              const ymd = formatDateYmd(d);
+              const inMonth = d.getMonth() === month.getMonth();
+              const daySlots = slotsByDate.get(ymd) || [];
 
-            return (
-              <div
-                key={ymd}
-                className={`bg-white min-h-[110px] p-3 flex flex-col gap-2 ${
-                  inMonth ? "" : "opacity-50"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <div className="text-sm font-bold text-neutral-900">{d.getDate()}</div>
-                  <button
-                    className="text-xs font-bold text-primary hover:underline"
-                    onClick={() => openCreateModal(ymd)}
-                    type="button"
-                  >
-                    + Ajouter
-                  </button>
-                </div>
+              return (
+                <div
+                  key={ymd}
+                  className={`bg-white min-h-[110px] p-3 flex flex-col gap-2 ${
+                    inMonth ? "" : "opacity-50"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm font-bold text-neutral-900">{d.getDate()}</div>
+                    <button
+                      className="text-xs font-bold text-primary hover:underline"
+                      onClick={() => openCreateModal(ymd)}
+                      type="button"
+                    >
+                      + Ajouter
+                    </button>
+                  </div>
 
-                <div className="space-y-1.5">
-                  {daySlots.slice(0, 3).map((s) => {
-                    const p = propertyById.get(s.propertyId);
-                    const title = p?.title || "Annonce";
-                    return (
-                      <button
-                        key={s.id}
-                        type="button"
-                        onClick={() => deleteSlot(s.id)}
-                        className="w-full text-left text-[11px] rounded-lg border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
-                        title="Cliquer pour supprimer"
-                      >
-                        <div className="font-bold text-neutral-900">
-                          {s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)}
-                        </div>
-                        <div className="text-neutral-500 truncate">
-                          {title} • {s.bookings}/{s.capacity}
-                        </div>
-                      </button>
-                    );
-                  })}
-                  {daySlots.length > 3 ? (
-                    <div className="text-[11px] text-neutral-400 italic">
-                      +{daySlots.length - 3} autre{daySlots.length - 3 > 1 ? "s" : ""}
-                    </div>
-                  ) : null}
+                  <div className="space-y-1.5">
+                    <AnimatePresence initial={false}>
+                      {daySlots.slice(0, 3).map((s) => {
+                        const p = propertyById.get(s.propertyId);
+                        const title = p?.title || "Annonce";
+                        return (
+                          <motion.button
+                            key={s.id}
+                            type="button"
+                            onClick={() => deleteSlot(s.id)}
+                            initial={{ opacity: 0, y: 6 }}
+                            animate={{ opacity: 1, y: 0 }}
+                            exit={{ opacity: 0, y: 6 }}
+                            transition={{ duration: 0.16, ease: "easeOut" }}
+                            className="w-full text-left text-[11px] rounded-lg border border-neutral-200 px-2 py-1 hover:bg-neutral-50"
+                            title="Cliquer pour supprimer"
+                          >
+                            <div className="font-bold text-neutral-900">
+                              {s.startTime.slice(0, 5)}–{s.endTime.slice(0, 5)}
+                            </div>
+                            <div className="text-neutral-500 truncate">
+                              {title} • {s.bookings}/{s.capacity}
+                            </div>
+                          </motion.button>
+                        );
+                      })}
+                    </AnimatePresence>
+
+                    {daySlots.length > 3 ? (
+                      <div className="text-[11px] text-neutral-400 italic">
+                        +{daySlots.length - 3} autre{daySlots.length - 3 > 1 ? "s" : ""}
+                      </div>
+                    ) : null}
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </motion.div>
+        </AnimatePresence>
       </div>
 
       {loading ? (
         <div className="text-sm text-neutral-500 animate-pulse">Chargement des sessions…</div>
       ) : null}
 
-      {isModalOpen ? (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-6">
-          <div
-            className="absolute inset-0 bg-black/40"
-            onClick={() => (modalSaving ? null : setIsModalOpen(false))}
-          />
-          <div className="relative w-full max-w-lg bg-white rounded-3xl border border-neutral-200 shadow-xl p-6 space-y-5">
+      <AnimatePresence>
+        {isModalOpen ? (
+          <motion.div
+            className="fixed inset-0 z-50 flex items-center justify-center p-6"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+          >
+            <motion.div
+              className="absolute inset-0 bg-black/40"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              onClick={() => (modalSaving ? null : setIsModalOpen(false))}
+            />
+            <motion.div
+              className="relative w-full max-w-lg bg-white rounded-3xl border border-neutral-200 shadow-xl p-6 space-y-5"
+              initial={{ opacity: 0, y: 10, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 10, scale: 0.98 }}
+              transition={{ duration: 0.2, ease: "easeOut" }}
+            >
             <div className="flex items-start justify-between gap-4">
               <div>
                 <h2 className="text-lg font-bold text-neutral-900">Ajouter une session</h2>
@@ -460,9 +493,10 @@ export default function AdminCalendarPage() {
                 {modalSaving ? "Enregistrement…" : "Enregistrer"}
               </Button>
             </div>
-          </div>
-        </div>
-      ) : null}
+            </motion.div>
+          </motion.div>
+        ) : null}
+      </AnimatePresence>
     </div>
   );
 }
