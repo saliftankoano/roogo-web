@@ -29,6 +29,7 @@ export function Hero() {
           src="/hero-bg.jpg"
           alt="Arrière-plan Roogo"
           fill
+          sizes="100vw"
           className="object-cover brightness-[0.85]"
           priority
         />
@@ -50,7 +51,7 @@ export function Hero() {
         </motion.div>
 
         {/* Search Bar */}
-        <motion.form 
+        <motion.form
           onSubmit={handleSearch}
           className="bg-white p-4 rounded-2xl shadow-xl max-w-3xl mx-auto flex flex-col sm:flex-row gap-4"
           initial={{ opacity: 0, y: 30 }}
@@ -58,11 +59,11 @@ export function Hero() {
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
         >
           <div className="flex-1 relative">
-            <input 
-              type="text" 
+            <input
+              type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Entrez une adresse, un quartier ou une ville" 
+              placeholder="Entrez une adresse, un quartier ou une ville"
               className="w-full h-12 px-4 text-neutral-900 placeholder-neutral-500 outline-none rounded-lg focus:ring-2 focus:ring-primary/20"
             />
           </div>

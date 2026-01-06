@@ -1,7 +1,18 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
-import { User, Phone, Envelope, DotsThreeVertical, MagnifyingGlass, X, MapPin, Calendar, Buildings } from "@phosphor-icons/react";
+import {
+  UserIcon,
+  UsersIcon,
+  PhoneIcon,
+  EnvelopeIcon,
+  DotsThreeVerticalIcon,
+  MagnifyingGlassIcon,
+  XIcon,
+  MapPinIcon,
+  CalendarIcon,
+  BuildingsIcon,
+} from "@phosphor-icons/react";
 import Image from "next/image";
 import { Property, fetchProperties } from "@/lib/data";
 import { motion, AnimatePresence } from "framer-motion";
@@ -25,11 +36,11 @@ export default function AdminAgentsPage() {
   useEffect(() => {
     async function loadAgents() {
       const properties = await fetchProperties();
-      
+
       // Extract unique agents from properties
       const agentMap = new Map<string, Agent>();
-      
-      properties.forEach(p => {
+
+      properties.forEach((p) => {
         if (p.agent) {
           const name = p.agent.full_name;
           if (agentMap.has(name)) {
@@ -42,12 +53,12 @@ export default function AdminAgentsPage() {
               phone: p.agent.phone,
               avatar_url: p.agent.avatar_url,
               propertiesCount: 1,
-              properties: [p]
+              properties: [p],
             });
           }
         }
       });
-      
+
       setAgents(Array.from(agentMap.values()));
       setLoading(false);
     }
@@ -55,9 +66,10 @@ export default function AdminAgentsPage() {
   }, []);
 
   const filteredAgents = useMemo(() => {
-    return agents.filter(agent => 
-      agent.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      agent.phone.includes(searchQuery)
+    return agents.filter(
+      (agent) =>
+        agent.full_name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        agent.phone.includes(searchQuery)
     );
   }, [agents, searchQuery]);
 
@@ -65,12 +77,20 @@ export default function AdminAgentsPage() {
     <div className="space-y-8 max-w-7xl mx-auto">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">Gestion des Agents</h1>
-          <p className="text-neutral-500 font-medium mt-1">Consultez et gérez les agents actifs sur la plateforme.</p>
+          <h1 className="text-3xl font-bold text-neutral-900 tracking-tight">
+            Gestion des Agents
+          </h1>
+          <p className="text-neutral-500 font-medium mt-1">
+            Consultez et gérez les agents actifs sur la plateforme.
+          </p>
         </div>
-        
+
         <div className="relative w-full md:w-80">
-          <MagnifyingGlass className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400" size={20} weight="bold" />
+          <MagnifyingGlassIcon
+            className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-400"
+            size={20}
+            weight="bold"
+          />
           <input
             type="text"
             placeholder="Rechercher un agent..."
@@ -84,21 +104,26 @@ export default function AdminAgentsPage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="text-neutral-400 font-medium">Chargement des agents...</p>
+          <p className="text-neutral-400 font-medium">
+            Chargement des agents...
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredAgents.map((agent, index) => (
-            <div key={index} className="bg-white p-8 rounded-[40px] border border-neutral-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden">
+            <div
+              key={index}
+              className="bg-white p-8 rounded-[40px] border border-neutral-100 shadow-sm hover:shadow-xl transition-all group relative overflow-hidden"
+            >
               <div className="flex items-start justify-between mb-8">
                 <div className="relative">
                   <div className="w-24 h-24 rounded-3xl bg-neutral-50 overflow-hidden border-2 border-white shadow-md group-hover:scale-105 transition-transform duration-500">
                     {agent.avatar_url ? (
-                      <Image 
-                        src={agent.avatar_url} 
-                        alt={agent.full_name} 
-                        width={96} 
-                        height={96} 
+                      <Image
+                        src={agent.avatar_url}
+                        alt={agent.full_name}
+                        width={96}
+                        height={96}
                         className="object-cover w-full h-full"
                       />
                     ) : (
@@ -112,33 +137,53 @@ export default function AdminAgentsPage() {
                   </div>
                 </div>
                 <button className="p-2.5 hover:bg-neutral-50 rounded-full transition-colors border border-neutral-100 shadow-sm opacity-0 group-hover:opacity-100 duration-300">
-                  <DotsThreeVertical size={24} weight="bold" className="text-neutral-400" />
+                  <DotsThreeVerticalIcon
+                    size={24}
+                    weight="bold"
+                    className="text-neutral-400"
+                  />
                 </button>
               </div>
 
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-xl font-bold text-neutral-900 tracking-tight group-hover:text-primary transition-colors">{agent.full_name}</h3>
-                  <p className="text-[11px] text-neutral-400 font-bold uppercase tracking-widest mt-1">Partenaire Vérifié</p>
+                  <h3 className="text-xl font-bold text-neutral-900 tracking-tight group-hover:text-primary transition-colors">
+                    {agent.full_name}
+                  </h3>
+                  <p className="text-[11px] text-neutral-400 font-bold uppercase tracking-widest mt-1">
+                    Partenaire Vérifié
+                  </p>
                 </div>
 
                 <div className="space-y-3">
                   <div className="flex items-center gap-4 text-neutral-600">
                     <div className="w-10 h-10 rounded-full bg-neutral-50 flex items-center justify-center shrink-0 border border-neutral-100 group-hover:bg-primary/5 transition-colors">
-                      <Phone size={18} weight="bold" className="group-hover:text-primary transition-colors" />
+                      <PhoneIcon
+                        size={18}
+                        weight="bold"
+                        className="group-hover:text-primary transition-colors"
+                      />
                     </div>
-                    <span className="text-[15px] font-bold">{agent.phone || "Non renseigné"}</span>
+                    <span className="text-[15px] font-bold">
+                      {agent.phone || "Non renseigné"}
+                    </span>
                   </div>
                   <div className="flex items-center gap-4 text-neutral-600">
                     <div className="w-10 h-10 rounded-full bg-neutral-50 flex items-center justify-center shrink-0 border border-neutral-100 group-hover:bg-primary/5 transition-colors">
-                      <Envelope size={18} weight="bold" className="group-hover:text-primary transition-colors" />
+                      <EnvelopeIcon
+                        size={18}
+                        weight="bold"
+                        className="group-hover:text-primary transition-colors"
+                      />
                     </div>
-                    <span className="text-[15px] font-bold truncate">contact@roogo.com</span>
+                    <span className="text-[15px] font-bold truncate">
+                      contact@roogo.com
+                    </span>
                   </div>
                 </div>
 
                 <div className="pt-2">
-                  <button 
+                  <button
                     onClick={() => setSelectedAgent(agent)}
                     className="w-full py-4 bg-neutral-900 text-white hover:bg-primary rounded-2xl text-sm font-bold transition-all shadow-lg shadow-black/5 active:scale-95 uppercase tracking-wider"
                   >
@@ -155,7 +200,7 @@ export default function AdminAgentsPage() {
       <AnimatePresence>
         {selectedAgent && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
-            <motion.div 
+            <motion.div
               initial={{ opacity: 0, scale: 0.95, y: 20 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
               exit={{ opacity: 0, scale: 0.95, y: 20 }}
@@ -166,7 +211,13 @@ export default function AdminAgentsPage() {
                 <div className="flex items-center gap-6">
                   <div className="w-20 h-20 rounded-3xl overflow-hidden border-2 border-white shadow-xl">
                     {selectedAgent.avatar_url ? (
-                      <Image src={selectedAgent.avatar_url} alt="" width={80} height={80} className="object-cover w-full h-full" />
+                      <Image
+                        src={selectedAgent.avatar_url}
+                        alt=""
+                        width={80}
+                        height={80}
+                        className="object-cover w-full h-full"
+                      />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center bg-primary text-white font-bold text-3xl">
                         {selectedAgent.full_name.charAt(0)}
@@ -174,24 +225,34 @@ export default function AdminAgentsPage() {
                     )}
                   </div>
                   <div>
-                    <h2 className="text-3xl font-bold text-neutral-900 tracking-tight">{selectedAgent.full_name}</h2>
+                    <h2 className="text-3xl font-bold text-neutral-900 tracking-tight">
+                      {selectedAgent.full_name}
+                    </h2>
                     <div className="flex items-center gap-4 mt-2">
                       <span className="text-sm font-bold text-neutral-500 flex items-center gap-1.5">
-                        <Phone size={16} weight="bold" className="text-primary" />
+                        <PhoneIcon
+                          size={16}
+                          weight="bold"
+                          className="text-primary"
+                        />
                         {selectedAgent.phone}
                       </span>
                       <span className="text-sm font-bold text-neutral-500 flex items-center gap-1.5">
-                        <MapPin size={16} weight="bold" className="text-primary" />
+                        <MapPinIcon
+                          size={16}
+                          weight="bold"
+                          className="text-primary"
+                        />
                         Ouagadougou, BF
                       </span>
                     </div>
                   </div>
                 </div>
-                <button 
+                <button
                   onClick={() => setSelectedAgent(null)}
                   className="p-3 hover:bg-white hover:shadow-md rounded-full transition-all border border-transparent hover:border-neutral-100 text-neutral-400 hover:text-neutral-900"
                 >
-                  <X size={24} weight="bold" />
+                  <XIcon size={24} weight="bold" />
                 </button>
               </div>
 
@@ -202,27 +263,37 @@ export default function AdminAgentsPage() {
                   <div className="bg-neutral-50 p-6 rounded-[28px] border border-neutral-100">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        <Buildings size={20} weight="bold" />
+                        <BuildingsIcon size={20} weight="bold" />
                       </div>
-                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Biens Gérés</span>
+                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Biens Gérés
+                      </span>
                     </div>
-                    <p className="text-3xl font-bold text-neutral-900">{selectedAgent.propertiesCount}</p>
+                    <p className="text-3xl font-bold text-neutral-900">
+                      {selectedAgent.propertiesCount}
+                    </p>
                   </div>
                   <div className="bg-neutral-50 p-6 rounded-[28px] border border-neutral-100">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
-                        <Calendar size={20} weight="bold" />
+                        <CalendarIcon size={20} weight="bold" />
                       </div>
-                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Expérience</span>
+                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Expérience
+                      </span>
                     </div>
-                    <p className="text-3xl font-bold text-neutral-900">2+ ans</p>
+                    <p className="text-3xl font-bold text-neutral-900">
+                      2+ ans
+                    </p>
                   </div>
                   <div className="bg-neutral-50 p-6 rounded-[28px] border border-neutral-100">
                     <div className="flex items-center gap-3 mb-2">
                       <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
-                        <Users size={20} weight="bold" />
+                        <UsersIcon size={20} weight="bold" />
                       </div>
-                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">Satisfaction</span>
+                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Satisfaction
+                      </span>
                     </div>
                     <p className="text-3xl font-bold text-neutral-900">4.8/5</p>
                   </div>
@@ -230,21 +301,35 @@ export default function AdminAgentsPage() {
 
                 {/* Properties List */}
                 <div className="space-y-6">
-                  <h3 className="text-xl font-bold text-neutral-900 tracking-tight">Liste des Biens</h3>
+                  <h3 className="text-xl font-bold text-neutral-900 tracking-tight">
+                    Liste des Biens
+                  </h3>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {selectedAgent.properties.map(property => (
-                      <Link 
-                        key={property.id} 
+                    {selectedAgent.properties.map((property) => (
+                      <Link
+                        key={property.id}
                         href={`/admin/listings/${property.id}`}
                         className="flex items-center gap-4 p-4 rounded-2xl border border-neutral-100 hover:border-primary/20 hover:bg-neutral-50/50 transition-all group"
                       >
                         <div className="w-20 h-20 rounded-xl overflow-hidden border border-neutral-100 shrink-0">
-                          <Image src={property.image} alt="" width={80} height={80} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
+                          <Image
+                            src={property.image}
+                            alt=""
+                            width={80}
+                            height={80}
+                            className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500"
+                          />
                         </div>
                         <div className="min-w-0">
-                          <h4 className="text-sm font-bold text-neutral-900 truncate group-hover:text-primary transition-colors">{property.title}</h4>
-                          <p className="text-xs text-neutral-500 font-medium mt-1 truncate">{property.location}</p>
-                          <p className="text-sm font-bold text-primary mt-2">{parseInt(property.price).toLocaleString()} F</p>
+                          <h4 className="text-sm font-bold text-neutral-900 truncate group-hover:text-primary transition-colors">
+                            {property.title}
+                          </h4>
+                          <p className="text-xs text-neutral-500 font-medium mt-1 truncate">
+                            {property.location}
+                          </p>
+                          <p className="text-sm font-bold text-primary mt-2">
+                            {parseInt(property.price).toLocaleString()} F
+                          </p>
                         </div>
                       </Link>
                     ))}
@@ -257,7 +342,10 @@ export default function AdminAgentsPage() {
                 <Button className="flex-1 h-14 rounded-2xl bg-neutral-900 font-bold uppercase tracking-wider text-xs">
                   Modifier l&apos;Agent
                 </Button>
-                <Button variant="ghost" className="flex-1 h-14 rounded-2xl border border-neutral-100 font-bold uppercase tracking-wider text-xs text-red-500 hover:bg-red-50 hover:border-red-100">
+                <Button
+                  variant="ghost"
+                  className="flex-1 h-14 rounded-2xl border border-neutral-100 font-bold uppercase tracking-wider text-xs text-red-500 hover:bg-red-50 hover:border-red-100"
+                >
                   Désactiver l&apos;Accès
                 </Button>
               </div>
@@ -269,13 +357,17 @@ export default function AdminAgentsPage() {
       {!loading && filteredAgents.length === 0 && (
         <div className="bg-white rounded-[40px] p-20 text-center border border-neutral-100 shadow-sm">
           <div className="w-20 h-20 bg-neutral-50 rounded-full flex items-center justify-center mx-auto mb-6">
-            <User size={40} className="text-neutral-300" />
+            <UserIcon size={40} className="text-neutral-300" />
           </div>
-          <h3 className="text-xl font-bold text-neutral-900 mb-2">Aucun agent trouvé</h3>
-          <p className="text-neutral-500 max-w-sm mx-auto font-medium">Nous n&apos;avons trouvé aucun agent correspondant à votre recherche.</p>
+          <h3 className="text-xl font-bold text-neutral-900 mb-2">
+            Aucun agent trouvé
+          </h3>
+          <p className="text-neutral-500 max-w-sm mx-auto font-medium">
+            Nous n&apos;avons trouvé aucun agent correspondant à votre
+            recherche.
+          </p>
         </div>
       )}
     </div>
   );
 }
-

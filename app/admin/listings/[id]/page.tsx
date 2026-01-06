@@ -15,7 +15,12 @@ import {
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import OpenHouseSlotManager from "@/components/admin/OpenHouseSlotManager";
-import { fetchPropertyById, fetchTransactionsByPropertyId, Property, Transaction } from "@/lib/data";
+import {
+  fetchPropertyById,
+  fetchTransactionsByPropertyId,
+  Property,
+  Transaction,
+} from "@/lib/data";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 
@@ -30,11 +35,15 @@ export default function ListingDetailPage() {
   useEffect(() => {
     async function loadData() {
       if (!id) return;
-      const [propertyData, transactionsData] = await Promise.all([
-        fetchPropertyById(id),
-        fetchTransactionsByPropertyId(id),
-      ]);
+      // First fetch the property to get its payment_id
+      const propertyData = await fetchPropertyById(id);
       setListing(propertyData);
+
+      // Then fetch transactions, passing payment_id as fallback for legacy transactions
+      const transactionsData = await fetchTransactionsByPropertyId(
+        id,
+        propertyData?.payment_id
+      );
       setTransactions(transactionsData);
       setLoading(false);
     }
@@ -155,7 +164,8 @@ export default function ListingDetailPage() {
                 Historique des Paiements
               </h3>
               <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
-                {transactions.length} Transaction{transactions.length > 1 ? 's' : ''}
+                {transactions.length} Transaction
+                {transactions.length > 1 ? "s" : ""}
               </span>
             </div>
 
@@ -164,25 +174,38 @@ export default function ListingDetailPage() {
                 <table className="w-full text-left">
                   <thead className="bg-neutral-50/50">
                     <tr>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Date</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Type</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Montant</th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Statut</th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Date
+                      </th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Type
+                      </th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Montant
+                      </th>
+                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                        Statut
+                      </th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-neutral-50">
                     {transactions.map((tx) => (
-                      <tr key={tx.id} className="hover:bg-neutral-50/30 transition-colors">
+                      <tr
+                        key={tx.id}
+                        className="hover:bg-neutral-50/30 transition-colors"
+                      >
                         <td className="px-6 py-4 text-sm font-medium text-neutral-600">
-                          {new Date(tx.created_at).toLocaleDateString('fr-FR', {
-                            day: '2-digit',
-                            month: 'short',
-                            year: 'numeric'
+                          {new Date(tx.created_at).toLocaleDateString("fr-FR", {
+                            day: "2-digit",
+                            month: "short",
+                            year: "numeric",
                           })}
                         </td>
                         <td className="px-6 py-4">
                           <span className="text-xs font-bold text-neutral-900">
-                            {tx.type === 'listing_submission' ? 'Publication' : 'Photographie'}
+                            {tx.type === "listing_submission"
+                              ? "Publication"
+                              : "Photographie"}
                           </span>
                         </td>
                         <td className="px-6 py-4">
@@ -192,20 +215,40 @@ export default function ListingDetailPage() {
                         </td>
                         <td className="px-6 py-4">
                           <div className="flex items-center gap-1.5">
-                            {tx.status === 'completed' ? (
-                              <CheckCircleIcon size={16} weight="fill" className="text-green-500" />
-                            ) : tx.status === 'failed' ? (
-                              <XCircleIcon size={16} weight="fill" className="text-red-500" />
+                            {tx.status === "completed" ? (
+                              <CheckCircleIcon
+                                size={16}
+                                weight="fill"
+                                className="text-green-500"
+                              />
+                            ) : tx.status === "failed" ? (
+                              <XCircleIcon
+                                size={16}
+                                weight="fill"
+                                className="text-red-500"
+                              />
                             ) : (
-                              <ClockIcon size={16} weight="fill" className="text-orange-400" />
+                              <ClockIcon
+                                size={16}
+                                weight="fill"
+                                className="text-orange-400"
+                              />
                             )}
-                            <span className={cn(
-                              "text-[10px] font-bold uppercase tracking-wider",
-                              tx.status === 'completed' ? "text-green-600" :
-                              tx.status === 'failed' ? "text-red-600" : "text-orange-600"
-                            )}>
-                              {tx.status === 'completed' ? 'Réussi' :
-                               tx.status === 'failed' ? 'Échoué' : 'En attente'}
+                            <span
+                              className={cn(
+                                "text-[10px] font-bold uppercase tracking-wider",
+                                tx.status === "completed"
+                                  ? "text-green-600"
+                                  : tx.status === "failed"
+                                  ? "text-red-600"
+                                  : "text-orange-600"
+                              )}
+                            >
+                              {tx.status === "completed"
+                                ? "Réussi"
+                                : tx.status === "failed"
+                                ? "Échoué"
+                                : "En attente"}
                             </span>
                           </div>
                         </td>
@@ -216,7 +259,9 @@ export default function ListingDetailPage() {
               </div>
             ) : (
               <div className="py-12 text-center bg-neutral-50/50 rounded-2xl border border-dashed border-neutral-200">
-                <p className="text-sm text-neutral-400 font-medium">Aucun paiement enregistré pour ce bien.</p>
+                <p className="text-sm text-neutral-400 font-medium">
+                  Aucun paiement enregistré pour ce bien.
+                </p>
               </div>
             )}
           </section>
@@ -275,6 +320,7 @@ export default function ListingDetailPage() {
                     src={listing.agent.avatar_url}
                     alt={listing.agent.full_name}
                     fill
+                    sizes="56px"
                     className="object-cover"
                   />
                 ) : (
