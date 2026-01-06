@@ -1,7 +1,12 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
-import { DotsThreeVertical, CaretDown, Check, MagnifyingGlass } from "@phosphor-icons/react";
+import {
+  DotsThreeVertical,
+  CaretDown,
+  Check,
+  MagnifyingGlass,
+} from "@phosphor-icons/react";
 import Link from "next/link";
 import { Property, fetchProperties } from "@/lib/data";
 import { PropertyCard } from "@/components/PropertyCard";
@@ -131,7 +136,9 @@ export default function AdminListingsPage() {
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="text-neutral-400 font-medium">Chargement des biens...</p>
+          <p className="text-neutral-400 font-medium">
+            Chargement des biens...
+          </p>
         </div>
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
@@ -156,7 +163,8 @@ export default function AdminListingsPage() {
             Aucun résultat trouvé
           </h3>
           <p className="text-neutral-500 max-w-sm mx-auto font-medium">
-            Nous n&apos;avons trouvé aucune propriété correspondant à vos critères.
+            Nous n&apos;avons trouvé aucune propriété correspondant à vos
+            critères.
           </p>
         </div>
       )}

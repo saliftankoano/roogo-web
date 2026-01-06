@@ -120,13 +120,26 @@ export async function POST(req: Request) {
     const status = statusData?.status || statusData?.depositStatus;
     console.log(`Deposit ${depositId} status from PawaPay: ${status}`);
 
-    // 4. Update Supabase
+    // 4. Update Supabase with properly mapped status
     if (status) {
       const supabase = getSupabaseClient();
+
+      // Map PawaPay status to our database enum
+      let dbStatus = "pending";
+      if (status === "COMPLETED" || status === "ACCEPTED")
+        dbStatus = "completed";
+      if (
+        status === "FAILED" ||
+        status === "CANCELLED" ||
+        status === "REJECTED"
+      )
+        dbStatus = "failed";
+      if (status === "REFUNDED") dbStatus = "refunded";
+
       const { error: updateError } = await supabase
         .from("transactions")
         .update({
-          status: status.toLowerCase(),
+          status: dbStatus,
           metadata: statusData,
         })
         .eq("deposit_id", depositId);

@@ -71,7 +71,13 @@ export default function PhotoManager({
             key={i}
             className="aspect-video relative rounded-xl overflow-hidden border border-neutral-100 group"
           >
-            <Image src={url} alt={`Photo ${i}`} fill className="object-cover" />
+            <Image
+              src={url}
+              alt={`Photo ${i}`}
+              fill
+              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+              className="object-cover"
+            />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
               <button
                 onClick={() => removePhoto(i)}

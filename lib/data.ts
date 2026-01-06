@@ -217,8 +217,10 @@ export type Transaction = {
 };
 
 export async function fetchTransactionsByPropertyId(
-  propertyId: string
+  propertyId: string,
+  paymentId?: string | null
 ): Promise<Transaction[]> {
+  // First try to fetch by property_id
   const { data, error } = await supabase
     .from("transactions")
     .select("*")
@@ -230,7 +232,23 @@ export async function fetchTransactionsByPropertyId(
     return [];
   }
 
-  return (data as Transaction[]) || [];
+  let transactions = (data as Transaction[]) || [];
+
+  // If no transactions found and we have a payment_id, try fetching by deposit_id
+  // This handles legacy transactions that weren't linked to the property
+  if (transactions.length === 0 && paymentId) {
+    const { data: legacyData, error: legacyError } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("deposit_id", paymentId)
+      .order("created_at", { ascending: false });
+
+    if (!legacyError && legacyData) {
+      transactions = legacyData as Transaction[];
+    }
+  }
+
+  return transactions;
 }
 
 export const properties: Property[] = [

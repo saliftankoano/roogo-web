@@ -145,6 +145,7 @@ export async function POST(req: Request) {
       photo_limit: selectedTier?.photo_limit || null,
       video_included: selectedTier?.video_included || false,
       has_premium_badge: selectedTier?.has_badge || false,
+      payment_id: listingData.payment_id || null,
     };
 
     // 8. Insert property
@@ -170,7 +171,34 @@ export async function POST(req: Request) {
     const propertyId = property.id;
     console.log("Property created successfully:", propertyId);
 
-    // 8. Create image records if photos are provided (skipping for now as per new flow)
+    // 8a. Link transaction to property if payment_id is provided
+    // This connects the payment transaction record to the newly created property
+    if (listingData.payment_id) {
+      console.log("Linking transaction to property:", listingData.payment_id);
+      const { data: updatedTransaction, error: txError } = await supabase
+        .from("transactions")
+        .update({
+          property_id: propertyId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("deposit_id", listingData.payment_id)
+        .select()
+        .single();
+
+      if (txError) {
+        console.error("Error linking transaction to property:", txError);
+        // Don't fail the whole submission, but log the error
+      } else if (updatedTransaction) {
+        console.log("Transaction linked successfully:", updatedTransaction.id);
+        // Also update the property's transaction_id field for reverse lookup
+        await supabase
+          .from("properties")
+          .update({ transaction_id: updatedTransaction.id })
+          .eq("id", propertyId);
+      }
+    }
+
+    // 8b. Create image records if photos are provided (skipping for now as per new flow)
     // ... (rest of logic remains same, but usually empty array in new flow)
 
     // 9. Link amenities
