@@ -1,10 +1,10 @@
 "use client";
 
-import { SignIn } from "@clerk/nextjs";
+import { SignUp } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 
-export default function SignInPage() {
+export default function SignUpPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 py-12">
       <Link href="/" className="mb-8">
@@ -16,7 +16,7 @@ export default function SignInPage() {
           className="object-contain"
         />
       </Link>
-      <SignIn
+      <SignUp
         appearance={{
           elements: {
             rootBox: "mx-auto",
@@ -29,10 +29,11 @@ export default function SignInPage() {
           },
         }}
         routing="path"
-        path="/sign-in"
-        signUpUrl="/sign-up"
+        path="/sign-up"
+        signInUrl="/sign-in"
         forceRedirectUrl="/location"
       />
     </div>
   );
 }
+
