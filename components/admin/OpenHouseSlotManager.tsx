@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { CalendarIcon, TrashIcon, PlusIcon } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/Button";
+import { Button } from "../ui/Button";
 
 type ApiOpenHouseSlot = {
   id: unknown;
