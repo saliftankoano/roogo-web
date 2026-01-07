@@ -11,10 +11,11 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
+  CalendarBlank,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
-import OpenHouseSlotManager from "@/components/admin/OpenHouseSlotManager";
+import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import {
   fetchPropertyById,
   fetchTransactionsByPropertyId,
@@ -84,7 +85,7 @@ export default function ListingDetailPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto p-6 lg:p-10 space-y-10">
+    <div className="max-w-7xl mx-auto p-6 lg:p-10 space-y-10">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
@@ -135,9 +136,8 @@ export default function ListingDetailPage() {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Management */}
+        {/* Left Column: Photos */}
         <div className="lg:col-span-2 space-y-8">
-          {/* Photo Management */}
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
             <PhotoManager
               propertyId={listing.id}
@@ -145,125 +145,6 @@ export default function ListingDetailPage() {
               isProfessional={listing.status === "en_ligne"}
               onPhotosUpdated={() => {}}
             />
-          </section>
-
-          {/* Open House Management */}
-          <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
-            <OpenHouseSlotManager
-              propertyId={listing.id}
-              limit={2}
-              existingSlots={[]}
-            />
-          </section>
-
-          {/* Transactions History */}
-          <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
-            <div className="flex items-center justify-between">
-              <h3 className="font-bold text-neutral-900 flex items-center gap-2 text-xl">
-                <ReceiptIcon size={24} weight="bold" className="text-primary" />
-                Historique des Paiements
-              </h3>
-              <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
-                {transactions.length} Transaction
-                {transactions.length > 1 ? "s" : ""}
-              </span>
-            </div>
-
-            {transactions.length > 0 ? (
-              <div className="overflow-hidden rounded-2xl border border-neutral-50">
-                <table className="w-full text-left">
-                  <thead className="bg-neutral-50/50">
-                    <tr>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                        Date
-                      </th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                        Type
-                      </th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                        Montant
-                      </th>
-                      <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                        Statut
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-neutral-50">
-                    {transactions.map((tx) => (
-                      <tr
-                        key={tx.id}
-                        className="hover:bg-neutral-50/30 transition-colors"
-                      >
-                        <td className="px-6 py-4 text-sm font-medium text-neutral-600">
-                          {new Date(tx.created_at).toLocaleDateString("fr-FR", {
-                            day: "2-digit",
-                            month: "short",
-                            year: "numeric",
-                          })}
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-xs font-bold text-neutral-900">
-                            {tx.type === "listing_submission"
-                              ? "Publication"
-                              : "Photographie"}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <span className="text-sm font-bold text-neutral-900">
-                            {tx.amount.toLocaleString()} {tx.currency}
-                          </span>
-                        </td>
-                        <td className="px-6 py-4">
-                          <div className="flex items-center gap-1.5">
-                            {tx.status === "completed" ? (
-                              <CheckCircleIcon
-                                size={16}
-                                weight="fill"
-                                className="text-green-500"
-                              />
-                            ) : tx.status === "failed" ? (
-                              <XCircleIcon
-                                size={16}
-                                weight="fill"
-                                className="text-red-500"
-                              />
-                            ) : (
-                              <ClockIcon
-                                size={16}
-                                weight="fill"
-                                className="text-orange-400"
-                              />
-                            )}
-                            <span
-                              className={cn(
-                                "text-[10px] font-bold uppercase tracking-wider",
-                                tx.status === "completed"
-                                  ? "text-green-600"
-                                  : tx.status === "failed"
-                                  ? "text-red-600"
-                                  : "text-orange-600"
-                              )}
-                            >
-                              {tx.status === "completed"
-                                ? "Réussi"
-                                : tx.status === "failed"
-                                ? "Échoué"
-                                : "En attente"}
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            ) : (
-              <div className="py-12 text-center bg-neutral-50/50 rounded-2xl border border-dashed border-neutral-200">
-                <p className="text-sm text-neutral-400 font-medium">
-                  Aucun paiement enregistré pour ce bien.
-                </p>
-              </div>
-            )}
           </section>
         </div>
 
@@ -311,7 +192,9 @@ export default function ListingDetailPage() {
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
             <h3 className="font-bold text-neutral-900 flex items-center gap-2">
               <UsersIcon size={20} weight="bold" className="text-neutral-400" />
-              Agent Responsable
+              {listing.agent?.user_type === "owner"
+                ? "Propriétaire"
+                : "Agent Responsable"}
             </h3>
             <div className="flex items-center gap-4">
               <div className="w-14 h-14 rounded-2xl bg-neutral-100 overflow-hidden border border-neutral-200 relative">
@@ -331,22 +214,147 @@ export default function ListingDetailPage() {
               </div>
               <div>
                 <p className="font-bold text-neutral-900 leading-tight">
-                  {listing.agent?.full_name}
+                  {listing.agent?.user_type === "owner"
+                    ? "Particulier (Propriétaire)"
+                    : listing.agent?.full_name}
                 </p>
-                <p className="text-xs text-neutral-500 font-medium mt-1">
-                  {listing.agent?.phone}
-                </p>
+                {listing.agent?.user_type !== "owner" && (
+                  <p className="text-xs text-neutral-500 font-medium mt-1">
+                    {listing.agent?.phone}
+                  </p>
+                )}
               </div>
             </div>
-            <Button
-              variant="ghost"
-              className="w-full justify-center text-neutral-600 hover:bg-neutral-50 h-12 rounded-xl text-xs font-bold uppercase tracking-wider border border-neutral-100 transition-all"
-            >
-              Contacter l&apos;agent
-            </Button>
+            {listing.agent?.user_type !== "owner" && (
+              <Button
+                variant="ghost"
+                className="w-full justify-center text-neutral-600 hover:bg-neutral-50 h-12 rounded-xl text-xs font-bold uppercase tracking-wider border border-neutral-100 transition-all"
+              >
+                Contacter l&apos;agent
+              </Button>
+            )}
           </section>
         </div>
       </div>
+
+      {/* Open House Management - Full Width */}
+      <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
+        <h3 className="text-xl font-bold text-neutral-900 mb-8 flex items-center gap-3">
+          <CalendarBlank size={24} weight="bold" className="text-primary" />
+          Planning des Visites
+        </h3>
+        <PropertyOpenHouseManager propertyId={listing.id} />
+      </section>
+
+      {/* Transactions History - Full Width */}
+      <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
+        <div className="flex items-center justify-between">
+          <h3 className="font-bold text-neutral-900 flex items-center gap-2 text-xl">
+            <ReceiptIcon size={24} weight="bold" className="text-primary" />
+            Historique des Paiements
+          </h3>
+          <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
+            {transactions.length} Transaction
+            {transactions.length > 1 ? "s" : ""}
+          </span>
+        </div>
+
+        {transactions.length > 0 ? (
+          <div className="overflow-hidden rounded-2xl border border-neutral-50">
+            <table className="w-full text-left">
+              <thead className="bg-neutral-50/50">
+                <tr>
+                  <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    Date
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    Type
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    Montant
+                  </th>
+                  <th className="px-6 py-4 text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    Statut
+                  </th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-neutral-50">
+                {transactions.map((tx) => (
+                  <tr
+                    key={tx.id}
+                    className="hover:bg-neutral-50/30 transition-colors"
+                  >
+                    <td className="px-6 py-4 text-sm font-medium text-neutral-600">
+                      {new Date(tx.created_at).toLocaleDateString("fr-FR", {
+                        day: "2-digit",
+                        month: "short",
+                        year: "numeric",
+                      })}
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-xs font-bold text-neutral-900">
+                        {tx.type === "listing_submission"
+                          ? "Publication"
+                          : "Photographie"}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <span className="text-sm font-bold text-neutral-900">
+                        {tx.amount.toLocaleString()} {tx.currency}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="flex items-center gap-1.5">
+                        {tx.status === "completed" ? (
+                          <CheckCircleIcon
+                            size={16}
+                            weight="fill"
+                            className="text-green-500"
+                          />
+                        ) : tx.status === "failed" ? (
+                          <XCircleIcon
+                            size={16}
+                            weight="fill"
+                            className="text-red-500"
+                          />
+                        ) : (
+                          <ClockIcon
+                            size={16}
+                            weight="fill"
+                            className="text-orange-400"
+                          />
+                        )}
+                        <span
+                          className={cn(
+                            "text-[10px] font-bold uppercase tracking-wider",
+                            tx.status === "completed"
+                              ? "text-green-600"
+                              : tx.status === "failed"
+                              ? "text-red-600"
+                              : "text-orange-600"
+                          )}
+                        >
+                          {tx.status === "completed"
+                            ? "Réussi"
+                            : tx.status === "failed"
+                            ? "Échoué"
+                            : "En attente"}
+                        </span>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ) : (
+          <div className="py-12 text-center bg-neutral-50/50 rounded-2xl border border-dashed border-neutral-200">
+            <p className="text-sm text-neutral-400 font-medium">
+              Aucun paiement enregistré pour ce bien.
+            </p>
+          </div>
+        )}
+      </section>
     </div>
   );
 }
