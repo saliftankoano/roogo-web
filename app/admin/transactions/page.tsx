@@ -314,6 +314,7 @@ export default function AdminTransactionsPage() {
                       {new Date(tx.created_at).toLocaleTimeString("fr-FR", {
                         hour: "2-digit",
                         minute: "2-digit",
+                        hour12: false,
                       })}
                     </p>
                   </td>
