@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarBlank,
@@ -104,19 +104,14 @@ export default function AdminCalendarPage() {
 
   const daysInMonth = endOfMonth.getDate();
   const calendarDays = Array.from({ length: daysInMonth }, (_, i) => i + 1);
-  const paddingDays = Array.from({ length: firstDayOfWeek }, (_, i) => null);
+  const paddingDays = Array.from({ length: firstDayOfWeek }, () => null);
 
-  useEffect(() => {
-    fetchSlots();
-    loadProperties();
-  }, [currentDate]);
-
-  const loadProperties = async () => {
+  const loadProperties = useCallback(async () => {
     const data = await fetchProperties();
     setProperties(data);
-  };
+  }, []);
 
-  const fetchSlots = async () => {
+  const fetchSlots = useCallback(async () => {
     setLoading(true);
     try {
       const firstDay = new Date(
@@ -149,7 +144,12 @@ export default function AdminCalendarPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentDate]);
+
+  useEffect(() => {
+    fetchSlots();
+    loadProperties();
+  }, [fetchSlots, loadProperties]);
 
   const handleAddSlot = async (e: React.FormEvent) => {
     e.preventDefault();

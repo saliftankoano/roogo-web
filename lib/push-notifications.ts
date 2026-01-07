@@ -4,7 +4,7 @@ export interface PushNotificationPayload {
   to: string | string[];
   title: string;
   body: string;
-  data?: Record<string, any>;
+  data?: Record<string, unknown>;
   sound?: "default" | null;
   priority?: "default" | "normal" | "high";
   badge?: number;
@@ -51,7 +51,7 @@ export async function notifyUser(
   userId: string,
   title: string,
   body: string,
-  data?: Record<string, any>
+  data?: Record<string, unknown>
 ) {
   const supabase = getSupabaseClient();
 
@@ -68,7 +68,7 @@ export async function notifyUser(
 
   // 2. Prepare payloads
   const pushTokens = tokens.map((t) => t.expo_push_token);
-  
+
   // Expo allows multiple tokens in one payload if the content is the same
   const payload: PushNotificationPayload = {
     to: pushTokens,
@@ -81,4 +81,3 @@ export async function notifyUser(
   // 3. Send
   return sendExpoPushNotifications(payload);
 }
-
