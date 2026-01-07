@@ -30,6 +30,7 @@ export type Property = {
     full_name: string;
     phone: string;
     avatar_url: string;
+    user_type?: string;
   };
 };
 
@@ -57,6 +58,7 @@ interface DBProperty {
   agent_name: string | null;
   agent_phone: string | null;
   agent_avatar: string | null;
+  agent_type: string | null;
   payment_id: string | null;
   transaction_id: string | null;
 }
@@ -102,6 +104,7 @@ export async function fetchProperties(): Promise<Property[]> {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
       avatar_url: p.agent_avatar || "",
+      user_type: p.agent_type || undefined,
     },
   }));
 }
@@ -151,6 +154,7 @@ export async function fetchFeaturedProperties(
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
       avatar_url: p.agent_avatar || "",
+      user_type: p.agent_type || undefined,
     },
   }));
 }
@@ -198,6 +202,7 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
       avatar_url: p.agent_avatar || "",
+      user_type: p.agent_type || undefined,
     },
   };
 }
