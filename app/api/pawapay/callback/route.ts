@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
+import { notifyUser } from "@/lib/push-notifications";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -58,7 +59,19 @@ export async function POST(req: Request) {
     // 3. Update Supabase
     const supabase = getSupabaseClient();
 
-    const { error } = await supabase
+    // Fetch the transaction first to check type and get property/user info
+    const { data: transaction, error: fetchError } = await supabase
+      .from("transactions")
+      .select("*")
+      .eq("deposit_id", transactionId)
+      .single();
+
+    if (fetchError || !transaction) {
+      console.error("Error fetching transaction for callback:", fetchError);
+      return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+    }
+
+    const { error: updateError } = await supabase
       .from("transactions")
       .update({
         status: dbStatus,
@@ -68,17 +81,57 @@ export async function POST(req: Request) {
       })
       .eq("deposit_id", transactionId); // We use deposit_id column for all external IDs currently
 
-    if (error) {
-      console.error("Error updating transaction:", error);
+    if (updateError) {
+      console.error("Error updating transaction:", updateError);
       return NextResponse.json(
         { error: "Database update failed" },
         { status: 500 }
       );
     }
 
+    // 4. Handle Post-Payment Logic for Property Locks
+    if (dbStatus === "completed" && transaction.type === "property_lock") {
+      const propertyId = transaction.property_id;
+      const renterId = transaction.user_id;
+
+      if (propertyId && renterId) {
+        // 4.1 Update property status to 'locked'
+        await supabase
+          .from("properties")
+          .update({ status: "locked" })
+          .eq("id", propertyId);
+
+        // 4.2 Create property_lock record
+        await supabase.from("property_locks").insert({
+          property_id: propertyId,
+          renter_id: renterId,
+          transaction_id: transaction.id,
+          lock_fee: transaction.amount,
+          status: "active",
+        });
+
+        // 4.3 Notify Owner
+        // Fetch property info to get owner_id and address
+        const { data: property } = await supabase
+          .from("properties")
+          .select("address, agent_id")
+          .eq("id", propertyId)
+          .single();
+
+        if (property && property.agent_id) {
+          await notifyUser(
+            property.agent_id,
+            "🎉 Bien réservé !",
+            `Votre bien situé à ${property.address} a été réservé via Early Bird.`,
+            { propertyId, type: "property_lock" }
+          );
+        }
+      }
+    }
+
     console.log(`Transaction ${transactionId} updated to ${dbStatus}`);
 
-    // 4. Return 200 OK
+    // 5. Return 200 OK
     return NextResponse.json({ received: true });
   } catch (error: unknown) {
     console.error("Callback error:", error);
