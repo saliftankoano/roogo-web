@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   CalendarIcon,
   TrashIcon,
@@ -8,8 +8,6 @@ import {
   ClockIcon,
   UsersIcon,
   CaretDownIcon,
-  CheckIcon,
-  XIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { Calendar } from "@/components/ui/calendar";
@@ -49,24 +47,7 @@ export default function OpenHouseSlotManager({
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    fetchSlots();
-  }, [propertyId]);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        datePickerRef.current &&
-        !datePickerRef.current.contains(event.target as Node)
-      ) {
-        setIsDatePickerOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
-
-  const fetchSlots = async () => {
+  const fetchSlots = useCallback(async () => {
     setLoading(true);
     try {
       const { data, error } = await supabase
@@ -87,7 +68,24 @@ export default function OpenHouseSlotManager({
     } finally {
       setLoading(false);
     }
-  };
+  }, [propertyId]);
+
+  useEffect(() => {
+    fetchSlots();
+  }, [fetchSlots]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        datePickerRef.current &&
+        !datePickerRef.current.contains(event.target as Node)
+      ) {
+        setIsDatePickerOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   const handleAddSlot = async () => {
     if (!selectedDate || !propertyId) return;

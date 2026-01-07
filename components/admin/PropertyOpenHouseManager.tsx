@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -8,7 +8,6 @@ import {
   UsersIcon,
   PlusIcon,
   TrashIcon,
-  XIcon,
   CalendarBlank,
 } from "@phosphor-icons/react";
 import { supabase } from "@/lib/supabase";
@@ -38,7 +37,6 @@ export default function PropertyOpenHouseManager({
     new Date()
   );
   const [slots, setSlots] = useState<OpenHouseSlot[]>([]);
-  const [loading, setLoading] = useState(false);
   const [isAdding, setIsAdding] = useState(false);
 
   // Form state
@@ -47,12 +45,7 @@ export default function PropertyOpenHouseManager({
   const [capacity, setCapacity] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
-  useEffect(() => {
-    fetchSlots();
-  }, [propertyId]);
-
-  const fetchSlots = async () => {
-    setLoading(true);
+  const fetchSlots = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("open_house_slots")
@@ -68,10 +61,12 @@ export default function PropertyOpenHouseManager({
       setSlots(data || []);
     } catch (error) {
       console.error("Error fetching property slots:", error);
-    } finally {
-      setLoading(false);
     }
-  };
+  }, [propertyId]);
+
+  useEffect(() => {
+    fetchSlots();
+  }, [fetchSlots]);
 
   const handleAddSlot = async () => {
     if (!selectedDate) return;
