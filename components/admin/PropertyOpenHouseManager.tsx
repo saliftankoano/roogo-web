@@ -156,7 +156,7 @@ export default function PropertyOpenHouseManager({
                 })}
               </h3>
               <p className="text-[10px] font-black text-primary uppercase tracking-[0.2em] mt-1.5 flex items-center gap-2">
-                <span className="w-8 h-[1px] bg-primary/20" />
+                <span className="w-8 h-px bg-primary/20" />
                 Sessions Open House
               </p>
             </div>
@@ -186,7 +186,7 @@ export default function PropertyOpenHouseManager({
                 >
                   <div className="space-y-5">
                     <div className="space-y-2.5">
-                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-[0.1em]">
+                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
                         Heure de début
                       </label>
                       <TimeInput24h
@@ -197,7 +197,7 @@ export default function PropertyOpenHouseManager({
                     </div>
 
                     <div className="space-y-2.5">
-                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-[0.1em]">
+                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
                         Heure de fin
                       </label>
                       <TimeInput24h
@@ -208,7 +208,7 @@ export default function PropertyOpenHouseManager({
                     </div>
 
                     <div className="space-y-2.5">
-                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-[0.1em]">
+                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
                         Capacité max.
                       </label>
                       <div className="relative group">
