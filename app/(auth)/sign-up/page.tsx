@@ -28,8 +28,7 @@ export default function SignUpPage() {
             socialButtonsBlockButton: "border-neutral-200 hover:bg-neutral-50",
           },
         }}
-        routing="path"
-        path="/sign-up"
+        routing="hash"
         signInUrl="/sign-in"
         forceRedirectUrl="/location"
       />
