@@ -8,7 +8,7 @@ import {
   type ReactNode,
 } from "react";
 import { XIcon } from "@phosphor-icons/react";
-import { AnimatePresence, motion } from "motion/react";
+import { AnimatePresence, motion } from "framer-motion";
 
 // Context
 interface ExpandableScreenContextValue {
