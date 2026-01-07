@@ -6,38 +6,50 @@ interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
   fullWidth?: boolean;
 }
 
-export function Button({
-  children,
-  className = "",
-  variant = "primary",
-  size = "md",
-  fullWidth = false,
-  ...props
-}: ButtonProps) {
-  const baseStyles = "inline-flex items-center justify-center rounded-full font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2";
-  
-  const variants = {
-    primary: "bg-primary text-white hover:bg-primary-hover focus:ring-primary",
-    secondary: "bg-secondary text-neutral-900 hover:bg-secondary/80 focus:ring-secondary",
-    outline: "border border-neutral-200 bg-transparent text-primary hover:bg-neutral-50 focus:ring-primary",
-    ghost: "bg-transparent text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 focus:ring-neutral-500",
-  };
+export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
+  (
+    {
+      children,
+      className = "",
+      variant = "primary",
+      size = "md",
+      fullWidth = false,
+      ...props
+    },
+    ref
+  ) => {
+    const baseStyles =
+      "inline-flex items-center justify-center rounded-full font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2";
 
-  const sizes = {
-    sm: "px-3 py-1.5 text-sm",
-    md: "px-6 py-3 text-base",
-    lg: "px-8 py-4 text-lg",
-  };
+    const variants = {
+      primary:
+        "bg-primary text-white hover:bg-primary-hover focus:ring-primary",
+      secondary:
+        "bg-secondary text-neutral-900 hover:bg-secondary/80 focus:ring-secondary",
+      outline:
+        "border border-neutral-200 bg-transparent text-primary hover:bg-neutral-50 focus:ring-primary",
+      ghost:
+        "bg-transparent text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 focus:ring-neutral-500",
+    };
 
-  const width = fullWidth ? "w-full" : "";
+    const sizes = {
+      sm: "px-3 py-1.5 text-sm",
+      md: "px-6 py-3 text-base",
+      lg: "px-8 py-4 text-lg",
+    };
 
-  return (
-    <button
-      className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${width} ${className}`}
-      {...props}
-    >
-      {children}
-    </button>
-  );
-}
+    const width = fullWidth ? "w-full" : "";
 
+    return (
+      <button
+        ref={ref}
+        className={`${baseStyles} ${variants[variant]} ${sizes[size]} ${width} ${className}`}
+        {...props}
+      >
+        {children}
+      </button>
+    );
+  }
+);
+
+Button.displayName = "Button";
