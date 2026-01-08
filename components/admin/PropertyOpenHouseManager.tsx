@@ -44,6 +44,7 @@ export default function PropertyOpenHouseManager({
   const [endTime, setEndTime] = useState("12:00");
   const [capacity, setCapacity] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   const fetchSlots = useCallback(async () => {
     try {
@@ -69,11 +70,9 @@ export default function PropertyOpenHouseManager({
   }, [fetchSlots]);
 
   const handleAddSlot = async () => {
-    if (!selectedDate) return;
-
     setIsSubmitting(true);
     try {
-      const dateStr = selectedDate.toISOString().split("T")[0];
+      const dateStr = selectedDate!.toISOString().split("T")[0];
       const response = await fetch("/api/admin/open-house-slots", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -92,6 +91,7 @@ export default function PropertyOpenHouseManager({
       }
 
       setIsAdding(false);
+      setShowConfirmation(false);
       fetchSlots();
     } catch (error) {
       console.error("Error adding slot:", error);
@@ -99,6 +99,11 @@ export default function PropertyOpenHouseManager({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleConfirmAdd = () => {
+    if (!selectedDate) return;
+    setShowConfirmation(true);
   };
 
   const handleDeleteSlot = async (id: string) => {
@@ -139,7 +144,7 @@ export default function PropertyOpenHouseManager({
           }}
           modifiersClassNames={{
             hasEvent:
-              "after:content-[''] after:absolute after:bottom-1 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full after:shadow-sm after:shadow-primary/30",
+              "after:content-[''] after:absolute after:bottom-4 after:left-1/2 after:-translate-x-1/2 after:w-1.5 after:h-1.5 after:bg-primary after:rounded-full after:shadow-sm after:shadow-primary/30",
           }}
         />
       </div>
@@ -237,7 +242,7 @@ export default function PropertyOpenHouseManager({
                       Annuler
                     </button>
                     <button
-                      onClick={handleAddSlot}
+                      onClick={handleConfirmAdd}
                       disabled={isSubmitting}
                       className="flex-1 py-4 bg-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 order-1 sm:order-2"
                     >
@@ -321,6 +326,67 @@ export default function PropertyOpenHouseManager({
           </div>
         </div>
       </div>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl p-10 text-center"
+            >
+              <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                <CalendarBlank
+                  size={40}
+                  weight="bold"
+                  className="text-primary"
+                />
+              </div>
+
+              <h3 className="text-2xl font-black text-neutral-900 mb-4 tracking-tight">
+                Confirmer la session
+              </h3>
+
+              <p className="text-neutral-500 font-medium leading-relaxed mb-10">
+                Voulez-vous vraiment programmer cette session de visite pour le{" "}
+                <span className="text-neutral-900 font-bold">
+                  {selectedDate?.toLocaleDateString("fr-FR", {
+                    day: "numeric",
+                    month: "long",
+                  })}
+                </span>{" "}
+                de{" "}
+                <span className="text-neutral-900 font-bold">{startTime}</span>{" "}
+                à <span className="text-neutral-900 font-bold">{endTime}</span>{" "}
+                ?
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleAddSlot}
+                  disabled={isSubmitting}
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+                >
+                  {isSubmitting ? "Confirmation..." : "Confirmer le créneau"}
+                </button>
+                <button
+                  onClick={() => setShowConfirmation(false)}
+                  className="w-full py-4 text-neutral-400 font-bold hover:text-neutral-900 transition-colors uppercase tracking-widest text-[10px]"
+                >
+                  Annuler
+                </button>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

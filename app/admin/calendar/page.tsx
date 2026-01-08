@@ -49,6 +49,7 @@ export default function AdminCalendarPage() {
   const [endTime, setEndTime] = useState("12:00");
   const [capacity, setCapacity] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
 
   // Custom select state
   const [isPropSelectOpen, setIsPropSelectOpen] = useState(false);
@@ -151,10 +152,7 @@ export default function AdminCalendarPage() {
     loadProperties();
   }, [fetchSlots, loadProperties]);
 
-  const handleAddSlot = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedPropertyId || !slotDate) return;
-
+  const handleAddSlot = async () => {
     setIsSubmitting(true);
     try {
       const response = await fetch("/api/admin/open-house-slots", {
@@ -175,6 +173,7 @@ export default function AdminCalendarPage() {
       }
 
       setIsModalOpen(false);
+      setShowConfirmation(false);
       fetchSlots();
       // Reset form
       setSelectedPropertyId("");
@@ -188,6 +187,12 @@ export default function AdminCalendarPage() {
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleFormSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedPropertyId || !slotDate) return;
+    setShowConfirmation(true);
   };
 
   const openAddModal = (day?: number) => {
@@ -351,7 +356,7 @@ export default function AdminCalendarPage() {
                     {day}
                   </span>
                   {hasEvent && !isToday && (
-                    <div className="w-1.5 h-1.5 bg-primary rounded-full absolute bottom-3" />
+                    <div className="w-1.5 h-1.5 bg-primary rounded-full absolute bottom-5" />
                   )}
                 </div>
               );
@@ -545,7 +550,7 @@ export default function AdminCalendarPage() {
                 </button>
               </div>
 
-              <form onSubmit={handleAddSlot} className="p-8 space-y-6">
+              <form onSubmit={handleFormSubmit} className="p-8 space-y-6">
                 <div className="space-y-3" ref={propSelectRef}>
                   <label className="text-xs font-bold text-neutral-900 ml-4 uppercase tracking-widest opacity-60">
                     Propriété
@@ -692,6 +697,68 @@ export default function AdminCalendarPage() {
                   {isSubmitting ? "Création..." : "Créer le créneau"}
                 </button>
               </form>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl p-10 text-center"
+            >
+              <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                <CalendarIcon
+                  size={40}
+                  weight="bold"
+                  className="text-primary"
+                />
+              </div>
+
+              <h3 className="text-2xl font-black text-neutral-900 mb-4 tracking-tight">
+                Confirmer le créneau
+              </h3>
+
+              <p className="text-neutral-500 font-medium leading-relaxed mb-10">
+                Voulez-vous vraiment créer ce créneau de visite pour{" "}
+                <span className="text-neutral-900 font-bold">
+                  {properties.find((p) => p.id === selectedPropertyId)?.title}
+                </span>{" "}
+                le{" "}
+                <span className="text-neutral-900 font-bold">
+                  {new Date(slotDate).toLocaleDateString("fr-FR", {
+                    day: "numeric",
+                    month: "long",
+                  })}
+                </span>{" "}
+                ?
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleAddSlot}
+                  disabled={isSubmitting}
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+                >
+                  {isSubmitting ? "Confirmation..." : "Confirmer la création"}
+                </button>
+                <button
+                  onClick={() => setShowConfirmation(false)}
+                  className="w-full py-4 text-neutral-400 font-bold hover:text-neutral-900 transition-colors uppercase tracking-widest text-[10px]"
+                >
+                  Annuler
+                </button>
+              </div>
             </motion.div>
           </motion.div>
         )}
