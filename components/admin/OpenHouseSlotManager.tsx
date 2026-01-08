@@ -44,6 +44,7 @@ export default function OpenHouseSlotManager({
   const [endTime, setEndTime] = useState("12:00");
   const [capacity, setCapacity] = useState(10);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
 
@@ -88,13 +89,11 @@ export default function OpenHouseSlotManager({
   }, []);
 
   const handleAddSlot = async () => {
-    if (!selectedDate || !propertyId) return;
-
     setIsSubmitting(true);
     try {
       const { error } = await supabase.from("open_house_slots").insert({
         property_id: propertyId,
-        date: format(selectedDate, "yyyy-MM-dd"),
+        date: format(selectedDate!, "yyyy-MM-dd"),
         start_time: startTime,
         end_time: endTime,
         capacity,
@@ -103,6 +102,7 @@ export default function OpenHouseSlotManager({
       if (error) throw error;
 
       setIsAdding(false);
+      setShowConfirmation(false);
       fetchSlots();
       // Reset form
       setSelectedDate(undefined);
@@ -115,6 +115,11 @@ export default function OpenHouseSlotManager({
     } finally {
       setIsSubmitting(false);
     }
+  };
+
+  const handleConfirmAdd = () => {
+    if (!selectedDate || !propertyId) return;
+    setShowConfirmation(true);
   };
 
   const handleDeleteSlot = async (id: string) => {
@@ -295,7 +300,7 @@ export default function OpenHouseSlotManager({
               </Button>
               <Button
                 disabled={isSubmitting || !selectedDate}
-                onClick={handleAddSlot}
+                onClick={handleConfirmAdd}
                 className="bg-primary text-white text-xs font-bold uppercase tracking-wider px-8 h-12 rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95 disabled:opacity-50"
               >
                 {isSubmitting ? "Enregistrement..." : "Enregistrer"}
@@ -380,6 +385,65 @@ export default function OpenHouseSlotManager({
                 </button>
               </div>
             )}
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Confirmation Modal */}
+      <AnimatePresence>
+        {showConfirmation && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+          >
+            <motion.div
+              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl p-10 text-center"
+            >
+              <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
+                <CalendarIcon
+                  size={40}
+                  weight="bold"
+                  className="text-primary"
+                />
+              </div>
+
+              <h3 className="text-2xl font-black text-neutral-900 mb-4 tracking-tight">
+                Confirmer le créneau
+              </h3>
+
+              <p className="text-neutral-500 font-medium leading-relaxed mb-10">
+                Voulez-vous vraiment programmer cette visite pour le{" "}
+                <span className="text-neutral-900 font-bold">
+                  {selectedDate &&
+                    format(selectedDate, "d MMMM", { locale: fr })}
+                </span>{" "}
+                de{" "}
+                <span className="text-neutral-900 font-bold">{startTime}</span>{" "}
+                à <span className="text-neutral-900 font-bold">{endTime}</span>{" "}
+                ?
+              </p>
+
+              <div className="flex flex-col gap-3">
+                <button
+                  onClick={handleAddSlot}
+                  disabled={isSubmitting}
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+                >
+                  {isSubmitting ? "Confirmation..." : "Confirmer la création"}
+                </button>
+                <button
+                  onClick={() => setShowConfirmation(false)}
+                  className="w-full py-4 text-neutral-400 font-bold hover:text-neutral-900 transition-colors uppercase tracking-widest text-[10px]"
+                >
+                  Annuler
+                </button>
+              </div>
+            </motion.div>
           </motion.div>
         )}
       </AnimatePresence>
