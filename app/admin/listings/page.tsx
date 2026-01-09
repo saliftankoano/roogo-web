@@ -146,8 +146,27 @@ export default function AdminListingsPage() {
             <Link
               href={`/admin/listings/${listing.id}`}
               key={listing.id}
-              className="block"
+              className="block relative group"
             >
+              <div className="absolute top-7 right-7 z-10">
+                <span
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border backdrop-blur-sm ${
+                    listing.status === "en_ligne"
+                      ? "bg-green-100/90 text-green-800 border-green-200"
+                      : listing.status === "en_attente"
+                      ? "bg-yellow-100 text-yellow-900 border-yellow-300"
+                      : "bg-neutral-100/90 text-neutral-600 border-neutral-200"
+                  }`}
+                >
+                  {listing.status === "en_ligne"
+                    ? "En ligne"
+                    : listing.status === "en_attente"
+                    ? "En attente"
+                    : listing.status === "expired"
+                    ? "Expiré"
+                    : listing.status}
+                </span>
+              </div>
               <PropertyCard property={listing} />
             </Link>
           ))}
