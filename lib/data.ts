@@ -355,3 +355,27 @@ export const properties: Property[] = [
     favorites: 12,
   },
 ];
+
+export async function updatePropertyStatus(
+  id: string,
+  status: string
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/properties/${id}/status`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ status }),
+    });
+
+    if (!response.ok) {
+      console.error("Error updating property status:", await response.text());
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error updating property status:", error);
+    return false;
+  }
+}

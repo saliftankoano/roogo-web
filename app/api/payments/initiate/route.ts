@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server";
 import { verifyToken, createClerkClient } from "@clerk/backend";
-import { 
-  getSupabaseClient, 
-  getUserByClerkId, 
-  createUserInSupabase 
+import {
+  ClerkUserData,
+  getSupabaseClient,
+  getUserByClerkId,
+  createUserInSupabase,
 } from "@/lib/user-sync";
 
 interface PawaPayDepositPayload {
@@ -81,8 +82,8 @@ export async function POST(req: Request) {
           phone_numbers: clerkUser.phoneNumbers.map((p) => ({
             phone_number: p.phoneNumber,
           })),
-          private_metadata: clerkUser.privateMetadata as any,
-          unsafe_metadata: clerkUser.unsafeMetadata as any,
+          private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+          unsafe_metadata: clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
         };
 
         user = await createUserInSupabase(userData);

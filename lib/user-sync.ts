@@ -33,9 +33,13 @@ export interface ClerkUserData {
     userType?: string;
     sex?: string;
     dateOfBirth?: string;
+    companyName?: string;
+    facebookUrl?: string;
   };
   unsafe_metadata?: {
     userType?: string;
+    companyName?: string;
+    facebookUrl?: string;
   };
 }
 
@@ -75,8 +79,12 @@ export async function createUserInSupabase(data: ClerkUserData) {
     // Check both private_metadata and unsafe_metadata for userType
     const userType =
       private_metadata?.userType || unsafe_metadata?.userType || "renter";
+    const companyName =
+      private_metadata?.companyName || unsafe_metadata?.companyName;
+    const facebookUrl =
+      private_metadata?.facebookUrl || unsafe_metadata?.facebookUrl;
 
-    const validUserTypes = ["owner", "renter", "staff"];
+    const validUserTypes = ["owner", "renter", "staff", "agent"];
     const supabaseUserType = validUserTypes.includes(userType)
       ? userType
       : "renter"; // Default to renter for unknown types
@@ -89,6 +97,8 @@ export async function createUserInSupabase(data: ClerkUserData) {
       userType,
       supabaseUserType,
       image_url,
+      companyName,
+      facebookUrl,
     });
 
     if (!email) {
@@ -108,6 +118,8 @@ export async function createUserInSupabase(data: ClerkUserData) {
         avatar_url: image_url,
         phone,
         user_type: supabaseUserType,
+        company_name: companyName,
+        facebook_url: facebookUrl,
       })
       .select()
       .single();
@@ -160,10 +172,14 @@ export async function updateUserInSupabase(data: ClerkUserData) {
     const phone = phone_numbers?.[0]?.phone_number;
     // Check both private_metadata and unsafe_metadata for userType
     const userType = private_metadata?.userType || unsafe_metadata?.userType;
+    const companyName =
+      private_metadata?.companyName || unsafe_metadata?.companyName;
+    const facebookUrl =
+      private_metadata?.facebookUrl || unsafe_metadata?.facebookUrl;
 
     // Use consistent terminology - no mapping needed
-    // Valid types: "owner", "renter", "staff"
-    const validUserTypes = ["owner", "renter", "staff"];
+    // Valid types: "owner", "renter", "staff", "agent"
+    const validUserTypes = ["owner", "renter", "staff", "agent"];
     const supabaseUserType =
       userType && validUserTypes.includes(userType) ? userType : undefined;
 
@@ -175,6 +191,8 @@ export async function updateUserInSupabase(data: ClerkUserData) {
       userType,
       supabaseUserType,
       image_url,
+      companyName,
+      facebookUrl,
     });
 
     if (!email) {
@@ -190,6 +208,8 @@ export async function updateUserInSupabase(data: ClerkUserData) {
       full_name: fullName,
       avatar_url: image_url,
       phone,
+      company_name: companyName,
+      facebook_url: facebookUrl,
     };
 
     // Only update user_type if it's provided

@@ -8,6 +8,7 @@ This application supports three distinct user types, each with different permiss
 | --------- | --------------------------------------- | ----------------- |
 | `owner`   | Property owners who list properties     | Mobile App        |
 | `renter`  | People looking to rent/buy properties   | Mobile App        |
+| `agent`   | Real estate agents with company info    | Mobile App        |
 | `staff`   | Internal team members with admin access | Web App           |
 
 **Note:** User types are consistent across Clerk metadata and Supabase database - no mapping needed!
@@ -44,7 +45,19 @@ This application supports three distinct user types, each with different permiss
 - Submit leads
 - Update own profile
 
-## 3. Staff (`staff`)
+## 3. Agent (`agent`)
+
+**Mobile App Users**
+
+- Same as `owner` but with professional business profile
+- Requires `company_name` and `facebook_url`
+- Professional branding on listings
+
+**Permissions:**
+
+- Same as `owner`
+
+## 4. Staff (`staff`)
 
 **Web App Users (Admin Panel)**
 

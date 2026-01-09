@@ -1,6 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import {
   UsersIcon,
@@ -12,6 +13,10 @@ import {
   XCircleIcon,
   ClockIcon,
   CalendarBlank,
+  CaretDown,
+  WarningCircle,
+  Check,
+  X,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
@@ -19,12 +24,20 @@ import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManage
 import {
   fetchPropertyById,
   fetchTransactionsByPropertyId,
+  updatePropertyStatus,
   Property,
   Transaction,
 } from "@/lib/data";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
+import { AnimatePresence, motion } from "framer-motion";
 
+function Portal({ children }: { children: React.ReactNode }) {
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
+  if (!mounted) return null;
+  return createPortal(children, document.body);
+}
 export default function ListingDetailPage() {
   const params = useParams();
   const id = (params?.id as string) || "";
@@ -32,6 +45,12 @@ export default function ListingDetailPage() {
   const [listing, setListing] = useState<Property | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Status Management
+  const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  const dropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function loadData() {
@@ -49,7 +68,90 @@ export default function ListingDetailPage() {
       setLoading(false);
     }
     loadData();
+
+    // Click outside listener for dropdown
+    function handleClickOutside(event: MouseEvent) {
+      if (
+        dropdownRef.current &&
+        !dropdownRef.current.contains(event.target as Node)
+      ) {
+        setIsStatusDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+    };
   }, [id]);
+
+  const handleStatusChange = async (newStatus: string) => {
+    if (!listing) return;
+    const oldStatus = listing.status;
+
+    // Optimistic update
+    setListing({ ...listing, status: newStatus });
+
+    const success = await updatePropertyStatus(listing.id, newStatus);
+
+    if (!success) {
+      // Revert if failed
+      setListing({ ...listing, status: oldStatus });
+      alert("Erreur lors de la mise à jour du statut");
+    }
+  };
+
+  const initiateStatusChange = (newStatus: string) => {
+    if (newStatus === listing?.status) return;
+    setPendingStatus(newStatus);
+    setIsStatusDropdownOpen(false);
+    setStatusModalOpen(true);
+  };
+
+  const confirmStatusChange = async () => {
+    if (pendingStatus) {
+      await handleStatusChange(pendingStatus);
+      setStatusModalOpen(false);
+      setPendingStatus(null);
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "en_attente":
+        return "En attente (Photo Pro)";
+      case "en_ligne":
+        return "En ligne (Publiée)";
+      case "expired":
+        return "Expirée (Louée/Vendue)";
+      default:
+        return status;
+    }
+  };
+
+  const getCleanStatusLabel = (status: string) => {
+    switch (status) {
+      case "en_attente":
+        return "En attente";
+      case "en_ligne":
+        return "En ligne";
+      case "expired":
+        return "Expirée";
+      default:
+        return status;
+    }
+  };
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "en_ligne":
+        return "bg-green-50 text-green-700 border-green-200";
+      case "en_attente":
+        return "bg-yellow-100 text-yellow-900 border-yellow-300";
+      case "expired":
+        return "bg-neutral-50 text-neutral-600 border-neutral-200";
+      default:
+        return "bg-neutral-50 text-neutral-600 border-neutral-200";
+    }
+  };
 
   if (loading)
     return (
@@ -69,23 +171,67 @@ export default function ListingDetailPage() {
       </div>
     );
 
-  const getStatusLabel = (status: string) => {
-    switch (status) {
-      case "en_attente":
-        return "Photo Pro Requise";
-      case "en_ligne":
-        return "Publiée";
-      case "closing":
-        return "Fermeture Bientôt";
-      case "expired":
-        return "Expirée";
-      default:
-        return status;
-    }
-  };
-
   return (
-    <div className="max-w-7xl mx-auto p-6 lg:p-10 space-y-10">
+    <div className="max-w-7xl mx-auto p-6 lg:p-10 space-y-10 relative">
+      {/* Status Confirmation Modal */}
+      <Portal>
+        <AnimatePresence>
+          {statusModalOpen && (
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={() => setStatusModalOpen(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10 overflow-hidden"
+              >
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-12 h-12 bg-yellow-50 rounded-full flex items-center justify-center text-yellow-500 mb-2">
+                    <WarningCircle size={32} weight="fill" />
+                  </div>
+                  <h3 className="text-xl font-bold text-neutral-900">
+                    Confirmer le changement de statut
+                  </h3>
+                  <p className="text-neutral-500 text-sm">
+                    Êtes-vous sûr de vouloir changer le statut de <br />
+                    <span className="font-bold text-neutral-900">
+                      {getCleanStatusLabel(listing.status)}
+                    </span>{" "}
+                    à{" "}
+                    <span className="font-bold text-[#C96A2E]">
+                      {getCleanStatusLabel(pendingStatus || "")}
+                    </span>{" "}
+                    ?
+                  </p>
+
+                  <div className="flex gap-3 w-full mt-6">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setStatusModalOpen(false)}
+                      className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      onClick={confirmStatusChange}
+                      className="flex-1 bg-primary text-white hover:bg-primary/90"
+                    >
+                      Confirmer
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </Portal>
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
@@ -98,15 +244,6 @@ export default function ListingDetailPage() {
           </Button>
           <div>
             <div className="flex items-center gap-2 mb-1">
-              <span
-                className={`text-[10px] uppercase font-bold px-2 py-0.5 rounded-full border ${
-                  listing.status === "en_ligne"
-                    ? "bg-green-50 text-green-700 border-green-200"
-                    : "bg-yellow-50 text-yellow-700 border-yellow-200"
-                }`}
-              >
-                {getStatusLabel(listing.status)}
-              </span>
               {listing.isSponsored && (
                 <span className="text-[10px] font-bold text-primary bg-primary/5 px-2 py-0.5 rounded-full border border-primary/20 uppercase tracking-widest">
                   Premium
@@ -122,16 +259,76 @@ export default function ListingDetailPage() {
             </div>
           </div>
         </div>
-        <div className="flex gap-3">
+        <div className="flex gap-3 items-center">
           <Button
             variant="ghost"
             className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
           >
             Supprimer
           </Button>
-          <Button className="bg-neutral-900 text-white text-xs font-bold uppercase tracking-wider px-6">
-            Éditer
-          </Button>
+
+          {/* Status Switcher on Right */}
+          <div className="relative" ref={dropdownRef}>
+            <button
+              onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              className={cn(
+                "h-10 px-4 pl-3 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary/20",
+                getStatusColor(listing.status)
+              )}
+            >
+              {getStatusLabel(listing.status)}
+              <CaretDown size={12} weight="bold" className="opacity-50" />
+            </button>
+
+            {/* Dropdown Menu */}
+            <AnimatePresence>
+              {isStatusDropdownOpen && (
+                <motion.div
+                  initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                  animate={{ opacity: 1, y: 0, scale: 1 }}
+                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
+                  className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-neutral-100 overflow-hidden z-30"
+                >
+                  <div className="p-1">
+                    {[
+                      {
+                        value: "en_attente",
+                        label: "En attente (Photo Pro)",
+                      },
+                      {
+                        value: "en_ligne",
+                        label: "En ligne (Publiée)",
+                      },
+                      {
+                        value: "expired",
+                        label: "Expirée (Louée/Vendue)",
+                      },
+                    ].map((option) => (
+                      <button
+                        key={option.value}
+                        onClick={() => initiateStatusChange(option.value)}
+                        className={cn(
+                          "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center justify-between hover:bg-neutral-50 transition-colors",
+                          listing.status === option.value
+                            ? "bg-neutral-50 text-neutral-900"
+                            : "text-neutral-500"
+                        )}
+                      >
+                        <span>{option.label}</span>
+                        {listing.status === option.value && (
+                          <Check
+                            size={14}
+                            weight="bold"
+                            className="text-primary"
+                          />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </div>
       </div>
 
@@ -143,7 +340,12 @@ export default function ListingDetailPage() {
               propertyId={listing.id}
               initialPhotos={listing.images}
               isProfessional={listing.status === "en_ligne"}
-              onPhotosUpdated={() => {}}
+              onPhotosUpdated={(isPro) => {
+                // If photos are validated as professional, update status to en_ligne
+                if (isPro && listing.status !== "en_ligne") {
+                  initiateStatusChange("en_ligne");
+                }
+              }}
             />
           </section>
         </div>

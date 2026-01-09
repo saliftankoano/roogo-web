@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import {
   ImageIcon,
   CheckIcon,
@@ -25,6 +25,10 @@ export default function PhotoManager({
   const [photos, setPhotos] = useState<string[]>(initialPhotos);
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setProfessional(isProfessional);
+  }, [isProfessional]);
 
   const handleUpload = () => {
     // Mock upload
