@@ -1,6 +1,10 @@
 import { NextResponse } from "next/server";
-import { verifyToken } from "@clerk/backend";
-import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
+import { verifyToken, createClerkClient } from "@clerk/backend";
+import { 
+  getSupabaseClient, 
+  getUserByClerkId, 
+  createUserInSupabase 
+} from "@/lib/user-sync";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -52,10 +56,49 @@ export async function POST(req: Request) {
     }
 
     // 2. Get User from Supabase
-    const user = await getUserByClerkId(clerkUserId);
+    let user = await getUserByClerkId(clerkUserId);
+
+    // Auto-sync if user missing
+    let syncError: Error | null = null;
     if (!user) {
+      console.log(
+        `User ${clerkUserId} not found in Supabase. Attempting auto-sync...`
+      );
+      try {
+        const clerkClient = createClerkClient({
+          secretKey: process.env.CLERK_SECRET_KEY,
+        });
+        const clerkUser = await clerkClient.users.getUser(clerkUserId);
+
+        const userData = {
+          id: clerkUser.id,
+          email_addresses: clerkUser.emailAddresses.map((e) => ({
+            email_address: e.emailAddress,
+          })),
+          first_name: clerkUser.firstName || undefined,
+          last_name: clerkUser.lastName || undefined,
+          image_url: clerkUser.imageUrl,
+          phone_numbers: clerkUser.phoneNumbers.map((p) => ({
+            phone_number: p.phoneNumber,
+          })),
+          private_metadata: clerkUser.privateMetadata as any,
+          unsafe_metadata: clerkUser.unsafeMetadata as any,
+        };
+
+        user = await createUserInSupabase(userData);
+        console.log("Auto-sync successful, user created:", user?.id);
+      } catch (error) {
+        syncError = error instanceof Error ? error : new Error(String(error));
+        console.error("Auto-sync failed:", syncError.message);
+      }
+    }
+
+    if (!user) {
+      const errorMessage = syncError 
+        ? `User sync failed: ${syncError.message}` 
+        : "User not found in database";
       return cors(
-        NextResponse.json({ error: "User not found" }, { status: 404 })
+        NextResponse.json({ error: errorMessage }, { status: 404 })
       );
     }
 
