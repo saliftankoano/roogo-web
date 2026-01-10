@@ -10,7 +10,7 @@ export async function POST(req: Request) {
 
     console.log("Test webhook called with:", JSON.stringify(body, null, 2));
 
-    // Simulate a user.updated event
+    // Simulate a user.updated event with the new secure structure
     const mockEvent = {
       type: "user.updated",
       data: {
@@ -20,12 +20,13 @@ export async function POST(req: Request) {
         last_name: "User",
         image_url: "https://example.com/avatar.jpg",
         phone_numbers: [{ phone_number: "+1234567890" }],
+        public_metadata: {
+          userType: "agent",
+        },
         private_metadata: {
-          userType: "agent",
+          sex: "Masculin",
         },
-        unsafe_metadata: {
-          userType: "agent",
-        },
+        unsafe_metadata: {}, // Should be empty in the new standard
       },
     };
 
@@ -54,4 +55,3 @@ export async function GET() {
     timestamp: new Date().toISOString(),
   });
 }
-
