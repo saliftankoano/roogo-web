@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
 import { notifyLockParties } from "@/lib/lock-notifications";
 
 // PawaPay IPs to whitelist

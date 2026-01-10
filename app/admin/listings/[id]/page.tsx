@@ -16,7 +16,6 @@ import {
   CaretDown,
   WarningCircle,
   Check,
-  X,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";

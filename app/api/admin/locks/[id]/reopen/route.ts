@@ -5,15 +5,14 @@ import { notifyLockParties } from "@/lib/lock-notifications";
 
 export async function POST(
   req: Request,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
+    const { id: lockId } = await params;
     const { userId } = await auth();
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
-    const lockId = params.id;
     const supabase = getSupabaseClient();
 
     // 1. Fetch lock details
