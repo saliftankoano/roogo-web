@@ -12,10 +12,10 @@ import {
   CheckCircleIcon,
   XCircleIcon,
   ClockIcon,
-  CalendarBlank,
-  CaretDown,
-  WarningCircle,
-  Check,
+  CalendarBlankIcon,
+  CaretDownIcon,
+  WarningCircleIcon,
+  CheckIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
@@ -192,7 +192,7 @@ export default function ListingDetailPage() {
               >
                 <div className="flex flex-col items-center text-center space-y-4">
                   <div className="w-12 h-12 bg-yellow-50 rounded-full flex items-center justify-center text-yellow-500 mb-2">
-                    <WarningCircle size={32} weight="fill" />
+                    <WarningCircleIcon size={32} weight="fill" />
                   </div>
                   <h3 className="text-xl font-bold text-neutral-900">
                     Confirmer le changement de statut
@@ -276,7 +276,7 @@ export default function ListingDetailPage() {
               )}
             >
               {getStatusLabel(listing.status)}
-              <CaretDown size={12} weight="bold" className="opacity-50" />
+              <CaretDownIcon size={12} weight="bold" className="opacity-50" />
             </button>
 
             {/* Dropdown Menu */}
@@ -315,7 +315,7 @@ export default function ListingDetailPage() {
                       >
                         <span>{option.label}</span>
                         {listing.status === option.value && (
-                          <Check
+                          <CheckIcon
                             size={14}
                             weight="bold"
                             className="text-primary"
@@ -441,7 +441,7 @@ export default function ListingDetailPage() {
       {/* Open House Management - Full Width */}
       <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
         <h3 className="text-xl font-bold text-neutral-900 mb-8 flex items-center gap-3">
-          <CalendarBlank size={24} weight="bold" className="text-primary" />
+          <CalendarBlankIcon size={24} weight="bold" className="text-primary" />
           Planning des Visites
         </h3>
         <PropertyOpenHouseManager propertyId={listing.id} />
