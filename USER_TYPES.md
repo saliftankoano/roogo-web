@@ -22,13 +22,6 @@ This application supports three distinct user types, each with different permiss
 - View leads and inquiries
 - Manage their own properties
 
-**Permissions:**
-
-- Create properties
-- Update their own properties
-- Delete their own properties
-- View leads for their properties
-
 ## 2. Renter (`renter`)
 
 **Mobile App Users**
@@ -38,13 +31,6 @@ This application supports three distinct user types, each with different permiss
 - Contact property owners
 - Submit lead forms
 
-**Permissions:**
-
-- View all active properties
-- Create favorites
-- Submit leads
-- Update own profile
-
 ## 3. Agent (`agent`)
 
 **Mobile App Users**
@@ -52,10 +38,6 @@ This application supports three distinct user types, each with different permiss
 - Same as `owner` but with professional business profile
 - Requires `company_name` and `facebook_url`
 - Professional branding on listings
-
-**Permissions:**
-
-- Same as `owner`
 
 ## 4. Staff (`staff`)
 
@@ -67,28 +49,20 @@ This application supports three distinct user types, each with different permiss
 - Moderate content
 - Handle customer support
 
-**Permissions:**
+## Setting User Type (Security)
 
-- Full CRUD on all properties
-- Approve/reject pending properties
-- Manage all users
-- Access admin dashboard
-- View system analytics
-
-## Setting User Type
-
-User types are set via Clerk metadata during sign-up:
+User types MUST be set via **Public Metadata** for security. This prevents users from changing their own type via the client-side SDK.
 
 ```typescript
-// In Clerk sign-up flow
+// In Clerk sign-up flow (Backend / API only)
 await clerkUser.update({
-  unsafeMetadata: {
-    userType: "owner", // or "renter" or "staff"
+  publicMetadata: {
+    userType: "owner", // or "renter", "staff", "agent"
   },
 });
 ```
 
-For staff users, set this manually in the Clerk dashboard under the user's metadata.
+For staff users, this is handled automatically via the `/api/auth/verify-staff-code` route when they enter the secret code.
 
 ## RLS Policies
 
@@ -100,8 +74,8 @@ Row Level Security policies should be configured to:
 
 ## Important Notes
 
-- Mobile app only handles `owner` and `renter` types
-- Staff users should access the web app for admin tasks
-- Default type is `renter` if not specified
-- User type is synced to Supabase via Clerk webhooks
-- User types are consistent between Clerk and Supabase (no mapping/translation)
+- Mobile app handles `owner`, `renter`, and `agent` types.
+- Staff users access the web app for admin tasks.
+- Default type is `renter` if not specified.
+- User type is synced to Supabase via Clerk webhooks.
+- **NEVER** use `unsafeMetadata` for `userType` as it can be modified by the user in the browser console.

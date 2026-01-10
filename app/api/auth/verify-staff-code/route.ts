@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -10,6 +10,7 @@ const supabaseAdmin = createClient(
 export async function POST(request: NextRequest) {
   try {
     const { userId } = await auth();
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -19,7 +20,6 @@ export async function POST(request: NextRequest) {
     // Verify the staff code
     const staffSecret = process.env.STAFF_REGISTRATION_SECRET;
     if (!staffSecret) {
-      console.error("STAFF_REGISTRATION_SECRET not configured");
       return NextResponse.json(
         { error: "Staff registration not configured" },
         { status: 500 }
@@ -44,6 +44,21 @@ export async function POST(request: NextRequest) {
       [user.firstName, user.lastName].filter(Boolean).join(" ") ||
       "Staff Member";
 
+    // Update Clerk metadata
+    const client = await clerkClient();
+    
+    // Standardizing on userType in publicMetadata for security
+    await client.users.updateUser(userId, {
+      publicMetadata: {
+        userType: "staff",
+      },
+      privateMetadata: {
+        userType: "staff",
+      },
+      // Clear unsafeMetadata as we migrate to secure fields
+      unsafeMetadata: {}
+    });
+
     // Check if user already exists in Supabase
     const { data: existingUser } = await supabaseAdmin
       .from("users")
@@ -52,21 +67,18 @@ export async function POST(request: NextRequest) {
       .single();
 
     if (existingUser) {
-      // User exists, update their role to staff
       const { error: updateError } = await supabaseAdmin
         .from("users")
         .update({ user_type: "staff" })
         .eq("clerk_id", userId);
 
       if (updateError) {
-        console.error("Error updating user to staff:", updateError);
         return NextResponse.json(
           { error: "Failed to update user role" },
           { status: 500 }
         );
       }
     } else {
-      // User doesn't exist, create them as staff
       const { error: insertError } = await supabaseAdmin.from("users").insert({
         clerk_id: userId,
         email: email,
@@ -76,7 +88,6 @@ export async function POST(request: NextRequest) {
       });
 
       if (insertError) {
-        console.error("Error creating staff user:", insertError);
         return NextResponse.json(
           { error: "Failed to create staff user" },
           { status: 500 }

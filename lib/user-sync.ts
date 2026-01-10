@@ -29,6 +29,10 @@ export interface ClerkUserData {
   last_name?: string;
   image_url?: string;
   phone_numbers?: Array<{ phone_number: string }>;
+  public_metadata?: {
+    userType?: string;
+    role?: string;
+  };
   private_metadata?: {
     userType?: string;
     sex?: string;
@@ -66,6 +70,7 @@ export async function createUserInSupabase(data: ClerkUserData) {
       last_name,
       image_url,
       phone_numbers,
+      public_metadata,
       private_metadata,
       unsafe_metadata,
     } = data;
@@ -76,9 +81,15 @@ export async function createUserInSupabase(data: ClerkUserData) {
         ? `${first_name} ${last_name}`
         : first_name || last_name;
     const phone = phone_numbers?.[0]?.phone_number;
-    // Check both private_metadata and unsafe_metadata for userType
+    
+    // Check all metadata types for userType, prioritize secure ones
     const userType =
-      private_metadata?.userType || unsafe_metadata?.userType || "renter";
+      public_metadata?.userType || 
+      public_metadata?.role || 
+      private_metadata?.userType || 
+      unsafe_metadata?.userType || 
+      "renter";
+      
     const companyName =
       private_metadata?.companyName || unsafe_metadata?.companyName;
     const facebookUrl =
@@ -160,6 +171,7 @@ export async function updateUserInSupabase(data: ClerkUserData) {
       last_name,
       image_url,
       phone_numbers,
+      public_metadata,
       private_metadata,
       unsafe_metadata,
     } = data;
@@ -170,8 +182,14 @@ export async function updateUserInSupabase(data: ClerkUserData) {
         ? `${first_name} ${last_name}`
         : first_name || last_name;
     const phone = phone_numbers?.[0]?.phone_number;
-    // Check both private_metadata and unsafe_metadata for userType
-    const userType = private_metadata?.userType || unsafe_metadata?.userType;
+    
+    // Check all metadata types for userType, prioritize secure ones
+    const userType = 
+      public_metadata?.userType || 
+      public_metadata?.role || 
+      private_metadata?.userType || 
+      unsafe_metadata?.userType;
+      
     const companyName =
       private_metadata?.companyName || unsafe_metadata?.companyName;
     const facebookUrl =
@@ -225,7 +243,7 @@ export async function updateUserInSupabase(data: ClerkUserData) {
       .single();
 
     if (error) {
-      console.error("Error updating user in Supabase:", error);
+      console.error("Error updating user type in Supabase:", error);
       throw error;
     }
 
@@ -308,3 +326,9 @@ export function getSupabaseClient() {
   }
   return supabase;
 }
+
+```
+
+Command completed in 157 ms.
+
+Shell state (cwd, env vars) persists for subsequent calls.

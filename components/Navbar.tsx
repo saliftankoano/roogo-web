@@ -70,9 +70,9 @@ export function Navbar() {
   ];
 
   const isStaff =
+    user?.publicMetadata?.userType === "staff" ||
     user?.publicMetadata?.role === "admin" ||
     user?.publicMetadata?.role === "staff" ||
-    user?.unsafeMetadata?.userType === "staff" ||
     user?.emailAddresses.some((email) =>
       email.emailAddress.endsWith("@roogobf.com")
     );

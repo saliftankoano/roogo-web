@@ -71,7 +71,7 @@ export async function POST(req: Request) {
         });
         const clerkUser = await clerkClient.users.getUser(clerkUserId);
 
-        const userData = {
+        const userData: ClerkUserData = {
           id: clerkUser.id,
           email_addresses: clerkUser.emailAddresses.map((e) => ({
             email_address: e.emailAddress,
@@ -82,8 +82,9 @@ export async function POST(req: Request) {
           phone_numbers: clerkUser.phoneNumbers.map((p) => ({
             phone_number: p.phoneNumber,
           })),
+          public_metadata: clerkUser.publicMetadata as ClerkUserData["public_metadata"],
           private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
-          unsafe_metadata: clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
+          // We stop sending unsafe_metadata as it's no longer used for sync
         };
 
         user = await createUserInSupabase(userData);
@@ -169,14 +170,6 @@ export async function POST(req: Request) {
     const pawaUrl = pawaUrlBase.replace(/\/+$/, ""); // Remove trailing slashes
     const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
 
-    // Log token info for debugging (first 20 chars only for security)
-    console.log(
-      `PawaPay API: ${pawaUrl}, Token present: ${!!pawaToken}, Token preview: ${pawaToken?.substring(
-        0,
-        20
-      )}...`
-    );
-
     if (!pawaToken) {
       console.error("PAWAPAY_API_TOKEN is not set");
       return cors(
@@ -187,31 +180,18 @@ export async function POST(req: Request) {
       );
     }
 
-    // Format phone number for PawaPay v2 API
-    // Requirements: Only digits, no spaces, no separators, no '+', no leading zero
-    // Country code is mandatory (Burkina Faso = 226)
-    let formattedPhone = phoneNumber.replace(/\s/g, ""); // Remove spaces
-
-    // Check if it's 8 digits (standard BF) or 9 digits (with leading 0)
-    // If 9 digits and starts with 0, remove it.
-    // If 8 digits, keep it as is (could be a test number starting with 0 like 07...)
+    // Format phone number
+    let formattedPhone = phoneNumber.replace(/\s/g, "");
     if (formattedPhone.length === 9 && formattedPhone.startsWith("0")) {
       formattedPhone = formattedPhone.substring(1);
     }
-
-    // Ensure it's exactly 8 digits, then prepend country code 226
     formattedPhone = "226" + formattedPhone.slice(0, 8);
 
-    // Map provider to PawaPay format
-    // Map provider to PawaPay v2 API format
-    // According to docs: Orange = ORANGE_BFA, Moov = MOOV_BFA
     const pawaProvider =
       provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
 
-    // Prepare customer message (4-22 chars required if provided)
     const customerMessage = (description || "Roogo Payment").slice(0, 22);
 
-    // PawaPay v2 API payload structure
     const payload: PawaPayDepositPayload = {
       depositId,
       payer: {
@@ -226,15 +206,9 @@ export async function POST(req: Request) {
       customerMessage,
     };
 
-    // Add pre-authorisation code if provided (required for ORANGE_BFA)
     if (preAuthorisationCode) {
       payload.preAuthorisationCode = preAuthorisationCode;
     }
-
-    console.log(
-      "Initiating PawaPay deposit:",
-      JSON.stringify(payload, null, 2)
-    );
 
     const response = await fetch(`${pawaUrl}/v2/deposits`, {
       method: "POST",
@@ -246,8 +220,6 @@ export async function POST(req: Request) {
     });
 
     const responseText = await response.text();
-    console.log("PawaPay response:", response.status, responseText);
-
     let result;
     try {
       result = JSON.parse(responseText);
@@ -256,13 +228,7 @@ export async function POST(req: Request) {
     }
 
     if (!response.ok) {
-      console.error(
-        `PawaPay API error: Status ${response.status}`,
-        JSON.stringify(result, null, 2)
-      );
-      console.error("Request payload:", JSON.stringify(payload, null, 2));
-      // Update transaction to failed
-      await supabase
+      await getSupabaseClient()
         .from("transactions")
         .update({
           status: "failed",
@@ -271,7 +237,6 @@ export async function POST(req: Request) {
         })
         .eq("deposit_id", depositId);
 
-      // Extract failure reason for better error messages
       const failureReason = result.details?.failureReason;
       const errorMessage =
         failureReason?.failureMessage ||
@@ -291,7 +256,6 @@ export async function POST(req: Request) {
       );
     }
 
-    // Success
     return cors(
       NextResponse.json({
         success: true,
