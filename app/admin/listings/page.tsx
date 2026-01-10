@@ -153,6 +153,10 @@ export default function AdminListingsPage() {
                   className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border backdrop-blur-sm ${
                     listing.status === "en_ligne"
                       ? "bg-green-100/90 text-green-800 border-green-200"
+                      : listing.status === "locked"
+                      ? "bg-primary/90 text-white border-primary/20"
+                      : listing.status === "finalized"
+                      ? "bg-neutral-900 text-white border-neutral-800"
                       : listing.status === "en_attente"
                       ? "bg-yellow-100 text-yellow-900 border-yellow-300"
                       : "bg-neutral-100/90 text-neutral-600 border-neutral-200"
@@ -160,6 +164,10 @@ export default function AdminListingsPage() {
                 >
                   {listing.status === "en_ligne"
                     ? "En ligne"
+                    : listing.status === "locked"
+                    ? "Réservé"
+                    : listing.status === "finalized"
+                    ? "Loué"
                     : listing.status === "en_attente"
                     ? "En attente"
                     : listing.status === "expired"
