@@ -59,18 +59,34 @@ export async function POST(request: NextRequest) {
       unsafeMetadata: {}
     });
 
-    // Check if user already exists in Supabase
-    const { data: existingUser } = await supabaseAdmin
+    // Check if user already exists in Supabase by clerk_id first
+    let { data: existingUser } = await supabaseAdmin
       .from("users")
-      .select("id, user_type")
+      .select("id, clerk_id, email, user_type")
       .eq("clerk_id", userId)
-      .single();
+      .maybeSingle();
+
+    // If not found by clerk_id, check by email (handles cases where webhook might have failed or not yet set clerk_id)
+    if (!existingUser && email) {
+      const { data: userByEmail } = await supabaseAdmin
+        .from("users")
+        .select("id, clerk_id, email, user_type")
+        .eq("email", email)
+        .maybeSingle();
+      
+      if (userByEmail) {
+        existingUser = userByEmail;
+      }
+    }
 
     if (existingUser) {
       const { error: updateError } = await supabaseAdmin
         .from("users")
-        .update({ user_type: "staff" })
-        .eq("clerk_id", userId);
+        .update({ 
+          user_type: "staff",
+          clerk_id: userId // Ensure clerk_id is synced
+        })
+        .eq("id", existingUser.id);
 
       if (updateError) {
         return NextResponse.json(
@@ -88,6 +104,23 @@ export async function POST(request: NextRequest) {
       });
 
       if (insertError) {
+        // Double-check if it's a conflict that happened between our check and insert
+        if (insertError.code === '23505') {
+            const { error: finalUpdateError } = await supabaseAdmin
+                .from("users")
+                .update({ 
+                    user_type: "staff",
+                    clerk_id: userId 
+                })
+                .match({ email: email }); // Standard match instead of invalid .or()
+            
+            if (!finalUpdateError) {
+                return NextResponse.json({
+                    success: true,
+                    message: "Successfully registered as staff (via fallback)",
+                });
+            }
+        }
         return NextResponse.json(
           { error: "Failed to create staff user" },
           { status: 500 }
