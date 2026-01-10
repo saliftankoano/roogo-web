@@ -53,10 +53,6 @@ export async function POST(req: Request) {
       );
     }
 
-    console.log(
-      `Checking PawaPay status for ${depositId} at ${pawaUrl}/v2/deposits/${depositId}`
-    );
-
     const response = await fetch(`${pawaUrl}/v2/deposits/${depositId}`, {
       method: "GET",
       headers: {
@@ -66,12 +62,6 @@ export async function POST(req: Request) {
     });
 
     const responseText = await response.text();
-    console.log(
-      `PawaPay status response for ${depositId}:`,
-      response.status,
-      responseText
-    );
-
     let result;
     try {
       result = JSON.parse(responseText);
@@ -80,16 +70,7 @@ export async function POST(req: Request) {
     }
 
     if (!response.ok) {
-      console.error(
-        `PawaPay status check failed (HTTP ${response.status}):`,
-        result
-      );
-
-      // If deposit not found (404), it means it was never created in PawaPay
       if (response.status === 404) {
-        console.error(
-          `Deposit ${depositId} not found in PawaPay - it may have failed to create`
-        );
         return cors(
           NextResponse.json(
             {
@@ -115,10 +96,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // PawaPay response usually has result[0] if array or just object
     const statusData = Array.isArray(result) ? result[0] : result;
     const status = statusData?.status || statusData?.depositStatus;
-    console.log(`Deposit ${depositId} status from PawaPay: ${status}`);
 
     // 4. Update Supabase with properly mapped status
     if (status) {
@@ -141,6 +120,7 @@ export async function POST(req: Request) {
         .update({
           status: dbStatus,
           metadata: statusData,
+          updated_at: new Date().toISOString(),
         })
         .eq("deposit_id", depositId);
 
@@ -148,10 +128,6 @@ export async function POST(req: Request) {
         console.error(
           `Failed to update transaction ${depositId}:`,
           updateError
-        );
-      } else {
-        console.log(
-          `Updated transaction ${depositId} status to: ${status.toLowerCase()}`
         );
       }
     }

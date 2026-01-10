@@ -16,50 +16,39 @@ const PAWAPAY_IPS = [
 export async function POST(req: Request) {
   try {
     // 0. IP Whitelisting
-    // This relies on the hosting provider setting the correct X-Forwarded-For header
     const forwardedFor = req.headers.get("x-forwarded-for");
     const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
 
-    // In dev environment (localhost), we might skip or log this
     if (process.env.NODE_ENV === "production") {
       if (!clientIp || !PAWAPAY_IPS.includes(clientIp)) {
-        console.warn(`Blocked callback from unauthorized IP: ${clientIp}`);
+        console.warn(\`Blocked callback from unauthorized IP: \${clientIp}\`);
         return NextResponse.json({ error: "Unauthorized IP" }, { status: 403 });
       }
     }
 
-    console.log("Received PawaPay callback from:", clientIp);
-
     // 1. Parse Body
     const body = await req.json();
-    console.log("Callback payload:", JSON.stringify(body, null, 2));
-
-    // Handle array or object
     const data = Array.isArray(body) ? body[0] : body;
 
-    // Check for any supported ID type
     const transactionId = data.depositId || data.payoutId || data.refundId;
     const { status, failureReason } = data;
 
     if (!transactionId || !status) {
-      console.error(
-        "Missing transaction ID (depositId/payoutId/refundId) or status in callback"
-      );
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
     // 2. Map Status
     let dbStatus = "pending";
-    if (status === "COMPLETED" || status === "ACCEPTED") dbStatus = "completed"; // Payouts use ACCEPTED initially, but callbacks might confirm completion
+    if (status === "COMPLETED" || status === "ACCEPTED") dbStatus = "completed";
     if (status === "FAILED" || status === "CANCELLED" || status === "REJECTED")
       dbStatus = "failed";
     if (status === "REFUNDED") dbStatus = "refunded";
-    if (status === "SUBMITTED") dbStatus = "submitted"; // Some intermediate states
+    if (status === "SUBMITTED") dbStatus = "submitted";
 
     // 3. Update Supabase
     const supabase = getSupabaseClient();
 
-    // Fetch the transaction first to check type and get property/user info
+    // Fetch the transaction first
     const { data: transaction, error: fetchError } = await supabase
       .from("transactions")
       .select("*")
@@ -67,7 +56,6 @@ export async function POST(req: Request) {
       .single();
 
     if (fetchError || !transaction) {
-      console.error("Error fetching transaction for callback:", fetchError);
       return NextResponse.json(
         { error: "Transaction not found" },
         { status: 404 }
@@ -79,32 +67,29 @@ export async function POST(req: Request) {
       .update({
         status: dbStatus,
         failure_reason: failureReason || null,
-        metadata: data, // Store full payload for debugging/records
+        metadata: data,
         updated_at: new Date().toISOString(),
       })
-      .eq("deposit_id", transactionId); // We use deposit_id column for all external IDs currently
+      .eq("deposit_id", transactionId);
 
     if (updateError) {
-      console.error("Error updating transaction:", updateError);
       return NextResponse.json(
         { error: "Database update failed" },
         { status: 500 }
       );
     }
 
-    // 4. Handle Post-Payment Logic for Property Locks
+    // 4. Handle Post-Payment Logic
     if (dbStatus === "completed" && transaction.type === "property_lock") {
       const propertyId = transaction.property_id;
       const renterId = transaction.user_id;
 
       if (propertyId && renterId) {
-        // 4.1 Update property status to 'locked'
         await supabase
           .from("properties")
           .update({ status: "locked" })
           .eq("id", propertyId);
 
-        // 4.2 Create property_lock record with 7-day expiry
         const expiresAt = new Date();
         expiresAt.setDate(expiresAt.getDate() + 7);
 
@@ -117,7 +102,6 @@ export async function POST(req: Request) {
           expires_at: expiresAt.toISOString(),
         });
 
-        // 4.3 Notify both parties via lock-notifications
         const { data: property } = await supabase
           .from("properties")
           .select("address, agent_id")
@@ -132,20 +116,12 @@ export async function POST(req: Request) {
             property.address || "Propriété",
             propertyId
           );
-
-          console.log(
-            `Lock Day 0 notifications sent for property ${propertyId}`
-          );
         }
       }
     }
 
-    console.log(`Transaction ${transactionId} updated to ${dbStatus}`);
-
-    // 5. Return 200 OK
     return NextResponse.json({ received: true });
   } catch (error: unknown) {
-    console.error("Callback error:", error);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: 500 }
