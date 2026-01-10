@@ -326,9 +326,3 @@ export function getSupabaseClient() {
   }
   return supabase;
 }
-
-```
-
-Command completed in 157 ms.
-
-Shell state (cwd, env vars) persists for subsequent calls.
