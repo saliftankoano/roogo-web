@@ -32,9 +32,7 @@ export async function POST(req: Request) {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
     if (!token) {
-      return cors(
-        NextResponse.json({ error: "Missing token" }, { status: 401 })
-      );
+      return cors(NextResponse.json({ error: "Missing token" }, { status: 401 }));
     }
 
     let clerkUserId: string | undefined;
@@ -45,26 +43,18 @@ export async function POST(req: Request) {
       clerkUserId = sub;
     } catch (error) {
       console.error("Token verification failed:", error);
-      return cors(
-        NextResponse.json({ error: "Invalid token" }, { status: 401 })
-      );
+      return cors(NextResponse.json({ error: "Invalid token" }, { status: 401 }));
     }
 
     if (!clerkUserId) {
-      return cors(
-        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
-      );
+      return cors(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
     }
 
     // 2. Get User from Supabase
     let user = await getUserByClerkId(clerkUserId);
 
     // Auto-sync if user missing
-    let syncError: Error | null = null;
     if (!user) {
-      console.log(
-        `User ${clerkUserId} not found in Supabase. Attempting auto-sync...`
-      );
       try {
         const clerkClient = createClerkClient({
           secretKey: process.env.CLERK_SECRET_KEY,
@@ -84,24 +74,20 @@ export async function POST(req: Request) {
           })),
           public_metadata: clerkUser.publicMetadata as ClerkUserData["public_metadata"],
           private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
-          // We stop sending unsafe_metadata as it's no longer used for sync
         };
 
         user = await createUserInSupabase(userData);
-        console.log("Auto-sync successful, user created:", user?.id);
-      } catch (error) {
-        syncError = error instanceof Error ? error : new Error(String(error));
-        console.error("Auto-sync failed:", syncError.message);
+      } catch (syncError: any) {
+        console.error("Auto-sync failed:", syncError);
+        const errorDetail = syncError.message || (typeof syncError === 'object' ? JSON.stringify(syncError) : String(syncError));
+        return cors(
+          NextResponse.json({ error: `User sync failed: ${errorDetail}` }, { status: 404 })
+        );
       }
     }
 
     if (!user) {
-      const errorMessage = syncError 
-        ? `User sync failed: ${syncError.message}` 
-        : "User not found in database";
-      return cors(
-        NextResponse.json({ error: errorMessage }, { status: 404 })
-      );
+      return cors(NextResponse.json({ error: "User not found in database" }, { status: 404 }));
     }
 
     // 3. Parse Body
@@ -117,9 +103,7 @@ export async function POST(req: Request) {
     } = body;
 
     if (!amount || !phoneNumber || !provider || !transactionType) {
-      return cors(
-        NextResponse.json({ error: "Missing required fields" }, { status: 400 })
-      );
+      return cors(NextResponse.json({ error: "Missing required fields" }, { status: 400 }));
     }
 
     // Validation for Orange Burkina Faso which requires a pre-authorisation code
@@ -137,7 +121,7 @@ export async function POST(req: Request) {
     const currency = "XOF";
     const supabase = getSupabaseClient();
 
-    // Map provider to PawaPay v2 format (for database storage)
+    // Map provider to PawaPay v2 format
     let payerClientCode = provider;
     if (provider === "ORANGE_MONEY") payerClientCode = "ORANGE_BFA";
     if (provider === "MOOV_MONEY") payerClientCode = "MOOV_BFA";
@@ -156,28 +140,16 @@ export async function POST(req: Request) {
 
     if (dbError) {
       console.error("Database insertion error:", dbError);
-      return cors(
-        NextResponse.json(
-          { error: "Failed to initialize transaction" },
-          { status: 500 }
-        )
-      );
+      return cors(NextResponse.json({ error: "Failed to initialize transaction" }, { status: 500 }));
     }
 
     // 5. Call PawaPay API
-    const pawaUrlBase =
-      process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
-    const pawaUrl = pawaUrlBase.replace(/\/+$/, ""); // Remove trailing slashes
+    const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
+    const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
 
     if (!pawaToken) {
-      console.error("PAWAPAY_API_TOKEN is not set");
-      return cors(
-        NextResponse.json(
-          { error: "Server configuration error" },
-          { status: 500 }
-        )
-      );
+      return cors(NextResponse.json({ error: "Server configuration error" }, { status: 500 }));
     }
 
     // Format phone number
@@ -187,9 +159,7 @@ export async function POST(req: Request) {
     }
     formattedPhone = "226" + formattedPhone.slice(0, 8);
 
-    const pawaProvider =
-      provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
-
+    const pawaProvider = provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
     const customerMessage = (description || "Roogo Payment").slice(0, 22);
 
     const payload: PawaPayDepositPayload = {
@@ -246,11 +216,7 @@ export async function POST(req: Request) {
 
       return cors(
         NextResponse.json(
-          {
-            error: errorMessage,
-            details: result,
-            failureCode: failureReason?.failureCode,
-          },
+          { error: errorMessage, details: result, failureCode: failureReason?.failureCode },
           { status: response.status }
         )
       );
@@ -264,26 +230,17 @@ export async function POST(req: Request) {
         raw: result,
       })
     );
-  } catch (error: unknown) {
+  } catch (error: any) {
     console.error("Payment initiation error:", error);
     return cors(
-      NextResponse.json(
-        { error: error instanceof Error ? error.message : String(error) },
-        { status: 500 }
-      )
+      NextResponse.json({ error: error.message || String(error) }, { status: 500 })
     );
   }
 }
 
 function cors(res: NextResponse) {
-  res.headers.set(
-    "Access-Control-Allow-Origin",
-    process.env.CORS_ORIGIN || "*"
-  );
-  res.headers.set(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
+  res.headers.set("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
+  res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
   res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
   return res;
 }
