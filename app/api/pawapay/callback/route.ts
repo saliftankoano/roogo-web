@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
+import { notifyLockParties } from "@/lib/lock-notifications";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -68,7 +69,10 @@ export async function POST(req: Request) {
 
     if (fetchError || !transaction) {
       console.error("Error fetching transaction for callback:", fetchError);
-      return NextResponse.json({ error: "Transaction not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Transaction not found" },
+        { status: 404 }
+      );
     }
 
     const { error: updateError } = await supabase
@@ -101,17 +105,20 @@ export async function POST(req: Request) {
           .update({ status: "locked" })
           .eq("id", propertyId);
 
-        // 4.2 Create property_lock record
+        // 4.2 Create property_lock record with 7-day expiry
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
         await supabase.from("property_locks").insert({
           property_id: propertyId,
           renter_id: renterId,
           transaction_id: transaction.id,
           lock_fee: transaction.amount,
           status: "active",
+          expires_at: expiresAt.toISOString(),
         });
 
-        // 4.3 Notify Owner
-        // Fetch property info to get owner_id and address
+        // 4.3 Notify both parties via lock-notifications
         const { data: property } = await supabase
           .from("properties")
           .select("address, agent_id")
@@ -119,11 +126,16 @@ export async function POST(req: Request) {
           .single();
 
         if (property && property.agent_id) {
-          await notifyUser(
+          await notifyLockParties(
+            "DAY_0",
             property.agent_id,
-            "🎉 Bien réservé !",
-            `Votre bien situé à ${property.address} a été réservé via Early Bird.`,
-            { propertyId, type: "property_lock" }
+            renterId,
+            property.address || "Propriété",
+            propertyId
+          );
+
+          console.log(
+            `Lock Day 0 notifications sent for property ${propertyId}`
           );
         }
       }
