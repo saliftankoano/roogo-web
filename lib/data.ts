@@ -223,37 +223,46 @@ export type Transaction = {
 
 export async function fetchTransactionsByPropertyId(
   propertyId: string,
-  paymentId?: string | null
+  paymentId?: string | null,
+  transactionId?: string | null
 ): Promise<Transaction[]> {
-  // First try to fetch by property_id
-  const { data, error } = await supabase
-    .from("transactions")
-    .select("*")
-    .eq("property_id", propertyId)
-    .order("created_at", { ascending: false });
-
-  if (error) {
-    console.error("Error fetching transactions:", error);
-    return [];
+  // Try multiple ways to find the transaction
+  const queries = [];
+  
+  // 1. Find by property_id
+  queries.push(supabase.from("transactions").select("*").eq("property_id", propertyId));
+  
+  // 2. Find by payment_id (deposit_id)
+  if (paymentId) {
+    queries.push(supabase.from("transactions").select("*").eq("deposit_id", paymentId));
+  }
+  
+  // 3. Find by transaction_id (primary key)
+  if (transactionId) {
+    queries.push(supabase.from("transactions").select("*").eq("id", transactionId));
   }
 
-  let transactions = (data as Transaction[]) || [];
+  const results = await Promise.all(queries);
+  const allTransactions: Transaction[] = [];
+  const seenIds = new Set<string>();
 
-  // If no transactions found and we have a payment_id, try fetching by deposit_id
-  // This handles legacy transactions that weren't linked to the property
-  if (transactions.length === 0 && paymentId) {
-    const { data: legacyData, error: legacyError } = await supabase
-      .from("transactions")
-      .select("*")
-      .eq("deposit_id", paymentId)
-      .order("created_at", { ascending: false });
-
-    if (!legacyError && legacyData) {
-      transactions = legacyData as Transaction[];
+  results.forEach((res) => {
+    if (!res.error && res.data) {
+      (res.data as Transaction[]).forEach(tx => {
+        if (!seenIds.has(tx.id)) {
+          seenIds.add(tx.id);
+          allTransactions.push(tx);
+        }
+      });
+    } else if (res.error) {
+      console.error("Error in transaction query:", res.error);
     }
-  }
+  });
 
-  return transactions;
+  // Sort by created_at descending
+  allTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+  return allTransactions;
 }
 
 export const properties: Property[] = [
