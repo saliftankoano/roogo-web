@@ -15,18 +15,17 @@ import {
   CalendarBlankIcon,
   CaretDownIcon,
   WarningCircleIcon,
-  CheckIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import {
   fetchPropertyById,
-  fetchTransactionsByPropertyId,
   updatePropertyStatus,
   Property,
   Transaction,
 } from "@/lib/data";
+import { getSecureTransactions } from "./actions";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
@@ -37,6 +36,7 @@ function Portal({ children }: { children: React.ReactNode }) {
   if (!mounted) return null;
   return createPortal(children, document.body);
 }
+
 export default function ListingDetailPage() {
   const params = useParams();
   const id = (params?.id as string) || "";
@@ -54,17 +54,24 @@ export default function ListingDetailPage() {
   useEffect(() => {
     async function loadData() {
       if (!id) return;
-      // First fetch the property to get its payment_id
-      const propertyData = await fetchPropertyById(id);
-      setListing(propertyData);
+      
+      try {
+        // Fetch property
+        const propertyData = await fetchPropertyById(id);
+        setListing(propertyData);
 
-      // Then fetch transactions, passing payment_id as fallback for legacy transactions
-      const transactionsData = await fetchTransactionsByPropertyId(
-        id,
-        propertyData?.payment_id
-      );
-      setTransactions(transactionsData);
-      setLoading(false);
+        // Fetch transactions SECURELY via Server Action
+        const transactionsData = await getSecureTransactions(
+          id,
+          propertyData?.payment_id,
+          propertyData?.transaction_id
+        );
+        setTransactions(transactionsData);
+      } catch (error) {
+        console.error("Error loading data:", error);
+      } finally {
+        setLoading(false);
+      }
     }
     loadData();
 
@@ -286,40 +293,30 @@ export default function ListingDetailPage() {
                   initial={{ opacity: 0, y: 4, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
                   exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                  className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-neutral-100 overflow-hidden z-30"
+                  className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-neutral-100 py-2 z-50 overflow-hidden"
                 >
-                  <div className="p-1">
-                    {[
-                      {
-                        value: "en_attente",
-                        label: "En attente (Photo Pro)",
-                      },
-                      {
-                        value: "en_ligne",
-                        label: "En ligne (Publiée)",
-                      },
-                      {
-                        value: "expired",
-                        label: "Expirée (Louée/Vendue)",
-                      },
-                    ].map((option) => (
+                  <div className="px-3 py-2 border-b border-neutral-50 mb-1">
+                    <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">
+                      Changer le statut
+                    </p>
+                  </div>
+                  <div className="px-1.5 space-y-0.5">
+                    {["en_attente", "en_ligne", "expired"].map((status) => (
                       <button
-                        key={option.value}
-                        onClick={() => initiateStatusChange(option.value)}
+                        key={status}
+                        onClick={() => initiateStatusChange(status)}
                         className={cn(
-                          "w-full text-left px-3 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wide flex items-center justify-between hover:bg-neutral-50 transition-colors",
-                          listing.status === option.value
-                            ? "bg-neutral-50 text-neutral-900"
-                            : "text-neutral-500"
+                          "w-full text-left px-3 py-2.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between group",
+                          listing.status === status
+                            ? "bg-primary/5 text-primary"
+                            : "text-neutral-600 hover:bg-neutral-50"
                         )}
                       >
-                        <span>{option.label}</span>
-                        {listing.status === option.value && (
-                          <CheckIcon
-                            size={14}
-                            weight="bold"
-                            className="text-primary"
-                          />
+                        <span className="uppercase tracking-wider">
+                          {getCleanStatusLabel(status)}
+                        </span>
+                        {listing.status === status && (
+                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
                         )}
                       </button>
                     ))}
@@ -340,7 +337,6 @@ export default function ListingDetailPage() {
               initialPhotos={listing.images}
               isProfessional={listing.status === "en_ligne"}
               onPhotosUpdated={(isPro) => {
-                // If photos are validated as professional, update status to en_ligne
                 if (isPro && listing.status !== "en_ligne") {
                   initiateStatusChange("en_ligne");
                 }
@@ -351,7 +347,6 @@ export default function ListingDetailPage() {
 
         {/* Right Column: Stats & Owner */}
         <div className="space-y-8">
-          {/* Price Card */}
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
             <h3 className="font-bold text-neutral-900 flex items-center gap-2">
               <CurrencyCircleDollarIcon
@@ -369,27 +364,9 @@ export default function ListingDetailPage() {
                 Par {listing.period || "Mois"}
               </p>
             </div>
-            <div className="pt-4 border-t border-neutral-50 grid grid-cols-2 gap-4">
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                  Type
-                </p>
-                <p className="text-sm font-bold text-neutral-900">
-                  {listing.propertyType}
-                </p>
-              </div>
-              <div className="space-y-1">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
-                  Surface
-                </p>
-                <p className="text-sm font-bold text-neutral-900">
-                  {listing.area} m²
-                </p>
-              </div>
-            </div>
           </section>
 
-          {/* Owner/Agent Info */}
+          {/* Owner Info */}
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
             <h3 className="font-bold text-neutral-900 flex items-center gap-2">
               <UsersIcon size={20} weight="bold" className="text-neutral-400" />
@@ -415,30 +392,14 @@ export default function ListingDetailPage() {
               </div>
               <div>
                 <p className="font-bold text-neutral-900 leading-tight">
-                  {listing.agent?.user_type === "owner"
-                    ? "Particulier (Propriétaire)"
-                    : listing.agent?.full_name}
+                  {listing.agent?.full_name}
                 </p>
-                {listing.agent?.user_type !== "owner" && (
-                  <p className="text-xs text-neutral-500 font-medium mt-1">
-                    {listing.agent?.phone}
-                  </p>
-                )}
               </div>
             </div>
-            {listing.agent?.user_type !== "owner" && (
-              <Button
-                variant="ghost"
-                className="w-full justify-center text-neutral-600 hover:bg-neutral-50 h-12 rounded-xl text-xs font-bold uppercase tracking-wider border border-neutral-100 transition-all"
-              >
-                Contacter l&apos;agent
-              </Button>
-            )}
           </section>
         </div>
       </div>
 
-      {/* Open House Management - Full Width */}
       <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
         <h3 className="text-xl font-bold text-neutral-900 mb-8 flex items-center gap-3">
           <CalendarBlankIcon size={24} weight="bold" className="text-primary" />
@@ -447,12 +408,12 @@ export default function ListingDetailPage() {
         <PropertyOpenHouseManager propertyId={listing.id} />
       </section>
 
-      {/* Transactions History - Full Width */}
+      {/* Transactions History */}
       <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
         <div className="flex items-center justify-between">
           <h3 className="font-bold text-neutral-900 flex items-center gap-2 text-xl">
             <ReceiptIcon size={24} weight="bold" className="text-primary" />
-            Historique des Paiements
+            Historique des Paiements (Sécurisé)
           </h3>
           <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
             {transactions.length} Transaction
@@ -504,44 +465,8 @@ export default function ListingDetailPage() {
                         {tx.amount.toLocaleString()} {tx.currency}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-1.5">
-                        {tx.status === "completed" ? (
-                          <CheckCircleIcon
-                            size={16}
-                            weight="fill"
-                            className="text-green-500"
-                          />
-                        ) : tx.status === "failed" ? (
-                          <XCircleIcon
-                            size={16}
-                            weight="fill"
-                            className="text-red-500"
-                          />
-                        ) : (
-                          <ClockIcon
-                            size={16}
-                            weight="fill"
-                            className="text-orange-400"
-                          />
-                        )}
-                        <span
-                          className={cn(
-                            "text-[10px] font-bold uppercase tracking-wider",
-                            tx.status === "completed"
-                              ? "text-green-600"
-                              : tx.status === "failed"
-                              ? "text-red-600"
-                              : "text-orange-600"
-                          )}
-                        >
-                          {tx.status === "completed"
-                            ? "Réussi"
-                            : tx.status === "failed"
-                            ? "Échoué"
-                            : "En attente"}
-                        </span>
-                      </div>
+                    <td className="px-6 py-4 text-xs font-bold capitalize">
+                      {tx.status}
                     </td>
                   </tr>
                 ))}
