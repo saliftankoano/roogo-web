@@ -19,10 +19,7 @@ import {
   BuildingsIcon,
   GearSixIcon,
   CaretDownIcon,
-  GridFourIcon,
   UsersIcon,
-  CalendarBlankIcon,
-  NoteIcon,
   ReceiptIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
@@ -81,12 +78,9 @@ export function Navbar() {
     );
 
   const staffMenuItems = [
-    { name: "Tableau de bord", href: "/admin", icon: GridFourIcon },
     { name: "Propriétés", href: "/admin/listings", icon: BuildingsIcon },
     { name: "Transactions", href: "/admin/transactions", icon: ReceiptIcon },
     { name: "Agents", href: "/admin/agents", icon: UsersIcon },
-    { name: "Calendrier", href: "/admin/calendar", icon: CalendarBlankIcon },
-    { name: "Contenu", href: "/admin/content", icon: NoteIcon },
   ];
 
   return (

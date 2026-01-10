@@ -3,14 +3,12 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  GridFourIcon,
   UsersIcon,
   BuildingsIcon,
-  CalendarBlankIcon,
-  NoteIcon,
   ListIcon,
   XIcon,
   ReceiptIcon,
+  LockIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
@@ -43,12 +41,10 @@ export function AdminNavbar() {
   });
 
   const navItems = [
-    { label: "Tableau de bord", icon: GridFourIcon, href: "/admin" },
     { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
     { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
+    { label: "Réservations", icon: LockIcon, href: "/admin/locks" },
     { label: "Transactions", icon: ReceiptIcon, href: "/admin/transactions" },
-    { label: "Calendrier", icon: CalendarBlankIcon, href: "/admin/calendar" },
-    { label: "Contenu", icon: NoteIcon, href: "/admin/content" },
   ];
 
   return (
