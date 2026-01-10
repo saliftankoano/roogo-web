@@ -222,6 +222,19 @@ export async function POST(req: Request) {
       );
     }
 
+    // 6. Update status if PawaPay accepted immediately
+    // For test numbers, result.status is often 'ACCEPTED' or 'COMPLETED' right away
+    if (result.status === "ACCEPTED" || result.status === "COMPLETED") {
+      await supabase
+        .from("transactions")
+        .update({
+          status: "completed",
+          metadata: result,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("deposit_id", depositId);
+    }
+
     return cors(
       NextResponse.json({
         success: true,
