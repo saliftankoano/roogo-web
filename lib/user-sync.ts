@@ -1,7 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
 // Initialize Supabase client with environment variables
-// Try both SUPABASE_URL and EXPO_PUBLIC_SUPABASE_URL for compatibility
 const supabaseUrl =
   process.env.EXPO_PUBLIC_SUPABASE_URL || process.env.SUPABASE_URL;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
@@ -48,19 +47,12 @@ export interface ClerkUserData {
 }
 
 /**
- * Create a new user in Supabase from Clerk data
+ * Create or sync a user in Supabase from Clerk data
  */
 export async function createUserInSupabase(data: ClerkUserData) {
   try {
-    console.log(
-      "createUserInSupabase called with data:",
-      JSON.stringify(data, null, 2)
-    );
-
     if (!supabase) {
-      throw new Error(
-        "Supabase client not initialized. Check environment variables."
-      );
+      throw new Error("Supabase client not initialized.");
     }
 
     const {
@@ -76,73 +68,89 @@ export async function createUserInSupabase(data: ClerkUserData) {
     } = data;
 
     const email = email_addresses?.[0]?.email_address;
-    const fullName =
-      first_name && last_name
-        ? `${first_name} ${last_name}`
-        : first_name || last_name;
+    if (!email) throw new Error("No email found for user");
+    if (!clerkId) throw new Error("No clerk ID found for user");
+
+    const fullName = [first_name, last_name].filter(Boolean).join(" ") || undefined;
     const phone = phone_numbers?.[0]?.phone_number;
     
-    // Check all metadata types for userType, prioritize secure ones
-    const userType =
+    // Get userType from metadata
+    const rawUserType =
       public_metadata?.userType || 
       public_metadata?.role || 
       private_metadata?.userType || 
       unsafe_metadata?.userType || 
-      "renter";
+      "buyer";
       
-    const companyName =
-      private_metadata?.companyName || unsafe_metadata?.companyName;
-    const facebookUrl =
-      private_metadata?.facebookUrl || unsafe_metadata?.facebookUrl;
+    // Mapping to match database constraints ("valid_user_types")
+    // It seems the database only accepts 'owner', 'buyer', 'staff'
+    let userType = rawUserType.toLowerCase();
+    if (userType === "renter") userType = "buyer";
+    if (userType === "agent") userType = "owner"; // Map agent to owner
+    
+    const validUserTypes = ["owner", "buyer", "staff"];
+    const supabaseUserType = validUserTypes.includes(userType) ? userType : "buyer";
 
-    const validUserTypes = ["owner", "renter", "staff", "agent"];
-    const supabaseUserType = validUserTypes.includes(userType)
-      ? userType
-      : "renter"; // Default to renter for unknown types
+    const companyName = private_metadata?.companyName || unsafe_metadata?.companyName;
+    const facebookUrl = private_metadata?.facebookUrl || unsafe_metadata?.facebookUrl;
 
-    console.log("Extracted data:", {
-      clerkId,
-      email,
-      fullName,
-      phone,
-      userType,
-      supabaseUserType,
-      image_url,
-      companyName,
-      facebookUrl,
-    });
-
-    if (!email) {
-      throw new Error("No email found for user");
-    }
-
-    if (!clerkId) {
-      throw new Error("No clerk ID found for user");
-    }
-
-    const { data: user, error } = await supabase
+    // 1. Try to find by clerk_id
+    let { data: existingUser } = await supabase
       .from("users")
-      .insert({
-        clerk_id: clerkId,
-        email,
-        full_name: fullName,
-        avatar_url: image_url,
-        phone,
-        user_type: supabaseUserType,
-        company_name: companyName,
-        facebook_url: facebookUrl,
-      })
-      .select()
-      .single();
+      .select("id, clerk_id, email")
+      .eq("clerk_id", clerkId)
+      .maybeSingle();
 
-    if (error) {
-      console.error("Error creating user in Supabase:", error);
-      throw error;
+    // 2. If not found, try to find by email
+    if (!existingUser) {
+      const { data: userByEmail } = await supabase
+        .from("users")
+        .select("id, clerk_id, email")
+        .eq("email", email)
+        .maybeSingle();
+      
+      if (userByEmail) {
+        existingUser = userByEmail;
+      }
     }
 
-    console.log(`User created in Supabase: ${clerkId}`, user);
-    return user;
-  } catch (error) {
+    const userData = {
+      clerk_id: clerkId,
+      email,
+      full_name: fullName,
+      avatar_url: image_url,
+      phone,
+      user_type: supabaseUserType,
+      company_name: companyName,
+      facebook_url: facebookUrl,
+    };
+
+    let result;
+    if (existingUser) {
+      // 3. Update existing user
+      const { data: updatedUser, error: updateError } = await supabase
+        .from("users")
+        .update(userData)
+        .eq("id", existingUser.id)
+        .select()
+        .single();
+
+      if (updateError) throw updateError;
+      result = updatedUser;
+    } else {
+      // 4. Insert new user
+      const { data: insertedUser, error: insertError } = await supabase
+        .from("users")
+        .insert(userData)
+        .select()
+        .single();
+
+      if (insertError) throw insertError;
+      result = insertedUser;
+    }
+
+    return result;
+  } catch (error: any) {
     console.error("Error in createUserInSupabase:", error);
     throw error;
   }
@@ -152,107 +160,7 @@ export async function createUserInSupabase(data: ClerkUserData) {
  * Update an existing user in Supabase from Clerk data
  */
 export async function updateUserInSupabase(data: ClerkUserData) {
-  try {
-    console.log(
-      "updateUserInSupabase called with data:",
-      JSON.stringify(data, null, 2)
-    );
-
-    if (!supabase) {
-      throw new Error(
-        "Supabase client not initialized. Check environment variables."
-      );
-    }
-
-    const {
-      id: clerkId,
-      email_addresses,
-      first_name,
-      last_name,
-      image_url,
-      phone_numbers,
-      public_metadata,
-      private_metadata,
-      unsafe_metadata,
-    } = data;
-
-    const email = email_addresses?.[0]?.email_address;
-    const fullName =
-      first_name && last_name
-        ? `${first_name} ${last_name}`
-        : first_name || last_name;
-    const phone = phone_numbers?.[0]?.phone_number;
-    
-    // Check all metadata types for userType, prioritize secure ones
-    const userType = 
-      public_metadata?.userType || 
-      public_metadata?.role || 
-      private_metadata?.userType || 
-      unsafe_metadata?.userType;
-      
-    const companyName =
-      private_metadata?.companyName || unsafe_metadata?.companyName;
-    const facebookUrl =
-      private_metadata?.facebookUrl || unsafe_metadata?.facebookUrl;
-
-    // Use consistent terminology - no mapping needed
-    // Valid types: "owner", "renter", "staff", "agent"
-    const validUserTypes = ["owner", "renter", "staff", "agent"];
-    const supabaseUserType =
-      userType && validUserTypes.includes(userType) ? userType : undefined;
-
-    console.log("Extracted data for update:", {
-      clerkId,
-      email,
-      fullName,
-      phone,
-      userType,
-      supabaseUserType,
-      image_url,
-      companyName,
-      facebookUrl,
-    });
-
-    if (!email) {
-      throw new Error("No email found for user");
-    }
-
-    if (!clerkId) {
-      throw new Error("No clerk ID found for user");
-    }
-
-    const updateData: Record<string, string | undefined> = {
-      email,
-      full_name: fullName,
-      avatar_url: image_url,
-      phone,
-      company_name: companyName,
-      facebook_url: facebookUrl,
-    };
-
-    // Only update user_type if it's provided
-    if (supabaseUserType) {
-      updateData.user_type = supabaseUserType;
-    }
-
-    const { data: user, error } = await supabase
-      .from("users")
-      .update(updateData)
-      .eq("clerk_id", clerkId)
-      .select()
-      .single();
-
-    if (error) {
-      console.error("Error updating user type in Supabase:", error);
-      throw error;
-    }
-
-    console.log(`User updated in Supabase: ${clerkId}`, user);
-    return user;
-  } catch (error) {
-    console.error("Error in updateUserInSupabase:", error);
-    throw error;
-  }
+  return createUserInSupabase(data); // Re-use the consolidated sync logic
 }
 
 /**
@@ -260,23 +168,9 @@ export async function updateUserInSupabase(data: ClerkUserData) {
  */
 export async function deleteUserFromSupabase(clerkId: string) {
   try {
-    if (!supabase) {
-      throw new Error(
-        "Supabase client not initialized. Check environment variables."
-      );
-    }
-
-    const { error } = await supabase
-      .from("users")
-      .delete()
-      .eq("clerk_id", clerkId);
-
-    if (error) {
-      console.error("Error deleting user from Supabase:", error);
-      throw error;
-    }
-
-    console.log(`User deleted from Supabase: ${clerkId}`);
+    if (!supabase) throw new Error("Supabase client not initialized.");
+    const { error } = await supabase.from("users").delete().eq("clerk_id", clerkId);
+    if (error) throw error;
     return true;
   } catch (error) {
     console.error("Error in deleteUserFromSupabase:", error);
@@ -289,24 +183,14 @@ export async function deleteUserFromSupabase(clerkId: string) {
  */
 export async function getUserByClerkId(clerkId: string) {
   try {
-    if (!supabase) {
-      throw new Error(
-        "Supabase client not initialized. Check environment variables."
-      );
-    }
-
+    if (!supabase) throw new Error("Supabase client not initialized.");
     const { data: user, error } = await supabase
       .from("users")
       .select("*")
       .eq("clerk_id", clerkId)
-      .single();
+      .maybeSingle();
 
-    if (error && error.code !== "PGRST116") {
-      // PGRST116 is "not found" error
-      console.error("Error fetching user from Supabase:", error);
-      throw error;
-    }
-
+    if (error) throw error;
     return user;
   } catch (error) {
     console.error("Error in getUserByClerkId:", error);
@@ -314,15 +198,7 @@ export async function getUserByClerkId(clerkId: string) {
   }
 }
 
-/**
- * Get Supabase client for use in API routes
- * This uses the service role key and bypasses RLS
- */
 export function getSupabaseClient() {
-  if (!supabase) {
-    throw new Error(
-      "Supabase client not initialized. Check environment variables."
-    );
-  }
+  if (!supabase) throw new Error("Supabase client not initialized.");
   return supabase;
 }
