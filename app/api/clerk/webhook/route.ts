@@ -48,21 +48,20 @@ export async function POST(req: Request) {
         "svix-timestamp": svixTimestamp,
         "svix-signature": svixSignature,
       }) as WebhookEvent;
-    } catch (err) {
+    } catch {
       return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
     }
     const { type, data } = evt;
 
-    let result;
     switch (type) {
       case "user.created":
-        result = await createUserInSupabase(data);
+        await createUserInSupabase(data);
         break;
       case "user.updated":
-        result = await updateUserInSupabase(data);
+        await updateUserInSupabase(data);
         break;
       case "user.deleted":
-        result = await deleteUserFromSupabase(data.id);
+        await deleteUserFromSupabase(data.id);
         break;
     }
 

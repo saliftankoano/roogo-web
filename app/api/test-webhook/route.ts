@@ -6,7 +6,7 @@ import { NextResponse } from "next/server";
  */
 export async function POST(req: Request) {
   try {
-    const body = await req.json();
+    const body = await req.json().catch(() => ({}));
 
     console.log("Test webhook called with:", JSON.stringify(body, null, 2));
 
@@ -26,7 +26,7 @@ export async function POST(req: Request) {
         private_metadata: {
           sex: "Masculin",
         },
-        unsafe_metadata: {}, // Should be empty in the new standard
+        unsafe_metadata: {},
       },
     };
 
@@ -35,6 +35,7 @@ export async function POST(req: Request) {
     return NextResponse.json({
       success: true,
       message: "Test webhook processed",
+      receivedData: body,
       mockEvent,
     });
   } catch (error) {

@@ -31,7 +31,7 @@ export async function POST(req: Request) {
     
     // We expect fields to be passed at the root of the body now for simplicity,
     // but we can still accept the nested structure for backward compatibility.
-    const input = body.publicMetadata || body.privateMetadata || body;
+    const input = (body.publicMetadata || body.privateMetadata || body) as Record<string, unknown>;
 
     const { 
       userType, 
@@ -59,8 +59,8 @@ export async function POST(req: Request) {
     }
 
     // Build update payload
-    const publicMetadata: Record<string, any> = {};
-    const privateMetadata: Record<string, any> = {};
+    const publicMetadata: Record<string, string | undefined> = {};
+    const privateMetadata: Record<string, string | undefined> = {};
 
     // Public fields (readable by frontend)
     if (userType) publicMetadata.userType = userType;
