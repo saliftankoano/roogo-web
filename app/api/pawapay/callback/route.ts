@@ -21,7 +21,7 @@ export async function POST(req: Request) {
 
     if (process.env.NODE_ENV === "production") {
       if (!clientIp || !PAWAPAY_IPS.includes(clientIp)) {
-        console.warn(\`Blocked callback from unauthorized IP: \${clientIp}\`);
+        console.warn(`Blocked callback from unauthorized IP: ${clientIp}`);
         return NextResponse.json({ error: "Unauthorized IP" }, { status: 403 });
       }
     }

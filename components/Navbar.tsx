@@ -79,7 +79,7 @@ export function Navbar() {
 
   const staffMenuItems = [
     { name: "Propriétés", href: "/admin/listings", icon: BuildingsIcon },
-    { name: "Transactions", href: "/admin/transactions", icon: ReceiptIcon },
+    { name: "Finances", href: "/admin/finances", icon: ReceiptIcon },
     { name: "Agents", href: "/admin/agents", icon: UsersIcon },
   ];
 

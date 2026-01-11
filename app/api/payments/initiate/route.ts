@@ -77,9 +77,9 @@ export async function POST(req: Request) {
         };
 
         user = await createUserInSupabase(userData);
-      } catch (syncError: any) {
+      } catch (syncError: unknown) {
         console.error("Auto-sync failed:", syncError);
-        const errorDetail = syncError.message || (typeof syncError === 'object' ? JSON.stringify(syncError) : String(syncError));
+        const errorDetail = syncError instanceof Error ? syncError.message : (typeof syncError === 'object' ? JSON.stringify(syncError) : String(syncError));
         return cors(
           NextResponse.json({ error: `User sync failed: ${errorDetail}` }, { status: 404 })
         );
@@ -243,10 +243,10 @@ export async function POST(req: Request) {
         raw: result,
       })
     );
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Payment initiation error:", error);
     return cors(
-      NextResponse.json({ error: error.message || String(error) }, { status: 500 })
+      NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
     );
   }
 }
