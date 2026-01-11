@@ -48,7 +48,7 @@ interface DBProperty {
   period: string;
   images: string[] | null;
   property_type: string;
-  has_premium_badge: boolean | null;
+  is_boosted: boolean | null;
   status: string;
   description: string | null;
   amenities: string[] | null;
@@ -74,7 +74,7 @@ export async function fetchProperties(): Promise<Property[]> {
     return [];
   }
 
-  return ((data as DBProperty[]) || []).map((p) => ({
+  const mappedProperties = ((data as DBProperty[]) || []).map((p) => ({
     id: p.id,
     title: p.title,
     location: `${p.quartier}, ${p.city}`,
@@ -87,8 +87,8 @@ export async function fetchProperties(): Promise<Property[]> {
     period: p.period === "month" ? "Mois" : p.period,
     image: p.images?.[0] || "/hero-bg.jpg",
     images: p.images || [],
-    category: p.property_type === "commercial" ? "Business" : "Residential",
-    isSponsored: p.has_premium_badge || false,
+    category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
+    isSponsored: p.is_boosted || false,
     status: p.status,
     propertyType: p.property_type,
     description: p.description || "",
@@ -107,24 +107,31 @@ export async function fetchProperties(): Promise<Property[]> {
       user_type: p.agent_type || undefined,
     },
   }));
+
+  // Sort by isSponsored first, then by created_at
+  return mappedProperties.sort((a, b) => {
+    if (a.isSponsored && !b.isSponsored) return -1;
+    if (!a.isSponsored && b.isSponsored) return 1;
+    return 0; // maintain created_at order from query
+  });
 }
 
 export async function fetchFeaturedProperties(
   limit: number = 4
 ): Promise<Property[]> {
+  // To ensure we get enough sponsored properties, we fetch more and then slice
   const { data, error } = await supabase
     .from("property_details")
     .select("*")
     .eq("status", "en_ligne")
-    .order("created_at", { ascending: false })
-    .limit(limit);
+    .order("created_at", { ascending: false });
 
   if (error) {
     console.error("Error fetching featured properties:", error);
     return [];
   }
 
-  return ((data as DBProperty[]) || []).map((p) => ({
+  const mappedProperties = ((data as DBProperty[]) || []).map((p) => ({
     id: p.id,
     title: p.title,
     location: `${p.quartier}, ${p.city}`,
@@ -137,8 +144,8 @@ export async function fetchFeaturedProperties(
     period: p.period === "month" ? "Mois" : p.period,
     image: p.images?.[0] || "/hero-bg.jpg",
     images: p.images || [],
-    category: p.property_type === "commercial" ? "Business" : "Residential",
-    isSponsored: p.has_premium_badge || false,
+    category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
+    isSponsored: p.is_boosted || false,
     status: p.status,
     propertyType: p.property_type,
     description: p.description || "",
@@ -157,6 +164,14 @@ export async function fetchFeaturedProperties(
       user_type: p.agent_type || undefined,
     },
   }));
+
+  return mappedProperties
+    .sort((a, b) => {
+      if (a.isSponsored && !b.isSponsored) return -1;
+      if (!a.isSponsored && b.isSponsored) return 1;
+      return 0;
+    })
+    .slice(0, limit);
 }
 
 export async function fetchPropertyById(id: string): Promise<Property | null> {
@@ -185,8 +200,8 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     period: p.period === "month" ? "Mois" : p.period,
     image: p.images?.[0] || "/hero-bg.jpg",
     images: p.images || [],
-    category: p.property_type === "commercial" ? "Business" : "Residential",
-    isSponsored: p.has_premium_badge || false,
+    category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
+    isSponsored: p.is_boosted || false,
     status: p.status,
     propertyType: p.property_type,
     description: p.description || "",
@@ -213,7 +228,7 @@ export type Transaction = {
   amount: number;
   currency: string;
   status: "pending" | "completed" | "failed" | "refunded";
-  type: "listing_submission" | "photography";
+  type: "listing_submission" | "photography" | "boost";
   provider: string;
   payer_phone: string;
   property_id: string | null;

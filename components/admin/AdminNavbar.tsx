@@ -44,7 +44,7 @@ export function AdminNavbar() {
     { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
     { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
     { label: "Réservations", icon: LockIcon, href: "/admin/locks" },
-    { label: "Transactions", icon: ReceiptIcon, href: "/admin/transactions" },
+    { label: "Finances", icon: ReceiptIcon, href: "/admin/finances" },
   ];
 
   return (
