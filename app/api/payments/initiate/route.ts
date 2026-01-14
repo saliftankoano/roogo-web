@@ -160,7 +160,9 @@ export async function POST(req: Request) {
     formattedPhone = "226" + formattedPhone.slice(0, 8);
 
     const pawaProvider = provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
-    const customerMessage = (description || "Roogo Payment").slice(0, 22);
+    const customerMessage = (description || "Roogo Payment")
+      .replace(/[^a-zA-Z0-9\s]/g, "")
+      .slice(0, 22);
 
     const payload: PawaPayDepositPayload = {
       depositId,
@@ -233,6 +235,20 @@ export async function POST(req: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("deposit_id", depositId);
+
+      // Post-payment logic for immediate completion
+      if (transactionType === "boost" && propertyId) {
+        const expiresAt = new Date();
+        expiresAt.setDate(expiresAt.getDate() + 7);
+
+        await supabase
+          .from("properties")
+          .update({
+            is_boosted: true,
+            boost_expires_at: expiresAt.toISOString(),
+          })
+          .eq("id", propertyId);
+      }
     }
 
     return cors(

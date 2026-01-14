@@ -1,8 +1,9 @@
 "use client";
 
 import Image from "next/image";
-import { BedIcon, BathtubIcon, RulerIcon } from "@phosphor-icons/react";
+import { BedIcon, BathtubIcon, RulerIcon, LightningIcon } from "@phosphor-icons/react";
 import { Property } from "@/lib/data";
+import { cn } from "@/lib/utils";
 
 interface PropertyCardProps {
   property: Property;
@@ -25,7 +26,14 @@ export function PropertyCard({ property }: PropertyCardProps) {
   const timePosted = formatTimeAgo(property.created_at);
 
   return (
-    <div className="bg-white rounded-[32px] overflow-hidden border border-neutral-100 shadow-sm hover:shadow-xl transition-all duration-300 group flex flex-col h-full">
+    <div
+      className={cn(
+        "bg-white rounded-[32px] overflow-hidden border transition-all duration-300 group flex flex-col h-full",
+        property.isSponsored
+          ? "ring-2 ring-primary/20 border-primary/50 shadow-[0_0_25px_-5px_rgba(201,106,46,0.2)]"
+          : "border-neutral-100 shadow-sm hover:shadow-xl"
+      )}
+    >
       {/* Image Container */}
       <div className="relative aspect-4/3 w-full p-4">
         <div className="relative h-full w-full overflow-hidden rounded-[24px]">
@@ -36,6 +44,19 @@ export function PropertyCard({ property }: PropertyCardProps) {
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover transition-transform duration-500 group-hover:scale-110"
           />
+          {/* Sponsored Badge */}
+          {property.isSponsored && (
+            <div className="absolute top-4 left-4 flex items-center bg-white px-3 py-1.5 rounded-full shadow-md border border-primary/30 z-10">
+              <LightningIcon
+                size={14}
+                weight="fill"
+                className="text-primary"
+              />
+              <span className="text-primary text-[10px] font-black tracking-tighter uppercase ml-1">
+                À LA UNE
+              </span>
+            </div>
+          )}
         </div>
       </div>
 

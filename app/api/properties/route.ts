@@ -119,6 +119,14 @@ export async function POST(req: Request) {
       ? selectedTier.base_fee + listingData.prixMensuel * 0.05
       : null;
 
+    const isBoosted = listingData.add_ons?.includes("boost") || false;
+    let boostExpiresAt = null;
+    if (isBoosted) {
+      const date = new Date();
+      date.setDate(date.getDate() + 7);
+      boostExpiresAt = date.toISOString();
+    }
+
     const propertyData = {
       agent_id: user.id,
       title: listingData.titre,
@@ -146,6 +154,9 @@ export async function POST(req: Request) {
       video_included: selectedTier?.video_included || false,
       has_premium_badge: selectedTier?.has_badge || false,
       payment_id: listingData.payment_id || null,
+      // Boost information
+      is_boosted: isBoosted,
+      boost_expires_at: boostExpiresAt,
     };
 
     // 8. Insert property
@@ -197,9 +208,6 @@ export async function POST(req: Request) {
           .eq("id", propertyId);
       }
     }
-
-    // 8b. Create image records if photos are provided (skipping for now as per new flow)
-    // ... (rest of logic remains same, but usually empty array in new flow)
 
     // 9. Link amenities
     if (

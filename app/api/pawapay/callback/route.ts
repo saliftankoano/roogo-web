@@ -80,42 +80,58 @@ export async function POST(req: Request) {
     }
 
     // 4. Handle Post-Payment Logic
-    if (dbStatus === "completed" && transaction.type === "property_lock") {
-      const propertyId = transaction.property_id;
-      const renterId = transaction.user_id;
+    if (dbStatus === "completed") {
+      if (transaction.type === "property_lock") {
+        const propertyId = transaction.property_id;
+        const renterId = transaction.user_id;
 
-      if (propertyId && renterId) {
-        await supabase
-          .from("properties")
-          .update({ status: "locked" })
-          .eq("id", propertyId);
+        if (propertyId && renterId) {
+          await supabase
+            .from("properties")
+            .update({ status: "locked" })
+            .eq("id", propertyId);
 
-        const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7);
 
-        await supabase.from("property_locks").insert({
-          property_id: propertyId,
-          renter_id: renterId,
-          transaction_id: transaction.id,
-          lock_fee: transaction.amount,
-          status: "active",
-          expires_at: expiresAt.toISOString(),
-        });
+          await supabase.from("property_locks").insert({
+            property_id: propertyId,
+            renter_id: renterId,
+            transaction_id: transaction.id,
+            lock_fee: transaction.amount,
+            status: "active",
+            expires_at: expiresAt.toISOString(),
+          });
 
-        const { data: property } = await supabase
-          .from("properties")
-          .select("address, agent_id")
-          .eq("id", propertyId)
-          .single();
+          const { data: property } = await supabase
+            .from("properties")
+            .select("address, agent_id")
+            .eq("id", propertyId)
+            .single();
 
-        if (property && property.agent_id) {
-          await notifyLockParties(
-            "DAY_0",
-            property.agent_id,
-            renterId,
-            property.address || "Propriété",
-            propertyId
-          );
+          if (property && property.agent_id) {
+            await notifyLockParties(
+              "DAY_0",
+              property.agent_id,
+              renterId,
+              property.address || "Propriété",
+              propertyId
+            );
+          }
+        }
+      } else if (transaction.type === "boost") {
+        const propertyId = transaction.property_id;
+        if (propertyId) {
+          const expiresAt = new Date();
+          expiresAt.setDate(expiresAt.getDate() + 7); // Boost for 7 days
+
+          await supabase
+            .from("properties")
+            .update({
+              is_boosted: true,
+              boost_expires_at: expiresAt.toISOString(),
+            })
+            .eq("id", propertyId);
         }
       }
     }
