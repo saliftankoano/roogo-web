@@ -103,32 +103,77 @@ export async function POST(req: Request) {
     if (status) {
       const supabase = getSupabaseClient();
 
-      // Map PawaPay status to our database enum
-      let dbStatus = "pending";
-      if (status === "COMPLETED" || status === "ACCEPTED")
-        dbStatus = "completed";
-      if (
-        status === "FAILED" ||
-        status === "CANCELLED" ||
-        status === "REJECTED"
-      )
-        dbStatus = "failed";
-      if (status === "REFUNDED") dbStatus = "refunded";
-
-      const { error: updateError } = await supabase
+      // Fetch the transaction first to see its type and previous status
+      const { data: transaction, error: fetchError } = await supabase
         .from("transactions")
-        .update({
-          status: dbStatus,
-          metadata: statusData,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("deposit_id", depositId);
+        .select("*")
+        .eq("deposit_id", depositId)
+        .single();
 
-      if (updateError) {
-        console.error(
-          `Failed to update transaction ${depositId}:`,
-          updateError
-        );
+      if (fetchError || !transaction) {
+        console.error(`Transaction ${depositId} not found in DB`);
+      } else {
+        // Map PawaPay status to our database enum
+        let dbStatus = "pending";
+        if (status === "COMPLETED" || status === "ACCEPTED")
+          dbStatus = "completed";
+        if (
+          status === "FAILED" ||
+          status === "CANCELLED" ||
+          status === "REJECTED"
+        )
+          dbStatus = "failed";
+        if (status === "REFUNDED") dbStatus = "refunded";
+
+        // Update transaction status
+        const { error: updateError } = await supabase
+          .from("transactions")
+          .update({
+            status: dbStatus,
+            metadata: statusData,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("deposit_id", depositId);
+
+        if (updateError) {
+          console.error(
+            `Failed to update transaction ${depositId}:`,
+            updateError
+          );
+        }
+
+        // Handle post-payment logic if it just became completed
+        if (dbStatus === "completed" && transaction.status !== "completed") {
+          if (transaction.type === "boost" && transaction.property_id) {
+             const expiresAt = new Date();
+             expiresAt.setDate(expiresAt.getDate() + 7);
+
+             await supabase
+               .from("properties")
+               .update({
+                 is_boosted: true,
+                 boost_expires_at: expiresAt.toISOString(),
+               })
+               .eq("id", transaction.property_id);
+          } else if (transaction.type === "property_lock" && transaction.property_id) {
+             await supabase
+               .from("properties")
+               .update({ status: "locked" })
+               .eq("id", transaction.property_id);
+               
+             const lockExpiresAt = new Date();
+             lockExpiresAt.setDate(lockExpiresAt.getDate() + 7);
+
+             await supabase.from("property_locks").insert({
+               property_id: transaction.property_id,
+               renter_id: transaction.user_id,
+               transaction_id: transaction.id,
+               lock_fee: transaction.amount,
+               status: "active",
+               expires_at: lockExpiresAt.toISOString(),
+             });
+          }
+        }
       }
     }
 
