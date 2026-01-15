@@ -44,9 +44,29 @@ export async function PATCH(
       );
     }
 
+    const updateData: any = { status };
+
+    // Post-approval logic: set published_at and refresh boost expiration
+    if (status === "en_ligne") {
+      updateData.published_at = new Date().toISOString();
+
+      // Check if property is boosted to refresh its expiration date
+      const { data: property } = await supabaseAdmin
+        .from("properties")
+        .select("is_boosted")
+        .eq("id", propertyId)
+        .single();
+
+      if (property?.is_boosted) {
+        const boostExpiresAt = new Date();
+        boostExpiresAt.setDate(boostExpiresAt.getDate() + 7);
+        updateData.boost_expires_at = boostExpiresAt.toISOString();
+      }
+    }
+
     const { error } = await supabaseAdmin
       .from("properties")
-      .update({ status })
+      .update(updateData)
       .eq("id", propertyId);
 
     if (error) {

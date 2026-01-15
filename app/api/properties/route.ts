@@ -127,6 +127,24 @@ export async function POST(req: Request) {
       boostExpiresAt = date.toISOString();
     }
 
+    // Calculate slot limit with add-ons
+    let slotLimit = selectedTier?.slot_limit || null;
+    if (slotLimit !== null && listingData.add_ons?.includes("extra_slots")) {
+      slotLimit += 25; // Add extra slots purchased as add-on
+    }
+
+    // Calculate photo limit with add-ons
+    let photoLimit = selectedTier?.photo_limit || null;
+    if (photoLimit !== null && listingData.add_ons?.includes("extra_photos")) {
+      photoLimit += 5; // Add extra photos purchased as add-on
+    }
+
+    // Calculate open house limit with add-ons
+    let openHouseLimit = selectedTier?.open_house_limit || null;
+    if (openHouseLimit !== null && listingData.add_ons?.includes("open_house")) {
+      openHouseLimit += 1; // Add extra open house purchased as add-on
+    }
+
     const propertyData = {
       agent_id: user.id,
       title: listingData.titre,
@@ -148,10 +166,10 @@ export async function POST(req: Request) {
       // Tier information
       tier_id: listingData.tier_id || null,
       tier_price: tierPrice,
-      slot_limit: selectedTier?.slot_limit || null,
-      open_house_limit: selectedTier?.open_house_limit || null,
-      photo_limit: selectedTier?.photo_limit || null,
-      video_included: selectedTier?.video_included || false,
+      slot_limit: slotLimit,
+      open_house_limit: openHouseLimit,
+      photo_limit: photoLimit,
+      video_included: selectedTier?.video_included || listingData.add_ons?.includes("video") || false,
       has_premium_badge: selectedTier?.has_badge || false,
       payment_id: listingData.payment_id || null,
       // Boost information

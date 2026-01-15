@@ -16,7 +16,18 @@ export async function GET(req: Request) {
     const supabase = getSupabaseClient();
     const now = new Date();
 
-    // 2. Fetch all active locks
+    // 2. Handle Boost Expirations
+    const { error: boostError } = await supabase
+      .from("properties")
+      .update({ is_boosted: false, boost_expires_at: null })
+      .lt("boost_expires_at", now.toISOString())
+      .eq("is_boosted", true);
+
+    if (boostError) {
+      console.error("Cron boost expiration error:", boostError);
+    }
+
+    // 3. Fetch all active locks
     const { data: locks, error: fetchError } = await supabase
       .from("property_locks")
       .select(
@@ -57,7 +68,7 @@ export async function GET(req: Request) {
       const property = lock.property;
       if (!property) continue;
 
-      // 3. Handle Auto-Reopen (Day 7+)
+      // 4. Handle Auto-Reopen (Day 7+)
       if (now >= expiresAt) {
         console.log(`Lock expired for property ${property.id}. Reopening...`);
 
@@ -86,7 +97,7 @@ export async function GET(req: Request) {
         continue; // Move to next lock
       }
 
-      // 4. Handle Day 5 Notification
+      // 5. Handle Day 5 Notification
       if (diffDays >= 5 && !lock.notification_sent_day5) {
         await notifyLockParties(
           "DAY_5",
@@ -105,7 +116,7 @@ export async function GET(req: Request) {
         continue;
       }
 
-      // 5. Handle Day 3 Notification
+      // 6. Handle Day 3 Notification
       if (diffDays >= 3 && !lock.notification_sent_day3) {
         await notifyLockParties(
           "DAY_3",
