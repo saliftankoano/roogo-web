@@ -44,7 +44,7 @@ export async function PATCH(
       );
     }
 
-    const updateData: any = { status };
+    const updateData: Record<string, string | boolean | null> = { status };
 
     // Post-approval logic: set published_at and refresh boost expiration
     if (status === "en_ligne") {
