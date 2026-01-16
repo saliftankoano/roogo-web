@@ -23,7 +23,25 @@ const nextConfig: NextConfig = {
       bodySizeLimit: "10mb", // Increase body size limit for image uploads
     },
   },
-  // Increase API route body size limit
+  async redirects() {
+    return [
+      {
+        source: '/rent/residential',
+        destination: '/location?category=Residential',
+        permanent: true,
+      },
+      {
+        source: '/rent/commercial',
+        destination: '/location?category=Business',
+        permanent: true,
+      },
+      {
+        source: '/list-property',
+        destination: '/', // Or a dedicated page if it existed, for now back to home
+        permanent: false,
+      },
+    ];
+  },
 };
 
 export default nextConfig;
