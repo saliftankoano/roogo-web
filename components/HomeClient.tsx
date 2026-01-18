@@ -8,6 +8,8 @@ import { Property } from "../lib/data";
 import { Button } from "./ui/Button";
 import { motion } from "framer-motion";
 import Link from "next/link";
+import { Features } from "./Features";
+import { Stats } from "./Stats";
 
 interface HomeClientProps {
   featuredProperties: Property[];
@@ -33,16 +35,20 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
     <div className="min-h-screen flex flex-col bg-white">
       <main className="grow">
         <Hero />
+        
+        <Stats />
 
         <InfoCards />
 
-        <section className="py-16 container mx-auto px-4">
-          <div className="flex justify-between items-end mb-8">
+        <Features />
+
+        <section className="py-24 container mx-auto px-4">
+          <div className="flex justify-between items-end mb-12">
             <div>
               <h2 className="text-3xl font-bold text-neutral-900 mb-2">
                 Annonces en vedette
               </h2>
-              <p className="text-neutral-500">
+              <p className="text-neutral-500 text-lg">
                 Explorez notre sélection exclusive de propriétés de qualité.
               </p>
             </div>
@@ -54,7 +60,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
           </div>
 
           <motion.div
-            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6"
+            className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-8"
             variants={container}
             initial="hidden"
             whileInView="show"
@@ -67,9 +73,9 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
             ))}
           </motion.div>
 
-          <div className="mt-8 text-center sm:hidden">
+          <div className="mt-12 text-center sm:hidden">
             <Link href="/location">
-              <Button variant="outline" fullWidth>
+              <Button variant="outline" fullWidth size="lg">
                 Voir toutes les propriétés
               </Button>
             </Link>
