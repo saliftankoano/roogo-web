@@ -1,7 +1,7 @@
 import { Metadata } from "next";
 import { AdminNavbar } from "../../components/admin/AdminNavbar";
 import { Footer } from "../../components/Footer";
-import { auth } from "@clerk/nextjs/server";
+import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
 
 export const metadata: Metadata = {
@@ -20,10 +20,18 @@ export default async function AdminLayout({
     redirect("/sign-in");
   }
 
+  // Double check user metadata for staff role
+  const user = await currentUser();
+  const userType = user?.publicMetadata?.userType;
+
+  if (userType !== "staff") {
+    redirect("/");
+  }
+
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50/50">
       <AdminNavbar />
-      <div className="flex-grow container mx-auto px-6 pt-40 pb-12">
+      <div className="grow container mx-auto px-6 pt-40 pb-12">
         {children}
       </div>
       <Footer />
