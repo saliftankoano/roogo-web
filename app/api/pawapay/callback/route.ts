@@ -33,6 +33,7 @@ export async function POST(req: Request) {
     const transactionId = data.depositId || data.payoutId || data.refundId;
     const { status, failureReason } = data;
 
+
     if (!transactionId || !status) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
@@ -62,12 +63,13 @@ export async function POST(req: Request) {
       );
     }
 
+
     const { error: updateError } = await supabase
       .from("transactions")
       .update({
         status: dbStatus,
         failure_reason: failureReason || null,
-        metadata: data,
+        metadata: { ...(transaction.metadata || {}), ...data }, // Merge metadata
         updated_at: new Date().toISOString(),
       })
       .eq("deposit_id", transactionId);
