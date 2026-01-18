@@ -100,7 +100,9 @@ export async function POST(req: Request) {
       transactionType,
       propertyId,
       preAuthorisationCode,
+      metadata, // Added metadata
     } = body;
+
 
     if (!amount || !phoneNumber || !provider || !transactionType) {
       return cors(NextResponse.json({ error: "Missing required fields" }, { status: 400 }));
@@ -136,6 +138,7 @@ export async function POST(req: Request) {
       user_id: user.id,
       property_id: propertyId || null,
       payer_phone: phoneNumber,
+      metadata: metadata || {}, // Store initial metadata
     });
 
     if (dbError) {
@@ -205,7 +208,7 @@ export async function POST(req: Request) {
         .update({
           status: "failed",
           failure_reason: result.message || "API call failed",
-          metadata: result,
+          metadata: { ...(metadata || {}), ...result }, // Merge metadata
         })
         .eq("deposit_id", depositId);
 
@@ -231,7 +234,7 @@ export async function POST(req: Request) {
         .from("transactions")
         .update({
           status: "completed",
-          metadata: result,
+          metadata: { ...(metadata || {}), ...result }, // Merge metadata
           updated_at: new Date().toISOString(),
         })
         .eq("deposit_id", depositId);

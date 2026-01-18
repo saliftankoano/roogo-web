@@ -234,6 +234,7 @@ export type Transaction = {
   property_id: string | null;
   user_id: string | null;
   created_at: string;
+  metadata?: any;
 };
 
 export async function fetchTransactionsByPropertyId(
