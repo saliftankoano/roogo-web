@@ -9,6 +9,7 @@ import {
   XIcon,
   ReceiptIcon,
   LockIcon,
+  ChartLineUpIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
@@ -44,6 +45,7 @@ export function AdminNavbar() {
     { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
     { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
     { label: "Réservations", icon: LockIcon, href: "/admin/locks" },
+    { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytics" },
     { label: "Finances", icon: ReceiptIcon, href: "/admin/finances" },
   ];
 
