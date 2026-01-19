@@ -21,6 +21,10 @@ export type Property = {
   amenities: string[];
   views?: number;
   favorites?: number;
+  slot_limit?: number;
+  slots_filled?: number;
+  photo_limit?: number;
+  video_included?: boolean;
   city?: string;
   quartier?: string;
   created_at?: string;
@@ -29,8 +33,11 @@ export type Property = {
   agent?: {
     full_name: string;
     phone: string;
+    email?: string;
     avatar_url: string;
     user_type?: string;
+    company_name?: string;
+    facebook_url?: string;
   };
 };
 
@@ -54,11 +61,18 @@ interface DBProperty {
   amenities: string[] | null;
   views_count: number | null;
   favorites_count: number | null;
+  slot_limit: number | null;
+  slots_filled: number | null;
+  photo_limit: number | null;
+  video_included: boolean | null;
   created_at: string;
   agent_name: string | null;
   agent_phone: string | null;
+  agent_email: string | null;
   agent_avatar: string | null;
   agent_type: string | null;
+  agent_company_name: string | null;
+  agent_facebook_url: string | null;
   payment_id: string | null;
   transaction_id: string | null;
 }
@@ -95,6 +109,10 @@ export async function fetchProperties(): Promise<Property[]> {
     amenities: p.amenities || [],
     views: p.views_count || 0,
     favorites: p.favorites_count || 0,
+    slot_limit: p.slot_limit || 0,
+    slots_filled: p.slots_filled || 0,
+    photo_limit: p.photo_limit || 0,
+    video_included: p.video_included || false,
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
@@ -103,8 +121,11 @@ export async function fetchProperties(): Promise<Property[]> {
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
+      email: p.agent_email || undefined,
       avatar_url: p.agent_avatar || "",
       user_type: p.agent_type || undefined,
+      company_name: p.agent_company_name || undefined,
+      facebook_url: p.agent_facebook_url || undefined,
     },
   }));
 
@@ -152,6 +173,10 @@ export async function fetchFeaturedProperties(
     amenities: p.amenities || [],
     views: p.views_count || 0,
     favorites: p.favorites_count || 0,
+    slot_limit: p.slot_limit || 0,
+    slots_filled: p.slots_filled || 0,
+    photo_limit: p.photo_limit || 0,
+    video_included: p.video_included || false,
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
@@ -160,8 +185,11 @@ export async function fetchFeaturedProperties(
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
+      email: p.agent_email || undefined,
       avatar_url: p.agent_avatar || "",
       user_type: p.agent_type || undefined,
+      company_name: p.agent_company_name || undefined,
+      facebook_url: p.agent_facebook_url || undefined,
     },
   }));
 
@@ -208,6 +236,10 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     amenities: p.amenities || [],
     views: p.views_count || 0,
     favorites: p.favorites_count || 0,
+    slot_limit: p.slot_limit || 0,
+    slots_filled: p.slots_filled || 0,
+    photo_limit: p.photo_limit || 0,
+    video_included: p.video_included || false,
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
@@ -216,12 +248,14 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
+      email: p.agent_email || undefined,
       avatar_url: p.agent_avatar || "",
       user_type: p.agent_type || undefined,
+      company_name: p.agent_company_name || undefined,
+      facebook_url: p.agent_facebook_url || undefined,
     },
   };
 }
-
 export type Transaction = {
   id: string;
   deposit_id: string;

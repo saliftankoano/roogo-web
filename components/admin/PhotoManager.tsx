@@ -1,14 +1,16 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import {
   ImageIcon,
   CheckIcon,
   CloudArrowUpIcon,
   TrashIcon,
+  StarIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import Image from "next/image";
+import { useAuth } from "@clerk/nextjs";
 
 interface PhotoManagerProps {
   propertyId: string;
@@ -18,25 +20,75 @@ interface PhotoManagerProps {
 }
 
 export default function PhotoManager({
+  propertyId,
   initialPhotos = [],
   isProfessional,
   onPhotosUpdated,
 }: PhotoManagerProps) {
+  const { getToken } = useAuth();
   const [photos, setPhotos] = useState<string[]>(initialPhotos);
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     setProfessional(isProfessional);
   }, [isProfessional]);
 
-  const handleUpload = () => {
-    // Mock upload
+  // Update photos when initialPhotos changes (e.g. after refresh)
+  useEffect(() => {
+    setPhotos(initialPhotos);
+  }, [initialPhotos]);
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+
     setLoading(true);
-    setTimeout(() => {
+    try {
+      const token = await getToken();
+      const files = Array.from(e.target.files);
+      const processedImages = await Promise.all(
+        files.map((file) => readFile(file))
+      );
+
+      const response = await fetch(
+        `/api/properties/${propertyId}/upload-images`,
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            images: processedImages,
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error("Failed to upload images");
+      }
+
+      const result = await response.json();
+      if (result.success && result.images) {
+        // Add new photos to state
+        const newUrls = result.images.map((img: any) => img.url);
+        setPhotos((prev) => [...prev, ...newUrls]);
+      }
+    } catch (error) {
+      console.error("Upload error:", error);
+      alert("Erreur lors du téléchargement des images");
+    } finally {
       setLoading(false);
-      // In a real app, update state with new URLs
-    }, 1500);
+      // Reset input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+    }
   };
 
   const toggleProfessional = () => {
@@ -45,8 +97,66 @@ export default function PhotoManager({
     onPhotosUpdated(newVal);
   };
 
-  const removePhoto = (index: number) => {
-    setPhotos(photos.filter((_, i) => i !== index));
+  const setPrimary = async (index: number) => {
+    const photoUrl = photos[index];
+    // Optimistic update - move selected photo to start
+    const newPhotos = [...photos];
+    newPhotos.splice(index, 1);
+    newPhotos.unshift(photoUrl);
+    setPhotos(newPhotos);
+
+    try {
+      const token = await getToken();
+      const response = await fetch(`/api/properties/${propertyId}/images`, {
+        method: "PATCH",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ url: photoUrl }),
+      });
+
+      if (!response.ok) {
+        // Revert if failed
+        setPhotos(photos);
+        alert("Erreur lors de la définition de la photo principale");
+      }
+    } catch (error) {
+      console.error("Set primary error:", error);
+      setPhotos(photos); // Revert
+      alert("Erreur lors de la définition de la photo principale");
+    }
+  };
+
+  const removePhoto = async (index: number) => {
+    const photoUrl = photos[index];
+    if (!confirm("Voulez-vous vraiment supprimer cette photo ?")) return;
+
+    // Optimistically remove from UI
+    const newPhotos = photos.filter((_, i) => i !== index);
+    setPhotos(newPhotos);
+
+    try {
+      const token = await getToken();
+      const response = await fetch(`/api/properties/${propertyId}/images`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({ url: photoUrl }),
+      });
+
+      if (!response.ok) {
+        // Revert if failed
+        setPhotos(photos);
+        alert("Erreur lors de la suppression de l'image");
+      }
+    } catch (error) {
+      console.error("Delete error:", error);
+      setPhotos(photos); // Revert
+      alert("Erreur lors de la suppression de l'image");
+    }
   };
 
   return (
@@ -84,17 +194,37 @@ export default function PhotoManager({
             />
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
               <button
+                onClick={() => setPrimary(i)}
+                className={`p-2 rounded-full transition-colors ${i === 0 ? "bg-yellow-400 text-white" : "bg-white/20 hover:bg-yellow-400 text-white"}`}
+                title={i === 0 ? "Photo principale" : "Définir comme principale"}
+              >
+                <StarIcon size={18} weight={i === 0 ? "fill" : "regular"} />
+              </button>
+              <button
                 onClick={() => removePhoto(i)}
                 className="p-2 bg-white/20 hover:bg-red-500 rounded-full text-white transition-colors"
               >
                 <TrashIcon size={18} />
               </button>
             </div>
+            {i === 0 && (
+              <div className="absolute top-2 left-2 bg-yellow-400 text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider shadow-sm">
+                Principale
+              </div>
+            )}
           </div>
         ))}
 
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          multiple
+          accept="image/*"
+          className="hidden"
+        />
         <button
-          onClick={handleUpload}
+          onClick={handleUploadClick}
           disabled={uploading}
           className="aspect-video border-2 border-dashed border-neutral-200 rounded-xl flex flex-col items-center justify-center text-neutral-400 hover:border-primary/50 hover:text-primary transition-all bg-neutral-50/50"
         >
@@ -104,7 +234,7 @@ export default function PhotoManager({
             <>
               <CloudArrowUpIcon size={32} />
               <span className="text-[10px] mt-2 font-bold uppercase tracking-wider">
-                Télécharger
+                Importer
               </span>
             </>
           )}
@@ -130,3 +260,31 @@ export default function PhotoManager({
     </div>
   );
 }
+
+const readFile = (
+  file: File
+): Promise<{ data: string; width: number; height: number; ext: string }> => {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const dataUrl = e.target?.result as string;
+      // data:image/jpeg;base64,...
+      const base64 = dataUrl.split(",")[1];
+      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+
+      const img = new window.Image();
+      img.onload = () => {
+        resolve({
+          data: base64,
+          width: img.width,
+          height: img.height,
+          ext,
+        });
+      };
+      img.onerror = reject;
+      img.src = dataUrl;
+    };
+    reader.onerror = reject;
+    reader.readAsDataURL(file);
+  });
+};
