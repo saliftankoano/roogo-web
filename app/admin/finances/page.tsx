@@ -229,7 +229,7 @@ export default function AdminFinancesPage() {
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         {[
           { label: "Revenu Global", value: stats.revenue, icon: CreditCardIcon, sub: "Transactions finalisées", color: "green" },
-          { label: "Commissions", value: stats.commission, icon: HandCoinsIcon, sub: "Frais de plateforme", color: "primary" },
+          { label: "Frais de Service", value: stats.commission, icon: HandCoinsIcon, sub: "Commission Roogo", color: "primary" },
           { label: "Conversion", value: stats.total > 0 ? Math.round((stats.successCount / stats.total) * 100) : 0, icon: ChartBarIcon, sub: `Sur ${stats.total} tentatives`, suffix: "%", color: "neutral" }
         ].map((s, idx) => (
           <div key={idx} className="bg-white p-8 rounded-[40px] border border-neutral-100 shadow-sm relative overflow-hidden group">
@@ -263,17 +263,9 @@ export default function AdminFinancesPage() {
                 <Bar dataKey="basic" stackId="a" fill="var(--color-basic)" radius={[0, 0, 0, 0]} barSize={40} />
                 <Bar dataKey="add_ons" stackId="a" fill="var(--color-add_ons)" radius={[0, 0, 0, 0]} barSize={40} />
                 <Bar dataKey="photography" stackId="a" fill="var(--color-photography)" radius={[0, 0, 0, 0]} barSize={40} />
-                <Bar dataKey="boost" stackId="a" fill="var(--color-boost)" radius={[10, 10, 0, 0]} barSize={40} />
+                <Bar dataKey="boost" stackId="a" fill="var(--color-boost)" radius={[4, 4, 0, 0]} barSize={40} />
               </BarChart>
             </ChartContainer>
-          </div>
-          <div className="mt-6 pt-6 border-t border-neutral-50 flex flex-wrap gap-x-4 gap-y-2 justify-center">
-            {Object.entries(chartConfig).map(([k, c]) => (
-              <div key={k} className="flex items-center gap-1.5">
-                <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: c.color }} />
-                <span className="text-[9px] font-black text-neutral-400 uppercase tracking-tight">{c.label}</span>
-              </div>
-            ))}
           </div>
         </div>
 
@@ -335,7 +327,7 @@ export default function AdminFinancesPage() {
               <div key={tx.id} className="bg-white rounded-[24px] p-6 border border-neutral-100 shadow-sm hover:shadow-md transition-shadow">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                   {/* Service Info - 40% */}
-                  <div className="flex items-start gap-4 flex-[2] grow-[2]">
+                  <div className="flex items-start gap-4 flex-2 grow-2">
                     <div className={cn("w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm", tx.type === "listing_submission" ? "bg-orange-50 text-orange-600" : tx.type === "photography" ? "bg-brown-50 text-amber-900" : "bg-blue-50 text-blue-600")}>
                       {tx.type === "listing_submission" ? <BuildingsIcon size={24} weight="fill" /> : tx.type === "photography" ? <CameraIcon size={24} weight="fill" /> : <LightningIcon size={24} weight="fill" />}
                     </div>
@@ -375,44 +367,63 @@ export default function AdminFinancesPage() {
                   </div>
 
                   {/* Amount & Breakdown - 30% */}
-                  <div className="flex flex-col items-end gap-1 flex-1 text-right pl-6 border-l border-neutral-50">
-                     <p className="text-2xl font-black text-neutral-900 tracking-tight">{tx.amount.toLocaleString()} <span className="text-sm text-neutral-400 font-bold">FCFA</span></p>
-                     
-                     {/* Breakdown moved here */}
-                     {metadata?.add_ons && metadata.add_ons.length > 0 && (
-                        <div className="flex flex-wrap justify-end gap-y-1 gap-x-3 mb-2 max-w-[200px]">
-                          {metadata.add_ons.map((a) => {
-                             const Icon = ADD_ON_ICONS[a.id] || InfoIcon;
-                             const label = ADD_ON_LABELS[a.id] || a.name;
-                             return (
-                               <div key={a.id} className="flex items-center gap-1 text-[10px]">
-                                 <Icon size={12} weight="bold" className="text-primary" />
-                                 <span className="font-bold text-primary">
-                                   {label} <span className="text-neutral-900">+{a.price.toLocaleString()}</span>
-                                 </span>
-                               </div>
-                             );
-                          })}
-                        </div>
-                     )}
-
-                     <div className="flex items-center gap-2 mb-2">
-                        {metadata?.commission && (
-                           <span className="text-[10px] font-bold text-neutral-400 bg-neutral-50 px-2 py-0.5 rounded-full">
-                              Com: {metadata.commission.toLocaleString()} FCFA
-                           </span>
+                  <div className="flex flex-col items-end gap-3 flex-1 text-right pl-6 border-l border-neutral-50 min-w-[220px]">
+                     {/* Detailed breakdown list */}
+                     <div className="w-full space-y-1.5">
+                        {metadata?.tier && (
+                           <div className="flex items-center justify-between text-[10px] font-bold">
+                             <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-wider">
+                               <BuildingsIcon size={12} />
+                               <span>Publication ({metadata.tier.name})</span>
+                             </div>
+                             <span className="text-neutral-900">{metadata.tier.base_fee.toLocaleString()} F</span>
+                           </div>
                         )}
-                        <span className="text-[10px] font-bold text-neutral-300 uppercase">{tx.provider}</span>
+                        {metadata?.add_ons?.map((a) => {
+                           const Icon = ADD_ON_ICONS[a.id] || InfoIcon;
+                           const label = ADD_ON_LABELS[a.id] || a.name;
+                           return (
+                             <div key={a.id} className="flex items-center justify-between text-[10px] font-bold">
+                               <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-wider">
+                                 <Icon size={12} />
+                                 <span>{label}</span>
+                               </div>
+                               <span className="text-neutral-900">{a.price.toLocaleString()} F</span>
+                             </div>
+                           );
+                        })}
+                        {metadata?.commission && (
+                           <div className="flex items-center justify-between text-[10px] font-bold">
+                             <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-wider">
+                               <HandCoinsIcon size={12} />
+                               <span>Frais Service</span>
+                             </div>
+                             <span className="text-neutral-900">{metadata.commission.toLocaleString()} F</span>
+                           </div>
+                        )}
                      </div>
 
-                     <div className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-wide", tx.status === "completed" ? "bg-green-50 text-green-700 border border-green-100" : tx.status === "failed" ? "bg-red-50 text-red-700 border border-red-100" : "bg-orange-50 text-orange-700 border border-orange-100")}>
-                        {tx.status === "completed" ? <CheckCircleIcon size={14} weight="fill" /> : tx.status === "failed" ? <XCircleIcon size={14} weight="fill" /> : <ClockIcon size={14} weight="fill" />}
-                        {tx.status === "completed" ? "Paiement Réussi" : tx.status === "failed" ? "Échec Paiement" : "En Attente"}
+                     {/* Total Highlight */}
+                     <div className="w-full pt-2 border-t border-neutral-100 flex items-baseline justify-between gap-4">
+                        <span className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em]">Total</span>
+                        <p className="text-2xl font-black text-neutral-900 tracking-tight">
+                           {tx.amount.toLocaleString()} <span className="text-[10px] text-neutral-400 font-bold uppercase">FCFA</span>
+                        </p>
                      </div>
-                     
-                     <p className="text-[10px] text-neutral-300 font-bold mt-2">
-                        {new Date(tx.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} à {new Date(tx.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-                     </p>
+
+                     {/* Status & Provider */}
+                     <div className="flex flex-col items-end gap-2 mt-1">
+                        <div className="flex items-center gap-2">
+                           <span className="text-[9px] font-bold text-neutral-300 uppercase tracking-widest">{tx.provider}</span>
+                           <div className={cn("inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wide", tx.status === "completed" ? "bg-green-50 text-green-700 border border-green-100" : tx.status === "failed" ? "bg-red-50 text-red-700 border border-red-100" : "bg-orange-50 text-orange-700 border border-orange-100")}>
+                              {tx.status === "completed" ? <CheckCircleIcon size={12} weight="fill" /> : tx.status === "failed" ? <XCircleIcon size={12} weight="fill" /> : <ClockIcon size={12} weight="fill" />}
+                              {tx.status === "completed" ? "Paiement Réussi" : tx.status === "failed" ? "Échec" : "En Attente"}
+                           </div>
+                        </div>
+                        <p className="text-[9px] text-neutral-300 font-bold">
+                           {new Date(tx.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short" })} à {new Date(tx.created_at).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
+                        </p>
+                     </div>
                   </div>
                 </div>
               </div>
