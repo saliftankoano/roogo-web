@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/lock-lifecycle",
       "schedule": "0 9 * * *"
+    },
+    {
+      "path": "/api/cron/aggregate-views",
+      "schedule": "0 3 * * *"
     }
   ]
 }
