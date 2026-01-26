@@ -6,6 +6,10 @@ import {
   getUserByClerkId,
   createUserInSupabase,
 } from "@/lib/user-sync";
+import { cors, corsOptions, safeError, errorResponse } from "@/lib/api-helpers";
+import { paymentInitiateSchema } from "@/lib/validations";
+import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
+import { BOOST_DURATION_DAYS } from "@/lib/constants";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -22,8 +26,8 @@ interface PawaPayDepositPayload {
   preAuthorisationCode?: string;
 }
 
-export async function OPTIONS() {
-  return cors(NextResponse.json({ ok: true }));
+export async function OPTIONS(req: Request) {
+  return corsOptions(req);
 }
 
 export async function POST(req: Request) {
@@ -32,7 +36,7 @@ export async function POST(req: Request) {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
     if (!token) {
-      return cors(NextResponse.json({ error: "Missing token" }, { status: 401 }));
+      return errorResponse("Missing token", 401, req);
     }
 
     let clerkUserId: string | undefined;
@@ -43,14 +47,28 @@ export async function POST(req: Request) {
       clerkUserId = sub;
     } catch (error) {
       console.error("Token verification failed:", error);
-      return cors(NextResponse.json({ error: "Invalid token" }, { status: 401 }));
+      return errorResponse("Invalid token", 401, req);
     }
 
     if (!clerkUserId) {
-      return cors(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
+      return errorResponse("Unauthorized", 401, req);
     }
 
-    // 2. Get User from Supabase
+    // 2. Rate limiting
+    const { success: rateLimitOk, headers: rateLimitHeaders } = await checkRateLimit(
+      paymentLimiter,
+      clerkUserId
+    );
+
+    if (!rateLimitOk) {
+      const response = errorResponse("Too many payment requests. Please try again later.", 429, req);
+      rateLimitHeaders.forEach((value, key) => {
+        response.headers.set(key, value);
+      });
+      return response;
+    }
+
+    // 3. Get User from Supabase
     let user = await getUserByClerkId(clerkUserId);
 
     // Auto-sync if user missing
@@ -79,19 +97,29 @@ export async function POST(req: Request) {
         user = await createUserInSupabase(userData);
       } catch (syncError: unknown) {
         console.error("Auto-sync failed:", syncError);
-        const errorDetail = syncError instanceof Error ? syncError.message : (typeof syncError === 'object' ? JSON.stringify(syncError) : String(syncError));
-        return cors(
-          NextResponse.json({ error: `User sync failed: ${errorDetail}` }, { status: 404 })
+        return errorResponse(
+          "User not found. Please try signing in again.",
+          404,
+          req
         );
       }
     }
 
     if (!user) {
-      return cors(NextResponse.json({ error: "User not found in database" }, { status: 404 }));
+      return errorResponse("User not found in database", 404, req);
     }
 
-    // 3. Parse Body
+    // 4. Parse and validate body
     const body = await req.json();
+    
+    let validatedData;
+    try {
+      validatedData = paymentInitiateSchema.parse(body);
+    } catch (validationError) {
+      console.error("Validation error:", validationError);
+      return errorResponse("Invalid request data", 400, req);
+    }
+
     const {
       amount,
       phoneNumber,
@@ -100,31 +128,25 @@ export async function POST(req: Request) {
       transactionType,
       propertyId,
       preAuthorisationCode,
-      metadata, // Added metadata
-    } = body;
-
-
-    if (!amount || !phoneNumber || !provider || !transactionType) {
-      return cors(NextResponse.json({ error: "Missing required fields" }, { status: 400 }));
-    }
+      metadata,
+    } = validatedData;
 
     // Validation for Orange Burkina Faso which requires a pre-authorisation code
     if (provider === "ORANGE_MONEY" && !preAuthorisationCode) {
-      return cors(
-        NextResponse.json(
-          { error: "Un code d'autorisation est requis pour Orange Money" },
-          { status: 400 }
-        )
+      return errorResponse(
+        "Un code d'autorisation est requis pour Orange Money",
+        400,
+        req
       );
     }
 
-    // 4. Create Transaction Record in Supabase (Pending)
+    // 5. Create Transaction Record in Supabase (Pending)
     const depositId = crypto.randomUUID();
     const currency = "XOF";
     const supabase = getSupabaseClient();
 
     // Map provider to PawaPay v2 format
-    let payerClientCode = provider;
+    let payerClientCode: string = provider;
     if (provider === "ORANGE_MONEY") payerClientCode = "ORANGE_BFA";
     if (provider === "MOOV_MONEY") payerClientCode = "MOOV_BFA";
 
@@ -138,21 +160,21 @@ export async function POST(req: Request) {
       user_id: user.id,
       property_id: propertyId || null,
       payer_phone: phoneNumber,
-      metadata: metadata || {}, // Store initial metadata
+      metadata: metadata || {},
     });
 
     if (dbError) {
       console.error("Database insertion error:", dbError);
-      return cors(NextResponse.json({ error: "Failed to initialize transaction" }, { status: 500 }));
+      return errorResponse("Failed to initialize transaction", 500, req);
     }
 
-    // 5. Call PawaPay API
+    // 6. Call PawaPay API
     const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
 
     if (!pawaToken) {
-      return cors(NextResponse.json({ error: "Server configuration error" }, { status: 500 }));
+      return errorResponse("Server configuration error", 500, req);
     }
 
     // Format phone number
@@ -208,7 +230,7 @@ export async function POST(req: Request) {
         .update({
           status: "failed",
           failure_reason: result.message || "API call failed",
-          metadata: { ...(metadata || {}), ...result }, // Merge metadata
+          metadata: { ...(metadata || {}), ...result },
         })
         .eq("deposit_id", depositId);
 
@@ -223,18 +245,18 @@ export async function POST(req: Request) {
         NextResponse.json(
           { error: errorMessage, details: result, failureCode: failureReason?.failureCode },
           { status: response.status }
-        )
+        ),
+        req
       );
     }
 
-    // 6. Update status if PawaPay accepted immediately
-    // For test numbers, result.status is often 'ACCEPTED' or 'COMPLETED' right away
+    // 7. Update status if PawaPay accepted immediately
     if (result.status === "ACCEPTED" || result.status === "COMPLETED") {
       await supabase
         .from("transactions")
         .update({
           status: "completed",
-          metadata: { ...(metadata || {}), ...result }, // Merge metadata
+          metadata: { ...(metadata || {}), ...result },
           updated_at: new Date().toISOString(),
         })
         .eq("deposit_id", depositId);
@@ -242,7 +264,7 @@ export async function POST(req: Request) {
       // Post-payment logic for immediate completion
       if (transactionType === "boost" && propertyId) {
         const expiresAt = new Date();
-        expiresAt.setDate(expiresAt.getDate() + 7);
+        expiresAt.setDate(expiresAt.getDate() + BOOST_DURATION_DAYS);
 
         await supabase
           .from("properties")
@@ -260,19 +282,15 @@ export async function POST(req: Request) {
         depositId: result.depositId || depositId,
         status: result.status || "PENDING",
         raw: result,
-      })
+      }),
+      req
     );
   } catch (error: unknown) {
     console.error("Payment initiation error:", error);
-    return cors(
-      NextResponse.json({ error: error instanceof Error ? error.message : String(error) }, { status: 500 })
+    return errorResponse(
+      safeError(error, "Payment initiation failed"),
+      500,
+      req
     );
   }
-}
-
-function cors(res: NextResponse) {
-  res.headers.set("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
-  res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  return res;
 }

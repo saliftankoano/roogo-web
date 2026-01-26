@@ -1,9 +1,10 @@
+import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
 
-export async function OPTIONS() {
-  return cors(NextResponse.json({ ok: true }));
+export async function OPTIONS(req: Request) {
+  return corsOptions(req);
 }
 
 export async function POST(req: Request) {
@@ -131,16 +132,4 @@ export async function DELETE(req: Request) {
   }
 }
 
-function cors(res: NextResponse) {
-  res.headers.set(
-    "Access-Control-Allow-Origin",
-    process.env.CORS_ORIGIN || "*"
-  );
-  res.headers.set(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
-  res.headers.set("Access-Control-Allow-Methods", "POST, DELETE, OPTIONS");
-  return res;
-}
 

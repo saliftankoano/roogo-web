@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
+import { checkRateLimit, authLimiter } from "@/lib/rate-limit";
+import { safeError } from "@/lib/api-helpers";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -13,6 +15,23 @@ export async function POST(request: NextRequest) {
 
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    // Rate limiting for auth attempts
+    const { success: rateLimitOk, headers: rateLimitHeaders } = await checkRateLimit(
+      authLimiter,
+      userId
+    );
+
+    if (!rateLimitOk) {
+      const response = NextResponse.json(
+        { error: "Too many attempts. Please try again later." },
+        { status: 429 }
+      );
+      rateLimitHeaders.forEach((value, key) => {
+        response.headers.set(key, value);
+      });
+      return response;
     }
 
     const { code } = await request.json();
@@ -47,7 +66,6 @@ export async function POST(request: NextRequest) {
     // Update Clerk metadata
     const client = await clerkClient();
     
-    // Standardizing on userType in publicMetadata for security
     await client.users.updateUser(userId, {
       publicMetadata: {
         userType: "staff",
@@ -55,18 +73,16 @@ export async function POST(request: NextRequest) {
       privateMetadata: {
         userType: "staff",
       },
-      // Clear unsafeMetadata as we migrate to secure fields
       unsafeMetadata: {}
     });
 
-    // Check if user already exists in Supabase by clerk_id first
+    // Check if user already exists in Supabase
     let { data: existingUser } = await supabaseAdmin
       .from("users")
       .select("id, clerk_id, email, user_type")
       .eq("clerk_id", userId)
       .maybeSingle();
 
-    // If not found by clerk_id, check by email (handles cases where webhook might have failed or not yet set clerk_id)
     if (!existingUser && email) {
       const { data: userByEmail } = await supabaseAdmin
         .from("users")
@@ -84,11 +100,12 @@ export async function POST(request: NextRequest) {
         .from("users")
         .update({ 
           user_type: "staff",
-          clerk_id: userId // Ensure clerk_id is synced
+          clerk_id: userId
         })
         .eq("id", existingUser.id);
 
       if (updateError) {
+        console.error("Failed to update user role:", updateError);
         return NextResponse.json(
           { error: "Failed to update user role" },
           { status: 500 }
@@ -104,7 +121,6 @@ export async function POST(request: NextRequest) {
       });
 
       if (insertError) {
-        // Double-check if it's a conflict that happened between our check and insert
         if (insertError.code === '23505') {
             const { error: finalUpdateError } = await supabaseAdmin
                 .from("users")
@@ -112,7 +128,7 @@ export async function POST(request: NextRequest) {
                     user_type: "staff",
                     clerk_id: userId 
                 })
-                .match({ email: email }); // Standard match instead of invalid .or()
+                .match({ email: email });
             
             if (!finalUpdateError) {
                 return NextResponse.json({
@@ -121,6 +137,7 @@ export async function POST(request: NextRequest) {
                 });
             }
         }
+        console.error("Failed to create staff user:", insertError);
         return NextResponse.json(
           { error: "Failed to create staff user" },
           { status: 500 }
@@ -135,7 +152,7 @@ export async function POST(request: NextRequest) {
   } catch (error) {
     console.error("Staff verification error:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: safeError(error, "Internal server error") },
       { status: 500 }
     );
   }

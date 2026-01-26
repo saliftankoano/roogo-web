@@ -1,17 +1,18 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
+import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
-export async function OPTIONS() {
-  return cors(NextResponse.json({ ok: true }));
+export async function OPTIONS(req: Request) {
+  return corsOptions(req);
 }
 
 export async function POST(req: Request) {
   try {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
-    if (!token) return cors(json({ error: "Missing token" }, 401));
+    if (!token) return errorResponse("Missing token", 401, req);
 
     let userId: string | undefined;
     try {
@@ -20,17 +21,15 @@ export async function POST(req: Request) {
       });
       userId = sub as string | undefined;
     } catch {
-      return cors(json({ error: "Invalid token" }, 401));
+      return errorResponse("Invalid token", 401, req);
     }
 
     if (!userId) {
-      return cors(json({ error: "Unauthorized" }, 401));
+      return errorResponse("Unauthorized", 401, req);
     }
 
     const body = await req.json().catch(() => ({} as unknown));
     
-    // We expect fields to be passed at the root of the body now for simplicity,
-    // but we can still accept the nested structure for backward compatibility.
     const input = (body.publicMetadata || body.privateMetadata || body) as Record<string, unknown>;
 
     const { 
@@ -51,48 +50,36 @@ export async function POST(req: Request) {
 
     // Validations
     if (userType && !["agent", "regular", "owner", "renter", "staff"].includes(userType)) {
-      return cors(json({ error: "Invalid userType" }, 400));
+      return errorResponse("Invalid userType", 400, req);
     }
 
     if (sex && !["Masculin", "Féminin"].includes(sex)) {
-      return cors(json({ error: "Invalid sex" }, 400));
+      return errorResponse("Invalid sex", 400, req);
     }
 
     // Build update payload
     const publicMetadata: Record<string, string | undefined> = {};
     const privateMetadata: Record<string, string | undefined> = {};
 
-    // Public fields (readable by frontend)
+    // Public fields
     if (userType) publicMetadata.userType = userType;
     if (companyName) publicMetadata.companyName = companyName;
     if (facebookUrl) publicMetadata.facebookUrl = facebookUrl;
     if (location) publicMetadata.location = location;
 
-    // Private fields (backend only)
+    // Private fields
     if (sex) privateMetadata.sex = sex;
     if (dateOfBirth) privateMetadata.dateOfBirth = dateOfBirth;
 
     await clerk.users.updateUser(userId, {
       publicMetadata,
       privateMetadata,
-      // Clear unsafeMetadata for this user as we migrate them
       unsafeMetadata: {}
     });
 
-    return cors(json({ ok: true }));
+    return cors(NextResponse.json({ ok: true }), req);
   } catch (error) {
     console.error("Metadata update error:", error);
-    return cors(json({ error: "Failed to update metadata" }, 400));
+    return errorResponse("Failed to update metadata", 400, req);
   }
-}
-
-function json(body: unknown, status = 200) {
-  return NextResponse.json(body, { status });
-}
-
-function cors(res: NextResponse) {
-  res.headers.set("Access-Control-Allow-Origin", process.env.CORS_ORIGIN || "*");
-  res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
-  res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  return res;
 }

@@ -35,7 +35,7 @@ export default function AdminAgentsPage() {
 
   useEffect(() => {
     async function loadAgents() {
-      const properties = await fetchProperties();
+      const { properties } = await fetchProperties();
 
       // Extract unique agents from properties
       const agentMap = new Map<string, Agent>();

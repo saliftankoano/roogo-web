@@ -1,3 +1,5 @@
+import { LOCK_DURATION_HOURS } from "@/lib/constants";
+import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
@@ -17,8 +19,8 @@ interface PawaPayDepositPayload {
   preAuthorisationCode?: string;
 }
 
-export async function OPTIONS() {
-  return cors(NextResponse.json({ ok: true }));
+export async function OPTIONS(req: Request) {
+  return corsOptions(req);
 }
 
 export async function POST(
@@ -76,7 +78,7 @@ export async function POST(
 
     const supabase = getSupabaseClient();
 
-    // 4. Validate Property Eligibility (Status must be 'en_ligne' and within 48h)
+    // 4. Validate Property Eligibility (Status must be 'en_ligne' and within LOCK_DURATION_HOURSh)
     const { data: property, error: propError } = await supabase
       .from("properties")
       .select("price, published_at, status")
@@ -114,10 +116,10 @@ export async function POST(
     const diffHours =
       (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60);
 
-    if (diffHours > 48) {
+    if (diffHours > LOCK_DURATION_HOURS) {
       return cors(
         NextResponse.json(
-          { error: "Early Bird window has expired (48h passed)" },
+          { error: "Early Bird window has expired (LOCK_DURATION_HOURSh passed)" },
           { status: 400 }
         )
       );
@@ -266,15 +268,3 @@ export async function POST(
   }
 }
 
-function cors(res: NextResponse) {
-  res.headers.set(
-    "Access-Control-Allow-Origin",
-    process.env.CORS_ORIGIN || "*"
-  );
-  res.headers.set(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
-  res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  return res;
-}

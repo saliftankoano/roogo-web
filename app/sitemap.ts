@@ -52,7 +52,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
 
   // Try to fetch properties for future-proofing
   try {
-    const properties = await fetchProperties();
+    const { properties } = await fetchProperties();
     const propertyPages: MetadataRoute.Sitemap = properties
       .filter((p) => p.status === "en_ligne")
       .map((p) => ({

@@ -108,7 +108,7 @@ export default function AdminCalendarPage() {
   const paddingDays = Array.from({ length: firstDayOfWeek }, () => null);
 
   const loadProperties = useCallback(async () => {
-    const data = await fetchProperties();
+    const { properties: data } = await fetchProperties();
     setProperties(data);
   }, []);
 

@@ -1,3 +1,4 @@
+import { cors, corsOptions } from "@/lib/api-helpers";
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
@@ -9,8 +10,8 @@ export const runtime = "nodejs";
 /**
  * @description Handle OPTIONS request for CORS
  */
-export async function OPTIONS() {
-  return cors(NextResponse.json({ ok: true }));
+export async function OPTIONS(req: Request) {
+  return corsOptions(req);
 }
 
 /**
@@ -161,15 +162,3 @@ function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status });
 }
 
-function cors(res: NextResponse) {
-  res.headers.set(
-    "Access-Control-Allow-Origin",
-    process.env.CORS_ORIGIN || "*"
-  );
-  res.headers.set(
-    "Access-Control-Allow-Headers",
-    "Content-Type, Authorization"
-  );
-  res.headers.set("Access-Control-Allow-Methods", "POST, OPTIONS");
-  return res;
-}
