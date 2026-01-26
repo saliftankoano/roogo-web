@@ -20,7 +20,7 @@ import {
   VideoCameraIcon,
   CameraIcon,
   LightningIcon,
-  HandCoinsIcon,
+
   CheckCircleIcon,
   ClockIcon,
   XCircleIcon,
@@ -628,7 +628,7 @@ export default function ListingDetailPage() {
                         const label = ADD_ON_LABELS[a.id] || a.name;
                         return (
                           <div key={a.id} className="flex items-center justify-between text-[10px] font-bold">
-                            <span className="text-neutral-400 uppercase tracking-widest">{label}</span>
+                            <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-widest"><Icon size={12} /><span>{label}</span></div>
                             <span className="text-neutral-900">{a.price.toLocaleString()} F</span>
                           </div>
                         );

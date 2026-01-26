@@ -1,5 +1,5 @@
 import { LOCK_DURATION_HOURS } from "@/lib/constants";
-import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
+import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
