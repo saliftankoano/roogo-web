@@ -43,7 +43,7 @@ function PropertyFormFooter({ isSubmitting }: { isSubmitting: boolean }) {
       <button
         type="submit"
         disabled={isSubmitting}
-        className="flex-[2] py-5 bg-primary text-white rounded-full font-bold text-xl shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-70"
+        className="flex-2 py-5 bg-primary text-white rounded-full font-bold text-xl shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-70"
       >
         {isSubmitting ? (
           <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-white"></div>
