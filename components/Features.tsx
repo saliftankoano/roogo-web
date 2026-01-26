@@ -33,7 +33,7 @@ export function Features() {
         <div className="text-center mb-16">
           <h2 className="text-3xl font-bold text-neutral-900 mb-4">Pourquoi choisir Roogo ?</h2>
           <p className="text-neutral-500 text-lg max-w-2xl mx-auto">
-            Nous redéfinissons l'expérience immobilière au Burkina Faso avec technologie et confiance.
+            Nous redéfinissons l&apos;expérience immobilière au Burkina Faso avec technologie et confiance.
           </p>
         </div>
 
