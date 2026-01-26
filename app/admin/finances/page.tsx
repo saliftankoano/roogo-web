@@ -13,8 +13,8 @@ import {
   CameraIcon,
   LightningIcon,
   RowsIcon,
-  InfoIcon,
-  HandCoinsIcon,
+  InfoIcon, HandCoinsIcon,
+
   UserCircleIcon,
   MapPinIcon,
   VideoCameraIcon,
