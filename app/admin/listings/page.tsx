@@ -2,23 +2,91 @@
 
 import { useState, useMemo, useEffect, useRef } from "react";
 import {
-  DotsThreeVertical,
-  CaretDown,
-  Check,
-  MagnifyingGlass,
+  DotsThreeVerticalIcon,
+  CaretDownIcon,
+  CheckIcon,
+  MagnifyingGlassIcon,
+  PlusIcon,
+  UploadSimpleIcon,
+  HouseIcon,
+  MapPinIcon,
+  InfoIcon,
+  ImageIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { Property, fetchProperties } from "@/lib/data";
 import { PropertyCard } from "@/components/PropertyCard";
 import { motion, AnimatePresence } from "framer-motion";
+import {
+  ExpandableScreen,
+  ExpandableScreenContent,
+  ExpandableScreenTrigger,
+  useExpandableScreen,
+} from "@/components/ui/expandable-screen";
+import { useAuth } from "@clerk/nextjs";
+import Image from "next/image";
+
+// Helper component to access expand/collapse context
+function PropertyFormFooter({ isSubmitting }: { isSubmitting: boolean }) {
+  const { collapse } = useExpandableScreen();
+
+  return (
+    <div className="pt-12 border-t border-neutral-100 flex flex-col sm:flex-row gap-4">
+      <button
+        type="button"
+        onClick={collapse}
+        className="flex-1 py-5 bg-neutral-100 text-neutral-600 rounded-full font-bold text-xl hover:bg-neutral-200 transition-all active:scale-[0.98]"
+      >
+        Annuler
+      </button>
+      <button
+        type="submit"
+        disabled={isSubmitting}
+        className="flex-[2] py-5 bg-primary text-white rounded-full font-bold text-xl shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-70"
+      >
+        {isSubmitting ? (
+          <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-white"></div>
+        ) : (
+          <>
+            <UploadSimpleIcon size={28} weight="bold" />
+            <span>Publier Immédiatement</span>
+          </>
+        )}
+      </button>
+    </div>
+  );
+}
 
 export default function AdminListingsPage() {
+  const { getToken } = useAuth();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+
+  // Form state for new property
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    titre: "",
+    type: "house",
+    prixMensuel: "",
+    quartier: "",
+    ville: "ouaga",
+    description: "",
+    chambres: "",
+    sdb: "",
+    superficie: "",
+    vehicules: "",
+    cautionMois: "3",
+  });
+
+  // Image state
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     async function loadProperties() {
@@ -53,10 +121,12 @@ export default function AdminListingsPage() {
     () =>
       Array.from(
         new Set(
-          properties.map((p) => p.city).filter((city): city is string => !!city)
-        )
+          properties
+            .map((p) => p.city)
+            .filter((city): city is string => !!city),
+        ),
       ),
-    [properties]
+    [properties],
   );
   const propertyTypes = useMemo(
     () =>
@@ -64,11 +134,123 @@ export default function AdminListingsPage() {
         new Set(
           properties
             .map((p) => p.propertyType)
-            .filter((type): type is string => !!type)
-        )
+            .filter((type): type is string => !!type),
+        ),
       ),
-    [properties]
+    [properties],
   );
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const files = Array.from(e.target.files);
+      setSelectedFiles((prev) => [...prev, ...files]);
+
+      const newPreviews = files.map((file) => URL.createObjectURL(file));
+      setPreviews((prev) => [...prev, ...newPreviews]);
+    }
+  };
+
+  const removeFile = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    setPreviews((prev) => {
+      URL.revokeObjectURL(prev[index]);
+      return prev.filter((_, i) => i !== index);
+    });
+  };
+
+  const fileToBase64 = (file: File): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(file);
+      reader.onload = () => {
+        const base64String = reader.result as string;
+        // Remove the data:image/jpeg;base64, prefix
+        resolve(base64String.split(",")[1]);
+      };
+      reader.onerror = (error) => reject(error);
+    });
+  };
+
+  const handleCreateProperty = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setIsSubmitting(true);
+
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("No token found");
+
+      // 1. Create the property
+      const response = await fetch("/api/properties", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          listingData: {
+            ...formData,
+            prixMensuel: Number(formData.prixMensuel),
+            chambres: Number(formData.chambres),
+            sdb: Number(formData.sdb),
+            superficie: Number(formData.superficie),
+            vehicules: Number(formData.vehicules),
+            cautionMois: Number(formData.cautionMois),
+            equipements: [],
+            interdictions: [],
+            add_ons: [],
+          },
+        }),
+      });
+
+      const result = await response.json();
+      if (!result.success) {
+        throw new Error(result.message || "Failed to create property");
+      }
+
+      const propertyId = result.propertyId;
+
+      // 2. Upload images if any
+      if (selectedFiles.length > 0) {
+        const base64Images = await Promise.all(
+          selectedFiles.map(async (file) => {
+            const base64 = await fileToBase64(file);
+            const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+            return { data: base64, ext };
+          }),
+        );
+
+        const uploadResponse = await fetch(
+          `/api/properties/${propertyId}/upload-images`,
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ images: base64Images }),
+          },
+        );
+
+        const uploadResult = await uploadResponse.json();
+        if (!uploadResult.success) {
+          console.error("Image upload failed:", uploadResult.error);
+          alert("Propriété créée mais l&apos;upload des images a échoué.");
+        }
+      }
+
+      alert("Propriété ajoutée avec succès !");
+      window.location.reload();
+    } catch (error) {
+      console.error("Error creating property:", error);
+      alert(
+        error instanceof Error
+          ? error.message
+          : "Erreur lors de la création de la propriété.",
+      );
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
@@ -78,13 +260,349 @@ export default function AdminListingsPage() {
           <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
             Filtres des propriétés
           </h2>
-          <button className="p-2.5 hover:bg-neutral-50 rounded-full transition-colors border border-neutral-100 shadow-sm">
-            <DotsThreeVertical
-              size={24}
-              weight="bold"
-              className="text-neutral-400"
-            />
-          </button>
+          <div className="flex items-center gap-3">
+            <ExpandableScreen
+              layoutId="add-property-staff"
+              contentRadius="32px"
+            >
+              <ExpandableScreenTrigger>
+                <div className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 cursor-pointer">
+                  <PlusIcon size={20} weight="bold" />
+                  <span>Nouveau Bien</span>
+                </div>
+              </ExpandableScreenTrigger>
+
+              <ExpandableScreenContent
+                className="bg-neutral-50"
+                closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
+              >
+                <div className="max-w-5xl mx-auto py-12 px-6">
+                  <div className="mb-10 text-center">
+                    <h2 className="text-4xl font-bold text-neutral-900 mb-4">
+                      Ajouter une propriété (Staff)
+                    </h2>
+                    <p className="text-neutral-500 text-lg max-w-2xl mx-auto">
+                      En tant que membre du staff, vous pouvez ajouter des biens
+                      gratuitement. Ils seront vérifiés et mis en ligne
+                      immédiatement.
+                    </p>
+                  </div>
+
+                  <form
+                    onSubmit={handleCreateProperty}
+                    className="space-y-8 bg-white p-10 rounded-[40px] border border-neutral-100 shadow-xl"
+                  >
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
+                      {/* Left Column: Info */}
+                      <div className="space-y-8">
+                        {/* Basic Info */}
+                        <div className="space-y-6">
+                          <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+                            <HouseIcon size={20} className="text-primary" />
+                            Informations de base
+                          </h3>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-neutral-700 ml-1">
+                              Titre de l&apos;annonce
+                            </label>
+                            <input
+                              required
+                              placeholder="Ex: Villa moderne avec piscine"
+                              className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                              value={formData.titre}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  titre: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-bold text-neutral-700 ml-1">
+                                Type
+                              </label>
+                              <select
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none"
+                                value={formData.type}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    type: e.target.value,
+                                  })
+                                }
+                              >
+                                <option value="house">Maison</option>
+                                <option value="apartment">Appartement</option>
+                                <option value="villa">Villa</option>
+                                <option value="studio">Studio</option>
+                                <option value="commercial">Commerce</option>
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-bold text-neutral-700 ml-1">
+                                Prix (CFA/mois)
+                              </label>
+                              <input
+                                required
+                                type="number"
+                                placeholder="500000"
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                                value={formData.prixMensuel}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    prixMensuel: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Location */}
+                        <div className="space-y-6">
+                          <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+                            <MapPinIcon size={20} className="text-primary" />
+                            Localisation
+                          </h3>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-sm font-bold text-neutral-700 ml-1">
+                                Ville
+                              </label>
+                              <select
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none"
+                                value={formData.ville}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    ville: e.target.value,
+                                  })
+                                }
+                              >
+                                <option value="ouaga">Ouagadougou</option>
+                                <option value="bobo">Bobo-Dioulasso</option>
+                              </select>
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-sm font-bold text-neutral-700 ml-1">
+                                Quartier
+                              </label>
+                              <input
+                                required
+                                placeholder="Ex: Ouaga 2000"
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                                value={formData.quartier}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    quartier: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-neutral-700 ml-1">
+                              Caution (mois)
+                            </label>
+                            <input
+                              type="number"
+                              className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                              value={formData.cautionMois}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  cautionMois: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+
+                        {/* Details */}
+                        <div className="space-y-6">
+                          <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+                            <InfoIcon size={20} className="text-primary" />
+                            Détails du bien
+                          </h3>
+
+                          <div className="grid grid-cols-2 gap-4">
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
+                                Chambres
+                              </label>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                                value={formData.chambres}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    chambres: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
+                                SDB
+                              </label>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                                value={formData.sdb}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    sdb: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
+                                m²
+                              </label>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                                value={formData.superficie}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    superficie: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
+                                Parkings
+                              </label>
+                              <input
+                                type="number"
+                                placeholder="0"
+                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
+                                value={formData.vehicules}
+                                onChange={(e) =>
+                                  setFormData({
+                                    ...formData,
+                                    vehicules: e.target.value,
+                                  })
+                                }
+                              />
+                            </div>
+                          </div>
+
+                          <div className="space-y-2">
+                            <label className="text-sm font-bold text-neutral-700 ml-1">
+                              Description
+                            </label>
+                            <textarea
+                              rows={4}
+                              placeholder="Décrivez le bien en quelques lignes..."
+                              className="w-full px-6 py-4 bg-neutral-50 rounded-3xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none resize-none"
+                              value={formData.description}
+                              onChange={(e) =>
+                                setFormData({
+                                  ...formData,
+                                  description: e.target.value,
+                                })
+                              }
+                            />
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Right Column: Photos */}
+                      <div className="space-y-6">
+                        <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
+                          <ImageIcon size={20} className="text-primary" />
+                          Photos du bien
+                        </h3>
+
+                        <div
+                          onClick={() => fileInputRef.current?.click()}
+                          className="border-2 border-dashed border-neutral-200 rounded-[32px] p-12 flex flex-col items-center justify-center gap-4 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
+                        >
+                          <div className="w-16 h-16 bg-neutral-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                            <UploadSimpleIcon
+                              size={32}
+                              className="text-neutral-400 group-hover:text-primary"
+                            />
+                          </div>
+                          <div className="text-center">
+                            <p className="text-lg font-bold text-neutral-900">
+                              Cliquez pour ajouter des photos
+                            </p>
+                            <p className="text-neutral-500">
+                              PNG, JPG ou WEBP jusqu&apos;à 10MB
+                            </p>
+                          </div>
+                          <input
+                            type="file"
+                            ref={fileInputRef}
+                            onChange={handleFileChange}
+                            multiple
+                            accept="image/*"
+                            className="hidden"
+                          />
+                        </div>
+
+                        {previews.length > 0 && (
+                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6">
+                            {previews.map((preview, index) => (
+                              <div
+                                key={index}
+                                className="relative aspect-square rounded-2xl overflow-hidden group border border-neutral-100"
+                              >
+                                <Image
+                                  src={preview}
+                                  alt={`Preview ${index}`}
+                                  fill
+                                  className="object-cover"
+                                />
+                                <button
+                                  type="button"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    removeFile(index);
+                                  }}
+                                  className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
+                                >
+                                  <XIcon size={14} weight="bold" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    <PropertyFormFooter isSubmitting={isSubmitting} />
+                  </form>
+                </div>
+              </ExpandableScreenContent>
+            </ExpandableScreen>
+
+            <button className="p-2.5 hover:bg-neutral-50 rounded-full transition-colors border border-neutral-100 shadow-sm">
+              <DotsThreeVerticalIcon
+                size={24}
+                weight="bold"
+                className="text-neutral-400"
+              />
+            </button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -101,7 +619,7 @@ export default function AdminListingsPage() {
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
               <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                <MagnifyingGlass size={20} weight="bold" />
+                <MagnifyingGlassIcon size={20} weight="bold" />
               </div>
             </div>
           </div>
@@ -154,25 +672,25 @@ export default function AdminListingsPage() {
                     listing.status === "en_ligne"
                       ? "bg-green-100/90 text-green-800 border-green-200"
                       : listing.status === "locked"
-                      ? "bg-primary/90 text-white border-primary/20"
-                      : listing.status === "finalized"
-                      ? "bg-neutral-900 text-white border-neutral-800"
-                      : listing.status === "en_attente"
-                      ? "bg-yellow-100 text-yellow-900 border-yellow-300"
-                      : "bg-neutral-100/90 text-neutral-600 border-neutral-200"
+                        ? "bg-primary/90 text-white border-primary/20"
+                        : listing.status === "finalized"
+                          ? "bg-neutral-900 text-white border-neutral-800"
+                          : listing.status === "en_attente"
+                            ? "bg-yellow-100 text-yellow-900 border-yellow-300"
+                            : "bg-neutral-100/90 text-neutral-600 border-neutral-200"
                   }`}
                 >
                   {listing.status === "en_ligne"
                     ? "En ligne"
                     : listing.status === "locked"
-                    ? "Réservé"
-                    : listing.status === "finalized"
-                    ? "Loué"
-                    : listing.status === "en_attente"
-                    ? "En attente"
-                    : listing.status === "expired"
-                    ? "Expiré"
-                    : listing.status}
+                      ? "Réservé"
+                      : listing.status === "finalized"
+                        ? "Loué"
+                        : listing.status === "en_attente"
+                          ? "En attente"
+                          : listing.status === "expired"
+                            ? "Expiré"
+                            : listing.status}
                 </span>
               </div>
               <PropertyCard property={listing} />
@@ -184,7 +702,7 @@ export default function AdminListingsPage() {
       {!loading && filteredListings.length === 0 && (
         <div className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-[40px] border border-neutral-100 shadow-sm">
           <div className="w-20 h-20 bg-neutral-50 rounded-full flex items-center justify-center mb-6">
-            <MagnifyingGlass size={40} className="text-neutral-300" />
+            <MagnifyingGlassIcon size={40} className="text-neutral-300" />
           </div>
           <h3 className="text-xl font-bold text-neutral-900 mb-2">
             Aucun résultat trouvé
@@ -250,7 +768,7 @@ function FilterSelect({
               isOpen ? "rotate-180 text-primary" : "text-neutral-300"
             }`}
           >
-            <CaretDown size={20} weight="bold" />
+            <CaretDownIcon size={20} weight="bold" />
           </div>
         </button>
 
@@ -274,7 +792,7 @@ function FilterSelect({
                 }`}
               >
                 {placeholder}
-                {value === "all" && <Check size={16} weight="bold" />}
+                {value === "all" && <CheckIcon size={16} weight="bold" />}
               </button>
               <div className="h-px bg-neutral-50 my-1 mx-2" />
               {options.map((opt) => (
@@ -291,7 +809,7 @@ function FilterSelect({
                   }`}
                 >
                   {opt}
-                  {value === opt && <Check size={16} weight="bold" />}
+                  {value === opt && <CheckIcon size={16} weight="bold" />}
                 </button>
               ))}
             </motion.div>
