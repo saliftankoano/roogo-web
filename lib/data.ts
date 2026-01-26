@@ -163,21 +163,14 @@ export async function fetchProperties(options?: {
   };
 }
 
-export async function fetchFeaturedProperties(limit: number = 4): Promise<Property[]> {
-  const { data, error } = await supabase
-    .from("property_details")
-    .select("*")
-    .eq("status", "en_ligne")
-    .eq("is_boosted", true)
-    .order("created_at", { ascending: false })
-    .limit(limit);
-
-  if (error) {
-    console.error("Error fetching featured properties:", error);
-    return [];
-  }
-
-  return ((data as DBProperty[]) || []).map(mapProperty);
+export async function fetchFeaturedProperties(
+  limit: number = 4
+): Promise<Property[]> {
+  const { properties } = await fetchProperties({
+    limit,
+    status: "en_ligne",
+  });
+  return properties;
 }
 
 export async function fetchPropertyById(id: string): Promise<Property | null> {
