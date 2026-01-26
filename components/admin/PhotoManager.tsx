@@ -76,7 +76,7 @@ export default function PhotoManager({
       const result = await response.json();
       if (result.success && result.images) {
         // Add new photos to state
-        const newUrls = result.images.map((img: any) => img.url);
+        const newUrls = result.images.map((img: { url: string }) => img.url);
         setPhotos((prev) => [...prev, ...newUrls]);
       }
     } catch (error) {

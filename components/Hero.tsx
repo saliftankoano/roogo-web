@@ -54,7 +54,7 @@ export function Hero() {
             </span>
           </h1>
           <p className="text-lg sm:text-xl text-neutral-200 max-w-2xl mx-auto font-medium leading-relaxed">
-            Découvrez une nouvelle façon de louer, d'acheter et de vivre.
+            Découvrez une nouvelle façon de louer, d&apos;acheter et de vivre.
             Des milliers de propriétés vérifiées vous attendent.
           </p>
         </motion.div>

@@ -60,7 +60,7 @@ export function InfoCards() {
       <div className="container mx-auto px-4">
         <div className="text-center mb-16">
            <h2 className="text-3xl font-bold text-neutral-900 mb-4">Une solution pour chacun</h2>
-           <p className="text-neutral-500 text-lg">Que vous cherchiez ou proposiez un bien, nous avons ce qu'il vous faut.</p>
+           <p className="text-neutral-500 text-lg">Que vous cherchiez ou proposiez un bien, nous avons ce qu&apos;il vous faut.</p>
         </div>
 
         <motion.div
