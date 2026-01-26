@@ -50,3 +50,5 @@ next-env.d.ts
 *.bak
 *.bak2
 *.bak3
+
+.env.production
