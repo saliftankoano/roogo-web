@@ -1,3 +1,4 @@
+import { LOCK_DURATION_HOURS, LOCK_EXTENSION_HOURS, LOCK_EXPIRY_REMINDER_DAYS } from "@/lib/constants";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { notifyLockParties } from "@/lib/lock-notifications";

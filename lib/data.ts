@@ -77,18 +77,10 @@ interface DBProperty {
   transaction_id: string | null;
 }
 
-export async function fetchProperties(): Promise<Property[]> {
-  const { data, error } = await supabase
-    .from("property_details")
-    .select("*")
-    .order("created_at", { ascending: false });
 
-  if (error) {
-    console.error("Error fetching properties:", error);
-    return [];
-  }
-
-  const mappedProperties = ((data as DBProperty[]) || []).map((p) => ({
+// Helper function to map DB properties to frontend format
+function mapProperty(p: DBProperty): Property {
+  return {
     id: p.id,
     title: p.title,
     location: `${p.quartier}, ${p.city}`,
@@ -127,79 +119,65 @@ export async function fetchProperties(): Promise<Property[]> {
       company_name: p.agent_company_name || undefined,
       facebook_url: p.agent_facebook_url || undefined,
     },
-  }));
-
-  // Sort by isSponsored first, then by created_at
-  return mappedProperties.sort((a, b) => {
-    if (a.isSponsored && !b.isSponsored) return -1;
-    if (!a.isSponsored && b.isSponsored) return 1;
-    return 0; // maintain created_at order from query
-  });
+  };
 }
 
-export async function fetchFeaturedProperties(
-  limit: number = 4
-): Promise<Property[]> {
-  // To ensure we get enough sponsored properties, we fetch more and then slice
+export async function fetchProperties(options?: {
+  page?: number;
+  limit?: number;
+  status?: string;
+}): Promise<{ properties: Property[]; total: number }> {
+  const page = options?.page || 1;
+  const limit = options?.limit || 20;
+  const offset = (page - 1) * limit;
+
+  let query = supabase
+    .from("property_details")
+    .select("*", { count: "exact" })
+    .order("created_at", { ascending: false })
+    .range(offset, offset + limit - 1);
+
+  if (options?.status) {
+    query = query.eq("status", options.status);
+  }
+
+  const { data, error, count } = await query;
+
+  if (error) {
+    console.error("Error fetching properties:", error);
+    return { properties: [], total: 0 };
+  }
+
+  const mappedProperties = ((data as DBProperty[]) || []).map(mapProperty);
+
+  // Sort by isSponsored first
+  const sortedProperties = mappedProperties.sort((a, b) => {
+    if (a.isSponsored && !b.isSponsored) return -1;
+    if (!a.isSponsored && b.isSponsored) return 1;
+    return 0;
+  });
+
+  return {
+    properties: sortedProperties,
+    total: count || 0,
+  };
+}
+
+export async function fetchFeaturedProperties(limit: number = 4): Promise<Property[]> {
   const { data, error } = await supabase
     .from("property_details")
     .select("*")
     .eq("status", "en_ligne")
-    .order("created_at", { ascending: false });
+    .eq("is_boosted", true)
+    .order("created_at", { ascending: false })
+    .limit(limit);
 
   if (error) {
     console.error("Error fetching featured properties:", error);
     return [];
   }
 
-  const mappedProperties = ((data as DBProperty[]) || []).map((p) => ({
-    id: p.id,
-    title: p.title,
-    location: `${p.quartier}, ${p.city}`,
-    address: p.address,
-    price: p.price.toString(),
-    bedrooms: p.bedrooms || 0,
-    bathrooms: p.bathrooms || 0,
-    area: p.area?.toString() || "0",
-    parking: p.parking_spaces || 0,
-    period: p.period === "month" ? "Mois" : p.period,
-    image: p.images?.[0] || "/hero-bg.jpg",
-    images: p.images || [],
-    category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
-    isSponsored: p.is_boosted || false,
-    status: p.status,
-    propertyType: p.property_type,
-    description: p.description || "",
-    amenities: p.amenities || [],
-    views: p.views_count || 0,
-    favorites: p.favorites_count || 0,
-    slot_limit: p.slot_limit || 0,
-    slots_filled: p.slots_filled || 0,
-    photo_limit: p.photo_limit || 0,
-    video_included: p.video_included || false,
-    city: p.city,
-    quartier: p.quartier,
-    created_at: p.created_at,
-    payment_id: p.payment_id || undefined,
-    transaction_id: p.transaction_id || undefined,
-    agent: {
-      full_name: p.agent_name || "Agent Inconnu",
-      phone: p.agent_phone || "",
-      email: p.agent_email || undefined,
-      avatar_url: p.agent_avatar || "",
-      user_type: p.agent_type || undefined,
-      company_name: p.agent_company_name || undefined,
-      facebook_url: p.agent_facebook_url || undefined,
-    },
-  }));
-
-  return mappedProperties
-    .sort((a, b) => {
-      if (a.isSponsored && !b.isSponsored) return -1;
-      if (!a.isSponsored && b.isSponsored) return 1;
-      return 0;
-    })
-    .slice(0, limit);
+  return ((data as DBProperty[]) || []).map(mapProperty);
 }
 
 export async function fetchPropertyById(id: string): Promise<Property | null> {
@@ -268,7 +246,7 @@ export type Transaction = {
   property_id: string | null;
   user_id: string | null;
   created_at: string;
-  metadata?: any;
+  metadata?: Record<string, unknown>;
 };
 
 export async function fetchTransactionsByPropertyId(

@@ -52,7 +52,7 @@ export default function PropertiesPage() {
 
   useEffect(() => {
     async function loadProperties() {
-      const data = await fetchProperties();
+      const { properties: data } = await fetchProperties();
       setProperties(data);
       setLoading(false);
     }
