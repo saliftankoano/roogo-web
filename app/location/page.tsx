@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth } from "@clerk/nextjs";
 import { PropertyCard } from "../../components/PropertyCard";
 import { Property, fetchProperties } from "../../lib/data";
@@ -16,6 +16,7 @@ import {
 export default function PropertiesPage() {
   const { isSignedIn, isLoaded } = useAuth();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
@@ -43,6 +44,16 @@ export default function PropertiesPage() {
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+
+  // Initialize filters from landing page query string.
+  // The hero search bar is "Où souhaitez-vous habiter ?" so we map `q` to the location filter.
+  useEffect(() => {
+    const q = (searchParams?.get("q") || "").trim();
+    if (!q) return;
+
+    setLocationFilter(q);
+    setSearchQuery("");
+  }, [searchParams]);
 
   useEffect(() => {
     if (isLoaded && !isSignedIn) {

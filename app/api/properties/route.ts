@@ -153,7 +153,7 @@ export async function POST(req: Request) {
       interdictions: interdictionsLabels,
       period: "month",
       // Tier information
-      tier_id: isStaff ? "staff_free" : (listingData.tier_id || null),
+      tier_id: isStaff ? null : (listingData.tier_id || null),
       tier_price: tierPrice,
       slot_limit: slotLimit,
       open_house_limit: openHouseLimit,
@@ -167,6 +167,7 @@ export async function POST(req: Request) {
       // Set published_at for staff listings since they go live immediately
       published_at: isStaff ? new Date().toISOString() : null,
     };
+
 
     // 9. Insert property
     console.log("Inserting property into database...", isStaff ? "(Staff listing - auto-verified)" : "");
