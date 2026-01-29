@@ -64,8 +64,10 @@ export async function GET(
       .single();
 
     if (propertyError || !property) {
+
       return cors(
         NextResponse.json({ error: "Property not found" }, { status: 404 })
+
       );
     }
 
