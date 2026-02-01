@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cors, errorResponse } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-export async function OPTIONS(req: Request) {
+export async function OPTIONS(_req: Request) {
   return new Response(null, {
     status: 200,
     headers: {
