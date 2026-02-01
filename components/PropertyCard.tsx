@@ -7,9 +7,10 @@ import { cn } from "@/lib/utils";
 
 interface PropertyCardProps {
   property: Property;
+  onClick?: () => void;
 }
 
-export function PropertyCard({ property }: PropertyCardProps) {
+export function PropertyCard({ property, onClick }: PropertyCardProps) {
   const formatTimeAgo = (dateString?: string) => {
     if (!dateString) return "";
     const now = new Date();
@@ -27,8 +28,9 @@ export function PropertyCard({ property }: PropertyCardProps) {
 
   return (
     <div
+      onClick={onClick}
       className={cn(
-        "bg-white rounded-[32px] overflow-hidden border transition-all duration-300 group flex flex-col h-full",
+        "bg-white rounded-[32px] overflow-hidden border transition-all duration-300 group flex flex-col h-full cursor-pointer",
         property.isSponsored
           ? "ring-2 ring-primary/20 border-primary/50 shadow-[0_0_25px_-5px_rgba(201,106,46,0.2)]"
           : "border-neutral-100 shadow-sm hover:shadow-xl"

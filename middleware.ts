@@ -10,12 +10,14 @@ const isPublicRoute = createRouteMatcher([
   "/privacy",
   "/terms",
   "/location",
+  "/deleteme",
   "/staff/join",
   // API routes that need to be public (webhooks, health)
   "/api/health",
   "/api/pawapay/callback",
   "/api/clerk/webhook",
   "/api/cron/(.*)",
+  "/api/account/delete-request",
 ]);
 
 export default clerkMiddleware(async (auth, req) => {

@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useMemo, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 import { PropertyCard } from "../../components/PropertyCard";
 import { Property, fetchProperties } from "../../lib/data";
 import { motion, AnimatePresence } from "framer-motion";
@@ -12,9 +12,12 @@ import {
   MagnifyingGlassIcon,
   CheckIcon,
 } from "@phosphor-icons/react";
+import UserTypeSelectionModal from "../../components/UserTypeSelectionModal";
+import PropertyDetailsModal from "../../components/PropertyDetailsModal";
 
 export default function PropertiesPage() {
-  const { isSignedIn, isLoaded } = useAuth();
+  const { isSignedIn, isLoaded, getToken } = useAuth();
+  const { user } = useUser();
   const router = useRouter();
   const searchParams = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
@@ -23,6 +26,13 @@ export default function PropertiesPage() {
   const [sortBy, setSortBy] = useState("Pertinence");
   const [isSortOpen, setIsSortOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
+
+  // User type selection modal
+  const [showUserTypeModal, setShowUserTypeModal] = useState(false);
+
+  // Property details modal
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [showPropertyModal, setShowPropertyModal] = useState(false);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -61,6 +71,16 @@ export default function PropertiesPage() {
     }
   }, [isLoaded, isSignedIn, router]);
 
+  // Check if user needs to select user type
+  useEffect(() => {
+    if (isLoaded && isSignedIn && user) {
+      const userType = user.publicMetadata?.userType;
+      if (!userType) {
+        setShowUserTypeModal(true);
+      }
+    }
+  }, [isLoaded, isSignedIn, user]);
+
   useEffect(() => {
     async function loadProperties() {
       const { properties: data } = await fetchProperties();
@@ -69,6 +89,54 @@ export default function PropertiesPage() {
     }
     loadProperties();
   }, []);
+
+  const handleUserTypeSelect = async (
+    userType: string,
+    agentInfo?: { companyName: string; facebookUrl?: string }
+  ) => {
+    try {
+      const token = await getToken();
+      if (!token) {
+        throw new Error("No authentication token");
+      }
+
+      const body: Record<string, string> = { userType };
+      if (agentInfo) {
+        if (agentInfo.companyName) body.companyName = agentInfo.companyName;
+        if (agentInfo.facebookUrl) body.facebookUrl = agentInfo.facebookUrl;
+      }
+
+      const response = await fetch("/api/clerk/users/me/metadata", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(body),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to update user type");
+      }
+
+      // Reload user data to get updated metadata
+      await user?.reload();
+      setShowUserTypeModal(false);
+    } catch (error) {
+      console.error("Error updating user type:", error);
+      throw error;
+    }
+  };
+
+  const handlePropertyClick = (property: Property) => {
+    setSelectedProperty(property);
+    setShowPropertyModal(true);
+  };
+
+  const handleClosePropertyModal = () => {
+    setShowPropertyModal(false);
+    setTimeout(() => setSelectedProperty(null), 300);
+  };
 
   const filteredProperties = useMemo(() => {
     const result = properties.filter((listing) => {
@@ -152,6 +220,19 @@ export default function PropertiesPage() {
 
   return (
     <div className="min-h-screen bg-neutral-50/30">
+      {/* User Type Selection Modal */}
+      <UserTypeSelectionModal
+        isOpen={showUserTypeModal}
+        onSelectUserType={handleUserTypeSelect}
+      />
+
+      {/* Property Details Modal */}
+      <PropertyDetailsModal
+        isOpen={showPropertyModal}
+        onClose={handleClosePropertyModal}
+        property={selectedProperty}
+      />
+
       <main className="max-w-7xl mx-auto px-6 pt-40 pb-20 space-y-8">
         {/* Results Header */}
         <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
@@ -293,7 +374,11 @@ export default function PropertiesPage() {
         ) : filteredProperties.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
             {filteredProperties.map((property) => (
-              <PropertyCard key={property.id} property={property} />
+              <PropertyCard
+                key={property.id}
+                property={property}
+                onClick={() => handlePropertyClick(property)}
+              />
             ))}
           </div>
         ) : (

@@ -149,6 +149,8 @@ export async function POST(req: Request) {
       address: `${listingData.quartier}, ${listingData.ville}`,
       city: listingData.ville,
       quartier: listingData.quartier,
+      latitude: listingData.latitude || null,
+      longitude: listingData.longitude || null,
       caution_mois: listingData.cautionMois || null,
       interdictions: interdictionsLabels,
       period: "month",
