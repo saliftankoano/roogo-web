@@ -16,6 +16,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/health",
   "/api/pawapay/callback",
   "/api/clerk/webhook",
+  "/api/clerk/users/me/metadata",  // Mobile app uses JWT auth, not session
   "/api/cron/(.*)",
   "/api/account/delete-request",
 ]);
