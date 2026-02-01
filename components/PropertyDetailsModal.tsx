@@ -12,8 +12,6 @@ import {
   EnvelopeIcon,
   BuildingsIcon,
   CheckCircleIcon,
-  CoinsIcon,
-  WarningCircleIcon,
   FacebookLogoIcon,
   LightningIcon,
   WifiHighIcon,
