@@ -13,6 +13,34 @@ const supabaseAdmin = createClient(
   }
 );
 
+interface PropertyImage {
+  url: string;
+  is_primary?: boolean;
+}
+
+interface PropertyData {
+  id: string;
+  title?: string;
+  quartier?: string;
+  city?: string;
+  address?: string;
+  price?: number;
+  bedrooms?: number;
+  bathrooms?: number;
+  area?: number;
+  parking_spaces?: number;
+  period?: string;
+  property_images?: PropertyImage[];
+  property_type?: string;
+  is_boosted?: boolean;
+  status?: string;
+}
+
+interface FavoriteItem {
+  properties: PropertyData;
+}
+
+
 async function getSupabaseUserId(clerkId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from("users")
@@ -25,7 +53,7 @@ async function getSupabaseUserId(clerkId: string): Promise<string | null> {
 /**
  * GET /api/favorites - Get user's favorites
  */
-export async function GET(request: Request) {
+export async function GET(_request: Request) {
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
@@ -70,10 +98,10 @@ export async function GET(request: Request) {
 
     // Transform to match expected format
     const favorites = (data || [])
-      .filter((item: any) => item.properties)
-      .map((item: any) => {
+      .filter((item: FavoriteItem) => item.properties)
+      .map((item: FavoriteItem) => {
         const prop = item.properties;
-        const primaryImage = prop.property_images?.find((img: any) => img.is_primary) || prop.property_images?.[0];
+        const primaryImage = prop.property_images?.find((img: PropertyImage) => img.is_primary) || prop.property_images?.[0];
         
         return {
           id: prop.id,
@@ -88,7 +116,7 @@ export async function GET(request: Request) {
           parking: prop.parking_spaces || 0,
           period: prop.period === "month" || prop.period === "Mois" ? "Mois" : undefined,
           image: primaryImage ? { uri: primaryImage.url } : null,
-          images: prop.property_images?.map((img: any) => ({ uri: img.url })),
+          images: prop.property_images?.map((img: PropertyImage) => ({ uri: img.url })),
           category: prop.property_type === "commercial" ? "Business" : "Residential",
           isSponsored: !!prop.is_boosted,
           status: prop.status || "en_attente",

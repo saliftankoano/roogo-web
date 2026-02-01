@@ -6,6 +6,21 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!,
   {
+
+interface PropertyImage {
+  url: string;
+}
+
+interface HistoryProperty {
+  id: string;
+  property_images?: PropertyImage[];
+  [key: string]: unknown;
+}
+
+interface HistoryItem {
+  property: HistoryProperty;
+}
+
     auth: {
       autoRefreshToken: false,
       persistSession: false,
@@ -56,13 +71,13 @@ export async function GET(request: Request) {
     const uniqueHistory = [];
 
     for (const item of data || []) {
-      const propId = (item.property as any)?.id;
+      const propId = (item.property as HistoryProperty)?.id;
       if (propId && !seenProps.has(propId)) {
         seenProps.add(propId);
         // Transform image structure
-        const prop = item.property as any;
+        const prop = item.property as HistoryProperty;
         if (prop?.property_images) {
-          const images = prop.property_images.map((img: any) => img.url);
+          const images = prop.property_images.map((img: PropertyImage) => img.url);
           prop.image = images[0] ? { uri: images[0] } : null;
           delete prop.property_images;
         }
