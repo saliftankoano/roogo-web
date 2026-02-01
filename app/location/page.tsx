@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState, useMemo, useRef } from "react";
+export const dynamic = "force-dynamic";
+
+import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { PropertyCard } from "../../components/PropertyCard";
@@ -15,7 +17,7 @@ import {
 import UserTypeSelectionModal from "../../components/UserTypeSelectionModal";
 import PropertyDetailsModal from "../../components/PropertyDetailsModal";
 
-export default function PropertiesPage() {
+function PropertiesPageContent() {
   const { isSignedIn, isLoaded, getToken } = useAuth();
   const { user } = useUser();
   const router = useRouter();
@@ -511,5 +513,13 @@ function FilterSelect({
         </AnimatePresence>
       </div>
     </div>
+  );
+}
+
+export default function PropertiesPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen bg-neutral-50/30 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>}>
+      <PropertiesPageContent />
+    </Suspense>
   );
 }

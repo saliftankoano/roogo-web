@@ -37,7 +37,9 @@ interface PropertyData {
 }
 
 interface FavoriteItem {
-  properties: PropertyData;
+  property_id: string;
+  created_at: string;
+  properties: PropertyData | null;
 }
 
 
@@ -97,11 +99,12 @@ export async function GET(_request: Request) {
     }
 
     // Transform to match expected format
-    const favorites = (data || [])
-      .filter((item: FavoriteItem) => item.properties)
-      .map((item: FavoriteItem) => {
-        const prop = item.properties;
-        const primaryImage = prop.property_images?.find((img: PropertyImage) => img.is_primary) || prop.property_images?.[0];
+    const rawData = data as unknown as FavoriteItem[];
+    const favorites = (rawData || [])
+      .filter((item) => item.properties)
+      .map((item) => {
+        const prop = item.properties!;
+        const primaryImage = prop.property_images?.find((img) => img.is_primary) || prop.property_images?.[0];
         
         return {
           id: prop.id,
@@ -116,43 +119,29 @@ export async function GET(_request: Request) {
           parking: prop.parking_spaces || 0,
           period: prop.period === "month" || prop.period === "Mois" ? "Mois" : undefined,
           image: primaryImage ? { uri: primaryImage.url } : null,
-          images: prop.property_images?.map((img: PropertyImage) => ({ uri: img.url })),
+          images: prop.property_images?.map((img) => ({ uri: img.url })),
           category: prop.property_type === "commercial" ? "Business" : "Residential",
           isSponsored: !!prop.is_boosted,
           status: prop.status || "en_attente",
           propertyType: prop.property_type,
-          description: prop.description || "",
-          amenities: [],
-          agent: prop.users ? {
-            name: prop.users.full_name || "Agent",
-            agency: "Agency",
-            avatar: prop.users.avatar_url ? { uri: prop.users.avatar_url } : null,
-            phone: prop.users.phone,
-            email: prop.users.email,
-          } : undefined,
         };
       });
 
     return NextResponse.json({ success: true, favorites });
   } catch (error) {
-    console.error("Error in get favorites:", error);
+    console.error("Error in favorites API:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }
 
 /**
- * POST /api/favorites - Add a favorite
+ * POST /api/favorites - Add or remove favorite
  */
-export async function POST(request: Request) {
+export async function POST(req: Request) {
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { propertyId } = await request.json();
-    if (!propertyId) {
-      return NextResponse.json({ error: "Property ID required" }, { status: 400 });
     }
 
     const userId = await getSupabaseUserId(clerkId);
@@ -160,59 +149,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const { error } = await supabaseAdmin
-      .from("user_favorites")
-      .insert({ user_id: userId, property_id: propertyId });
+    const { propertyId, action } = await req.json();
 
-    if (error) {
-      if (error.code === "23505") {
-        return NextResponse.json({ success: true, message: "Already favorited" });
+    if (action === "add") {
+      const { error } = await supabaseAdmin
+        .from("user_favorites")
+        .insert({ user_id: userId, property_id: propertyId });
+
+      if (error) {
+        console.error("Error adding favorite:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
       }
-      console.error("Error adding favorite:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
 
-    return NextResponse.json({ success: true });
+      return NextResponse.json({ success: true, action: "added" });
+    } else if (action === "remove") {
+      const { error } = await supabaseAdmin
+        .from("user_favorites")
+        .delete()
+        .eq("user_id", userId)
+        .eq("property_id", propertyId);
+
+      if (error) {
+        console.error("Error removing favorite:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      return NextResponse.json({ success: true, action: "removed" });
+    } else {
+      return NextResponse.json({ error: "Invalid action" }, { status: 400 });
+    }
   } catch (error) {
-    console.error("Error in add favorite:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
-  }
-}
-
-/**
- * DELETE /api/favorites - Remove a favorite
- */
-export async function DELETE(request: Request) {
-  try {
-    const { userId: clerkId } = await auth();
-    if (!clerkId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-    }
-
-    const { propertyId } = await request.json();
-    if (!propertyId) {
-      return NextResponse.json({ error: "Property ID required" }, { status: 400 });
-    }
-
-    const userId = await getSupabaseUserId(clerkId);
-    if (!userId) {
-      return NextResponse.json({ error: "User not found" }, { status: 404 });
-    }
-
-    const { error } = await supabaseAdmin
-      .from("user_favorites")
-      .delete()
-      .eq("user_id", userId)
-      .eq("property_id", propertyId);
-
-    if (error) {
-      console.error("Error removing favorite:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
-    }
-
-    return NextResponse.json({ success: true });
-  } catch (error) {
-    console.error("Error in remove favorite:", error);
+    console.error("Error in favorites POST:", error);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
   }
 }

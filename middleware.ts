@@ -9,7 +9,7 @@ const isPublicRoute = createRouteMatcher([
   "/carrieres",
   "/privacy",
   "/terms",
-  "/location",
+
   "/deleteme",
   "/staff/join",
   // API routes that need to be public (webhooks, health)
