@@ -1,18 +1,27 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
-import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
-export async function OPTIONS(req: Request) {
-  return corsOptions(req);
+// Simple CORS for mobile apps - no origin restriction needed for JWT-authenticated endpoints
+function addCorsHeaders(res: NextResponse) {
+  res.headers.set("Access-Control-Allow-Origin", "*");
+  res.headers.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+  res.headers.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  return res;
+}
+
+export async function OPTIONS() {
+  return addCorsHeaders(new NextResponse(null, { status: 204 }));
 }
 
 export async function POST(req: Request) {
   try {
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
-    if (!token) return errorResponse("Missing token", 401, req);
+    if (!token) {
+      return addCorsHeaders(NextResponse.json({ error: "Missing token" }, { status: 401 }));
+    }
 
     let userId: string | undefined;
     try {
@@ -20,12 +29,13 @@ export async function POST(req: Request) {
         secretKey: process.env.CLERK_SECRET_KEY!,
       });
       userId = sub as string | undefined;
-    } catch {
-      return errorResponse("Invalid token", 401, req);
+    } catch (e) {
+      console.error("Token verification failed:", e);
+      return addCorsHeaders(NextResponse.json({ error: "Invalid token" }, { status: 401 }));
     }
 
     if (!userId) {
-      return errorResponse("Unauthorized", 401, req);
+      return addCorsHeaders(NextResponse.json({ error: "Unauthorized" }, { status: 401 }));
     }
 
     const body = await req.json().catch(() => ({} as unknown));
@@ -50,11 +60,11 @@ export async function POST(req: Request) {
 
     // Validations
     if (userType && !["agent", "regular", "owner", "renter", "staff"].includes(userType)) {
-      return errorResponse("Invalid userType", 400, req);
+      return addCorsHeaders(NextResponse.json({ error: "Invalid userType" }, { status: 400 }));
     }
 
     if (sex && !["Masculin", "Féminin"].includes(sex)) {
-      return errorResponse("Invalid sex", 400, req);
+      return addCorsHeaders(NextResponse.json({ error: "Invalid sex" }, { status: 400 }));
     }
 
     // Build update payload
@@ -77,9 +87,9 @@ export async function POST(req: Request) {
       unsafeMetadata: {}
     });
 
-    return cors(NextResponse.json({ ok: true }), req);
+    return addCorsHeaders(NextResponse.json({ ok: true }));
   } catch (error) {
     console.error("Metadata update error:", error);
-    return errorResponse("Failed to update metadata", 400, req);
+    return addCorsHeaders(NextResponse.json({ error: "Failed to update metadata" }, { status: 500 }));
   }
 }
