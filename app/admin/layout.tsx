@@ -24,7 +24,7 @@ export default async function AdminLayout({
   const user = await currentUser();
   const userType = user?.publicMetadata?.userType;
 
-  if (userType !== "staff") {
+  if (userType !== "staff" && userType !== "founder") {
     redirect("/");
   }
 

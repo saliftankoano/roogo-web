@@ -59,7 +59,7 @@ export async function POST(req: Request) {
     };
 
     // Validations
-    if (userType && !["agent", "regular", "owner", "renter", "staff"].includes(userType)) {
+    if (userType && !["agent", "regular", "owner", "renter", "staff", "founder"].includes(userType)) {
       return addCorsHeaders(NextResponse.json({ error: "Invalid userType" }, { status: 400 }));
     }
 
