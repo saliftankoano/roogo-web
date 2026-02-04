@@ -8,7 +8,6 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-
 interface Tier {
   id: string;
   name: string;
@@ -38,8 +37,7 @@ interface ErrorItem {
   error: string;
 }
 
-
-export async function GET(request: NextRequest) {
+export async function GET() {
   try {
     const { userId } = await auth();
     if (!userId) {
