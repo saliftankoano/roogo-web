@@ -69,8 +69,11 @@ export function Navbar() {
     { name: "Contact", href: "/contact", icon: ChatCircleIcon },
   ];
 
+  const isFounder = user?.publicMetadata?.userType === "founder";
+
   const isStaff =
     user?.publicMetadata?.userType === "staff" ||
+    isFounder ||
     user?.publicMetadata?.role === "admin" ||
     user?.publicMetadata?.role === "staff" ||
     user?.emailAddresses.some((email) =>
@@ -82,6 +85,14 @@ export function Navbar() {
     { name: "Finances", href: "/admin/finances", icon: ReceiptIcon },
     { name: "Agents", href: "/admin/agents", icon: UsersIcon },
   ];
+
+  if (isFounder) {
+    staffMenuItems.push({
+      name: "Paramètres",
+      href: "/admin/settings",
+      icon: GearSixIcon,
+    });
+  }
 
   return (
     <>

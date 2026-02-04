@@ -10,6 +10,7 @@ import {
   ReceiptIcon,
   LockIcon,
   ChartLineUpIcon,
+  GearIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
@@ -21,7 +22,7 @@ import {
   useMotionValueEvent,
   AnimatePresence,
 } from "framer-motion";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export function AdminNavbar() {
   const { scrollY } = useScroll();
@@ -41,13 +42,24 @@ export function AdminNavbar() {
     setIsScrolled(latest > 20);
   });
 
-  const navItems = [
-    { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
-    { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
-    { label: "Réservations", icon: LockIcon, href: "/admin/locks" },
-    { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytics" },
-    { label: "Finances", icon: ReceiptIcon, href: "/admin/finances" },
-  ];
+  const isFounder = user?.publicMetadata?.userType === "founder";
+
+  const navItems = useMemo(() => {
+    const baseItems = [
+      { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
+      { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
+      { label: "Réservations", icon: LockIcon, href: "/admin/locks" },
+      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytics" },
+      { label: "Finances", icon: ReceiptIcon, href: "/admin/finances" },
+    ];
+    
+    // Only add Settings for founder
+    if (isFounder) {
+      baseItems.push({ label: "Paramètres", icon: GearIcon, href: "/admin/settings" });
+    }
+    
+    return baseItems;
+  }, [isFounder]);
 
   return (
     <motion.header
