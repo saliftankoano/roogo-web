@@ -229,7 +229,7 @@ export default function ListingDetailPage() {
       <Portal>
         <AnimatePresence>
           {statusModalOpen && (
-            <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -318,55 +318,64 @@ export default function ListingDetailPage() {
           >
             Supprimer
           </Button>
-
-          {/* Status Switcher on Right */}
           <div className="relative" ref={dropdownRef}>
-            <button
+            <Button
               onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
               className={cn(
-                "h-10 px-4 pl-3 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-2 transition-all shadow-sm border focus:outline-none focus:ring-2 focus:ring-offset-1 focus:ring-primary/20",
+                "min-w-[180px] justify-between gap-2 border shadow-sm h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider transition-all",
                 getStatusColor(listing.status)
               )}
             >
               {getStatusLabel(listing.status)}
-              <CaretDownIcon size={12} weight="bold" className="opacity-50" />
-            </button>
+              <CaretDownIcon
+                size={16}
+                className={cn(
+                  "transition-transform",
+                  isStatusDropdownOpen && "rotate-180"
+                )}
+              />
+            </Button>
 
-            {/* Dropdown Menu */}
             <AnimatePresence>
               {isStatusDropdownOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 4, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 4, scale: 0.95 }}
-                  className="absolute right-0 mt-2 w-56 bg-white rounded-xl shadow-xl border border-neutral-100 py-2 z-50 overflow-hidden"
+                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-neutral-100 py-2 z-50 overflow-hidden"
                 >
-                  <div className="px-3 py-2 border-b border-neutral-50 mb-1">
-                    <p className="text-[9px] font-black text-neutral-400 uppercase tracking-widest">
-                      Changer le statut
-                    </p>
-                  </div>
-                  <div className="px-1.5 space-y-0.5">
-                    {["en_attente", "en_ligne", "expired"].map((status) => (
-                      <button
-                        key={status}
-                        onClick={() => initiateStatusChange(status)}
-                        className={cn(
-                          "w-full text-left px-3 py-2.5 rounded-lg text-[11px] font-bold transition-all flex items-center justify-between group",
-                          listing.status === status
-                            ? "bg-primary/5 text-primary"
-                            : "text-neutral-600 hover:bg-neutral-50"
-                        )}
-                      >
-                        <span className="uppercase tracking-wider">
-                          {getCleanStatusLabel(status)}
-                        </span>
-                        {listing.status === status && (
-                          <div className="w-1.5 h-1.5 rounded-full bg-primary" />
-                        )}
-                      </button>
-                    ))}
-                  </div>
+                  {[
+                    {
+                      id: "en_attente",
+                      label: "En attente (Photo Pro)",
+                      color: "text-yellow-600",
+                    },
+                    {
+                      id: "en_ligne",
+                      label: "En ligne (Publiée)",
+                      color: "text-green-600",
+                    },
+                    {
+                      id: "expired",
+                      label: "Expirée (Louée/Vendue)",
+                      color: "text-neutral-500",
+                    },
+                  ].map((status) => (
+                    <button
+                      key={status.id}
+                      onClick={() => initiateStatusChange(status.id)}
+                      className={cn(
+                        "w-full px-4 py-3 text-left text-xs font-bold uppercase tracking-wider hover:bg-neutral-50 transition-colors flex items-center justify-between",
+                        status.color,
+                        listing.status === status.id && "bg-neutral-50"
+                      )}
+                    >
+                      {status.label}
+                      {listing.status === status.id && (
+                        <CheckCircleIcon size={16} weight="fill" />
+                      )}
+                    </button>
+                  ))}
                 </motion.div>
               )}
             </AnimatePresence>
@@ -374,9 +383,10 @@ export default function ListingDetailPage() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Left Column: Photos & General Info */}
-        <div className="lg:col-span-2 space-y-8">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-10">
+        {/* Main Content */}
+        <div className="lg:col-span-2 space-y-10">
+          {/* Photo Manager Section */}
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
             <PhotoManager
               propertyId={listing.id}
@@ -422,28 +432,8 @@ export default function ListingDetailPage() {
               ))}
             </div>
 
-            {listing.slot_limit && (
-              <div className="bg-primary/5 p-6 rounded-2xl border border-primary/10">
-                <div className="flex items-center justify-between mb-4">
-                  <div className="flex items-center gap-2">
-                    <UsersIcon size={20} weight="bold" className="text-primary" />
-                    <span className="font-bold text-primary">Limite de Slots (Demandes)</span>
-                  </div>
-                  <span className="text-xs font-black text-primary uppercase">
-                    {listing.slots_filled || 0} / {listing.slot_limit}
-                  </span>
-                </div>
-                <div className="w-full h-2 bg-neutral-200 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-primary transition-all duration-500" 
-                    style={{ width: `${Math.min(((listing.slots_filled || 0) / listing.slot_limit) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            )}
-
-            <div className="space-y-4">
-              <p className="text-sm text-neutral-600 leading-relaxed whitespace-pre-wrap">
+            <div className="prose prose-neutral max-w-none">
+              <p className="text-neutral-600 leading-relaxed whitespace-pre-wrap">
                 {listing.description}
               </p>
             </div>
@@ -453,7 +443,10 @@ export default function ListingDetailPage() {
                 <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4">Équipements</p>
                 <div className="flex flex-wrap gap-2">
                   {listing.amenities.map((amenity, idx) => (
-                    <span key={idx} className="px-3 py-1.5 bg-neutral-50 text-neutral-600 text-[11px] font-bold rounded-lg border border-neutral-100">
+                    <span
+                      key={idx}
+                      className="px-4 py-2 bg-neutral-50 text-neutral-700 rounded-xl text-xs font-bold border border-neutral-100"
+                    >
                       {amenity}
                     </span>
                   ))}
@@ -463,38 +456,29 @@ export default function ListingDetailPage() {
           </section>
         </div>
 
-        {/* Right Column: Stats & Owner */}
+        {/* Sidebar */}
         <div className="space-y-8">
-          <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
-            <h3 className="font-bold text-neutral-900 flex items-center gap-2 text-lg">
-              <CurrencyCircleDollarIcon
-                size={24}
-                weight="bold"
-                className="text-primary"
-              />
-              Prix du Bien
-            </h3>
-            <div className="space-y-1">
-              <p className="text-3xl font-black text-neutral-900 tracking-tight">
-                {parseInt(listing.price).toLocaleString()} F
-              </p>
-              <p className="text-sm text-neutral-500 font-medium">
-                Par {listing.period || "Mois"}
-              </p>
+          {/* Price Card */}
+          <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
+            <div className="flex items-center gap-3 mb-4">
+              <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
+                <CurrencyCircleDollarIcon size={24} weight="bold" />
+              </div>
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Prix du loyer</p>
             </div>
+            <p className="text-3xl font-black text-neutral-900 tracking-tight">
+              {listing.price.toLocaleString()}{" "}
+              <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">
+                FCFA / mois
+              </span>
+            </p>
           </section>
 
-          {/* Owner Info */}
-          <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-6">
-            <h3 className="font-bold text-neutral-900 flex items-center gap-2 text-lg">
-              <UsersIcon size={20} weight="bold" className="text-neutral-400" />
-              {listing.agent?.user_type === "owner"
-                ? "Propriétaire"
-                : "Agent Responsable"}
-            </h3>
-            <div className="flex flex-col gap-6">
+          {/* Agent Card */}
+          <section className="bg-white overflow-hidden rounded-[32px] border border-neutral-100 shadow-sm">
+            <div className="p-8 space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-neutral-100 overflow-hidden border border-neutral-200 relative">
+                <div className="w-14 h-14 rounded-2xl bg-neutral-100 overflow-hidden relative border border-neutral-50">
                   {listing.agent?.avatar_url ? (
                     <Image
                       src={listing.agent.avatar_url}
@@ -619,26 +603,53 @@ export default function ListingDetailPage() {
                     <div className="w-full space-y-2 py-4 border-y border-neutral-50">
                       {metadata?.tier && (
                         <div className="flex items-center justify-between text-[10px] font-bold">
-                          <span className="text-neutral-400 uppercase tracking-widest">Publication ({metadata.tier.name})</span>
-                          <span className="text-neutral-900">{metadata.tier.base_fee.toLocaleString()} F</span>
+                          <span className="text-neutral-400 uppercase tracking-widest">
+                            Publication ({metadata.tier.name})
+                          </span>
+                          <span className="text-neutral-900">
+                            {metadata.tier.base_fee.toLocaleString()} F
+                          </span>
                         </div>
                       )}
                       {metadata?.add_ons?.map((a) => {
                         const Icon = ADD_ON_ICONS[a.id] || InfoIcon;
                         const label = ADD_ON_LABELS[a.id] || a.name;
                         return (
-                          <div key={a.id} className="flex items-center justify-between text-[10px] font-bold">
-                            <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-widest"><Icon size={12} /><span>{label}</span></div>
-                            <span className="text-neutral-900">{a.price.toLocaleString()} F</span>
+                          <div
+                            key={a.id}
+                            className="flex items-center justify-between text-[10px] font-bold"
+                          >
+                            <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-widest">
+                              <Icon size={12} />
+                              <span>{label}</span>
+                            </div>
+                            <span className="text-neutral-900">
+                              {a.price.toLocaleString()} F
+                            </span>
                           </div>
                         );
                       })}
+                      {/* === TESTING MODE: No commission === */}
+                      {metadata?.commission && (
+                        <div className="flex items-center justify-between text-[10px] font-bold">
+                          <span className="text-neutral-400 uppercase tracking-widest">
+                            Frais Service
+                          </span>
+                          <span className="text-neutral-900">
+                            {metadata.commission.toLocaleString()} F
+                          </span>
+                        </div>
+                      )}
+                      {/* === PRODUCTION MODE: Include 5% commission === */}
+                      {/* Uncomment below and comment the block above for official release */}
+                      {/* 
                       {metadata?.commission && (
                         <div className="flex items-center justify-between text-[10px] font-bold">
                           <span className="text-neutral-400 uppercase tracking-widest">Frais Service</span>
                           <span className="text-neutral-900">{metadata.commission.toLocaleString()} F</span>
                         </div>
                       )}
+                      */}
                     </div>
 
                     <div className="flex items-baseline justify-between pt-2">
