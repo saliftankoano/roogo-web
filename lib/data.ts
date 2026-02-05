@@ -75,6 +75,7 @@ interface DBProperty {
   agent_facebook_url: string | null;
   payment_id: string | null;
   transaction_id: string | null;
+  primary_image: string | null;
 }
 
 
@@ -91,7 +92,7 @@ function mapProperty(p: DBProperty): Property {
     area: p.area?.toString() || "0",
     parking: p.parking_spaces || 0,
     period: p.period === "month" ? "Mois" : p.period,
-    image: p.images?.[0] || "/hero-bg.jpg",
+    image: p.primary_image || p.images?.[0] || "/hero-bg.jpg",
     images: p.images || [],
     category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
     isSponsored: p.is_boosted || false,
@@ -197,7 +198,7 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     area: p.area?.toString() || "0",
     parking: p.parking_spaces || 0,
     period: p.period === "month" ? "Mois" : p.period,
-    image: p.images?.[0] || "/hero-bg.jpg",
+    image: p.primary_image || p.images?.[0] || "/hero-bg.jpg",
     images: p.images || [],
     category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
     isSponsored: p.is_boosted || false,
