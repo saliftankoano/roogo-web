@@ -40,7 +40,8 @@ export async function POST(req: Request) {
 
     // 2. Map Status
     let dbStatus = "pending";
-    if (status === "COMPLETED" || status === "ACCEPTED") dbStatus = "completed";
+    if (status === "COMPLETED") dbStatus = "completed";
+    if (status === "ACCEPTED") dbStatus = "pending"; // ACCEPTED = queued, not confirmed
     if (status === "FAILED" || status === "CANCELLED" || status === "REJECTED")
       dbStatus = "failed";
     if (status === "REFUNDED") dbStatus = "refunded";
