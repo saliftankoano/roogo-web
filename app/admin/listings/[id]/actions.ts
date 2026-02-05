@@ -65,8 +65,8 @@ export async function getSecureTransactions(propertyId: string, paymentId?: stri
   const user = await client.users.getUser(userId);
   const userType = user.publicMetadata.userType;
 
-  if (userType !== "staff") {
-    throw new Error("Forbidden: Staff access only");
+  if (userType !== "staff" && userType !== "founder") {
+    throw new Error("Forbidden: Admin access only");
   }
 
   const queries = [];
