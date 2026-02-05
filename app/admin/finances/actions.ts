@@ -1,6 +1,7 @@
 "use server";
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { currentUser } from "@clerk/nextjs/server";
 import { Transaction } from "@/lib/data";
 
 export interface AdminTransactionRow extends Transaction {
@@ -14,6 +15,12 @@ export interface ExtendedTransaction extends AdminTransactionRow {
 }
 
 export async function getAdminTransactions(): Promise<ExtendedTransaction[]> {
+  // Verify user is founder (only founders can access financial data)
+  const user = await currentUser();
+  if (!user || user.publicMetadata?.userType !== "founder") {
+    throw new Error("Unauthorized: Only founders can access financial data");
+  }
+
   const { data, error } = await supabaseAdmin
     .from("transactions")
     .select(

@@ -1,5 +1,8 @@
 // Time constants
 export const BOOST_DURATION_DAYS = 7;
+// @deprecated - Early Bird duration is now configured dynamically in the database via early_bird_config table.
+// This constant is kept for backward compatibility but is no longer used in the application.
+// Use the early_bird_config.duration_hours value from the database instead.
 export const LOCK_DURATION_HOURS = 48;
 export const LOCK_EXTENSION_HOURS = 72;
 export const LOCK_EXPIRY_REMINDER_DAYS = 7;

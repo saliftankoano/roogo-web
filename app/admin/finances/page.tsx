@@ -1,6 +1,8 @@
 "use client";
 
 import { useState, useEffect, useMemo } from "react";
+import { useUser } from "@clerk/nextjs";
+import { useRouter } from "next/navigation";
 import {
   MagnifyingGlassIcon,
   CheckCircleIcon,
@@ -79,6 +81,21 @@ const ADD_ON_LABELS: Record<string, string> = {
 };
 
 export default function AdminFinancesPage() {
+  const { user, isLoaded } = useUser();
+  const router = useRouter();
+
+  // Redirect staff users - only founders can access finances
+  useEffect(() => {
+    if (isLoaded && user?.publicMetadata?.userType !== "founder") {
+      router.push("/admin");
+    }
+  }, [isLoaded, user, router]);
+
+  // Don't render for staff
+  if (!isLoaded || user?.publicMetadata?.userType !== "founder") {
+    return null;
+  }
+
   const [transactions, setTransactions] = useState<ExtendedTransaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");

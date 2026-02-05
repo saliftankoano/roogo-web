@@ -50,14 +50,26 @@ export function AdminNavbar() {
       { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
       { label: "Réservations", icon: LockIcon, href: "/admin/locks" },
       { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytics" },
-      { label: "Finances", icon: ReceiptIcon, href: "/admin/finances" },
     ];
-    
+
+    // Add Finances for founder only
+    if (isFounder) {
+      baseItems.push({
+        label: "Finances",
+        icon: ReceiptIcon,
+        href: "/admin/finances",
+      });
+    }
+
     // Only add Settings for founder
     if (isFounder) {
-      baseItems.push({ label: "Paramètres", icon: GearIcon, href: "/admin/settings" });
+      baseItems.push({
+        label: "Paramètres",
+        icon: GearIcon,
+        href: "/admin/settings",
+      });
     }
-    
+
     return baseItems;
   }, [isFounder]);
 

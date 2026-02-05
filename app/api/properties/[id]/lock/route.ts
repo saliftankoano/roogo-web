@@ -1,8 +1,14 @@
-import { LOCK_DURATION_HOURS } from "@/lib/constants";
+import { createClient } from "@supabase/supabase-js";
 import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
+
+// Use service role for reading config
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -78,7 +84,21 @@ export async function POST(
 
     const supabase = getSupabaseClient();
 
-    // 4. Validate Property Eligibility (Status must be 'en_ligne' and within LOCK_DURATION_HOURSh)
+    // 4. Fetch Early Bird Configuration
+    const { data: earlyBirdConfig, error: configError } = await supabaseAdmin
+      .from("early_bird_config")
+      .select("rate, minimum_charge, duration_hours")
+      .eq("id", "default")
+      .single();
+
+    // Use defaults if config not found
+    const config = earlyBirdConfig || {
+      rate: 0.1,
+      minimum_charge: 10000,
+      duration_hours: 48,
+    };
+
+    // 5. Validate Property Eligibility (Status must be 'en_ligne' and within duration window)
     const { data: property, error: propError } = await supabase
       .from("properties")
       .select("price, published_at, status")
@@ -116,20 +136,22 @@ export async function POST(
     const diffHours =
       (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60);
 
-    if (diffHours > LOCK_DURATION_HOURS) {
+    if (diffHours > config.duration_hours) {
       return cors(
         NextResponse.json(
-          { error: "Early Bird window has expired (LOCK_DURATION_HOURSh passed)" },
+          { error: `Early Bird window has expired (${config.duration_hours}h passed)` },
           { status: 400 }
         )
       );
     }
 
-    // 5. Calculate Fee (10% of rent, min 10,000 XOF)
+    // 6. Calculate Fee using dynamic config
     const rentAmount = Number(property.price);
-    const lockFee = Math.max(rentAmount * 0.1, 10000);
+    const lockFee = Math.max(rentAmount * config.rate, config.minimum_charge);
 
-    // 6. Create Transaction Record
+    // 7. Create Transaction Record
+
+    
     const depositId = crypto.randomUUID();
     const currency = "XOF";
 
@@ -159,7 +181,7 @@ export async function POST(
       );
     }
 
-    // 7. Call PawaPay API
+    // 8. Call PawaPay API
     const pawaUrlBase =
       process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
