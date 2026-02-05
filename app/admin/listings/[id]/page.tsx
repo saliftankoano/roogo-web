@@ -20,7 +20,6 @@ import {
   VideoCameraIcon,
   CameraIcon,
   LightningIcon,
-
   CheckCircleIcon,
   ClockIcon,
   XCircleIcon,
@@ -100,7 +99,7 @@ export default function ListingDetailPage() {
   useEffect(() => {
     async function loadData() {
       if (!id) return;
-      
+
       try {
         // Fetch property
         const propertyData = await fetchPropertyById(id);
@@ -229,7 +228,7 @@ export default function ListingDetailPage() {
       <Portal>
         <AnimatePresence>
           {statusModalOpen && (
-            <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
@@ -391,6 +390,7 @@ export default function ListingDetailPage() {
             <PhotoManager
               propertyId={listing.id}
               initialPhotos={listing.images}
+              primaryImageUrl={listing.image}
               isProfessional={listing.status === "en_ligne"}
               onPhotosUpdated={(isPro) => {
                 if (isPro && listing.status !== "en_ligne") {
@@ -402,15 +402,25 @@ export default function ListingDetailPage() {
 
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-8">
             <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-neutral-900">Description & Caractéristiques</h3>
+              <h3 className="text-xl font-bold text-neutral-900">
+                Description & Caractéristiques
+              </h3>
               <div className="flex items-center gap-4">
                 <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Vues</span>
-                  <span className="text-sm font-black text-neutral-900">{listing.views || 0}</span>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    Vues
+                  </span>
+                  <span className="text-sm font-black text-neutral-900">
+                    {listing.views || 0}
+                  </span>
                 </div>
                 <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Favoris</span>
-                  <span className="text-sm font-black text-neutral-900">{listing.favorites || 0}</span>
+                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    Favoris
+                  </span>
+                  <span className="text-sm font-black text-neutral-900">
+                    {listing.favorites || 0}
+                  </span>
                 </div>
               </div>
             </div>
@@ -418,15 +428,34 @@ export default function ListingDetailPage() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
                 { label: "Chambres", value: listing.bedrooms, icon: BedIcon },
-                { label: "Salles de bain", value: listing.bathrooms, icon: BathtubIcon },
-                { label: "Superficie", value: `${listing.area} m²`, icon: SquaresFourIcon },
+                {
+                  label: "Salles de bain",
+                  value: listing.bathrooms,
+                  icon: BathtubIcon,
+                },
+                {
+                  label: "Superficie",
+                  value: `${listing.area} m²`,
+                  icon: SquaresFourIcon,
+                },
                 { label: "Parking", value: listing.parking, icon: CarIcon },
               ].map((item, idx) => (
-                <div key={idx} className="bg-neutral-50 p-4 rounded-2xl flex flex-col gap-2">
-                  <item.icon size={20} className="text-neutral-400" weight="bold" />
+                <div
+                  key={idx}
+                  className="bg-neutral-50 p-4 rounded-2xl flex flex-col gap-2"
+                >
+                  <item.icon
+                    size={20}
+                    className="text-neutral-400"
+                    weight="bold"
+                  />
                   <div>
-                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">{item.label}</p>
-                    <p className="text-sm font-black text-neutral-900">{item.value || "-"}</p>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
+                      {item.label}
+                    </p>
+                    <p className="text-sm font-black text-neutral-900">
+                      {item.value || "-"}
+                    </p>
                   </div>
                 </div>
               ))}
@@ -440,7 +469,9 @@ export default function ListingDetailPage() {
 
             {listing.amenities && listing.amenities.length > 0 && (
               <div className="pt-6 border-t border-neutral-50">
-                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4">Équipements</p>
+                <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4">
+                  Équipements
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {listing.amenities.map((amenity, idx) => (
                     <span
@@ -464,7 +495,9 @@ export default function ListingDetailPage() {
               <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
                 <CurrencyCircleDollarIcon size={24} weight="bold" />
               </div>
-              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Prix du loyer</p>
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                Prix du loyer
+              </p>
             </div>
             <p className="text-3xl font-black text-neutral-900 tracking-tight">
               {listing.price.toLocaleString()}{" "}
@@ -571,7 +604,8 @@ export default function ListingDetailPage() {
             Historique des Paiements
           </h3>
           <span className="text-[10px] font-bold text-neutral-400 bg-neutral-50 px-3 py-1 rounded-full uppercase tracking-widest border border-neutral-100">
-            {transactions.length} Transaction{transactions.length > 1 ? "s" : ""}
+            {transactions.length} Transaction
+            {transactions.length > 1 ? "s" : ""}
           </span>
         </div>
 
@@ -580,23 +614,66 @@ export default function ListingDetailPage() {
             transactions.map((tx) => {
               const metadata = tx.metadata as TransactionMetadata;
               return (
-                <div key={tx.id} className="bg-white rounded-[24px] p-6 border border-neutral-100 shadow-sm hover:shadow-md transition-all">
+                <div
+                  key={tx.id}
+                  className="bg-white rounded-[24px] p-6 border border-neutral-100 shadow-sm hover:shadow-md transition-all"
+                >
                   <div className="flex flex-col gap-6">
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-3">
-                        <div className={cn("w-10 h-10 rounded-xl flex items-center justify-center shrink-0", tx.type === "listing_submission" ? "bg-orange-50 text-orange-600" : tx.type === "photography" ? "bg-amber-50 text-amber-700" : "bg-blue-50 text-blue-600")}>
-                          {tx.type === "listing_submission" ? <BuildingsIcon size={20} weight="fill" /> : tx.type === "photography" ? <CameraIcon size={20} weight="fill" /> : <LightningIcon size={20} weight="fill" />}
+                        <div
+                          className={cn(
+                            "w-10 h-10 rounded-xl flex items-center justify-center shrink-0",
+                            tx.type === "listing_submission"
+                              ? "bg-orange-50 text-orange-600"
+                              : tx.type === "photography"
+                              ? "bg-amber-50 text-amber-700"
+                              : "bg-blue-50 text-blue-600"
+                          )}
+                        >
+                          {tx.type === "listing_submission" ? (
+                            <BuildingsIcon size={20} weight="fill" />
+                          ) : tx.type === "photography" ? (
+                            <CameraIcon size={20} weight="fill" />
+                          ) : (
+                            <LightningIcon size={20} weight="fill" />
+                          )}
                         </div>
                         <div>
                           <p className="text-sm font-black text-neutral-900 leading-none capitalize">
-                            {tx.type === "listing_submission" ? "Publication" : tx.type === "photography" ? "Photographie" : "Boost"}
+                            {tx.type === "listing_submission"
+                              ? "Publication"
+                              : tx.type === "photography"
+                              ? "Photographie"
+                              : "Boost"}
                           </p>
-                          <p className="text-[9px] text-neutral-400 font-bold mt-1 uppercase tracking-wider">ID: {tx.deposit_id.split("-")[0]}</p>
+                          <p className="text-[9px] text-neutral-400 font-bold mt-1 uppercase tracking-wider">
+                            ID: {tx.deposit_id.split("-")[0]}
+                          </p>
                         </div>
                       </div>
-                      <div className={cn("inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wide", tx.status === "completed" ? "bg-green-50 text-green-700 border border-green-100" : tx.status === "failed" ? "bg-red-50 text-red-700 border border-red-100" : "bg-orange-50 text-orange-700 border border-orange-100")}>
-                        {tx.status === "completed" ? <CheckCircleIcon size={12} weight="fill" /> : tx.status === "failed" ? <XCircleIcon size={12} weight="fill" /> : <ClockIcon size={12} weight="fill" />}
-                        {tx.status === "completed" ? "Réussi" : tx.status === "failed" ? "Échec" : "Attente"}
+                      <div
+                        className={cn(
+                          "inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-wide",
+                          tx.status === "completed"
+                            ? "bg-green-50 text-green-700 border border-green-100"
+                            : tx.status === "failed"
+                            ? "bg-red-50 text-red-700 border border-red-100"
+                            : "bg-orange-50 text-orange-700 border border-orange-100"
+                        )}
+                      >
+                        {tx.status === "completed" ? (
+                          <CheckCircleIcon size={12} weight="fill" />
+                        ) : tx.status === "failed" ? (
+                          <XCircleIcon size={12} weight="fill" />
+                        ) : (
+                          <ClockIcon size={12} weight="fill" />
+                        )}
+                        {tx.status === "completed"
+                          ? "Réussi"
+                          : tx.status === "failed"
+                          ? "Échec"
+                          : "Attente"}
                       </div>
                     </div>
 
@@ -653,16 +730,27 @@ export default function ListingDetailPage() {
                     </div>
 
                     <div className="flex items-baseline justify-between pt-2">
-                      <span className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em]">Total Payé</span>
+                      <span className="text-[10px] font-black text-neutral-400 uppercase tracking-[0.2em]">
+                        Total Payé
+                      </span>
                       <p className="text-2xl font-black text-neutral-900 tracking-tight">
-                        {tx.amount.toLocaleString()} <span className="text-[10px] text-neutral-400 font-bold uppercase">FCFA</span>
+                        {tx.amount.toLocaleString()}{" "}
+                        <span className="text-[10px] text-neutral-400 font-bold uppercase">
+                          FCFA
+                        </span>
                       </p>
                     </div>
 
                     <div className="flex items-center justify-between pt-2">
-                      <span className="text-[9px] font-bold text-neutral-300 uppercase tracking-[0.1em]">{tx.provider} • {tx.payer_phone}</span>
+                      <span className="text-[9px] font-bold text-neutral-300 uppercase tracking-[0.1em]">
+                        {tx.provider} • {tx.payer_phone}
+                      </span>
                       <p className="text-[9px] text-neutral-300 font-bold">
-                        {new Date(tx.created_at).toLocaleDateString("fr-FR", { day: "2-digit", month: "short", year: "numeric" })}
+                        {new Date(tx.created_at).toLocaleDateString("fr-FR", {
+                          day: "2-digit",
+                          month: "short",
+                          year: "numeric",
+                        })}
                       </p>
                     </div>
                   </div>

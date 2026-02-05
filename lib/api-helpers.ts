@@ -6,12 +6,20 @@ const ALLOWED_ORIGINS =
 export function cors(res: NextResponse, req?: Request) {
   const origin = req?.headers.get("origin") || "";
 
+  // For mobile apps, there's no origin header - allow through
+  // For web requests, validate the origin if configured
   if (ALLOWED_ORIGINS.length === 0) {
-    throw new Error("CORS_ORIGIN environment variable must be configured");
-  }
-
-  if (ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes("*")) {
+    // No CORS configured - allow all origins (suitable for API-only usage from mobile)
+    if (origin) {
+      res.headers.set("Access-Control-Allow-Origin", origin);
+    } else {
+      res.headers.set("Access-Control-Allow-Origin", "*");
+    }
+  } else if (ALLOWED_ORIGINS.includes(origin) || ALLOWED_ORIGINS.includes("*")) {
     res.headers.set("Access-Control-Allow-Origin", origin);
+  } else if (!origin) {
+    // No origin header (mobile app request) - allow through
+    res.headers.set("Access-Control-Allow-Origin", "*");
   }
 
   res.headers.set(

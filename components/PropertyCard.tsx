@@ -11,6 +11,7 @@ interface PropertyCardProps {
 }
 
 export function PropertyCard({ property, onClick }: PropertyCardProps) {
+  
   const formatTimeAgo = (dateString?: string) => {
     if (!dateString) return "";
     const now = new Date();

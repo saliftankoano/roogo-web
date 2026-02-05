@@ -15,6 +15,7 @@ import { useAuth } from "@clerk/nextjs";
 interface PhotoManagerProps {
   propertyId: string;
   initialPhotos: string[];
+  primaryImageUrl?: string;
   isProfessional: boolean;
   onPhotosUpdated: (isPro: boolean) => void;
 }
@@ -22,6 +23,7 @@ interface PhotoManagerProps {
 export default function PhotoManager({
   propertyId,
   initialPhotos = [],
+  primaryImageUrl,
   isProfessional,
   onPhotosUpdated,
 }: PhotoManagerProps) {
@@ -30,6 +32,10 @@ export default function PhotoManager({
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Find the index of the primary image
+  const primaryIndex = primaryImageUrl ? photos.findIndex(p => p === primaryImageUrl) : 0;
+  
 
   useEffect(() => {
     setProfessional(isProfessional);
@@ -99,11 +105,7 @@ export default function PhotoManager({
 
   const setPrimary = async (index: number) => {
     const photoUrl = photos[index];
-    // Optimistic update - move selected photo to start
-    const newPhotos = [...photos];
-    newPhotos.splice(index, 1);
-    newPhotos.unshift(photoUrl);
-    setPhotos(newPhotos);
+    // Note: Don't reorder the array - just update the database and rely on primaryImageUrl prop
 
     try {
       const token = await getToken();
@@ -117,13 +119,12 @@ export default function PhotoManager({
       });
 
       if (!response.ok) {
-        // Revert if failed
-        setPhotos(photos);
+        // No revert needed since we didn't optimistically update
         alert("Erreur lors de la définition de la photo principale");
       }
     } catch (error) {
       console.error("Set primary error:", error);
-      setPhotos(photos); // Revert
+      // No revert needed
       alert("Erreur lors de la définition de la photo principale");
     }
   };
@@ -154,7 +155,7 @@ export default function PhotoManager({
       }
     } catch (error) {
       console.error("Delete error:", error);
-      setPhotos(photos); // Revert
+      // No revert needed
       alert("Erreur lors de la suppression de l'image");
     }
   };
@@ -195,10 +196,10 @@ export default function PhotoManager({
             <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
               <button
                 onClick={() => setPrimary(i)}
-                className={`p-2 rounded-full transition-colors ${i === 0 ? "bg-yellow-400 text-white" : "bg-white/20 hover:bg-yellow-400 text-white"}`}
-                title={i === 0 ? "Photo principale" : "Définir comme principale"}
+                className={`p-2 rounded-full transition-colors ${i === primaryIndex ? "bg-yellow-400 text-white" : "bg-white/20 hover:bg-yellow-400 text-white"}`}
+                title={i === primaryIndex ? "Photo principale" : "Définir comme principale"}
               >
-                <StarIcon size={18} weight={i === 0 ? "fill" : "regular"} />
+                <StarIcon size={18} weight={i === primaryIndex ? "fill" : "regular"} />
               </button>
               <button
                 onClick={() => removePhoto(i)}

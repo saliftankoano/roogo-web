@@ -28,7 +28,16 @@ export const paymentInitiateSchema = z.object({
   amount: z.number().positive(),
   phoneNumber: z.string().regex(/^[0-9]{8,12}$/),
   provider: z.enum(["ORANGE_MONEY", "MOOV_MONEY"]),
-  transactionType: z.enum(["listing", "boost", "lock"]),
+  // Mobile app uses: listing_submission, photography, property_lock, boost
+  // Legacy/web may use: listing, lock
+  transactionType: z.enum([
+    "listing",
+    "listing_submission",
+    "boost",
+    "lock",
+    "property_lock",
+    "photography",
+  ]),
   propertyId: z.string().uuid().optional(),
   preAuthorisationCode: z.string().optional(),
   description: z.string().max(100).optional(),
