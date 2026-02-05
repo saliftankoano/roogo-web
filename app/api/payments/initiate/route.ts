@@ -250,8 +250,9 @@ export async function POST(req: Request) {
       );
     }
 
-    // 7. Update status if PawaPay accepted immediately
-    if (result.status === "ACCEPTED" || result.status === "COMPLETED") {
+    // 7. Update status only if PawaPay COMPLETED immediately
+    // Note: ACCEPTED just means queued, not confirmed - must poll for final status
+    if (result.status === "COMPLETED") {
       await supabase
         .from("transactions")
         .update({
