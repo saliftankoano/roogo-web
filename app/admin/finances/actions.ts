@@ -12,6 +12,7 @@ export interface AdminTransactionRow extends Transaction {
 export interface ExtendedTransaction extends AdminTransactionRow {
   user_name: string;
   property_title: string;
+  environment?: "sandbox" | "live";
 }
 
 export async function getAdminTransactions(): Promise<ExtendedTransaction[]> {

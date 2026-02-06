@@ -45,6 +45,7 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 
+import { AnimatedBackground } from "@/components/motion-primitives/animated-background";
 interface TransactionAddOn {
   id: string;
   name: string;
@@ -88,6 +89,12 @@ export default function AdminFinancesPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
+  const [environmentFilter, setEnvironmentFilter] = useState<"all" | "sandbox" | "live">("all");
+
+  // Debug: Track filter changes
+  useEffect(() => {
+    console.log("🔄 Environment filter changed to:", environmentFilter);
+  }, [environmentFilter]);
 
   // Redirect staff users - only founders can access finances
   useEffect(() => {
@@ -119,13 +126,35 @@ export default function AdminFinancesPage() {
       const matchesStatus =
         statusFilter === "all" || tx.status === statusFilter;
 
-      return matchesSearch && matchesStatus;
+      // Filter by environment if column exists
+      const matchesEnvironment =
+        environmentFilter === "all" ||
+        tx.environment === environmentFilter;
+
+      return matchesSearch && matchesStatus && matchesEnvironment;
     });
-  }, [transactions, searchQuery, statusFilter]);
+  }, [transactions, searchQuery, statusFilter, environmentFilter]);
+
+  // Environment detection for PawaPay
 
   const stats = useMemo(() => {
-    const completed = transactions.filter((t) => t.status === "completed");
-    const totalAmount = completed.reduce((sum, t) => sum + t.amount, 0);
+    // Filter transactions by environment first
+    let filteredByEnv = transactions;
+    if (environmentFilter === "sandbox") {
+      filteredByEnv = transactions.filter((t) => t.environment === "sandbox");
+    } else if (environmentFilter === "live") {
+      filteredByEnv = transactions.filter((t) => t.environment === "live");
+    }
+    
+    console.log("🔍 Environment Filter Debug:", {
+      environmentFilter,
+      totalTransactions: transactions.length,
+      filteredCount: filteredByEnv.length,
+      sampleEnvironments: transactions.slice(0, 3).map(t => ({ id: t.deposit_id.slice(0, 8), env: t.environment }))
+    });
+    
+    const completed = filteredByEnv.filter((t) => t.status === "completed");
+    const totalAmount = filteredByEnv.reduce((sum, t) => sum + t.amount, 0);
 
     let totalCommission = 0;
     const byTypeDetail = {
@@ -213,15 +242,43 @@ export default function AdminFinancesPage() {
       };
     });
 
+    // Calculate month-over-month growth
+    const currentMonth = new Date().getMonth();
+    const currentYear = new Date().getFullYear();
+
+    const currentMonthTxs = completed.filter((t) => {
+      const txDate = new Date(t.created_at);
+      return txDate.getMonth() === currentMonth && txDate.getFullYear() === currentYear;
+    });
+
+    const lastMonth = currentMonth === 0 ? 11 : currentMonth - 1;
+    const lastMonthYear = currentMonth === 0 ? currentYear - 1 : currentYear;
+
+    const lastMonthTxs = completed.filter((t) => {
+      const txDate = new Date(t.created_at);
+      return txDate.getMonth() === lastMonth && txDate.getFullYear() === lastMonthYear;
+    });
+
+    const currentMonthRevenue = currentMonthTxs.reduce((sum, t) => sum + t.amount, 0);
+    const lastMonthRevenue = lastMonthTxs.reduce((sum, t) => sum + t.amount, 0);
+
+    const growthPercentage = lastMonthRevenue > 0
+      ? Math.round(((currentMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100)
+      : 0;
+
+    const isGrowthPositive = growthPercentage >= 0;
+
     return {
-      total: transactions.length,
+      total: filteredByEnv.length,
       successCount: completed.length,
       revenue: totalAmount,
       commission: totalCommission,
       byTypeDetail,
       dailyRevenue,
+      growthPercentage,
+      isGrowthPositive,
     };
-  }, [transactions]);
+  }, [transactions, environmentFilter]);
 
   // Don't render for staff - only founders can access finances
   if (!isLoaded || user?.publicMetadata?.userType !== "founder") {
@@ -283,10 +340,73 @@ export default function AdminFinancesPage() {
           </p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="bg-green-50 px-4 py-2 rounded-2xl border border-green-100 flex items-center gap-2">
-            <TrendUpIcon size={20} weight="bold" className="text-green-600" />
-            <span className="text-sm font-bold text-green-700">
-              +12% ce mois
+          {/* Debug: Migration Status */}
+          {transactions.length > 0 && (
+            <div className={`px-4 py-2 rounded-full text-xs font-bold ${
+              transactions[0].environment 
+                ? "bg-green-50 text-green-700 border border-green-200" 
+                : "bg-red-50 text-red-700 border border-red-200"
+            }`}>
+              {transactions[0].environment 
+                ? `✅ Env OK (${transactions.filter(t => t.environment === "sandbox").length}S/${transactions.filter(t => t.environment === "live").length}L)` 
+                : "⚠️ Migration requise"}
+            </div>
+          )}
+
+          {/* Environment Toggle */}
+          <div className="flex items-center gap-3 bg-white px-4 py-2 rounded-full border border-neutral-100 shadow-sm">
+            <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
+              Vue:
+            </span>
+            <div className="flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30">
+              <AnimatedBackground
+                defaultValue={environmentFilter}
+                onValueChange={(value) => {
+                  console.log("🎯 Filter changed via AnimatedBackground:", value);
+                  if (value) setEnvironmentFilter(value as "all" | "sandbox" | "live");
+                }}
+                className="rounded-full shadow-sm"
+                transition={{
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 30,
+                }}
+              >
+                {(["all", "sandbox", "live"] as const).map((env) => (
+                  <button
+                    key={env}
+                    data-id={env}
+                    className={`px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wider transition-colors duration-200 ${
+                      environmentFilter === env
+                        ? env === "live"
+                          ? "text-blue-600"
+                          : env === "sandbox"
+                          ? "text-amber-600"
+                          : "text-neutral-900"
+                        : "text-neutral-400 hover:text-neutral-600"
+                    }`}
+                    style={{
+                      backgroundColor: environmentFilter === env 
+                        ? env === "live" 
+                          ? "#dbeafe" 
+                          : env === "sandbox" 
+                          ? "#fef3c7" 
+                          : "#ffffff"
+                        : "transparent"
+                    }}
+                  >
+                    {env === "all" ? "Tous" : env === "live" ? "Live" : "Sandbox"}
+                  </button>
+                ))}
+              </AnimatedBackground>
+            </div>
+          </div>
+
+          {/* Growth Badge - dynamically updated based on filter */}
+          <div className={`px-4 py-2 rounded-full flex items-center gap-2 min-w-[140px] justify-center ${stats.isGrowthPositive ? 'bg-green-50 border border-green-100' : 'bg-red-50 border border-red-100'}`}>
+            <TrendUpIcon size={20} weight="bold" className={stats.isGrowthPositive ? 'text-green-600' : 'text-red-600'} />
+            <span className={`text-sm font-bold tabular-nums ${stats.isGrowthPositive ? 'text-green-700' : 'text-red-700'}`}>
+              {stats.isGrowthPositive ? '+' : ''}{stats.growthPercentage}% ce mois
             </span>
           </div>
         </div>
@@ -353,7 +473,23 @@ export default function AdminFinancesPage() {
         ))}
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            {/* Empty State for No Data */}
+      {stats.revenue === 0 && environmentFilter !== "all" && (
+        <div className="bg-amber-50 border border-amber-200 rounded-2xl p-6 flex items-start gap-3">
+          <InfoIcon size={20} weight="bold" className="text-amber-600 mt-0.5 shrink-0" />
+          <div>
+            <p className="text-sm font-bold text-amber-900 mb-1">
+              Aucune transaction {environmentFilter === "live" ? "Live" : "Sandbox"}
+            </p>
+            <p className="text-xs text-amber-700">
+              Il n&apos;y a pas encore de transactions dans l&apos;environnement {environmentFilter === "live" ? "Live" : "Sandbox"}. 
+              Basculez sur &quot;Tous&quot; pour voir toutes les transactions.
+            </p>
+          </div>
+        </div>
+      )}
+
+<div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
         <div className="bg-white p-8 rounded-[40px] border border-neutral-100 shadow-sm flex flex-col">
           <div className="flex items-center justify-between mb-8">
             <h3 className="text-xl font-bold text-neutral-900">

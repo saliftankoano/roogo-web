@@ -438,11 +438,7 @@ export default function AdminListingsPage() {
                               <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
                                 Chambres
                               </label>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                                value={formData.chambres}
+                              <input required min="1" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.chambres}
                                 onChange={(e) =>
                                   setFormData({
                                     ...formData,
@@ -455,11 +451,7 @@ export default function AdminListingsPage() {
                               <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
                                 SDB
                               </label>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                                value={formData.sdb}
+                              <input required min="1" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.sdb}
                                 onChange={(e) =>
                                   setFormData({
                                     ...formData,
@@ -472,11 +464,7 @@ export default function AdminListingsPage() {
                               <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
                                 m²
                               </label>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                                value={formData.superficie}
+                              <input required min="1" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.superficie}
                                 onChange={(e) =>
                                   setFormData({
                                     ...formData,
@@ -489,11 +477,7 @@ export default function AdminListingsPage() {
                               <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
                                 Parkings
                               </label>
-                              <input
-                                type="number"
-                                placeholder="0"
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                                value={formData.vehicules}
+                              <input required min="0" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.vehicules}
                                 onChange={(e) =>
                                   setFormData({
                                     ...formData,
@@ -508,9 +492,7 @@ export default function AdminListingsPage() {
                             <label className="text-sm font-bold text-neutral-700 ml-1">
                               Description
                             </label>
-                            <textarea
-                              rows={4}
-                              placeholder="Décrivez le bien en quelques lignes..."
+                            <textarea required minLength={10} rows={4} placeholder="Décrivez le bien en quelques lignes..."
                               className="w-full px-6 py-4 bg-neutral-50 rounded-3xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none resize-none"
                               value={formData.description}
                               onChange={(e) =>

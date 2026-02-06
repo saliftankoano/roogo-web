@@ -3,14 +3,14 @@
 import { useState, useMemo, useEffect } from "react";
 import {
   UserIcon,
-  UsersIcon,
+
   PhoneIcon,
   EnvelopeIcon,
   DotsThreeVerticalIcon,
   MagnifyingGlassIcon,
   XIcon,
   MapPinIcon,
-  CalendarIcon,
+
   BuildingsIcon,
 } from "@phosphor-icons/react";
 import Image from "next/image";
@@ -258,44 +258,20 @@ export default function AdminAgentsPage() {
 
               {/* Modal Content */}
               <div className="flex-1 overflow-y-auto p-8 sm:p-10 space-y-10 custom-scrollbar">
-                {/* Stats Grid */}
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-                  <div className="bg-neutral-50 p-6 rounded-[28px] border border-neutral-100">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-primary/10 flex items-center justify-center text-primary">
-                        <BuildingsIcon size={20} weight="bold" />
+                {/* Stats */}
+                <div className="flex justify-center">
+                  <div className="bg-neutral-50 p-8 rounded-[28px] border border-neutral-100 min-w-[280px]">
+                    <div className="flex items-center gap-3 mb-3 justify-center">
+                      <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-primary">
+                        <BuildingsIcon size={24} weight="bold" />
                       </div>
-                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">
+                      <span className="text-xs font-bold text-neutral-400 uppercase tracking-widest">
                         Biens Gérés
                       </span>
                     </div>
-                    <p className="text-3xl font-bold text-neutral-900">
+                    <p className="text-4xl font-bold text-neutral-900 text-center">
                       {selectedAgent.propertiesCount}
                     </p>
-                  </div>
-                  <div className="bg-neutral-50 p-6 rounded-[28px] border border-neutral-100">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
-                        <CalendarIcon size={20} weight="bold" />
-                      </div>
-                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">
-                        Expérience
-                      </span>
-                    </div>
-                    <p className="text-3xl font-bold text-neutral-900">
-                      2+ ans
-                    </p>
-                  </div>
-                  <div className="bg-neutral-50 p-6 rounded-[28px] border border-neutral-100">
-                    <div className="flex items-center gap-3 mb-2">
-                      <div className="w-8 h-8 rounded-lg bg-orange-50 flex items-center justify-center text-orange-500">
-                        <UsersIcon size={20} weight="bold" />
-                      </div>
-                      <span className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest">
-                        Satisfaction
-                      </span>
-                    </div>
-                    <p className="text-3xl font-bold text-neutral-900">4.8/5</p>
                   </div>
                 </div>
 
@@ -338,15 +314,9 @@ export default function AdminAgentsPage() {
               </div>
 
               {/* Modal Footer */}
-              <div className="p-8 sm:p-10 border-t border-neutral-100 flex gap-4">
-                <Button className="flex-1 h-14 rounded-2xl bg-neutral-900 font-bold uppercase tracking-wider text-xs">
+              <div className="p-8 sm:p-10 border-t border-neutral-100 ">
+                <Button className="w-full h-14 rounded-2xl bg-neutral-900 font-bold uppercase tracking-wider text-xs">
                   Modifier l&apos;Agent
-                </Button>
-                <Button
-                  variant="ghost"
-                  className="flex-1 h-14 rounded-2xl border border-neutral-100 font-bold uppercase tracking-wider text-xs text-red-500 hover:bg-red-50 hover:border-red-100"
-                >
-                  Désactiver l&apos;Accès
                 </Button>
               </div>
             </motion.div>

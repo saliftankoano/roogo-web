@@ -82,6 +82,21 @@ interface TransactionMetadata {
   total?: number;
 }
 
+// Property type mapping to French
+const PROPERTY_TYPE_MAP: Record<string, string> = {
+  villa: "Villa",
+  appartement: "Appartement",
+  maison: "Maison",
+  terrain: "Terrain",
+  commercial: "Commercial",
+  studio: "Studio",
+};
+
+const getPropertyTypeLabel = (type?: string) => {
+  if (!type) return "";
+  return PROPERTY_TYPE_MAP[type.toLowerCase()] || type;
+};
+
 export default function ListingDetailPage() {
   const params = useParams();
   const id = (params?.id as string) || "";
@@ -286,13 +301,16 @@ export default function ListingDetailPage() {
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
-          <Button
-            variant="ghost"
+          <button
             onClick={() => router.back()}
-            className="rounded-full w-10 h-10 p-0 hover:bg-neutral-100"
+            className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all duration-200 active:scale-95"
           >
-            <CaretLeftIcon size={24} />
-          </Button>
+            <CaretLeftIcon 
+              size={24} 
+              className="text-neutral-700 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-all duration-200" 
+              weight="bold"
+            />
+          </button>
           <div>
             <div className="flex items-center gap-2 mb-1">
               {listing.isSponsored && (
@@ -304,9 +322,17 @@ export default function ListingDetailPage() {
             <h1 className="text-2xl font-bold text-neutral-900">
               {listing.title}
             </h1>
-            <div className="flex items-center gap-1.5 text-xs text-neutral-500 mt-1 font-medium">
+            <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium">
               <MapPinIcon size={14} weight="bold" />
-              {listing.location}
+              <span>{listing.location}</span>
+              {listing.propertyType && (
+                <>
+                  <span className="text-neutral-300">•</span>
+                  <span className="text-primary font-bold">
+                    {getPropertyTypeLabel(listing.propertyType)}
+                  </span>
+                </>
+              )}
             </div>
           </div>
         </div>
@@ -511,7 +537,7 @@ export default function ListingDetailPage() {
           <section className="bg-white overflow-hidden rounded-[32px] border border-neutral-100 shadow-sm">
             <div className="p-8 space-y-6">
               <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-neutral-100 overflow-hidden relative border border-neutral-50">
+                <div className="w-14 h-14 rounded-2xl bg-primary/10 overflow-hidden relative border-2 border-primary">
                   {listing.agent?.avatar_url ? (
                     <Image
                       src={listing.agent.avatar_url}
@@ -521,8 +547,8 @@ export default function ListingDetailPage() {
                       className="object-cover"
                     />
                   ) : (
-                    <div className="w-full h-full flex items-center justify-center text-xl font-bold text-neutral-400">
-                      {listing.agent?.full_name.charAt(0)}
+                    <div className="w-full h-full flex items-center justify-center text-xl font-bold text-primary">
+                      {listing.agent?.full_name?.charAt(0)?.toUpperCase() || "?"}
                     </div>
                   )}
                 </div>
