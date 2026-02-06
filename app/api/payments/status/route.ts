@@ -157,22 +157,11 @@ export async function POST(req: Request) {
                })
                .eq("id", transaction.property_id);
           } else if (transaction.type === "property_lock" && transaction.property_id) {
+             // Simply mark the property as locked
              await supabase
                .from("properties")
                .update({ status: "locked" })
                .eq("id", transaction.property_id);
-               
-             const lockExpiresAt = new Date();
-             lockExpiresAt.setDate(lockExpiresAt.getDate() + 7);
-
-             await supabase.from("property_locks").insert({
-               property_id: transaction.property_id,
-               renter_id: transaction.user_id,
-               transaction_id: transaction.id,
-               lock_fee: transaction.amount,
-               status: "active",
-               expires_at: lockExpiresAt.toISOString(),
-             });
           }
         }
       }
@@ -195,4 +184,3 @@ export async function POST(req: Request) {
     );
   }
 }
-

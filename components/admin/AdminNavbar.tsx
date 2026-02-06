@@ -8,7 +8,6 @@ import {
   ListIcon,
   XIcon,
   ReceiptIcon,
-  LockIcon,
   ChartLineUpIcon,
   GearIcon,
 } from "@phosphor-icons/react";
@@ -47,9 +46,7 @@ export function AdminNavbar() {
   const navItems = useMemo(() => {
     const baseItems = [
       { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
-      { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },
-      { label: "Réservations", icon: LockIcon, href: "/admin/locks" },
-      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytics" },
+      { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytics" },
     ];
 
     // Add Finances for founder only

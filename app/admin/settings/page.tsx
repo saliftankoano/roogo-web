@@ -37,21 +37,12 @@ interface Addon {
   updated_at: string;
 }
 
-interface EarlyBirdConfig {
-  id: string;
-  rate: number;
-  minimum_charge: number;
-  duration_hours: number;
-  updated_at: string;
-  updated_by: string | null;
-}
 
 export default function AdminSettingsPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
-  const [earlyBirdConfig, setEarlyBirdConfig] = useState<EarlyBirdConfig | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -76,12 +67,6 @@ export default function AdminSettingsPage() {
         const data = await response.json();
         setTiers(data.tiers || []);
         setAddons(data.addons || []);
-      // Load early bird config
-      const ebResponse = await fetch("/api/admin/early-bird-pricing");
-      if (ebResponse.ok) {
-        const ebData = await ebResponse.json();
-        setEarlyBirdConfig(ebData.config);
-      }
       } catch (error) {
         console.error("Error loading pricing:", error);
         setMessage({
@@ -118,50 +103,6 @@ export default function AdminSettingsPage() {
     );
   };
 
-  
-  const handleEarlyBirdChange = (field: keyof Omit<EarlyBirdConfig, 'id' | 'updated_at' | 'updated_by'>, value: string) => {
-    if (!earlyBirdConfig) return;
-    const numValue = parseFloat(value);
-    if (isNaN(numValue) || numValue < 0) return;
-    setEarlyBirdConfig({ ...earlyBirdConfig, [field]: numValue });
-  };
-
-  const handleEarlyBirdRateChange = (percentage: string) => {
-    if (!earlyBirdConfig) return;
-    const rate = parseFloat(percentage) / 100; // Convert percentage to decimal
-    if (isNaN(rate) || rate < 0 || rate > 100) return;
-    setEarlyBirdConfig({ ...earlyBirdConfig, rate });
-  };
-
-  const handleSaveEarlyBird = async () => {
-    if (!earlyBirdConfig) return;
-    setSaving(true);
-    setMessage(null);
-
-    try {
-      const response = await fetch("/api/admin/early-bird-pricing", {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          rate: earlyBirdConfig.rate,
-          minimum_charge: earlyBirdConfig.minimum_charge,
-          duration_hours: earlyBirdConfig.duration_hours,
-        }),
-      });
-
-      if (!response.ok) throw new Error("Failed to save early bird config");
-
-      setMessage({ type: "success", text: "Configuration Early Bird mise à jour!" });
-    } catch (error) {
-      console.error("Error saving early bird config:", error);
-      setMessage({
-        type: "error",
-        text: "Erreur lors de la sauvegarde de la configuration Early Bird",
-      });
-    }
-
-    setSaving(false);
-  };
 
   const handleSave = async () => {
     setSaving(true);
@@ -390,147 +331,6 @@ export default function AdminSettingsPage() {
       </div>
 
 
-      {/* Early Bird Pricing Configuration */}
-      {earlyBirdConfig && (
-        <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
-          <div className="px-6 py-4 border-b border-neutral-200 bg-blue-50">
-            <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold text-neutral-900 flex items-center gap-2">
-                <CurrencyCircleDollarIcon className="w-6 h-6" />
-                Configuration Early Bird
-              </h2>
-              <button
-                onClick={handleSaveEarlyBird}
-                disabled={saving}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
-              >
-                {saving ? (
-                  <>
-                    <SpinnerGapIcon className="w-4 h-4 animate-spin" />
-                    Sauvegarde...
-                  </>
-                ) : (
-                  <>
-                    <FloppyDiskIcon className="w-4 h-4" />
-                    Enregistrer
-                  </>
-                )}
-              </button>
-            </div>
-          </div>
-
-          {/* Preview */}
-          <div className="px-6 py-4 bg-neutral-50 border-b border-neutral-200">
-            <h3 className="font-semibold text-neutral-900 mb-3">Aperçu du calcul</h3>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {[50000, 150000, 300000].map((rent) => {
-                const fee = Math.max(rent * earlyBirdConfig.rate, earlyBirdConfig.minimum_charge);
-                return (
-                  <div key={rent} className="bg-white p-4 rounded-lg border border-neutral-200">
-                    <div className="text-xs text-neutral-600 mb-2">
-                      Loyer: {rent.toLocaleString()} XOF
-                    </div>
-                    <div className="space-y-1 text-sm">
-                      <div className="flex justify-between text-neutral-600">
-                        <span>Calcul ({(earlyBirdConfig.rate * 100).toFixed(1)}%)</span>
-                        <span>{(rent * earlyBirdConfig.rate).toLocaleString()} XOF</span>
-                      </div>
-                      <div className="flex justify-between text-neutral-600">
-                        <span>Minimum</span>
-                        <span>{earlyBirdConfig.minimum_charge.toLocaleString()} XOF</span>
-                      </div>
-                      <div className="flex justify-between font-bold text-neutral-900 pt-2 border-t border-neutral-100">
-                        <span>Frais Early Bird</span>
-                        <span>{fee.toLocaleString()} XOF</span>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-
-          <div className="divide-y divide-neutral-200">
-            {/* Rate */}
-            <div className="px-6 py-4 flex items-center justify-between hover:bg-neutral-50 transition-colors">
-              <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 text-lg">
-                  Taux de commission
-                </h3>
-                <p className="text-sm text-neutral-600 mt-1">
-                  Pourcentage du loyer mensuel (actuellement: {(earlyBirdConfig.rate * 100).toFixed(1)}%)
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={(earlyBirdConfig.rate * 100).toFixed(1)}
-                  onChange={(e) => handleEarlyBirdRateChange(e.target.value)}
-                  className="w-32 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
-                  min="0"
-                  max="100"
-                  step="0.1"
-                />
-                <span className="text-neutral-600 font-medium w-8">%</span>
-              </div>
-            </div>
-
-            {/* Minimum Charge */}
-            <div className="px-6 py-4 flex items-center justify-between hover:bg-neutral-50 transition-colors">
-              <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 text-lg">
-                  Frais minimum
-                </h3>
-                <p className="text-sm text-neutral-600 mt-1">
-                  Montant minimum facturé pour chaque réservation Early Bird
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={earlyBirdConfig.minimum_charge}
-                  onChange={(e) => handleEarlyBirdChange('minimum_charge', e.target.value)}
-                  className={`w-32 px-4 py-2 border rounded-lg focus:outline-none focus:ring-2 text-right ${
-                    earlyBirdConfig.minimum_charge < MIN_DEPOSIT_AMOUNT
-                      ? "border-amber-500 bg-amber-50 focus:ring-amber-500"
-                      : "border-neutral-300 focus:ring-blue-500"
-                  }`}
-                  min="0"
-                  step="100"
-                />
-                <span className="text-neutral-600 font-medium w-16">XOF</span>
-                {earlyBirdConfig.minimum_charge < MIN_DEPOSIT_AMOUNT && (
-                  <span className="text-xs text-amber-600 font-medium">
-                    ⚠️ &lt; 100 XOF
-                  </span>
-                )}
-              </div>
-            </div>
-
-            {/* Duration */}
-            <div className="px-6 py-4 flex items-center justify-between hover:bg-neutral-50 transition-colors">
-              <div className="flex-1">
-                <h3 className="font-semibold text-neutral-900 text-lg">
-                  Durée de la fenêtre
-                </h3>
-                <p className="text-sm text-neutral-600 mt-1">
-                  Nombre d&apos;heures après publication où Early Bird est disponible
-                </p>
-              </div>
-              <div className="flex items-center gap-3">
-                <input
-                  type="number"
-                  value={earlyBirdConfig.duration_hours}
-                  onChange={(e) => handleEarlyBirdChange('duration_hours', e.target.value)}
-                  className="w-32 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
-                  min="1"
-                  step="1"
-                />
-                <span className="text-neutral-600 font-medium w-20">heures</span>
-              </div>
-            </div>
-          </div>
-        </div>
       )}
 
       {/* Add-on Pricing */}

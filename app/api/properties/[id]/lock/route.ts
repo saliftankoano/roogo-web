@@ -84,24 +84,10 @@ export async function POST(
 
     const supabase = getSupabaseClient();
 
-    // 4. Fetch Early Bird Configuration
-    const { data: earlyBirdConfig, error: configError } = await supabaseAdmin
-      .from("early_bird_config")
-      .select("rate, minimum_charge, duration_hours")
-      .eq("id", "default")
-      .single();
-
-    // Use defaults if config not found
-    const config = earlyBirdConfig || {
-      rate: 0.1,
-      minimum_charge: 10000,
-      duration_hours: 48,
-    };
-
-    // 5. Validate Property Eligibility (Status must be 'en_ligne' and within duration window)
+    // 4. Validate Property Eligibility (Status must be 'en_ligne')
     const { data: property, error: propError } = await supabase
       .from("properties")
-      .select("price, published_at, status")
+      .select("price, deposit, status")
       .eq("id", propertyId)
       .single();
 
@@ -115,43 +101,28 @@ export async function POST(
       return cors(
         NextResponse.json(
           {
-            error: "This property is not available for Early Bird reservation",
+            error: "This property is not available for direct payment",
           },
           { status: 400 }
         )
       );
     }
 
-    if (!property.published_at) {
+    if (!property.deposit) {
       return cors(
         NextResponse.json(
-          { error: "Early Bird window has not started for this property" },
+          { error: "Property deposit information is missing" },
           { status: 400 }
         )
       );
     }
 
-    const publishedAt = new Date(property.published_at);
-    const now = new Date();
-    const diffHours =
-      (now.getTime() - publishedAt.getTime()) / (1000 * 60 * 60);
-
-    if (diffHours > config.duration_hours) {
-      return cors(
-        NextResponse.json(
-          { error: `Early Bird window has expired (${config.duration_hours}h passed)` },
-          { status: 400 }
-        )
-      );
-    }
-
-    // 6. Calculate Fee using dynamic config
+    // 5. Calculate Payment Amount: (deposit_months * rent) + rent
     const rentAmount = Number(property.price);
-    const lockFee = Math.max(rentAmount * config.rate, config.minimum_charge);
+    const depositMonths = Number(property.deposit);
+    const paymentAmount = depositMonths * rentAmount + rentAmount;
 
-    // 7. Create Transaction Record
-
-    
+    // 6. Create Transaction Record
     const depositId = crypto.randomUUID();
     const currency = "XOF";
 
@@ -161,7 +132,7 @@ export async function POST(
 
     const { error: dbError } = await supabase.from("transactions").insert({
       deposit_id: depositId,
-      amount: lockFee,
+      amount: paymentAmount,
       currency: currency,
       status: "pending",
       type: "property_lock",
@@ -181,7 +152,7 @@ export async function POST(
       );
     }
 
-    // 8. Call PawaPay API
+    // 7. Call PawaPay API
     const pawaUrlBase =
       process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
@@ -205,7 +176,7 @@ export async function POST(
 
     const pawaProvider =
       provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
-    const customerMessage = "Roogo Lock Reservation".slice(0, 22);
+    const customerMessage = "Roogo Payment".slice(0, 22);
 
     const payload: PawaPayDepositPayload = {
       depositId,
@@ -216,7 +187,7 @@ export async function POST(
           provider: pawaProvider,
         },
       },
-      amount: lockFee.toString(),
+      amount: paymentAmount.toString(),
       currency,
       customerMessage,
     };
@@ -289,4 +260,3 @@ export async function POST(
     );
   }
 }
-

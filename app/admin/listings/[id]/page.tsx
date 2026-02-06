@@ -742,7 +742,7 @@ export default function ListingDetailPage() {
                     </div>
 
                     <div className="flex items-center justify-between pt-2">
-                      <span className="text-[9px] font-bold text-neutral-300 uppercase tracking-[0.1em]">
+                      <span className="text-[9px] font-bold text-neutral-300 uppercase tracking-widest">
                         {tx.provider} • {tx.payer_phone}
                       </span>
                       <p className="text-[9px] text-neutral-300 font-bold">
