@@ -37,7 +37,6 @@ interface Addon {
   updated_at: string;
 }
 
-
 export default function AdminSettingsPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
@@ -102,7 +101,6 @@ export default function AdminSettingsPage() {
       )
     );
   };
-
 
   const handleSave = async () => {
     setSaving(true);
@@ -329,9 +327,6 @@ export default function AdminSettingsPage() {
           ))}
         </div>
       </div>
-
-
-      )}
 
       {/* Add-on Pricing */}
       {addons.length > 0 && (
