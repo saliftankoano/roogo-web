@@ -410,3 +410,20 @@ export async function updatePropertyStatus(
     return false;
   }
 }
+
+export async function deleteProperty(id: string): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/properties/${id}`, {
+      method: "DELETE",
+    });
+
+    if (!response.ok) {
+      console.error("Error deleting property:", await response.text());
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error deleting property:", error);
+    return false;
+  }
+}

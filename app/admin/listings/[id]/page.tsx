@@ -34,6 +34,7 @@ import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManage
 import {
   fetchPropertyById,
   updatePropertyStatus,
+  deleteProperty,
   Property,
   Transaction,
 } from "@/lib/data";
@@ -108,6 +109,8 @@ export default function ListingDetailPage() {
   // Status Management
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
@@ -149,6 +152,18 @@ export default function ListingDetailPage() {
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [id]);
+
+  const handleDelete = async () => {
+    if (!listing) return;
+    setIsDeleting(true);
+    const success = await deleteProperty(listing.id);
+    setIsDeleting(false);
+    if (success) {
+      router.push("/admin/listings");
+    } else {
+      alert("Erreur lors de la suppression du bien");
+    }
+  };
 
   const handleStatusChange = async (newStatus: string) => {
     if (!listing) return;
@@ -297,6 +312,58 @@ export default function ListingDetailPage() {
           )}
         </AnimatePresence>
       </Portal>
+      <Portal>
+        <AnimatePresence>
+          {deleteModalOpen && (
+            <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={() => setDeleteModalOpen(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10 overflow-hidden"
+              >
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-2">
+                    <WarningCircleIcon size={32} weight="fill" />
+                  </div>
+                  <h3 className="text-xl font-bold text-neutral-900">
+                    Supprimer le bien
+                  </h3>
+                  <p className="text-neutral-500 text-sm">
+                    Êtes-vous sûr de vouloir supprimer définitivement ce bien ? <br />
+                    Cette action est irréversible.
+                  </p>
+
+                  <div className="flex gap-3 w-full mt-6">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setDeleteModalOpen(false)}
+                      className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+                      disabled={isDeleting}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      onClick={handleDelete}
+                      className="flex-1 bg-red-600 text-white hover:bg-red-700"
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Suppression..." : "Supprimer"}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </Portal>
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
@@ -339,7 +406,7 @@ export default function ListingDetailPage() {
         <div className="flex gap-3 items-center">
           <Button
             variant="ghost"
-            className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
+            className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider" onClick={() => setDeleteModalOpen(true)}
           >
             Supprimer
           </Button>

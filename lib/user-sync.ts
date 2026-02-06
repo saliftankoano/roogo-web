@@ -83,12 +83,12 @@ export async function createUserInSupabase(data: ClerkUserData) {
       "buyer";
       
     // Mapping to match database constraints ("valid_user_types")
-    // Database accepts: 'owner', 'buyer', 'staff', 'founder'
+    // Database accepts: 'owner', 'buyer', 'staff', 'admin', 'founder'
     let userType = rawUserType.toLowerCase();
     if (userType === "renter") userType = "buyer";
     if (userType === "agent") userType = "owner"; // Map agent to owner
     
-    const validUserTypes = ["owner", "buyer", "staff", "founder"];
+    const validUserTypes = ["owner", "buyer", "staff", "admin", "founder"];
     const supabaseUserType = validUserTypes.includes(userType) ? userType : "buyer";
 
     const companyName = private_metadata?.companyName || unsafe_metadata?.companyName;
