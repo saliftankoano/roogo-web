@@ -159,7 +159,7 @@ export default function ListingDetailPage() {
     const success = await deleteProperty(listing.id);
     setIsDeleting(false);
     if (success) {
-      router.push("/admin/listings");
+      router.push("/admin/annonces");
     } else {
       alert("Erreur lors de la suppression du bien");
     }

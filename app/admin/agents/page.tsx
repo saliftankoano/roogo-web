@@ -284,7 +284,7 @@ export default function AdminAgentsPage() {
                     {selectedAgent.properties.map((property) => (
                       <Link
                         key={property.id}
-                        href={`/admin/listings/${property.id}`}
+                        href={`/admin/annonces/${property.id}`}
                         className="flex items-center gap-4 p-4 rounded-2xl border border-neutral-100 hover:border-primary/20 hover:bg-neutral-50/50 transition-all group"
                       >
                         <div className="w-20 h-20 rounded-xl overflow-hidden border border-neutral-100 shrink-0">

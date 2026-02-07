@@ -69,16 +69,13 @@ export function Navbar() {
     { name: "Contact", href: "/contact", icon: ChatCircleIcon },
   ];
 
-  const isFounder = user?.publicMetadata?.userType === "founder";
-
+  // Only allow staff, admin, and founder user types to see staff menu
+  const userType = user?.publicMetadata?.userType as string | undefined;
   const isStaff =
-    user?.publicMetadata?.userType === "staff" ||
-    isFounder ||
-    user?.publicMetadata?.role === "admin" ||
-    user?.publicMetadata?.role === "staff" ||
-    user?.emailAddresses.some((email) =>
-      email.emailAddress.endsWith("@roogobf.com")
-    );
+    userType === "staff" ||
+    userType === "admin" ||
+    userType === "founder";
+  const isFounder = userType === "founder";
 
   const staffMenuItems = [
     { name: "Propriétés", href: "/admin/annonces", icon: BuildingsIcon },

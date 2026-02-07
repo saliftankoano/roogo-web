@@ -754,7 +754,7 @@ export default function AdminFinancesPage() {
                       </div>
                       {tx.property_id && (
                         <Link
-                          href={`/admin/listings/${tx.property_id}`}
+                          href={`/admin/annonces/${tx.property_id}`}
                           className="flex items-center gap-2 group/link"
                         >
                           <div className="w-8 h-8 rounded-full bg-neutral-50 flex items-center justify-center text-neutral-400 group-hover/link:bg-primary/10 group-hover/link:text-primary transition-colors">

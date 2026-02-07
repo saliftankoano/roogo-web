@@ -17,14 +17,16 @@ export default async function AdminLayout({
   const { userId } = await auth();
 
   if (!userId) {
-    redirect("/sign-in");
+    redirect("/connexion");
   }
 
   // Double check user metadata for staff role
   const user = await currentUser();
   const userType = user?.publicMetadata?.userType;
 
-  if (userType !== "staff" && userType !== "founder") {
+  // Only allow staff, admin, and founder user types to access admin
+  const allowedTypes = ["staff", "admin", "founder"];
+  if (!userType || !allowedTypes.includes(userType as string)) {
     redirect("/");
   }
 

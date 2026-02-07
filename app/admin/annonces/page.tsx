@@ -644,7 +644,7 @@ export default function AdminListingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredListings.map((listing) => (
             <Link
-              href={`/admin/listings/${listing.id}`}
+              href={`/admin/annonces/${listing.id}`}
               key={listing.id}
               className="block relative group"
             >

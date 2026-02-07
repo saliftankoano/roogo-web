@@ -155,7 +155,7 @@ export default function AdminAnalyticsPage() {
             {data?.trending && data.trending.length > 0 ? (
               data.trending.map((prop, idx) => (
                 <Link
-                  href={`/admin/listings/${prop.property_id}`}
+                  href={`/admin/annonces/${prop.property_id}`}
                   key={prop.property_id}
                   className="flex items-center gap-4 p-4 rounded-2xl hover:bg-neutral-50 transition-colors group"
                 >
