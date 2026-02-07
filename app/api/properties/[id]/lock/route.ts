@@ -1,14 +1,14 @@
-import { createClient } from "@supabase/supabase-js";
+// import { createClient } from "@supabase/supabase-js";
 import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
 
 // Use service role for reading config
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+//const supabaseAdmin = createClient(
+//  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+//  process.env.SUPABASE_SERVICE_ROLE_KEY!
+//);
 
 interface PawaPayDepositPayload {
   depositId: string;

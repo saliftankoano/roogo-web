@@ -52,7 +52,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                 Explorez notre sélection exclusive de propriétés de qualité.
               </p>
             </div>
-            <Link href="/location">
+            <Link href="/proprietes">
               <Button variant="ghost" className="hidden sm:inline-flex">
                 Voir toutes les propriétés
               </Button>
@@ -74,7 +74,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
           </motion.div>
 
           <div className="mt-12 text-center sm:hidden">
-            <Link href="/location">
+            <Link href="/proprietes">
               <Button variant="outline" fullWidth size="lg">
                 Voir toutes les propriétés
               </Button>

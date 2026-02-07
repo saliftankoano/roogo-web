@@ -8,7 +8,7 @@ export function NavHandler() {
 
   // Don't show the main Navbar on auth pages or admin pages
   const isAuthPage =
-    pathname.startsWith("/sign-in") || pathname.startsWith("/sign-up");
+    pathname.startsWith("/connexion") || pathname.startsWith("/inscription");
   const isAdminPage = pathname.startsWith("/admin");
 
   if (isAuthPage || isAdminPage) {

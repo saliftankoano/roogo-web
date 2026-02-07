@@ -64,7 +64,7 @@ export function Navbar() {
 
   const navItems = [
     { name: "Accueil", href: "/", icon: HouseLineIcon },
-    { name: "Location", href: "/location", icon: BuildingsIcon },
+    { name: "Propriétés", href: "/proprietes", icon: BuildingsIcon },
     { name: "Carrières", href: "/carrieres", icon: BriefcaseIcon },
     { name: "Contact", href: "/contact", icon: ChatCircleIcon },
   ];
@@ -81,7 +81,7 @@ export function Navbar() {
     );
 
   const staffMenuItems = [
-    { name: "Propriétés", href: "/admin/listings", icon: BuildingsIcon },
+    { name: "Propriétés", href: "/admin/annonces", icon: BuildingsIcon },
     { name: "Finances", href: "/admin/finances", icon: ReceiptIcon },
     { name: "Agents", href: "/admin/agents", icon: UsersIcon },
   ];
@@ -89,7 +89,7 @@ export function Navbar() {
   if (isFounder) {
     staffMenuItems.push({
       name: "Paramètres",
-      href: "/admin/settings",
+      href: "/admin/parametres",
       icon: GearSixIcon,
     });
   }
@@ -251,7 +251,7 @@ export function Navbar() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Link href="/sign-in" className="hidden sm:block">
+                <Link href="/connexion" className="hidden sm:block">
                   <Button
                     variant="ghost"
                     size="md"
@@ -260,7 +260,7 @@ export function Navbar() {
                     Connexion
                   </Button>
                 </Link>
-                <Link href="/sign-up">
+                <Link href="/inscription">
                   <Button
                     variant="primary"
                     size="md"
@@ -349,7 +349,7 @@ export function Navbar() {
               {!isSignedIn && (
                 <div className="grid grid-cols-2 gap-3 mt-2">
                   <Link
-                    href="/sign-in"
+                    href="/connexion"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <Button
@@ -361,7 +361,7 @@ export function Navbar() {
                     </Button>
                   </Link>
                   <Link
-                    href="/sign-up"
+                    href="/inscription"
                     onClick={() => setMobileMenuOpen(false)}
                   >
                     <Button

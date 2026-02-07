@@ -19,7 +19,7 @@ const supabaseAdmin = createClient(
  * Syncs the authenticated Clerk user to Supabase.
  * This is a fallback in case the webhook hasn't fired yet.
  */
-export async function POST(request: Request) {
+export async function POST() {
   try {
     // Authenticate with Clerk
     const { userId } = await auth();

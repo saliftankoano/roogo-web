@@ -27,7 +27,7 @@ interface HistoryProperty {
 /**
  * GET /api/views/history - Get user's view history
  */
-export async function GET(_request: Request) {
+export async function GET() {
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {

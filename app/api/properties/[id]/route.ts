@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { auth, currentUser } from "@clerk/nextjs/server";
-import { createUserInSupabase } from "../../../../lib/user-sync";
+import { createUserInSupabase, ClerkUserData } from "../../../../lib/user-sync";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -48,7 +48,7 @@ export async function DELETE(
             unsafe_metadata: clerkUser.unsafeMetadata,
           };
 
-          await createUserInSupabase(transformedData as any);
+          await createUserInSupabase(transformedData as ClerkUserData);
 
           // Re-fetch user after sync
           const { data: syncedUsers } = await supabaseAdmin

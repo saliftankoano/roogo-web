@@ -55,7 +55,7 @@ async function getSupabaseUserId(clerkId: string): Promise<string | null> {
 /**
  * GET /api/favorites - Get user's favorites
  */
-export async function GET(_request: Request) {
+export async function GET() {
   try {
     const { userId: clerkId } = await auth();
     if (!clerkId) {

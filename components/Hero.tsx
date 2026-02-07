@@ -14,9 +14,9 @@ export function Hero() {
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     if (searchQuery.trim()) {
-      router.push(`/location?q=${encodeURIComponent(searchQuery)}`);
+      router.push(`/proprietes?q=${encodeURIComponent(searchQuery)}`);
     } else {
-      router.push("/location");
+      router.push("/proprietes");
     }
   };
 

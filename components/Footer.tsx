@@ -65,7 +65,7 @@ export function Footer() {
             <ul className="space-y-4">
               <li>
                 <Link
-                  href="/rent/residential"
+                  href="/louer/residentiel"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Louer un logement
@@ -73,7 +73,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/rent/commercial"
+                  href="/louer/commercial"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Louer un local
@@ -81,7 +81,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/list-property"
+                  href="/publier-bien"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Publier une annonce
@@ -104,7 +104,7 @@ export function Footer() {
             <ul className="space-y-4">
               <li>
                 <Link
-                  href="/about"
+                  href="/a-propos"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   À propos
@@ -154,13 +154,13 @@ export function Footer() {
             © {new Date().getFullYear()} Roogo. Tous droits réservés.
           </p>
           <div className="flex gap-6 text-sm text-neutral-400">
-            <Link href="/privacy" className="hover:text-neutral-600">
+            <Link href="/confidentialite" className="hover:text-neutral-600">
               Confidentialité
             </Link>
-            <Link href="/terms" className="hover:text-neutral-600">
+            <Link href="/conditions" className="hover:text-neutral-600">
               Conditions
             </Link>
-            <Link href="/sitemap" className="hover:text-neutral-600">
+            <Link href="/plan-du-site" className="hover:text-neutral-600">
               Plan du site
             </Link>
           </div>

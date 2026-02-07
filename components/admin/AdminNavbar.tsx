@@ -46,7 +46,7 @@ export function AdminNavbar() {
   const navItems = useMemo(() => {
     const baseItems = [
       { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
-      { label: "Propriétés", icon: BuildingsIcon, href: "/admin/listings" },      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytics" },
+      { label: "Annonces", icon: BuildingsIcon, href: "/admin/annonces" },      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytiques" },
     ];
 
     // Add Finances for founder only
@@ -63,7 +63,7 @@ export function AdminNavbar() {
       baseItems.push({
         label: "Paramètres",
         icon: GearIcon,
-        href: "/admin/settings",
+        href: "/admin/parametres",
       });
     }
 
