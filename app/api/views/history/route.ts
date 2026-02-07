@@ -48,16 +48,21 @@ export async function GET() {
     const userId = userData.id;
 
     // Get view history
+    // We query by clerk_id because client-side inserts might not have user_id populated
+    // (since they use the anon client with Clerk auth)
     const { data, error } = await supabaseAdmin
       .from("property_views")
       .select(
         `
         id,
         viewed_at,
-        property:properties!inner(*)
+        property:properties!inner(
+          *,
+          property_images(url)
+        )
       `
       )
-      .eq("user_id", userId)
+      .eq("clerk_id", clerkId)
       .order("viewed_at", { ascending: false })
       .limit(50);
 
