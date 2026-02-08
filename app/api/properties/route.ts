@@ -180,7 +180,8 @@ export async function POST(req: Request) {
       .single();
 
     if (propertyError || !property) {
-      console.error("Error creating property:", propertyError);
+      console.error("Error creating property:", JSON.stringify(propertyError, null, 2));
+      console.error("Property data payload:", JSON.stringify(propertyData, null, 2));
       return errorResponse(
         safeError(propertyError, "Failed to create property"),
         500,
