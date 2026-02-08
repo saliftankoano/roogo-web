@@ -89,11 +89,20 @@ export async function POST(req: Request) {
       .single();
 
     if (fetchError || !transaction) {
-      log("transaction-not-found", { transactionId, fetchError: String(fetchError) });
-      return NextResponse.json(
-        { error: "Transaction not found" },
-        { status: 404 }
-      );
+      log("transaction-not-found", { 
+        transactionId, 
+        fetchError: String(fetchError),
+        pawaPayStatus: status,
+        failureReason: failureReason ? JSON.stringify(failureReason) : null,
+        fullPayload: JSON.stringify(data).slice(0, 1000)
+      });
+      
+      // Still return 200 OK to PawaPay to acknowledge receipt
+      // Even if we can't find the transaction, we don't want PawaPay to retry
+      return NextResponse.json({ 
+        received: true, 
+        warning: "Transaction not found in database" 
+      }, { status: 200 });
     }
 
     log("transaction-found", { 
@@ -104,11 +113,22 @@ export async function POST(req: Request) {
       userId: transaction.user_id
     });
 
+    // Extract detailed failure information
+    let detailedFailureReason = null;
+    if (dbStatus === "failed" && failureReason) {
+      // PawaPay sends failureReason as an object with failureMessage, failureCode, etc.
+      if (typeof failureReason === 'object') {
+        detailedFailureReason = JSON.stringify(failureReason);
+      } else {
+        detailedFailureReason = String(failureReason);
+      }
+    }
+
     const { error: updateError } = await supabase
       .from("transactions")
       .update({
         status: dbStatus,
-        failure_reason: failureReason || null,
+        failure_reason: detailedFailureReason || null,
         metadata: { ...(transaction.metadata || {}), ...data }, // Merge metadata
         updated_at: new Date().toISOString(),
       })

@@ -52,3 +52,7 @@ next-env.d.ts
 *.bak3
 
 .env.production
+
+# Prevent accidental secret commits
+apply_migration*
+*.mjs

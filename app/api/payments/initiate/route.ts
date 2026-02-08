@@ -192,11 +192,22 @@ export async function POST(req: Request) {
       user_id: user.id,
       property_id: propertyId || null,
       payer_phone: phoneNumber,
+      otp_code: preAuthorisationCode || null,
       metadata: metadata || {},
     });
 
     if (dbError) {
-      log("db-insert-failed", { error: String(dbError), depositId });
+      log("db-insert-failed", { 
+        error: String(dbError), 
+        depositId,
+        errorCode: dbError.code,
+        errorDetails: dbError.details,
+        errorHint: dbError.hint,
+        errorMessage: dbError.message,
+        userId: user.id,
+        amount,
+        provider: payerClientCode
+      });
       return errorResponse("Failed to initialize transaction", 500, req);
     }
 
@@ -224,9 +235,11 @@ export async function POST(req: Request) {
     formattedPhone = "226" + formattedPhone.slice(0, 8);
 
     const pawaProvider = provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
-    const customerMessage = (description || "Roogo Payment")
-      .replace(/[^a-zA-Z0-9\s]/g, "")
-      .slice(0, 22);
+    const customerMessage = preAuthorisationCode 
+      ? `${preAuthorisationCode} ${(description || "Roogo Payment").replace(/[^a-zA-Z0-9\s]/g, "")}`.slice(0, 22)
+      : (description || "Roogo Payment")
+          .replace(/[^a-zA-Z0-9\s]/g, "")
+          .slice(0, 22);
 
     const payload: PawaPayDepositPayload = {
       depositId,
@@ -288,11 +301,20 @@ export async function POST(req: Request) {
         result 
       });
 
+      // Extract detailed failure information from PawaPay response
+      let detailedFailure = result.message || "API call failed";
+      if (result.details?.failureReason) {
+        const fr = result.details.failureReason;
+        detailedFailure = `${fr.failureCode || 'ERROR'}: ${fr.failureMessage || result.message || 'Unknown error'}`;
+      } else if (result.details?.errorMessage) {
+        detailedFailure = result.details.errorMessage;
+      }
+
       await getSupabaseClient()
         .from("transactions")
         .update({
           status: "failed",
-          failure_reason: result.message || "API call failed",
+          failure_reason: detailedFailure,
           metadata: { ...(metadata || {}), ...result },
         })
         .eq("deposit_id", depositId);

@@ -64,7 +64,13 @@ export async function POST(req: Request) {
       .single();
 
     if (fetchError || !transaction) {
-      log("transaction-not-found-in-db", { depositId, fetchError: String(fetchError) });
+      log("transaction-not-found-in-db", { 
+        depositId, 
+        fetchError: String(fetchError),
+        errorCode: fetchError?.code,
+        errorDetails: fetchError?.details 
+      });
+      // Continue to check PawaPay API - transaction might exist there
     } else {
       log("db-status", { 
         depositId, 
