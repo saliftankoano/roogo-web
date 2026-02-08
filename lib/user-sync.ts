@@ -200,3 +200,40 @@ export function getSupabaseClient() {
   }
   return supabase;
 }
+
+/**
+ * Update an existing user in Supabase from Clerk data.
+ * Delegates to createUserInSupabase which handles upsert logic.
+ */
+export async function updateUserInSupabase(data: ClerkUserData) {
+  return createUserInSupabase(data);
+}
+
+/**
+ * Delete a user from Supabase by Clerk ID
+ */
+export async function deleteUserFromSupabase(clerkId: string) {
+  try {
+    if (!supabase) {
+      throw new Error(
+        "Supabase client not initialized. Check environment variables."
+      );
+    }
+
+    const { error } = await supabase
+      .from("users")
+      .delete()
+      .eq("clerk_id", clerkId);
+
+    if (error) {
+      console.error("Error deleting user from Supabase:", error);
+      throw error;
+    }
+
+    console.log(`User deleted from Supabase: ${clerkId}`);
+    return true;
+  } catch (error) {
+    console.error("Error in deleteUserFromSupabase:", error);
+    throw error;
+  }
+}
