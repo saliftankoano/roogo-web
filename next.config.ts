@@ -26,19 +26,60 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [
       {
-        source: '/rent/residential',
-        destination: '/location?category=Residential',
+        source: '/louer/residentiel',
+        destination: '/proprietes?category=Residential',
         permanent: true,
       },
       {
-        source: '/rent/commercial',
-        destination: '/location?category=Business',
+        source: '/louer/commercial',
+        destination: '/proprietes?category=Business',
         permanent: true,
       },
       {
-        source: '/list-property',
+        source: '/publier-bien',
         destination: '/', // Or a dedicated page if it existed, for now back to home
         permanent: false,
+      },
+      // Old routes redirects for backwards compatibility
+      {
+        source: '/location',
+        destination: '/proprietes',
+        permanent: true,
+      },
+      {
+        source: '/about',
+        destination: '/a-propos',
+        permanent: true,
+      },
+      {
+        source: '/privacy',
+        destination: '/confidentialite',
+        permanent: true,
+      },
+      {
+        source: '/terms',
+        destination: '/conditions',
+        permanent: true,
+      },
+      {
+        source: '/deleteme',
+        destination: '/supprimer-compte',
+        permanent: true,
+      },
+      {
+        source: '/sign-in',
+        destination: '/connexion',
+        permanent: true,
+      },
+      {
+        source: '/sign-up',
+        destination: '/inscription',
+        permanent: true,
+      },
+      {
+        source: '/staff/join',
+        destination: '/personnel/rejoindre',
+        permanent: true,
       },
     ];
   },

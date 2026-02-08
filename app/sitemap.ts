@@ -13,7 +13,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 1,
     },
     {
-      url: `${baseUrl}/location`,
+      url: `${baseUrl}/proprietes`,
       lastModified: new Date(),
       changeFrequency: "hourly",
       priority: 0.9,
@@ -31,19 +31,19 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.5,
     },
     {
-      url: `${baseUrl}/about`,
+      url: `${baseUrl}/a-propos`,
       lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.5,
     },
     {
-      url: `${baseUrl}/rent/residential`,
+      url: `${baseUrl}/louer/residentiel`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.8,
     },
     {
-      url: `${baseUrl}/rent/commercial`,
+      url: `${baseUrl}/louer/commercial`,
       lastModified: new Date(),
       changeFrequency: "daily",
       priority: 0.8,
@@ -56,7 +56,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     const propertyPages: MetadataRoute.Sitemap = properties
       .filter((p) => p.status === "en_ligne")
       .map((p) => ({
-        url: `${baseUrl}/location?id=${p.id}`,
+        url: `${baseUrl}/proprietes?id=${p.id}`,
         lastModified: p.created_at ? new Date(p.created_at) : new Date(),
         changeFrequency: "weekly",
         priority: 0.7,

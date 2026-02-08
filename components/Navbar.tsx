@@ -69,11 +69,11 @@ export function Navbar() {
     { name: "Contact", href: "/contact", icon: ChatCircleIcon },
   ];
 
-  // Only allow staff, admin, and founder user types to see staff menu
+  // Only allow staff and founder user types to see staff menu
   const userType = user?.publicMetadata?.userType as string | undefined;
   const isStaff =
     userType === "staff" ||
-    userType === "admin" ||
+    
     userType === "founder";
   const isFounder = userType === "founder";
 

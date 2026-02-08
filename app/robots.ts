@@ -6,7 +6,7 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: "*",
         allow: "/",
-        disallow: ["/admin/", "/api/", "/staff/", "/sign-in", "/sign-up"],
+        disallow: ["/admin/", "/api/", "/personnel/", "/connexion", "/inscription"],
       },
     ],
     sitemap: "https://roogo.bf/sitemap.xml",
