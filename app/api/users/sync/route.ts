@@ -1,6 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { createUserInSupabase } from "@/lib/user-sync";
+import { createUserInSupabase, ClerkUserData } from "@/lib/user-sync";
 
 /**
  * POST /api/users/sync
@@ -22,34 +22,21 @@ export async function POST() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Log the Clerk user structure for debugging
-    console.log("Clerk user data:", JSON.stringify({
-      id: clerkUser.id,
-      emailAddresses: clerkUser.emailAddresses,
-      email_addresses: (clerkUser as any).email_addresses,
-      firstName: clerkUser.firstName,
-      lastName: clerkUser.lastName,
-      publicMetadata: clerkUser.publicMetadata,
-    }, null, 2));
-
     // Normalize Clerk user data to match expected structure
-    const normalizedUser = {
+    const normalizedUser: ClerkUserData = {
       id: clerkUser.id,
-      // Handle both camelCase (new) and snake_case (old) property names
-      email_addresses: clerkUser.emailAddresses?.map(e => ({ email_address: e.emailAddress })) || 
-                       (clerkUser as any).email_addresses,
-      first_name: clerkUser.firstName || (clerkUser as any).first_name,
-      last_name: clerkUser.lastName || (clerkUser as any).last_name,
-      image_url: clerkUser.imageUrl || (clerkUser as any).image_url,
-      phone_numbers: clerkUser.phoneNumbers?.map(p => ({ phone_number: p.phoneNumber })) ||
-                     (clerkUser as any).phone_numbers,
-      public_metadata: clerkUser.publicMetadata,
-      private_metadata: (clerkUser as any).privateMetadata || (clerkUser as any).private_metadata,
-      unsafe_metadata: clerkUser.unsafeMetadata || (clerkUser as any).unsafe_metadata,
+      email_addresses: clerkUser.emailAddresses?.map(e => ({ email_address: e.emailAddress })),
+      first_name: clerkUser.firstName ?? undefined,
+      last_name: clerkUser.lastName ?? undefined,
+      image_url: clerkUser.imageUrl ?? undefined,
+      phone_numbers: clerkUser.phoneNumbers?.map(p => ({ phone_number: p.phoneNumber })),
+      public_metadata: clerkUser.publicMetadata as ClerkUserData["public_metadata"],
+      private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+      unsafe_metadata: clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
     };
 
     // Use the proper user sync function that handles type mapping
-    const result = await createUserInSupabase(normalizedUser as any);
+    const result = await createUserInSupabase(normalizedUser);
 
     if (!result) {
       return NextResponse.json(
@@ -63,10 +50,10 @@ export async function POST() {
       userId: result.id,
       message: "User synced successfully",
     });
-  } catch (error: any) {
+  } catch (error: unknown) {
     console.error("Error in user sync:", error);
     return NextResponse.json(
-      { error: "Failed to sync user", details: error.message },
+      { error: "Failed to sync user", details: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
