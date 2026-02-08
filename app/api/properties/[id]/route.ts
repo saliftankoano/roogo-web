@@ -67,7 +67,7 @@ export async function DELETE(
     // Verify user has required privileges
     if (
       !user ||
-      !["staff", "admin", "founder"].includes(user.user_type)
+      !["staff", "founder"].includes(user.user_type)
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }

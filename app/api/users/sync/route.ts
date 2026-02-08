@@ -1,17 +1,6 @@
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-  {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  }
-);
+import { createUserInSupabase } from "@/lib/user-sync";
 
 /**
  * POST /api/users/sync
@@ -33,54 +22,51 @@ export async function POST() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    // Check if user already exists in Supabase
-    const { data: existingUser } = await supabaseAdmin
-      .from("users")
-      .select("id")
-      .eq("clerk_id", userId)
-      .maybeSingle();
+    // Log the Clerk user structure for debugging
+    console.log("Clerk user data:", JSON.stringify({
+      id: clerkUser.id,
+      emailAddresses: clerkUser.emailAddresses,
+      email_addresses: (clerkUser as any).email_addresses,
+      firstName: clerkUser.firstName,
+      lastName: clerkUser.lastName,
+      publicMetadata: clerkUser.publicMetadata,
+    }, null, 2));
 
-    if (existingUser) {
-      return NextResponse.json({
-        success: true,
-        userId: existingUser.id,
-        message: "User already synced",
-      });
-    }
+    // Normalize Clerk user data to match expected structure
+    const normalizedUser = {
+      id: clerkUser.id,
+      // Handle both camelCase (new) and snake_case (old) property names
+      email_addresses: clerkUser.emailAddresses?.map(e => ({ email_address: e.emailAddress })) || 
+                       (clerkUser as any).email_addresses,
+      first_name: clerkUser.firstName || (clerkUser as any).first_name,
+      last_name: clerkUser.lastName || (clerkUser as any).last_name,
+      image_url: clerkUser.imageUrl || (clerkUser as any).image_url,
+      phone_numbers: clerkUser.phoneNumbers?.map(p => ({ phone_number: p.phoneNumber })) ||
+                     (clerkUser as any).phone_numbers,
+      public_metadata: clerkUser.publicMetadata,
+      private_metadata: (clerkUser as any).privateMetadata || (clerkUser as any).private_metadata,
+      unsafe_metadata: clerkUser.unsafeMetadata || (clerkUser as any).unsafe_metadata,
+    };
 
-    // Create user in Supabase
-    const { data: newUser, error } = await supabaseAdmin
-      .from("users")
-      .insert({
-        clerk_id: userId,
-        email: clerkUser.emailAddresses[0]?.emailAddress,
-        full_name:
-          clerkUser.fullName ||
-          `${clerkUser.firstName || ""} ${clerkUser.lastName || ""}`.trim() ||
-          "User",
-        avatar_url: clerkUser.imageUrl,
-        user_type: "renter", // Default type, can be updated later
-      })
-      .select("id")
-      .single();
+    // Use the proper user sync function that handles type mapping
+    const result = await createUserInSupabase(normalizedUser as any);
 
-    if (error) {
-      console.error("Error creating user in Supabase:", error);
+    if (!result) {
       return NextResponse.json(
-        { error: "Failed to sync user", details: error.message },
+        { error: "Failed to sync user" },
         { status: 500 }
       );
     }
 
     return NextResponse.json({
       success: true,
-      userId: newUser.id,
+      userId: result.id,
       message: "User synced successfully",
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error("Error in user sync:", error);
     return NextResponse.json(
-      { error: "Internal server error" },
+      { error: "Failed to sync user", details: error.message },
       { status: 500 }
     );
   }

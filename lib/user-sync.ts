@@ -74,22 +74,23 @@ export async function createUserInSupabase(data: ClerkUserData) {
     const fullName = [first_name, last_name].filter(Boolean).join(" ") || undefined;
     const phone = phone_numbers?.[0]?.phone_number;
     
-    // Get userType from metadata
+    // Get userType from metadata - no mapping needed after migration
     const rawUserType =
       public_metadata?.userType || 
       public_metadata?.role || 
       private_metadata?.userType || 
       unsafe_metadata?.userType || 
-      "buyer";
+      "renter"; // Default to renter
       
-    // Mapping to match database constraints ("valid_user_types")
-    // Database accepts: 'owner', 'buyer', 'staff', 'admin', 'founder'
+    // Valid types: 'owner', 'agent', 'renter', 'staff', 'founder'
+    // Note: 'admin' has been removed - use 'staff' instead
+    const validUserTypes = ["owner", "agent", "renter", "staff", "founder"];
     let userType = rawUserType.toLowerCase();
-    if (userType === "renter") userType = "buyer";
-    if (userType === "agent") userType = "owner"; // Map agent to owner
     
-    const validUserTypes = ["owner", "buyer", "staff", "admin", "founder"];
-    const supabaseUserType = validUserTypes.includes(userType) ? userType : "buyer";
+    // Map legacy 'admin' to 'staff' if it comes from old metadata
+    if (userType === "admin") userType = "staff";
+    
+    const supabaseUserType = validUserTypes.includes(userType) ? userType : "renter";
 
     const companyName = private_metadata?.companyName || unsafe_metadata?.companyName;
     const facebookUrl = private_metadata?.facebookUrl || unsafe_metadata?.facebookUrl;
@@ -149,56 +150,10 @@ export async function createUserInSupabase(data: ClerkUserData) {
       result = insertedUser;
     }
 
+    console.log("✅ User synced to Supabase:", result?.id);
     return result;
-  } catch (error: unknown) {
-    console.error("Error in createUserInSupabase:", error);
-    throw error;
-  }
-}
-
-/**
- * Update an existing user in Supabase from Clerk data
- */
-export async function updateUserInSupabase(data: ClerkUserData) {
-  return createUserInSupabase(data); // Re-use the consolidated sync logic
-}
-
-/**
- * Delete a user from Supabase
- */
-export async function deleteUserFromSupabase(clerkId: string) {
-  try {
-    if (!supabase) throw new Error("Supabase client not initialized.");
-    const { error } = await supabase.from("users").delete().eq("clerk_id", clerkId);
-    if (error) throw error;
-    return true;
   } catch (error) {
-    console.error("Error in deleteUserFromSupabase:", error);
+    console.error("❌ Error syncing user to Supabase:", error);
     throw error;
   }
-}
-
-/**
- * Get user from Supabase by Clerk ID
- */
-export async function getUserByClerkId(clerkId: string) {
-  try {
-    if (!supabase) throw new Error("Supabase client not initialized.");
-    const { data: user, error } = await supabase
-      .from("users")
-      .select("*")
-      .eq("clerk_id", clerkId)
-      .maybeSingle();
-
-    if (error) throw error;
-    return user;
-  } catch (error) {
-    console.error("Error in getUserByClerkId:", error);
-    throw error;
-  }
-}
-
-export function getSupabaseClient() {
-  if (!supabase) throw new Error("Supabase client not initialized.");
-  return supabase;
 }

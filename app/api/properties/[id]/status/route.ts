@@ -19,7 +19,7 @@ export async function PATCH(
 
     const { id: propertyId } = await params;
 
-    // Verify user is staff/admin
+    // Verify user is staff
     const { data: user, error: userError } = await supabaseAdmin
       .from("users")
       .select("user_type")
@@ -29,7 +29,7 @@ export async function PATCH(
     if (
       userError ||
       !user ||
-      !["staff", "admin"].includes(user.user_type)
+      !["staff"].includes(user.user_type)
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
