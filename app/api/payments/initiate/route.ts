@@ -203,7 +203,7 @@ export async function POST(req: Request) {
     log("transaction-created", { depositId, provider: payerClientCode, amount });
 
     // 6. Call PawaPay API
-    const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
+    const pawaUrlBase = process.env.PAWAPAY_URL;
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
 

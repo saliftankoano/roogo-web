@@ -93,7 +93,7 @@ export async function POST(req: Request) {
 
     // 4. DB status is still pending/submitted - check PawaPay API for latest
     const pawaUrlBase =
-      process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
+      process.env.PAWAPAY_URL;
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN;
 
