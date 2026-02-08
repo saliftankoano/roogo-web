@@ -204,6 +204,10 @@ export async function POST(req: Request) {
 
     // 6. Call PawaPay API
     const pawaUrlBase = process.env.PAWAPAY_URL;
+    if (!pawaUrlBase) {
+      log("error", { error: "PAWAPAY_URL not configured" });
+      return errorResponse("Server configuration error", 500, req);
+    }
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
 

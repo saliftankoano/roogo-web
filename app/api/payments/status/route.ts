@@ -92,8 +92,16 @@ export async function POST(req: Request) {
     }
 
     // 4. DB status is still pending/submitted - check PawaPay API for latest
-    const pawaUrlBase =
-      process.env.PAWAPAY_URL;
+    const pawaUrlBase = process.env.PAWAPAY_URL;
+    if (!pawaUrlBase) {
+      log("error", { error: "PAWAPAY_URL not configured" });
+      return cors(
+        NextResponse.json(
+          { error: "Server configuration error" },
+          { status: 500 }
+        )
+      );
+    }
     const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
     const pawaToken = process.env.PAWAPAY_API_TOKEN;
 
