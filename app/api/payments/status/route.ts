@@ -8,11 +8,23 @@ export async function OPTIONS(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const log = (step: string, data: Record<string, unknown> = {}) => {
+    console.log(JSON.stringify({ 
+      route: "POST /api/payments/status", 
+      requestId, 
+      step, 
+      ...data, 
+      timestamp: new Date().toISOString() 
+    }));
+  };
+
   try {
     // 1. Verify Clerk Token
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
     if (!token) {
+      log("error", { error: "Missing token" });
       return cors(
         NextResponse.json({ error: "Missing token" }, { status: 401 })
       );
@@ -23,7 +35,7 @@ export async function POST(req: Request) {
         secretKey: process.env.CLERK_SECRET_KEY!,
       });
     } catch (error) {
-      console.error("Token verification failed:", error);
+      log("auth-failed", { error: String(error) });
       return cors(
         NextResponse.json({ error: "Invalid token" }, { status: 401 })
       );
@@ -34,10 +46,13 @@ export async function POST(req: Request) {
     const { depositId } = body;
 
     if (!depositId) {
+      log("error", { error: "Missing depositId" });
       return cors(
         NextResponse.json({ error: "Missing depositId" }, { status: 400 })
       );
     }
+
+    log("checking-status", { depositId });
 
     // 3. Call PawaPay API
     const pawaUrlBase =
@@ -46,6 +61,7 @@ export async function POST(req: Request) {
     const pawaToken = process.env.PAWAPAY_API_TOKEN;
 
     if (!pawaToken) {
+      log("error", { error: "PAWAPAY_API_TOKEN not configured" });
       return cors(
         NextResponse.json(
           { error: "Server configuration error" },
@@ -54,7 +70,10 @@ export async function POST(req: Request) {
       );
     }
 
-    const response = await fetch(`${pawaUrl}/v2/deposits/${depositId}`, {
+    const pawaPayUrl = `${pawaUrl}/v2/deposits/${depositId}`;
+    log("pawapay-request", { url: pawaPayUrl, depositId });
+
+    const response = await fetch(pawaPayUrl, {
       method: "GET",
       headers: {
         "Content-Type": "application/json",
@@ -70,8 +89,18 @@ export async function POST(req: Request) {
       result = { message: responseText };
     }
 
+    log("pawapay-response", { 
+      depositId,
+      httpStatus: response.status, 
+      ok: response.ok,
+      resultType: Array.isArray(result) ? "array" : typeof result,
+      resultLength: Array.isArray(result) ? result.length : undefined,
+      result: JSON.stringify(result).slice(0, 500)
+    });
+
     if (!response.ok) {
       if (response.status === 404) {
+        log("deposit-not-found", { depositId });
         return cors(
           NextResponse.json(
             {
@@ -85,6 +114,7 @@ export async function POST(req: Request) {
         );
       }
 
+      log("pawapay-error", { depositId, httpStatus: response.status, result });
       return cors(
         NextResponse.json(
           {
@@ -100,6 +130,14 @@ export async function POST(req: Request) {
     const statusData = Array.isArray(result) ? result[0] : result;
     const status = statusData?.status || statusData?.depositStatus;
 
+    log("status-extracted", { 
+      depositId, 
+      extractedStatus: status,
+      statusDataKeys: statusData ? Object.keys(statusData) : null,
+      hasStatus: !!statusData?.status,
+      hasDepositStatus: !!statusData?.depositStatus
+    });
+
     // 4. Update Supabase with properly mapped status
     if (status) {
       const supabase = getSupabaseClient();
@@ -112,7 +150,7 @@ export async function POST(req: Request) {
         .single();
 
       if (fetchError || !transaction) {
-        console.error(`Transaction ${depositId} not found in DB`);
+        log("transaction-not-found-in-db", { depositId, fetchError: String(fetchError) });
       } else {
         // Map PawaPay status to our database enum
         let dbStatus = "pending";
@@ -126,6 +164,15 @@ export async function POST(req: Request) {
           dbStatus = "failed";
         if (status === "REFUNDED") dbStatus = "refunded";
 
+        log("db-update", { 
+          depositId, 
+          pawaPayStatus: status, 
+          mappedDbStatus: dbStatus, 
+          previousDbStatus: transaction.status,
+          transactionType: transaction.type,
+          propertyId: transaction.property_id
+        });
+
         // Update transaction status
         const { error: updateError } = await supabase
           .from("transactions")
@@ -137,14 +184,17 @@ export async function POST(req: Request) {
           .eq("deposit_id", depositId);
 
         if (updateError) {
-          console.error(
-            `Failed to update transaction ${depositId}:`,
-            updateError
-          );
+          log("db-update-failed", { depositId, error: String(updateError) });
         }
 
         // Handle post-payment logic if it just became completed
         if (dbStatus === "completed" && transaction.status !== "completed") {
+          log("post-payment-logic", { 
+            depositId, 
+            type: transaction.type, 
+            propertyId: transaction.property_id 
+          });
+
           if (transaction.type === "boost" && transaction.property_id) {
              const expiresAt = new Date();
              expiresAt.setDate(expiresAt.getDate() + 7);
@@ -167,6 +217,12 @@ export async function POST(req: Request) {
       }
     }
 
+    log("response-sent", { 
+      depositId, 
+      status,
+      success: true 
+    });
+
     return cors(
       NextResponse.json({
         success: true,
@@ -175,7 +231,7 @@ export async function POST(req: Request) {
       })
     );
   } catch (error: unknown) {
-    console.error("Payment status check error:", error);
+    log("unhandled-error", { error: String(error), stack: error instanceof Error ? error.stack : undefined });
     return cors(
       NextResponse.json(
         { error: error instanceof Error ? error.message : String(error) },

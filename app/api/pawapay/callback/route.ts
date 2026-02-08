@@ -13,14 +13,31 @@ const PAWAPAY_IPS = [
 ];
 
 export async function POST(req: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const log = (step: string, data: Record<string, unknown> = {}) => {
+    console.log(JSON.stringify({ 
+      route: "POST /api/pawapay/callback", 
+      requestId, 
+      step, 
+      ...data, 
+      timestamp: new Date().toISOString() 
+    }));
+  };
+
   try {
     // 0. IP Whitelisting
     const forwardedFor = req.headers.get("x-forwarded-for");
     const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
 
+    log("callback-received", { 
+      clientIp, 
+      forwardedFor,
+      nodeEnv: process.env.NODE_ENV 
+    });
+
     if (process.env.NODE_ENV === "production") {
       if (!clientIp || !PAWAPAY_IPS.includes(clientIp)) {
-        console.warn(`Blocked callback from unauthorized IP: ${clientIp}`);
+        log("ip-blocked", { clientIp, allowedIPs: PAWAPAY_IPS });
         return NextResponse.json({ error: "Unauthorized IP" }, { status: 403 });
       }
     }
@@ -32,8 +49,17 @@ export async function POST(req: Request) {
     const transactionId = data.depositId || data.payoutId || data.refundId;
     const { status, failureReason } = data;
 
+    log("callback-parsed", { 
+      transactionId, 
+      status, 
+      failureReason,
+      idType: data.depositId ? "deposit" : data.payoutId ? "payout" : data.refundId ? "refund" : "unknown",
+      bodyKeys: Object.keys(data),
+      rawBody: JSON.stringify(data).slice(0, 500)
+    });
 
     if (!transactionId || !status) {
+      log("invalid-payload", { transactionId, status, data });
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
@@ -46,6 +72,12 @@ export async function POST(req: Request) {
     if (status === "REFUNDED") dbStatus = "refunded";
     if (status === "SUBMITTED") dbStatus = "submitted";
 
+    log("status-mapped", { 
+      transactionId, 
+      pawaPayStatus: status, 
+      mappedDbStatus: dbStatus 
+    });
+
     // 3. Update Supabase
     const supabase = getSupabaseClient();
 
@@ -57,12 +89,20 @@ export async function POST(req: Request) {
       .single();
 
     if (fetchError || !transaction) {
+      log("transaction-not-found", { transactionId, fetchError: String(fetchError) });
       return NextResponse.json(
         { error: "Transaction not found" },
         { status: 404 }
       );
     }
 
+    log("transaction-found", { 
+      transactionId, 
+      previousStatus: transaction.status, 
+      type: transaction.type,
+      propertyId: transaction.property_id,
+      userId: transaction.user_id
+    });
 
     const { error: updateError } = await supabase
       .from("transactions")
@@ -75,11 +115,14 @@ export async function POST(req: Request) {
       .eq("deposit_id", transactionId);
 
     if (updateError) {
+      log("db-update-failed", { transactionId, error: String(updateError) });
       return NextResponse.json(
         { error: "Database update failed" },
         { status: 500 }
       );
     }
+
+    log("db-updated", { transactionId, newStatus: dbStatus });
 
     // 4. Handle Post-Payment Logic
     if (dbStatus === "completed") {
@@ -87,11 +130,17 @@ export async function POST(req: Request) {
         const propertyId = transaction.property_id;
 
         if (propertyId) {
-          // Simply mark the property as locked
-          await supabase
+          log("post-payment-lock", { transactionId, propertyId });
+          const { error: lockError } = await supabase
             .from("properties")
             .update({ status: "locked" })
             .eq("id", propertyId);
+          
+          if (lockError) {
+            log("post-payment-lock-failed", { transactionId, propertyId, error: String(lockError) });
+          } else {
+            log("post-payment-lock-success", { transactionId, propertyId });
+          }
         }
       } else if (transaction.type === "boost") {
         const propertyId = transaction.property_id;
@@ -99,19 +148,29 @@ export async function POST(req: Request) {
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 7); // Boost for 7 days
 
-          await supabase
+          log("post-payment-boost", { transactionId, propertyId, expiresAt: expiresAt.toISOString() });
+          const { error: boostError } = await supabase
             .from("properties")
             .update({
               is_boosted: true,
               boost_expires_at: expiresAt.toISOString(),
             })
             .eq("id", propertyId);
+          
+          if (boostError) {
+            log("post-payment-boost-failed", { transactionId, propertyId, error: String(boostError) });
+          } else {
+            log("post-payment-boost-success", { transactionId, propertyId });
+          }
         }
       }
     }
 
+    log("callback-complete", { transactionId, finalStatus: dbStatus });
+
     return NextResponse.json({ received: true });
   } catch (error: unknown) {
+    log("unhandled-error", { error: String(error), stack: error instanceof Error ? error.stack : undefined });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },
       { status: 500 }

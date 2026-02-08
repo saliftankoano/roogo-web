@@ -31,11 +31,25 @@ export async function OPTIONS(req: Request) {
 }
 
 export async function POST(req: Request) {
+  const requestId = crypto.randomUUID().slice(0, 8);
+  const log = (step: string, data: Record<string, unknown> = {}) => {
+    console.log(JSON.stringify({ 
+      route: "POST /api/payments/initiate", 
+      requestId, 
+      step, 
+      ...data, 
+      timestamp: new Date().toISOString() 
+    }));
+  };
+
   try {
+    log("request-received");
+
     // 1. Verify Clerk Token
     const auth = req.headers.get("authorization") ?? "";
     const token = auth.replace("Bearer ", "");
     if (!token) {
+      log("error", { error: "Missing token" });
       return errorResponse("Missing token", 401, req);
     }
 
@@ -45,12 +59,14 @@ export async function POST(req: Request) {
         secretKey: process.env.CLERK_SECRET_KEY!,
       });
       clerkUserId = sub;
+      log("auth-verified", { clerkUserId });
     } catch (error) {
-      console.error("Token verification failed:", error);
+      log("auth-failed", { error: String(error) });
       return errorResponse("Invalid token", 401, req);
     }
 
     if (!clerkUserId) {
+      log("error", { error: "No clerkUserId after verification" });
       return errorResponse("Unauthorized", 401, req);
     }
 
@@ -61,6 +77,7 @@ export async function POST(req: Request) {
     );
 
     if (!rateLimitOk) {
+      log("rate-limited", { clerkUserId });
       const response = errorResponse("Too many payment requests. Please try again later.", 429, req);
       rateLimitHeaders.forEach((value, key) => {
         response.headers.set(key, value);
@@ -73,6 +90,7 @@ export async function POST(req: Request) {
 
     // Auto-sync if user missing
     if (!user) {
+      log("user-not-found-syncing", { clerkUserId });
       try {
         const clerkClient = createClerkClient({
           secretKey: process.env.CLERK_SECRET_KEY,
@@ -95,8 +113,9 @@ export async function POST(req: Request) {
         };
 
         user = await createUserInSupabase(userData);
+        log("user-synced", { userId: user?.id });
       } catch (syncError: unknown) {
-        console.error("Auto-sync failed:", syncError);
+        log("user-sync-failed", { error: String(syncError) });
         return errorResponse(
           "User not found. Please try signing in again.",
           404,
@@ -106,8 +125,11 @@ export async function POST(req: Request) {
     }
 
     if (!user) {
+      log("error", { error: "User still null after sync" });
       return errorResponse("User not found in database", 404, req);
     }
+
+    log("user-resolved", { userId: user.id });
 
     // 4. Parse and validate body
     const body = await req.json();
@@ -116,7 +138,7 @@ export async function POST(req: Request) {
     try {
       validatedData = paymentInitiateSchema.parse(body);
     } catch (validationError) {
-      console.error("Validation error:", validationError);
+      log("validation-failed", { error: String(validationError), body });
       return errorResponse("Invalid request data", 400, req);
     }
 
@@ -131,8 +153,18 @@ export async function POST(req: Request) {
       metadata,
     } = validatedData;
 
+    log("request-validated", { 
+      amount, 
+      phoneNumber: phoneNumber.slice(0, 4) + "****", 
+      provider, 
+      transactionType, 
+      propertyId,
+      hasOTP: !!preAuthorisationCode 
+    });
+
     // Validation for Orange Burkina Faso which requires a pre-authorisation code
     if (provider === "ORANGE_MONEY" && !preAuthorisationCode) {
+      log("error", { error: "Missing OTP for Orange Money" });
       return errorResponse(
         "Un code d'autorisation est requis pour Orange Money",
         400,
@@ -164,9 +196,11 @@ export async function POST(req: Request) {
     });
 
     if (dbError) {
-      console.error("Database insertion error:", dbError);
+      log("db-insert-failed", { error: String(dbError), depositId });
       return errorResponse("Failed to initialize transaction", 500, req);
     }
+
+    log("transaction-created", { depositId, provider: payerClientCode, amount });
 
     // 6. Call PawaPay API
     const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
@@ -174,6 +208,7 @@ export async function POST(req: Request) {
     const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
 
     if (!pawaToken) {
+      log("error", { error: "PAWAPAY_API_TOKEN not configured" });
       return errorResponse("Server configuration error", 500, req);
     }
 
@@ -207,6 +242,15 @@ export async function POST(req: Request) {
       payload.preAuthorisationCode = preAuthorisationCode;
     }
 
+    log("pawapay-request", { 
+      url: `${pawaUrl}/v2/deposits`, 
+      depositId, 
+      formattedPhone: formattedPhone.slice(0, 6) + "****",
+      pawaProvider,
+      amount: amount.toString(),
+      hasOTP: !!preAuthorisationCode
+    });
+
     const response = await fetch(`${pawaUrl}/v2/deposits`, {
       method: "POST",
       headers: {
@@ -224,7 +268,22 @@ export async function POST(req: Request) {
       result = { message: responseText };
     }
 
+    log("pawapay-response", { 
+      httpStatus: response.status,
+      ok: response.ok,
+      depositId,
+      pawaPayStatus: result.status,
+      resultKeys: Object.keys(result),
+      result: JSON.stringify(result).slice(0, 500)
+    });
+
     if (!response.ok) {
+      log("pawapay-error", { 
+        depositId, 
+        httpStatus: response.status, 
+        result 
+      });
+
       await getSupabaseClient()
         .from("transactions")
         .update({
@@ -253,6 +312,7 @@ export async function POST(req: Request) {
     // 7. Update status only if PawaPay COMPLETED immediately
     // Note: ACCEPTED just means queued, not confirmed - must poll for final status
     if (result.status === "COMPLETED") {
+      log("immediate-completion", { depositId });
       await supabase
         .from("transactions")
         .update({
@@ -277,6 +337,11 @@ export async function POST(req: Request) {
       }
     }
 
+    log("success", { 
+      depositId: result.depositId || depositId, 
+      finalStatus: result.status || "PENDING" 
+    });
+
     return cors(
       NextResponse.json({
         success: true,
@@ -287,7 +352,7 @@ export async function POST(req: Request) {
       req
     );
   } catch (error: unknown) {
-    console.error("Payment initiation error:", error);
+    log("unhandled-error", { error: String(error), stack: error instanceof Error ? error.stack : undefined });
     return errorResponse(
       safeError(error, "Payment initiation failed"),
       500,

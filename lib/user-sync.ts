@@ -157,3 +157,46 @@ export async function createUserInSupabase(data: ClerkUserData) {
     throw error;
   }
 }
+
+/**
+ * Find a user in Supabase by their Clerk ID
+ */
+export async function getUserByClerkId(clerkId: string) {
+  try {
+    if (!supabase) {
+      throw new Error(
+        "Supabase client not initialized. Check environment variables."
+      );
+    }
+
+    const { data: user, error } = await supabase
+      .from("users")
+      .select("*")
+      .eq("clerk_id", clerkId)
+      .single();
+
+    if (error && error.code !== "PGRST116") {
+      // PGRST116 is "not found" error
+      console.error("Error fetching user from Supabase:", error);
+      throw error;
+    }
+
+    return user;
+  } catch (error) {
+    console.error("Error in getUserByClerkId:", error);
+    throw error;
+  }
+}
+
+/**
+ * Get Supabase client for use in API routes
+ * This uses the service role key and bypasses RLS
+ */
+export function getSupabaseClient() {
+  if (!supabase) {
+    throw new Error(
+      "Supabase client not initialized. Check environment variables."
+    );
+  }
+  return supabase;
+}
