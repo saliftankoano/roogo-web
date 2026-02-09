@@ -93,7 +93,7 @@ export async function POST(req: Request) {
     const selectedTier = listingData.tier_id
       ? TIERS_CONFIG[listingData.tier_id as keyof typeof TIERS_CONFIG]
       : null;
-    const tierPrice = isStaff 
+    const tierPrice = isStaffOrFounder 
       ? 0 
       : selectedTier
         ? selectedTier.base_fee + listingData.prixMensuel * 0.05
@@ -109,28 +109,28 @@ export async function POST(req: Request) {
 
     // Calculate slot limit with add-ons
     // Staff listings get generous defaults
-    let slotLimit = isStaff ? 100 : (selectedTier?.slot_limit || null);
+    let slotLimit = isStaffOrFounder ? 100 : (selectedTier?.slot_limit || null);
     if (slotLimit !== null && listingData.add_ons?.includes("extra_slots")) {
       slotLimit += 25;
     }
 
     // Calculate photo limit with add-ons
-    let photoLimit = isStaff ? 20 : (selectedTier?.photo_limit || null);
+    let photoLimit = isStaffOrFounder ? 20 : (selectedTier?.photo_limit || null);
     if (photoLimit !== null && listingData.add_ons?.includes("extra_photos")) {
       photoLimit += 5;
     }
 
     // Calculate open house limit with add-ons
-    let openHouseLimit = isStaff ? 5 : (selectedTier?.open_house_limit || null);
+    let openHouseLimit = isStaffOrFounder ? 5 : (selectedTier?.open_house_limit || null);
     if (openHouseLimit !== null && listingData.add_ons?.includes("open_house")) {
       openHouseLimit += 1;
     }
 
     // Staff listings are automatically verified (en_ligne), owner listings need approval
-    const propertyStatus = isStaff ? "en_ligne" : "en_attente";
+    const propertyStatus = isStaffOrFounder ? "en_ligne" : "en_attente";
 
     // Generate staff transaction ID if needed
-    const staffDepositId = isStaff 
+    const staffDepositId = isStaffOrFounder 
       ? `STAFF-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       : null;
 
@@ -155,24 +155,24 @@ export async function POST(req: Request) {
       interdictions: interdictionsLabels,
       period: "month",
       // Tier information
-      tier_id: isStaff ? null : (listingData.tier_id || null),
+      tier_id: isStaffOrFounder ? null : (listingData.tier_id || null),
       tier_price: tierPrice,
       slot_limit: slotLimit,
       open_house_limit: openHouseLimit,
       photo_limit: photoLimit,
-      video_included: selectedTier?.video_included || listingData.add_ons?.includes("video") || isStaff,
-      has_premium_badge: isStaff ? true : (selectedTier?.has_badge || false),
-      payment_id: isStaff ? staffDepositId : (listingData.payment_id || null),
+      video_included: selectedTier?.video_included || listingData.add_ons?.includes("video") || isStaffOrFounder,
+      has_premium_badge: isStaffOrFounder ? true : (selectedTier?.has_badge || false),
+      payment_id: isStaffOrFounder ? staffDepositId : (listingData.payment_id || null),
       // Boost information
       is_boosted: isBoosted,
       boost_expires_at: boostExpiresAt,
       // Set published_at for staff listings since they go live immediately
-      published_at: isStaff ? new Date().toISOString() : null,
+      published_at: isStaffOrFounder ? new Date().toISOString() : null,
     };
 
 
     // 9. Insert property
-    console.log("Inserting property into database...", isStaff ? "(Staff listing - auto-verified)" : "");
+    console.log("Inserting property into database...", isStaffOrFounder ? "(Staff listing - auto-verified)" : "");
     const { data: property, error: propertyError } = await supabase
       .from("properties")
       .insert(propertyData)
@@ -190,10 +190,10 @@ export async function POST(req: Request) {
     }
 
     const propertyId = property.id;
-    console.log("Property created successfully:", propertyId, isStaff ? "(Verified)" : "(Pending)");
+    console.log("Property created successfully:", propertyId, isStaffOrFounder ? "(Verified)" : "(Pending)");
 
     // 10. Create transaction record
-    if (isStaff && staffDepositId) {
+    if (isStaffOrFounder && staffDepositId) {
       // Create a $0 transaction record for staff listings (audit trail)
       console.log("Creating staff listing transaction record...");
       const staffTransaction = {
@@ -290,8 +290,8 @@ export async function POST(req: Request) {
       NextResponse.json({
         success: true,
         propertyId,
-        isVerified: isStaff,
-        transactionId: isStaff ? staffDepositId : listingData.payment_id,
+        isVerified: isStaffOrFounder,
+        transactionId: isStaffOrFounder ? staffDepositId : listingData.payment_id,
       }),
       req
     );
