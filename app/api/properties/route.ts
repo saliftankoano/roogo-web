@@ -65,11 +65,11 @@ export async function POST(req: Request) {
     }
     console.log("Supabase user found:", user.id);
 
-    // 4. Check if user is an owner or staff
-    const isStaff = user.user_type === "staff";
-    if (user.user_type !== "owner" && !isStaff) {
-      console.error("User is not an owner or staff:", user.user_type);
-      return errorResponse("Only property owners or staff can create listings", 403, req);
+    // 4. Check if user is an owner, staff, or founder
+    const isStaffOrFounder = user.user_type === "staff" || user.user_type === "founder";
+    if (user.user_type !== "owner" && !isStaffOrFounder) {
+      console.error("User is not an owner, staff, or founder:", user.user_type);
+      return errorResponse("Only property owners, staff, or founders can create listings", 403, req);
     }
 
     // 5. Parse and validate request body

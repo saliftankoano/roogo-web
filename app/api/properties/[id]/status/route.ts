@@ -29,7 +29,7 @@ export async function PATCH(
     if (
       userError ||
       !user ||
-      !["staff"].includes(user.user_type)
+      !["staff", "founder"].includes(user.user_type)
     ) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
