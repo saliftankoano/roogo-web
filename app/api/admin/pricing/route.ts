@@ -71,13 +71,19 @@ export async function GET() {
       .eq("active", true)
       .order("created_at", { ascending: true });
 
-    if (addonsError) {
-      console.error("Error fetching addons:", addonsError);
-      // Add-ons table might not exist yet, so we'll just return tiers
-      return NextResponse.json({ tiers, addons: [] });
-    }
+    // Fetch commission percentage
+    const { data: configData, error: configError } = await supabaseAdmin
+      .from("listing_config")
+      .select("commission_percentage")
+      .single();
 
-    return NextResponse.json({ tiers, addons });
+    const commissionPercentage = configData?.commission_percentage ?? 0.05;
+
+    return NextResponse.json({ 
+      tiers, 
+      addons: addons || [],
+      commissionPercentage
+    });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(
@@ -104,11 +110,12 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tiers, addons } = body;
+    const { tiers, addons, commissionPercentage } = body;
 
     const results: {
       tiers: Tier[];
       addons: Addon[];
+      commissionPercentage?: number;
       errors: ErrorItem[];
     } = { tiers: [], addons: [], errors: [] };
 
@@ -169,6 +176,41 @@ export async function PUT(request: NextRequest) {
         } else {
           results.addons.push(data);
         }
+      }
+    }
+
+    // Update commission percentage if provided
+    if (commissionPercentage !== undefined) {
+      const { data, error } = await supabaseAdmin
+        .from("listing_config")
+        .update({ 
+          commission_percentage: commissionPercentage,
+          updated_at: new Date().toISOString()
+        })
+        .eq("id", "default")
+        .select()
+        .single();
+      
+      if (error) {
+        // Try insert if update fails (e.g. row doesn't exist)
+        const { data: insertData, error: insertError } = await supabaseAdmin
+          .from("listing_config")
+          .upsert({ 
+            id: "default",
+            commission_percentage: commissionPercentage,
+            updated_at: new Date().toISOString()
+          })
+          .select()
+          .single();
+          
+        if (insertError) {
+          console.error("Error updating commission percentage:", insertError);
+          results.errors.push({ type: "config", id: "default", error: insertError.message });
+        } else {
+          results.commissionPercentage = insertData.commission_percentage;
+        }
+      } else {
+        results.commissionPercentage = data.commission_percentage;
       }
     }
 

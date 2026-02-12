@@ -42,6 +42,7 @@ export default function AdminSettingsPage() {
   const router = useRouter();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
+  const [commissionPercentage, setCommissionPercentage] = useState<number>(0.05);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -66,6 +67,9 @@ export default function AdminSettingsPage() {
         const data = await response.json();
         setTiers(data.tiers || []);
         setAddons(data.addons || []);
+        if (data.commissionPercentage !== undefined) {
+          setCommissionPercentage(data.commissionPercentage);
+        }
       } catch (error) {
         console.error("Error loading pricing:", error);
         setMessage({
@@ -102,6 +106,12 @@ export default function AdminSettingsPage() {
     );
   };
 
+  const handleCommissionChange = (newPercentage: string) => {
+    const percentage = parseFloat(newPercentage);
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) return;
+    setCommissionPercentage(percentage / 100);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
@@ -113,6 +123,7 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({
           tiers: tiers.map((t) => ({ id: t.id, min_price: t.min_price })),
           addons: addons.map((a) => ({ id: a.id, price: a.price })),
+          commissionPercentage,
         }),
       });
 
@@ -201,7 +212,7 @@ export default function AdminSettingsPage() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {tiers.map((tier) => {
             const sampleRent = 100000;
-            const commission = sampleRent * 0.05;
+            const commission = sampleRent * commissionPercentage;
             const total = tier.min_price + commission;
 
             return (
@@ -227,7 +238,7 @@ export default function AdminSettingsPage() {
                     </span>
                   </div>
                   <div className="flex justify-between text-neutral-600">
-                    <span>Commission (5%)</span>
+                    <span>Commission ({(commissionPercentage * 100).toFixed(1)}%)</span>
                     <span className="font-medium text-neutral-900">
                       {commission.toLocaleString()} XOF
                     </span>
@@ -251,7 +262,7 @@ export default function AdminSettingsPage() {
         <p className="text-xs text-neutral-500 mt-6 flex items-center gap-2">
           <InfoIcon className="w-4 h-4" />
           La commission est calculée sur la base d&apos;un loyer mensuel de
-          100,000 XOF. Le montant final inclut les frais de base + 5% du loyer.
+          100,000 XOF. Le montant final inclut les frais de base + {(commissionPercentage * 100).toFixed(1)}% du loyer.
         </p>
       </div>
 
@@ -271,6 +282,38 @@ export default function AdminSettingsPage() {
           <span>{message.text}</span>
         </div>
       )}
+
+      {/* Commission Percentage */}
+      <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
+        <div className="px-6 py-4 border-b border-neutral-200 bg-neutral-50">
+          <h2 className="text-xl font-semibold text-neutral-900 flex items-center gap-2">
+            <CurrencyCircleDollarIcon className="w-6 h-6" />
+            Commission sur Loyer
+          </h2>
+        </div>
+        <div className="px-6 py-4 flex items-center justify-between">
+          <div className="flex-1">
+            <h3 className="font-semibold text-neutral-900 text-lg">
+              Pourcentage de commission
+            </h3>
+            <p className="text-sm text-neutral-600 mt-1">
+              Appliqué sur le premier loyer mensuel pour toutes les annonces
+            </p>
+          </div>
+          <div className="flex items-center gap-3">
+            <input
+              type="number"
+              value={(commissionPercentage * 100).toFixed(1)}
+              onChange={(e) => handleCommissionChange(e.target.value)}
+              className="w-24 px-4 py-2 border border-neutral-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 text-right"
+              min="0"
+              max="100"
+              step="0.1"
+            />
+            <span className="text-neutral-600 font-medium w-8">%</span>
+          </div>
+        </div>
+      </div>
 
       {/* Tier Pricing */}
       <div className="bg-white rounded-xl shadow-sm border border-neutral-200 overflow-hidden">
