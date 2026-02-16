@@ -101,14 +101,14 @@ export async function POST(req: Request) {
     const publicMetadata: Record<string, unknown> = {};
     const privateMetadata: Record<string, unknown> = {};
 
-    // PUBLIC: Only userType (minimal, used for access control)
+    // PUBLIC: userType (access control) + hasCompletedOnboarding (client routing needs this)
     if (userType) publicMetadata.userType = userType;
-
-    // PRIVATE: Everything else (secure, not publicly visible)
     if (hasCompletedOnboarding !== undefined)
-      privateMetadata.hasCompletedOnboarding = hasCompletedOnboarding;
+      publicMetadata.hasCompletedOnboarding = hasCompletedOnboarding;
     if (hasCompletedWebOnboarding !== undefined)
-      privateMetadata.hasCompletedWebOnboarding = hasCompletedWebOnboarding;
+      publicMetadata.hasCompletedWebOnboarding = hasCompletedWebOnboarding;
+
+    // PRIVATE: Sensitive personal data only
     if (companyName) privateMetadata.companyName = companyName;
     if (professionalLink) privateMetadata.professionalLink = professionalLink;
     if (facebookUrl) privateMetadata.facebookUrl = facebookUrl;

@@ -106,7 +106,7 @@ export function WebOnboardingTour() {
         ...step,
         popover: {
           ...step.popover,
-          onNextClick: (_element, _activeStep, options) => {
+          onNextClick: (_element: unknown, _activeStep: unknown, options: { driver: Driver }) => {
             if (isLastStep) {
               setShowCompletionModal(true);
               options.driver.destroy();
@@ -115,7 +115,7 @@ export function WebOnboardingTour() {
 
             options.driver.moveNext();
           },
-          onPrevClick: (_element, _activeStep, options) => {
+          onPrevClick: (_element: unknown, _activeStep: unknown, options: { driver: Driver }) => {
             options.driver.movePrevious();
           },
           onCloseClick: () => {

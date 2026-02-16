@@ -71,11 +71,21 @@ export async function GET() {
       .eq("active", true)
       .order("created_at", { ascending: true });
 
+    if (addonsError) {
+      console.error("Error fetching add-ons:", addonsError);
+      return NextResponse.json({ error: addonsError.message }, { status: 500 });
+    }
+
     // Fetch commission percentage
     const { data: configData, error: configError } = await supabaseAdmin
       .from("listing_config")
       .select("commission_percentage")
       .single();
+
+    if (configError) {
+      console.error("Error fetching listing config:", configError);
+      return NextResponse.json({ error: configError.message }, { status: 500 });
+    }
 
     const commissionPercentage = configData?.commission_percentage ?? 0.05;
 

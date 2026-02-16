@@ -45,7 +45,6 @@ export async function GET() {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
 
-    const userId = userData.id;
 
     // Get view history
     // We query by clerk_id because client-side inserts might not have user_id populated

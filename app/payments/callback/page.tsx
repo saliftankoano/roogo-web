@@ -1,15 +1,31 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { Suspense, useEffect, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 
-export default function PaymentCallbackPage() {
+function PaymentCallbackContent() {
   const searchParams = useSearchParams();
   const depositId = searchParams.get("depositId");
 
   return <PaymentStatusChecker depositId={depositId} />;
+}
+
+export default function PaymentCallbackPage() {
+  return (
+    <Suspense
+      fallback={
+        <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+          <div className="w-16 h-16 bg-blue-50 rounded-full flex items-center justify-center animate-pulse">
+            <Loader2 className="w-8 h-8 text-blue-500 animate-spin" />
+          </div>
+        </div>
+      }
+    >
+      <PaymentCallbackContent />
+    </Suspense>
+  );
 }
 
 function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
@@ -133,7 +149,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
               }}
               className="w-full bg-black text-white font-medium py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors"
             >
-              Retourner à l'annonce
+              Retourner a l&apos;annonce
             </button>
           )}
 
@@ -142,7 +158,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
                onClick={() => router.push("/")}
                className="w-full bg-gray-100 text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors"
              >
-               Retour à l'accueil
+               Retour a l&apos;accueil
              </button>
           )}
         </div>

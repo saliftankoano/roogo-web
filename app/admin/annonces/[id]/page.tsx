@@ -69,6 +69,15 @@ const ADD_ON_LABELS: Record<string, string> = {
   open_house: "Visite",
 };
 
+type PropertyFieldValue =
+  | string
+  | number
+  | boolean
+  | string[]
+  | Record<string, unknown>
+  | null
+  | undefined;
+
 interface TransactionMetadata {
   tier?: {
     id: string;
@@ -145,13 +154,29 @@ export default function ListingDetailPage() {
     setEditForm({});
   };
 
-  const handleEditChange = (field: keyof Property, value: any) => {
+  const handleEditChange = (field: keyof Property, value: PropertyFieldValue) => {
     setEditForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const formatChangeValue = (value: PropertyFieldValue): string => {
+    if (value === null || value === undefined || value === "") {
+      return "(vide)";
+    }
+
+    if (Array.isArray(value)) {
+      return value.length > 0 ? value.join(", ") : "(vide)";
+    }
+
+    if (typeof value === "object") {
+      return JSON.stringify(value);
+    }
+
+    return String(value);
   };
 
   const getChangedFields = () => {
     if (!listing) return [];
-    const changes: { field: string; old: any; new: any; label: string }[] = [];
+    const changes: { field: string; old: PropertyFieldValue; new: PropertyFieldValue; label: string }[] = [];
     
     const fields: { key: keyof Property; label: string }[] = [
       { key: "title", label: "Titre" },
@@ -456,11 +481,11 @@ export default function ListingDetailPage() {
                           </p>
                           <div className="flex items-center gap-3">
                             <div className="flex-1 text-sm text-neutral-500 line-through truncate">
-                              {change.old || "(vide)"}
+                              {formatChangeValue(change.old)}
                             </div>
                             <div className="text-neutral-300">→</div>
                             <div className="flex-1 text-sm font-bold text-primary truncate">
-                              {change.new || "(vide)"}
+                              {formatChangeValue(change.new)}
                             </div>
                           </div>
                         </div>

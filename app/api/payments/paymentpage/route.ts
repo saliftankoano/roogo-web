@@ -19,7 +19,7 @@ const paymentPageSchema = z.object({
   propertyId: z.string().optional(),
   tier_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
-  metadata: z.record(z.any()).optional(),
+  metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
 export async function OPTIONS(req: Request) {

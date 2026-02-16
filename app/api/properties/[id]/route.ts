@@ -8,6 +8,27 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
+interface PropertyPatchUpdates {
+  title?: string;
+  description?: string;
+  price?: string | number;
+  address?: string;
+  city?: string;
+  quartier?: string;
+  bedrooms?: number;
+  bathrooms?: number;
+  area?: string | number;
+  parking?: number;
+  propertyType?: string;
+  period?: string;
+  amenities?: string[];
+}
+
+interface AmenityRow {
+  id: string;
+  name: string;
+}
+
 export async function DELETE(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -104,7 +125,7 @@ export async function PATCH(
     }
 
     const { id: propertyId } = await params;
-    const updates = await request.json();
+    const updates = (await request.json()) as PropertyPatchUpdates;
 
     // Try to find user in Supabase
     const { data: users } = await supabaseAdmin
@@ -156,16 +177,16 @@ export async function PATCH(
     }
 
     // Map frontend fields to database columns if necessary
-    const dbUpdates: any = {};
+    const dbUpdates: Record<string, string | number | null> = {};
     if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
-    if (updates.price !== undefined) dbUpdates.price = parseFloat(updates.price);
+    if (updates.price !== undefined) dbUpdates.price = Number(updates.price);
     if (updates.address !== undefined) dbUpdates.address = updates.address;
     if (updates.city !== undefined) dbUpdates.city = updates.city;
     if (updates.quartier !== undefined) dbUpdates.quartier = updates.quartier;
     if (updates.bedrooms !== undefined) dbUpdates.bedrooms = updates.bedrooms;
     if (updates.bathrooms !== undefined) dbUpdates.bathrooms = updates.bathrooms;
-    if (updates.area !== undefined) dbUpdates.area = parseFloat(updates.area);
+    if (updates.area !== undefined) dbUpdates.area = Number(updates.area);
     if (updates.parking !== undefined) dbUpdates.parking_spaces = updates.parking;
     if (updates.propertyType !== undefined) dbUpdates.property_type = updates.propertyType;
     if (updates.period !== undefined) dbUpdates.period = updates.period === "Mois" ? "month" : updates.period;
@@ -196,7 +217,7 @@ export async function PATCH(
           .in("name", updates.amenities);
 
         if (amenitiesData && amenitiesData.length > 0) {
-          const propertyAmenities = amenitiesData.map((amenity: any) => ({
+          const propertyAmenities = amenitiesData.map((amenity: AmenityRow) => ({
             property_id: propertyId,
             amenity_id: amenity.id,
           }));

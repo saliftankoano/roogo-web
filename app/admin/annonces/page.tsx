@@ -27,7 +27,29 @@ import {
 import { useAuth } from "@clerk/nextjs";
 import Image from "next/image";
 import { TIERS_CONFIG } from "@/lib/constants";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+
+interface PricingAddon {
+  id: string;
+  name: string;
+  price: number;
+}
+
+type TierConfigEntry = (typeof TIERS_CONFIG)[keyof typeof TIERS_CONFIG];
+
+interface AdminListingFormData {
+  titre: string;
+  type: string;
+  prixMensuel: string;
+  quartier: string;
+  ville: string;
+  description: string;
+  chambres: string;
+  sdb: string;
+  superficie: string;
+  vehicules: string;
+  cautionMois: string;
+}
 
 // Helper component to access expand/collapse context
 function PropertyFormFooter({ isSubmitting }: { isSubmitting: boolean }) {
@@ -71,14 +93,13 @@ export default function AdminListingsPage() {
 
   // Form state for new property
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const router = useRouter();
   const searchParams = useSearchParams();
   
   // Tier & Payment state
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
   const [paymentChoice, setPaymentChoice] = useState<"free" | "pay">("free");
-  const [addonsList, setAddonsList] = useState<any[]>([]);
+  const [addonsList, setAddonsList] = useState<PricingAddon[]>([]);
 
   useEffect(() => {
     // Load addons
@@ -90,7 +111,7 @@ export default function AdminListingsPage() {
       .catch(err => console.error("Failed to load addons", err));
   }, []);
 
-  const [formData, setFormData] = useState({
+  const [formData, setFormData] = useState<AdminListingFormData>({
     titre: "",
     type: "house",
     prixMensuel: "",
@@ -127,7 +148,7 @@ export default function AdminListingsPage() {
       const savedData = sessionStorage.getItem("pendingAdminListing");
       if (savedData) {
         try {
-          const { formData, selectedFiles: savedFiles, selectedTier, selectedAddOns } = JSON.parse(savedData);
+          const { formData, selectedTier, selectedAddOns } = JSON.parse(savedData) as { formData: AdminListingFormData; selectedTier: string | null; selectedAddOns: string[] };
           setFormData(formData);
           setSelectedTier(selectedTier);
           setSelectedAddOns(selectedAddOns);
@@ -723,7 +744,7 @@ export default function AdminListingsPage() {
 
                       {/* Tiers */}
                       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {Object.entries(TIERS_CONFIG).map(([key, tier]: [string, any]) => (
+                        {Object.entries(TIERS_CONFIG).map(([key, tier]: [string, TierConfigEntry]) => (
                           <div
                             key={key}
                             onClick={() => setSelectedTier(key)}

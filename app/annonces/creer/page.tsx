@@ -26,6 +26,8 @@ interface ListingFormData {
   interdictions: string[];
 }
 
+type TierConfigEntry = (typeof TIERS_CONFIG)[keyof typeof TIERS_CONFIG];
+
 interface AddOn {
   id: string;
   name: string;
@@ -242,9 +244,10 @@ export default function CreateListingPage() {
         throw new Error("URL de paiement manquante");
       }
 
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error(err);
-      setError(err.message || "Une erreur est survenue");
+      const message = err instanceof Error ? err.message : "Une erreur est survenue";
+      setError(message);
       setIsLoading(false);
     }
   };
@@ -282,7 +285,7 @@ export default function CreateListingPage() {
               
               <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
                 <div className="col-span-2">
-                  <label className="block text-sm font-medium text-gray-700">Titre de l'annonce</label>
+                  <label className="block text-sm font-medium text-gray-700">Titre de l&apos;annonce</label>
                   <input
                     type="text"
                     name="titre"
@@ -422,7 +425,7 @@ export default function CreateListingPage() {
               <h2 className="text-xl font-semibold flex items-center"><Shield className="mr-2" /> Offre & Paiement</h2>
               
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
-                {(Object.entries(TIERS_CONFIG) as [string, any][]).map(([key, tier]) => (
+                {(Object.entries(TIERS_CONFIG) as [string, TierConfigEntry][]).map(([key, tier]) => (
                   <div 
                     key={key}
                     onClick={() => setSelectedTier(key)}

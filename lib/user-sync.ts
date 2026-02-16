@@ -21,6 +21,8 @@ const supabase =
       })
     : null;
 
+type OnboardingData = Record<string, unknown>;
+
 export interface ClerkUserData {
   id: string;
   email_addresses?: Array<{ email_address: string }>;
@@ -33,7 +35,7 @@ export interface ClerkUserData {
     role?: string;
     hasCompletedOnboarding?: boolean;
     hasCompletedWebOnboarding?: boolean;
-    onboardingData?: any;
+    onboardingData?: OnboardingData;
     companyName?: string;
     facebookUrl?: string;
     professionalLink?: string;
