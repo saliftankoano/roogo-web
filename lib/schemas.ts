@@ -7,7 +7,7 @@ export function getOrganizationSchema() {
     name: "Roogo",
     description: "La référence de la location immobilière au Burkina Faso",
     url: "https://roogo.bf",
-    logo: "https://roogo.bf/logo.png",
+    logo: "https://roogo.bf/logo-v2.png",
     sameAs: [
       "https://facebook.com/roogobf",
       "https://instagram.com/roogo_bf",

@@ -9,7 +9,7 @@ export default function SignInPage() {
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 py-12">
       <Link href="/" className="mb-8">
         <Image
-          src="/logo.png"
+          src="/logo-v2.png"
           alt="Roogo Logo"
           width={160}
           height={160}

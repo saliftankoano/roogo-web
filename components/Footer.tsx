@@ -21,7 +21,7 @@ export function Footer() {
           <div>
             <div className="flex items-center gap-2 mb-6">
               <Image
-                src="/logo.png"
+                src="/logo-v2.png"
                 alt="Roogo Logo"
                 width={160}
                 height={64}
