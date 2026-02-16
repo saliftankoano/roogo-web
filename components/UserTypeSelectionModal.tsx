@@ -83,7 +83,7 @@ export default function UserTypeSelectionModal({
                 <div className="flex flex-col items-center mb-8">
                   <div className="w-20 h-20 mb-4">
                     <Image
-                      src="/logo-v2.png"
+                      src="/logo.png?v=2"
                       alt="Roogo"
                       width={80}
                       height={80}

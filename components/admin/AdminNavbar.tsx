@@ -87,7 +87,7 @@ export function AdminNavbar() {
         <Link href="/" className="flex items-center shrink-0 group">
           <div className="bg-primary/10 p-2 rounded-2xl mr-3 group-hover:scale-110 transition-transform duration-300">
             <Image
-              src="/logo-v2.png"
+              src="/logo.png?v=2"
               alt="Roogo Logo"
               width={28}
               height={28}

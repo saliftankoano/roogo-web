@@ -9,7 +9,7 @@ export default function SignUpPage() {
     <div className="min-h-screen bg-white flex flex-col items-center justify-center px-4 py-12">
       <Link href="/" className="mb-8">
         <Image
-          src="/logo-v2.png"
+          src="/logo.png?v=2"
           alt="Roogo Logo"
           width={160}
           height={160}
