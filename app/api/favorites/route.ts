@@ -1,6 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -161,6 +162,19 @@ export async function POST(req: Request) {
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
 
+      const { data: property } = await supabaseAdmin
+        .from("properties")
+        .select("property_type, price, city")
+        .eq("id", propertyId)
+        .maybeSingle();
+
+      await captureServerEvent(userId, "property_favorited", {
+        property_id: propertyId,
+        property_type: property?.property_type || null,
+        price: property?.price || 0,
+        city: property?.city || null,
+      });
+
       return NextResponse.json({ success: true, action: "added" });
     } else if (action === "remove") {
       const { error } = await supabaseAdmin
@@ -173,6 +187,10 @@ export async function POST(req: Request) {
         console.error("Error removing favorite:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });
       }
+
+      await captureServerEvent(userId, "property_unfavorited", {
+        property_id: propertyId,
+      });
 
       return NextResponse.json({ success: true, action: "removed" });
     } else {

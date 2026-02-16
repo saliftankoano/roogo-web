@@ -18,7 +18,6 @@ import {
   ChatCircleIcon,
   BuildingsIcon,
   GearSixIcon,
-  CaretDownIcon,
   UsersIcon,
   ReceiptIcon,
 } from "@phosphor-icons/react";
@@ -26,70 +25,56 @@ import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { cn } from "../lib/utils";
 import { AnimatedBackground } from "./motion-primitives/animated-background";
-import { useRef, useEffect } from "react";
 
 export function Navbar() {
   const { scrollY } = useScroll();
   const [hidden, setHidden] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const [staffMenuOpen, setStaffMenuOpen] = useState(false);
-  const staffMenuRef = useRef<HTMLDivElement>(null);
   const { isSignedIn, isLoaded, user } = useUser();
   const pathname = usePathname();
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      if (
-        staffMenuRef.current &&
-        !staffMenuRef.current.contains(event.target as Node)
-      ) {
-        setStaffMenuOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   useMotionValueEvent(scrollY, "change", (latest) => {
     const previous = scrollY.getPrevious() || 0;
     if (latest > previous && latest > 150) {
       setHidden(true);
-      setStaffMenuOpen(false);
     } else {
       setHidden(false);
     }
     setIsScrolled(latest > 20);
   });
 
-  const navItems = [
-    { name: "Accueil", href: "/", icon: HouseLineIcon },
-    { name: "Propriétés", href: "/proprietes", icon: BuildingsIcon },
-    { name: "Carrières", href: "/carrieres", icon: BriefcaseIcon },
-    { name: "Contact", href: "/contact", icon: ChatCircleIcon },
-  ];
-
   // Only allow staff and founder user types to see staff menu
   const userType = user?.publicMetadata?.userType as string | undefined;
   const isStaff =
     userType === "staff" ||
-    
     userType === "founder";
   const isFounder = userType === "founder";
 
-  const staffMenuItems = [
-    { name: "Propriétés", href: "/admin/annonces", icon: BuildingsIcon },
-    { name: "Finances", href: "/admin/finances", icon: ReceiptIcon },
-    { name: "Agents", href: "/admin/agents", icon: UsersIcon },
+  const publicNavItems = [
+    { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
+    { name: "Propriétés", href: "/proprietes", icon: BuildingsIcon, id: "nav-proprietes" },
+    { name: "Carrières", href: "/carrieres", icon: BriefcaseIcon, id: "nav-carrieres" },
+    { name: "Contact", href: "/nous-contacter", icon: ChatCircleIcon, id: "nav-contact" },
+  ];
+
+  const staffNavItems = [
+    { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
+    { name: "Propriétés", href: "/admin/annonces", icon: BuildingsIcon, id: "nav-admin-annonces" },
+    { name: "Finances", href: "/admin/finances", icon: ReceiptIcon, id: "nav-admin-finances" },
+    { name: "Agents", href: "/admin/agents", icon: UsersIcon, id: "nav-admin-agents" },
   ];
 
   if (isFounder) {
-    staffMenuItems.push({
+    staffNavItems.push({
       name: "Paramètres",
       href: "/admin/parametres",
       icon: GearSixIcon,
+      id: "nav-admin-parametres",
     });
   }
+
+  const navItems = isStaff ? staffNavItems : publicNavItems;
 
   return (
     <>
@@ -139,86 +124,21 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
-                  data-id={item.href}
+                  data-id={item.id}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
-                    pathname === item.href
+                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
                       ? "text-primary"
                       : "text-neutral-500 hover:text-neutral-900"
                   )}
                 >
                   <item.icon
                     size={18}
-                    weight={pathname === item.href ? "fill" : "bold"}
+                    weight={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) ? "fill" : "bold"}
                   />
                   <span className="whitespace-nowrap">{item.name}</span>
                 </Link>
               ))}
-
-              {isStaff && (
-                <div className="relative" ref={staffMenuRef}>
-                  <button
-                    onClick={() => setStaffMenuOpen(!staffMenuOpen)}
-                    data-id="staff-menu"
-                    className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-all duration-200",
-                      pathname.startsWith("/admin") || staffMenuOpen
-                        ? "text-primary"
-                        : "text-neutral-500 hover:text-neutral-900"
-                    )}
-                  >
-                    <GearSixIcon
-                      size={18}
-                      weight={pathname.startsWith("/admin") ? "fill" : "bold"}
-                    />
-                    <span>Staff</span>
-                    <CaretDownIcon
-                      size={14}
-                      weight="bold"
-                      className={cn(
-                        "transition-transform duration-200",
-                        staffMenuOpen ? "rotate-180" : ""
-                      )}
-                    />
-                  </button>
-
-                  <AnimatePresence>
-                    {staffMenuOpen && (
-                      <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                        animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                        className="absolute top-full right-0 mt-3 w-56 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 overflow-hidden"
-                      >
-                        <div className="px-3 py-2 mb-1">
-                          <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-                            Administration
-                          </p>
-                        </div>
-                        {staffMenuItems.map((item) => (
-                          <Link
-                            key={item.href}
-                            href={item.href}
-                            onClick={() => setStaffMenuOpen(false)}
-                            className={cn(
-                              "flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-bold transition-all",
-                              pathname === item.href
-                                ? "bg-primary/10 text-primary"
-                                : "text-neutral-600 hover:bg-neutral-50"
-                            )}
-                          >
-                            <item.icon
-                              size={18}
-                              weight={pathname === item.href ? "fill" : "bold"}
-                            />
-                            {item.name}
-                          </Link>
-                        ))}
-                      </motion.div>
-                    )}
-                  </AnimatePresence>
-                </div>
-              )}
             </AnimatedBackground>
           </div>
 
@@ -296,50 +216,22 @@ export function Navbar() {
                 <Link
                   key={item.href}
                   href={item.href}
+                  data-id={item.id}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
-                    pathname === item.href
+                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
                       ? "bg-primary/10 text-primary"
                       : "text-neutral-600 hover:bg-neutral-50"
                   )}
                 >
                   <item.icon
                     size={24}
-                    weight={pathname === item.href ? "fill" : "bold"}
+                    weight={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) ? "fill" : "bold"}
                   />
                   {item.name}
                 </Link>
               ))}
-
-              {isStaff && (
-                <div className="flex flex-col gap-1 border-t border-neutral-100 pt-2 mt-2">
-                  <div className="px-4 py-2">
-                    <p className="text-[11px] font-bold text-neutral-400 uppercase tracking-wider">
-                      Staff Menu
-                    </p>
-                  </div>
-                  {staffMenuItems.map((item) => (
-                    <Link
-                      key={item.href}
-                      href={item.href}
-                      onClick={() => setMobileMenuOpen(false)}
-                      className={cn(
-                        "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
-                        pathname === item.href
-                          ? "bg-primary/10 text-primary"
-                          : "text-neutral-600 hover:bg-neutral-50"
-                      )}
-                    >
-                      <item.icon
-                        size={24}
-                        weight={pathname === item.href ? "fill" : "bold"}
-                      />
-                      {item.name}
-                    </Link>
-                  ))}
-                </div>
-              )}
 
               <div className="h-px bg-neutral-100 my-2 mx-4" />
 

@@ -1,5 +1,7 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
+import { notifyUser } from "@/lib/push-notifications";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -146,11 +148,34 @@ export async function POST(req: Request) {
 
     // 4. Handle Post-Payment Logic
     if (dbStatus === "completed") {
+      if (transaction.status !== "completed") {
+        await captureServerEvent(transaction.user_id || transactionId, "payment_completed", {
+          deposit_id: transactionId,
+          amount: transaction.amount || 0,
+          currency: transaction.currency || "XOF",
+          transaction_type: transaction.type || "unknown",
+          provider: transaction.provider || "unknown",
+          property_id: transaction.property_id || null,
+          source: "pawapay_callback",
+        });
+      }
+
+      let notificationTitle = "Paiement confirmé";
+      let notificationBody = "Votre paiement a été traité avec succès";
+
       if (transaction.type === "property_lock") {
         const propertyId = transaction.property_id;
 
         if (propertyId) {
           log("post-payment-lock", { transactionId, propertyId });
+          
+          // Get property title for notification
+          const { data: property } = await supabase
+            .from("properties")
+            .select("titre")
+            .eq("id", propertyId)
+            .single();
+
           const { error: lockError } = await supabase
             .from("properties")
             .update({ status: "locked" })
@@ -161,6 +186,11 @@ export async function POST(req: Request) {
           } else {
             log("post-payment-lock-success", { transactionId, propertyId });
           }
+
+          if (property?.titre) {
+            notificationTitle = "Bien réservé avec succès";
+            notificationBody = `Votre réservation pour "${property.titre}" est confirmée`;
+          }
         }
       } else if (transaction.type === "boost") {
         const propertyId = transaction.property_id;
@@ -169,6 +199,14 @@ export async function POST(req: Request) {
           expiresAt.setDate(expiresAt.getDate() + 7); // Boost for 7 days
 
           log("post-payment-boost", { transactionId, propertyId, expiresAt: expiresAt.toISOString() });
+          
+          // Get property title for notification
+          const { data: property } = await supabase
+            .from("properties")
+            .select("titre")
+            .eq("id", propertyId)
+            .single();
+
           const { error: boostError } = await supabase
             .from("properties")
             .update({
@@ -182,8 +220,52 @@ export async function POST(req: Request) {
           } else {
             log("post-payment-boost-success", { transactionId, propertyId });
           }
+
+          if (property?.titre) {
+            notificationTitle = "Boost activé";
+            notificationBody = `"${property.titre}" est maintenant en avant pour 7 jours`;
+          }
         }
+      } else if (transaction.type === "listing") {
+        notificationTitle = "Annonce publiée";
+        notificationBody = "Votre annonce est maintenant en ligne";
       }
+
+      // Send payment confirmation notification
+      if (transaction.user_id) {
+        log("sending-payment-notification", { 
+          userId: transaction.user_id, 
+          transactionId,
+          type: transaction.type 
+        });
+        
+        await notifyUser(
+          transaction.user_id,
+          "payments",
+          notificationTitle,
+          notificationBody,
+          {
+            type: "payment_completed",
+            transactionId: transaction.id,
+            depositId: transactionId,
+            transactionType: transaction.type,
+            amount: transaction.amount,
+          }
+        );
+      }
+    }
+
+    if (dbStatus === "failed" && transaction.status !== "failed") {
+      await captureServerEvent(transaction.user_id || transactionId, "payment_failed", {
+        deposit_id: transactionId,
+        amount: transaction.amount || 0,
+        currency: transaction.currency || "XOF",
+        transaction_type: transaction.type || "unknown",
+        provider: transaction.provider || "unknown",
+        property_id: transaction.property_id || null,
+        failure_reason: detailedFailureReason || "Payment failed",
+        source: "pawapay_callback",
+      });
     }
 
     log("callback-complete", { transactionId, finalStatus: dbStatus });

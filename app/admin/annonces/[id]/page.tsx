@@ -1,4 +1,5 @@
 "use client";
+import { useUser } from "@clerk/nextjs";
 
 import { useState, useEffect, useRef } from "react";
 import { createPortal } from "react-dom";
@@ -33,7 +34,7 @@ import PhotoManager from "@/components/admin/PhotoManager";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import {
   fetchPropertyById,
-  updatePropertyStatus,
+  updatePropertyStatus, updateProperty,
   deleteProperty,
   Property,
   Transaction,
@@ -108,6 +109,106 @@ export default function ListingDetailPage() {
 
   // Status Management
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
+  // Edit Management
+  const { user: clerkUser } = useUser();
+  const [isEditing, setIsEditing] = useState(false);
+  const [editForm, setEditForm] = useState<Partial<Property>>({});
+  const [confirmEditModalOpen, setConfirmEditModalOpen] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+
+  const isStaffOrFounder = ["staff", "founder"].includes(
+    clerkUser?.publicMetadata?.userType as string
+  );
+
+  const startEditing = () => {
+    if (!listing) return;
+    setEditForm({
+      title: listing.title,
+      description: listing.description,
+      price: listing.price,
+      address: listing.address,
+      city: listing.city,
+      quartier: listing.quartier,
+      bedrooms: listing.bedrooms,
+      bathrooms: listing.bathrooms,
+      area: listing.area,
+      parking: listing.parking,
+      propertyType: listing.propertyType,
+      amenities: [...listing.amenities],
+      period: listing.period,
+    });
+    setIsEditing(true);
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditForm({});
+  };
+
+  const handleEditChange = (field: keyof Property, value: any) => {
+    setEditForm((prev) => ({ ...prev, [field]: value }));
+  };
+
+  const getChangedFields = () => {
+    if (!listing) return [];
+    const changes: { field: string; old: any; new: any; label: string }[] = [];
+    
+    const fields: { key: keyof Property; label: string }[] = [
+      { key: "title", label: "Titre" },
+      { key: "description", label: "Description" },
+      { key: "price", label: "Prix" },
+      { key: "address", label: "Adresse" },
+      { key: "city", label: "Ville" },
+      { key: "quartier", label: "Quartier" },
+      { key: "bedrooms", label: "Chambres" },
+      { key: "bathrooms", label: "Salles de bain" },
+      { key: "area", label: "Superficie" },
+      { key: "parking", label: "Parking" },
+      { key: "propertyType", label: "Type de bien" },
+      { key: "period", label: "Période" },
+    ];
+
+    fields.forEach(({ key, label }) => {
+      if (editForm[key] !== undefined && editForm[key] !== listing[key]) {
+        changes.push({ field: key, old: listing[key], new: editForm[key], label });
+      }
+    });
+
+    // Check amenities separately
+    if (editForm.amenities && JSON.stringify(editForm.amenities) !== JSON.stringify(listing.amenities)) {
+      changes.push({ 
+        field: "amenities", 
+        old: listing.amenities.join(", "), 
+        new: editForm.amenities.join(", "), 
+        label: "Commodités" 
+      });
+    }
+
+    return changes;
+  };
+
+  const handleSaveClick = () => {
+    if (getChangedFields().length === 0) {
+      setIsEditing(false);
+      return;
+    }
+    setConfirmEditModalOpen(true);
+  };
+
+  const confirmSave = async () => {
+    if (!listing) return;
+    setIsSaving(true);
+    const success = await updateProperty(listing.id, editForm);
+    setIsSaving(false);
+    if (success) {
+      setListing({ ...listing, ...editForm } as Property);
+      setIsEditing(false);
+      setConfirmEditModalOpen(false);
+      setEditForm({});
+    } else {
+      alert("Erreur lors de la mise à jour du bien");
+    }
+  };
   const [statusModalOpen, setStatusModalOpen] = useState(false);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -312,6 +413,140 @@ export default function ListingDetailPage() {
           )}
         </AnimatePresence>
       </Portal>
+
+      {/* Edit Confirmation Modal */}
+      <Portal>
+        <AnimatePresence>
+          {confirmEditModalOpen && (
+            <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={() => setConfirmEditModalOpen(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-white rounded-2xl p-8 w-full max-w-2xl shadow-xl relative z-10 overflow-hidden max-h-[90vh] flex flex-col"
+              >
+                <div className="flex flex-col space-y-6 overflow-hidden">
+                  <div className="flex items-center gap-4">
+                    <div className="w-12 h-12 bg-blue-50 rounded-full flex items-center justify-center text-blue-500">
+                      <InfoIcon size={32} weight="fill" />
+                    </div>
+                    <div>
+                      <h3 className="text-xl font-bold text-neutral-900">
+                        Confirmer les modifications
+                      </h3>
+                      <p className="text-neutral-500 text-sm">
+                        Veuillez vérifier les changements avant de valider.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex-1 overflow-y-auto pr-2 space-y-4">
+                    <div className="grid grid-cols-1 gap-3">
+                      {getChangedFields().map((change) => (
+                        <div key={change.field} className="bg-neutral-50 rounded-xl p-4 border border-neutral-100">
+                          <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                            {change.label}
+                          </p>
+                          <div className="flex items-center gap-3">
+                            <div className="flex-1 text-sm text-neutral-500 line-through truncate">
+                              {change.old || "(vide)"}
+                            </div>
+                            <div className="text-neutral-300">→</div>
+                            <div className="flex-1 text-sm font-bold text-primary truncate">
+                              {change.new || "(vide)"}
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-3 w-full pt-4 border-t border-neutral-100 mt-auto">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setConfirmEditModalOpen(false)}
+                      className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+                      disabled={isSaving}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      onClick={confirmSave}
+                      className="flex-1 bg-primary text-white hover:bg-primary/90"
+                      disabled={isSaving}
+                    >
+                      {isSaving ? "Enregistrement..." : "Confirmer"}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </Portal>
+
+      <Portal>
+        <AnimatePresence>
+          {deleteModalOpen && (
+            <div className="fixed inset-0 z-100 flex items-center justify-center p-4">
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+                onClick={() => setDeleteModalOpen(false)}
+              />
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10 overflow-hidden"
+              >
+                <div className="flex flex-col items-center text-center space-y-4">
+                  <div className="w-12 h-12 bg-red-50 rounded-full flex items-center justify-center text-red-500 mb-2">
+                    <WarningCircleIcon size={32} weight="fill" />
+                  </div>
+                  <h3 className="text-xl font-bold text-neutral-900">
+                    Supprimer le bien
+                  </h3>
+                  <p className="text-neutral-500 text-sm">
+                    Êtes-vous sûr de vouloir supprimer définitivement <br />
+                    <span className="font-bold text-neutral-900">
+                      {listing.title}
+                    </span>{" "}
+                    ? Cette action est irréversible.
+                  </p>
+
+                  <div className="flex gap-3 w-full mt-6">
+                    <Button
+                      variant="ghost"
+                      onClick={() => setDeleteModalOpen(false)}
+                      className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+                      disabled={isDeleting}
+                    >
+                      Annuler
+                    </Button>
+                    <Button
+                      onClick={handleDelete}
+                      className="flex-1 bg-red-600 text-white hover:bg-red-700"
+                      disabled={isDeleting}
+                    >
+                      {isDeleting ? "Suppression..." : "Supprimer"}
+                    </Button>
+                  </div>
+                </div>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>
+      </Portal>
       <Portal>
         <AnimatePresence>
           {deleteModalOpen && (
@@ -386,12 +621,40 @@ export default function ListingDetailPage() {
                 </span>
               )}
             </div>
-            <h1 className="text-2xl font-bold text-neutral-900">
-              {listing.title}
-            </h1>
+            {isEditing ? (
+              <input
+                type="text"
+                value={editForm.title}
+                onChange={(e) => handleEditChange("title", e.target.value)}
+                className="text-2xl font-bold text-neutral-900 bg-neutral-50 border border-neutral-200 rounded-lg px-2 py-1 w-full"
+              />
+            ) : (
+              <h1 className="text-2xl font-bold text-neutral-900">
+                {listing.title}
+              </h1>
+            )}
             <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium">
               <MapPinIcon size={14} weight="bold" />
-              <span>{listing.location}</span>
+              {isEditing ? (
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={editForm.quartier}
+                    onChange={(e) => handleEditChange("quartier", e.target.value)}
+                    placeholder="Quartier"
+                    className="bg-neutral-50 border border-neutral-200 rounded px-1"
+                  />
+                  <input
+                    type="text"
+                    value={editForm.city}
+                    onChange={(e) => handleEditChange("city", e.target.value)}
+                    placeholder="Ville"
+                    className="bg-neutral-50 border border-neutral-200 rounded px-1"
+                  />
+                </div>
+              ) : (
+                <span>{listing.location}</span>
+              )}
               {listing.propertyType && (
                 <>
                   <span className="text-neutral-300">•</span>
@@ -404,6 +667,35 @@ export default function ListingDetailPage() {
           </div>
         </div>
         <div className="flex gap-3 items-center">
+          {isStaffOrFounder && (
+            <>
+              {isEditing ? (
+                <div className="flex gap-2">
+                  <Button
+                    variant="ghost"
+                    className="text-neutral-500 hover:bg-neutral-50 text-xs font-bold uppercase tracking-wider"
+                    onClick={cancelEditing}
+                  >
+                    Annuler
+                  </Button>
+                  <Button
+                    className="bg-primary text-white text-xs font-bold uppercase tracking-wider"
+                    onClick={handleSaveClick}
+                  >
+                    Enregistrer
+                  </Button>
+                </div>
+              ) : (
+                <Button
+                  variant="ghost"
+                  className="text-primary hover:bg-orange-50 text-xs font-bold uppercase tracking-wider"
+                  onClick={startEditing}
+                >
+                  Modifier
+                </Button>
+              )}
+            </>
+          )}
           <Button
             variant="ghost"
             className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider" onClick={() => setDeleteModalOpen(true)}
@@ -494,44 +786,23 @@ export default function ListingDetailPage() {
           </section>
 
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-8">
-            <div className="flex items-center justify-between">
-              <h3 className="text-xl font-bold text-neutral-900">
-                Description & Caractéristiques
-              </h3>
-              <div className="flex items-center gap-4">
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                    Vues
-                  </span>
-                  <span className="text-sm font-black text-neutral-900">
-                    {listing.views || 0}
-                  </span>
-                </div>
-                <div className="flex flex-col items-center">
-                  <span className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                    Favoris
-                  </span>
-                  <span className="text-sm font-black text-neutral-900">
-                    {listing.favorites || 0}
-                  </span>
-                </div>
-              </div>
-            </div>
-
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Chambres", value: listing.bedrooms, icon: BedIcon },
+                { label: "Chambres", value: listing.bedrooms, icon: BedIcon, key: "bedrooms" },
                 {
                   label: "Salles de bain",
                   value: listing.bathrooms,
                   icon: BathtubIcon,
+                  key: "bathrooms",
                 },
                 {
                   label: "Superficie",
-                  value: `${listing.area} m²`,
+                  value: listing.area,
                   icon: SquaresFourIcon,
+                  key: "area",
+                  suffix: " m²",
                 },
-                { label: "Parking", value: listing.parking, icon: CarIcon },
+                { label: "Parking", value: listing.parking, icon: CarIcon, key: "parking" },
               ].map((item, idx) => (
                 <div
                   key={idx}
@@ -546,18 +817,35 @@ export default function ListingDetailPage() {
                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-wider">
                       {item.label}
                     </p>
-                    <p className="text-sm font-black text-neutral-900">
-                      {item.value || "-"}
-                    </p>
+                    {isEditing ? (
+                      <input
+                        type="text"
+                        value={editForm[item.key as keyof Property] as string}
+                        onChange={(e) => handleEditChange(item.key as keyof Property, e.target.value)}
+                        className="text-sm font-black text-neutral-900 bg-white border border-neutral-200 rounded px-1 w-full"
+                      />
+                    ) : (
+                      <p className="text-sm font-black text-neutral-900">
+                        {item.value || "-"}{item.suffix || ""}
+                      </p>
+                    )}
                   </div>
                 </div>
               ))}
             </div>
 
             <div className="prose prose-neutral max-w-none">
-              <p className="text-neutral-600 leading-relaxed whitespace-pre-wrap">
-                {listing.description}
-              </p>
+              {isEditing ? (
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => handleEditChange("description", e.target.value)}
+                  className="w-full h-40 p-4 text-neutral-600 leading-relaxed bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                />
+              ) : (
+                <p className="text-neutral-600 leading-relaxed whitespace-pre-wrap">
+                  {listing.description}
+                </p>
+              )}
             </div>
 
             {listing.amenities && listing.amenities.length > 0 && (
@@ -592,12 +880,26 @@ export default function ListingDetailPage() {
                 Prix du loyer
               </p>
             </div>
-            <p className="text-3xl font-black text-neutral-900 tracking-tight">
-              {listing.price.toLocaleString()}{" "}
-              <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">
-                FCFA / mois
-              </span>
-            </p>
+            {isEditing ? (
+              <div className="flex items-baseline gap-2">
+                <input
+                  type="number"
+                  value={editForm.price}
+                  onChange={(e) => handleEditChange("price", e.target.value)}
+                  className="text-3xl font-black text-neutral-900 tracking-tight bg-neutral-50 border border-neutral-200 rounded-lg px-2 py-1 w-40"
+                />
+                <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider">
+                  FCFA / mois
+                </span>
+              </div>
+            ) : (
+              <p className="text-3xl font-black text-neutral-900 tracking-tight">
+                {listing.price.toLocaleString()}{" "}
+                <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">
+                  FCFA / mois
+                </span>
+              </p>
+            )}
           </section>
 
           {/* Agent Card */}

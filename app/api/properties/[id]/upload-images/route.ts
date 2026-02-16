@@ -2,6 +2,7 @@ import { cors, corsOptions } from "@/lib/api-helpers";
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 // Increase body size limit for image uploads (Next.js App Router)
 export const maxDuration = 60; // 60 seconds
@@ -164,6 +165,15 @@ export async function POST(
       console.error("Error creating image records:", imagesError);
       // Still return success with URLs even if DB insert fails
     }
+
+    await captureServerEvent(clerkUserId, "property_images_uploaded", {
+      property_id: propertyId,
+      image_count: uploadedImages.length,
+      images_linked: imageRecords.length,
+      formats: images
+        .map((image: { ext?: string }) => (image.ext || "jpg").toLowerCase())
+        .join(","),
+    });
 
     // 7. Return success
     return cors(

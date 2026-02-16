@@ -45,25 +45,23 @@ export function AdminNavbar() {
 
   const navItems = useMemo(() => {
     const baseItems = [
-      { label: "Agents", icon: UsersIcon, href: "/admin/agents" },
-      { label: "Annonces", icon: BuildingsIcon, href: "/admin/annonces" },      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytiques" },
+      { label: "Agents", icon: UsersIcon, href: "/admin/agents", id: "admin-nav-agents" },
+      { label: "Annonces", icon: BuildingsIcon, href: "/admin/annonces", id: "admin-nav-annonces" },
+      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytiques", id: "admin-nav-analytiques" },
     ];
 
-    // Add Finances for founder only
     if (isFounder) {
       baseItems.push({
         label: "Finances",
         icon: ReceiptIcon,
         href: "/admin/finances",
+        id: "admin-nav-finances",
       });
-    }
-
-    // Only add Settings for founder
-    if (isFounder) {
       baseItems.push({
         label: "Paramètres",
         icon: GearIcon,
         href: "/admin/parametres",
+        id: "admin-nav-parametres",
       });
     }
 
@@ -86,7 +84,6 @@ export function AdminNavbar() {
           isScrolled ? "h-16" : "h-20"
         )}
       >
-        {/* Logo */}
         <Link href="/" className="flex items-center shrink-0 group">
           <div className="bg-primary/10 p-2 rounded-2xl mr-3 group-hover:scale-110 transition-transform duration-300">
             <Image
@@ -102,7 +99,6 @@ export function AdminNavbar() {
           </span>
         </Link>
 
-        {/* Center Navigation */}
         <div className="hidden lg:flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30">
           <AnimatedBackground
             defaultValue={pathname}
@@ -122,7 +118,7 @@ export function AdminNavbar() {
                 <Link
                   key={item.label}
                   href={item.href}
-                  data-id={item.href}
+                  data-id={item.id}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
                     isActive
@@ -138,7 +134,6 @@ export function AdminNavbar() {
           </AnimatedBackground>
         </div>
 
-        {/* Right Actions */}
         <div className="flex items-center gap-2 sm:gap-4 shrink-0">
           {!isLoaded ? (
             <div className="w-10 h-10 rounded-full bg-neutral-100 animate-pulse" />
@@ -164,7 +159,6 @@ export function AdminNavbar() {
             </div>
           )}
 
-          {/* Mobile Menu Toggle */}
           <button
             className="lg:hidden p-2 text-neutral-600 hover:text-primary bg-neutral-100 rounded-full transition-all ml-1"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
@@ -178,7 +172,6 @@ export function AdminNavbar() {
         </div>
       </div>
 
-      {/* Mobile Menu */}
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
@@ -196,6 +189,7 @@ export function AdminNavbar() {
                 <Link
                   key={item.label}
                   href={item.href}
+                  data-id={item.id}
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",

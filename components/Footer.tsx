@@ -81,7 +81,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/publier-bien"
+                  href="/annonces/creer"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Publier une annonce
@@ -89,7 +89,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/contact"
+                  href="/nous-contacter"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Nous contacter
@@ -120,7 +120,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/contact"
+                  href="/nous-contacter"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Contact
@@ -157,7 +157,7 @@ export function Footer() {
             <Link href="/confidentialite" className="hover:text-neutral-600">
               Confidentialité
             </Link>
-            <Link href="/conditions" className="hover:text-neutral-600">
+            <Link href="/conditions-utilisation" className="hover:text-neutral-600">
               Conditions
             </Link>
             <Link href="/plan-du-site" className="hover:text-neutral-600">

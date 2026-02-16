@@ -26,6 +26,8 @@ import {
 } from "@/components/ui/expandable-screen";
 import { useAuth } from "@clerk/nextjs";
 import Image from "next/image";
+import { TIERS_CONFIG } from "@/lib/constants";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // Helper component to access expand/collapse context
 function PropertyFormFooter({ isSubmitting }: { isSubmitting: boolean }) {
@@ -69,6 +71,25 @@ export default function AdminListingsPage() {
 
   // Form state for new property
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  
+  // Tier & Payment state
+  const [selectedTier, setSelectedTier] = useState<string | null>(null);
+  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
+  const [paymentChoice, setPaymentChoice] = useState<"free" | "pay">("free");
+  const [addonsList, setAddonsList] = useState<any[]>([]);
+
+  useEffect(() => {
+    // Load addons
+    fetch("/api/pricing")
+      .then(res => res.json())
+      .then(data => {
+        if (data.addons) setAddonsList(data.addons);
+      })
+      .catch(err => console.error("Failed to load addons", err));
+  }, []);
+
   const [formData, setFormData] = useState({
     titre: "",
     type: "house",
@@ -96,6 +117,38 @@ export default function AdminListingsPage() {
     }
     loadProperties();
   }, []);
+
+  // Restore state from session if returning from payment
+  useEffect(() => {
+    const paymentSuccess = searchParams.get("payment_success");
+    const depositId = searchParams.get("depositId");
+    
+    if (paymentSuccess === "true" && depositId) {
+      const savedData = sessionStorage.getItem("pendingAdminListing");
+      if (savedData) {
+        try {
+          const { formData, selectedFiles: savedFiles, selectedTier, selectedAddOns } = JSON.parse(savedData);
+          setFormData(formData);
+          setSelectedTier(selectedTier);
+          setSelectedAddOns(selectedAddOns);
+          // Note: Files cannot be restored easily from JSON. 
+          // We might need to ask user to re-upload images or handle images differently.
+          // For now, let's alert the user.
+          alert("Paiement réussi ! Veuillez ré-uploader les images et cliquer sur Publier pour finaliser.");
+          
+          // Clear session
+          sessionStorage.removeItem("pendingAdminListing");
+          
+          // Open the modal automatically? 
+          // We can't easily trigger the ExpandableScreen from here without ref or context access
+          // But the user can click "Nouveau Bien" and the form will be pre-filled due to state update.
+        } catch (e) {
+          console.error("Failed to restore form data", e);
+        }
+      }
+    }
+  }, [searchParams]);
+
 
   const filteredListings = useMemo(() => {
     return properties.filter((listing) => {
@@ -179,7 +232,70 @@ export default function AdminListingsPage() {
       const token = await getToken();
       if (!token) throw new Error("No token found");
 
-      // 1. Create the property
+      if (!selectedTier) {
+        alert("Veuillez sélectionner un pack");
+        setIsSubmitting(false);
+        return;
+      }
+
+      // Handle Payment Flow
+      if (paymentChoice === "pay") {
+        // Calculate amount
+        const tier = TIERS_CONFIG[selectedTier as keyof typeof TIERS_CONFIG];
+        const baseFee = tier.base_fee;
+        const rent = parseInt(formData.prixMensuel) || 0;
+        const commission = rent * 0.05;
+        
+        // Add-ons total
+        const addonsTotal = selectedAddOns.reduce((sum, id) => {
+          const addon = addonsList.find(a => a.id === id);
+          return sum + (addon?.price || 0);
+        }, 0);
+        
+        const totalAmount = baseFee + commission + addonsTotal;
+
+        // Save state
+        sessionStorage.setItem("pendingAdminListing", JSON.stringify({
+          formData,
+          selectedTier,
+          selectedAddOns,
+          // We can't save files, so we skip them. 
+          // Ideally we'd upload them first to a temp storage.
+        }));
+
+        // Call payment page API
+        const paymentRes = await fetch("/api/payments/paymentpage", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            amount: totalAmount,
+            description: `Publication ${formData.titre}`,
+            transactionType: "listing_submission",
+            tier_id: selectedTier,
+            add_ons: selectedAddOns,
+            metadata: {
+              tier_id: selectedTier,
+              add_ons: selectedAddOns,
+              commission
+            }
+          }),
+        });
+
+        const paymentData = await paymentRes.json();
+        if (!paymentRes.ok) throw new Error(paymentData.error || "Payment init failed");
+
+        if (paymentData.redirectUrl) {
+          window.location.href = paymentData.redirectUrl;
+          return; // Stop execution here
+        }
+      }
+
+      // 1. Create the property (Free or Finalizing Paid)
+      const depositId = searchParams.get("depositId"); // If returning from payment
+      
       const response = await fetch("/api/properties", {
         method: "POST",
         headers: {
@@ -197,10 +313,13 @@ export default function AdminListingsPage() {
             cautionMois: Number(formData.cautionMois),
             equipements: [],
             interdictions: [],
-            add_ons: [],
+            tier_id: selectedTier,
+            add_ons: selectedAddOns,
+            payment_id: depositId || null, // Pass depositId if available
           },
         }),
       });
+
 
       const result = await response.json();
       if (!result.success) {
@@ -569,6 +688,112 @@ export default function AdminListingsPage() {
                           </div>
                         )}
                       </div>
+                    </div>
+
+                    
+                    {/* Tier & Payment Section */}
+                    <div className="space-y-6 pt-8 border-t border-neutral-100">
+                      <h3 className="text-2xl font-bold text-neutral-900">Offre & Paiement</h3>
+                      
+                      {/* Payment Choice */}
+                      <div className="flex bg-neutral-100 p-1 rounded-xl max-w-md">
+                        <button
+                          type="button"
+                          onClick={() => setPaymentChoice("free")}
+                          className={`flex-1 py-3 rounded-lg font-bold transition-all ${
+                            paymentChoice === "free"
+                              ? "bg-white text-neutral-900 shadow-sm"
+                              : "text-neutral-500 hover:text-neutral-700"
+                          }`}
+                        >
+                          Gratuit (Staff)
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => setPaymentChoice("pay")}
+                          className={`flex-1 py-3 rounded-lg font-bold transition-all ${
+                            paymentChoice === "pay"
+                              ? "bg-white text-neutral-900 shadow-sm"
+                              : "text-neutral-500 hover:text-neutral-700"
+                          }`}
+                        >
+                          Payer pour client
+                        </button>
+                      </div>
+
+                      {/* Tiers */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        {Object.entries(TIERS_CONFIG).map(([key, tier]: [string, any]) => (
+                          <div
+                            key={key}
+                            onClick={() => setSelectedTier(key)}
+                            className={`border-2 rounded-2xl p-5 cursor-pointer transition-all ${
+                              selectedTier === key
+                                ? "border-primary bg-primary/5"
+                                : "border-neutral-100 hover:border-neutral-200"
+                            }`}
+                          >
+                            <h4 className="font-bold text-lg capitalize mb-2">{key}</h4>
+                            <div className="text-2xl font-bold mb-4">
+                              {paymentChoice === "free" ? "0 F" : `${tier.base_fee.toLocaleString()} F`}
+                            </div>
+                            <ul className="space-y-2 text-sm text-neutral-600">
+                              <li className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
+                                {tier.photo_limit} photos
+                              </li>
+                              <li className="flex items-center gap-2">
+                                <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
+                                {tier.slot_limit} candidats
+                              </li>
+                              {tier.video_included && (
+                                <li className="flex items-center gap-2">
+                                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
+                                  Vidéo incluse
+                                </li>
+                              )}
+                            </ul>
+                          </div>
+                        ))}
+                      </div>
+
+                      {/* Add-ons */}
+                      {addonsList.length > 0 && (
+                        <div className="space-y-3">
+                          <h4 className="font-bold text-lg">Options supplémentaires</h4>
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                            {addonsList.map((addon) => (
+                              <label
+                                key={addon.id}
+                                className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
+                                  selectedAddOns.includes(addon.id)
+                                    ? "border-primary bg-primary/5"
+                                    : "border-neutral-100 hover:bg-neutral-50"
+                                }`}
+                              >
+                                <input
+                                  type="checkbox"
+                                  className="w-5 h-5 rounded border-neutral-300 text-primary focus:ring-primary"
+                                  checked={selectedAddOns.includes(addon.id)}
+                                  onChange={(e) => {
+                                    if (e.target.checked) {
+                                      setSelectedAddOns([...selectedAddOns, addon.id]);
+                                    } else {
+                                      setSelectedAddOns(selectedAddOns.filter((id) => id !== addon.id));
+                                    }
+                                  }}
+                                />
+                                <div className="ml-3 flex-1">
+                                  <div className="font-bold">{addon.name}</div>
+                                  <div className="text-sm text-neutral-500">
+                                    {paymentChoice === "free" ? "Gratuit" : `+${addon.price.toLocaleString()} F`}
+                                  </div>
+                                </div>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      )}
                     </div>
 
                     <PropertyFormFooter isSubmitting={isSubmitting} />

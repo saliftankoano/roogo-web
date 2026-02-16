@@ -427,3 +427,27 @@ export async function deleteProperty(id: string): Promise<boolean> {
     return false;
   }
 }
+
+export async function updateProperty(
+  id: string,
+  updates: Partial<Property>
+): Promise<boolean> {
+  try {
+    const response = await fetch(`/api/properties/${id}`, {
+      method: "PATCH",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(updates),
+    });
+
+    if (!response.ok) {
+      console.error("Error updating property:", await response.text());
+      return false;
+    }
+    return true;
+  } catch (error) {
+    console.error("Error updating property:", error);
+    return false;
+  }
+}

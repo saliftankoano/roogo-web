@@ -53,8 +53,7 @@ const nextConfig: NextConfig = {
       },
       {
         source: '/privacy',
-        destination: '/confidentialite',
-        permanent: true,
+        destination: '/confidentialite', permanent: true,
       },
       {
         source: '/terms',
@@ -79,6 +78,21 @@ const nextConfig: NextConfig = {
       {
         source: '/staff/join',
         destination: '/personnel/rejoindre',
+        permanent: true,
+      },
+      {
+        source: '/listings/create',
+        destination: '/annonces/creer',
+        permanent: true,
+      },
+      {
+        source: '/contact',
+        destination: '/nous-contacter',
+        permanent: true,
+      },
+      {
+        source: '/conditions',
+        destination: '/conditions-utilisation',
         permanent: true,
       },
     ];

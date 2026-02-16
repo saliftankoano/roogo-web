@@ -1,6 +1,7 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { createUserInSupabase, type ClerkUserData } from "../../../../../../lib/user-sync";
+import { captureServerEvent, identifyServerUser } from "@/lib/posthog-server";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
@@ -50,6 +51,16 @@ export async function POST(req: Request) {
 
     const body = await req.json().catch(() => ({}) as unknown);
 
+    const currentUser = await clerk.users.getUser(userId);
+    const currentPublicMetadata =
+      typeof currentUser.publicMetadata === "object" && currentUser.publicMetadata !== null
+        ? (currentUser.publicMetadata as Record<string, unknown>)
+        : {};
+    const previousUserType =
+      typeof currentPublicMetadata.userType === "string"
+        ? currentPublicMetadata.userType
+        : "renter";
+
     // Support both direct payload and wrapped in publicMetadata/privateMetadata
     const input = (body.publicMetadata ||
       body.privateMetadata ||
@@ -90,19 +101,19 @@ export async function POST(req: Request) {
     const publicMetadata: Record<string, unknown> = {};
     const privateMetadata: Record<string, unknown> = {};
 
-    // Public fields
+    // PUBLIC: Only userType (minimal, used for access control)
     if (userType) publicMetadata.userType = userType;
-    if (companyName) publicMetadata.companyName = companyName;
-    if (professionalLink) publicMetadata.professionalLink = professionalLink;
-    if (facebookUrl) publicMetadata.facebookUrl = facebookUrl;
-    if (location) publicMetadata.location = location;
-    if (hasCompletedOnboarding !== undefined)
-      publicMetadata.hasCompletedOnboarding = hasCompletedOnboarding;
-    if (hasCompletedWebOnboarding !== undefined)
-      publicMetadata.hasCompletedWebOnboarding = hasCompletedWebOnboarding;
-    if (onboardingData) publicMetadata.onboardingData = onboardingData;
 
-    // Private fields
+    // PRIVATE: Everything else (secure, not publicly visible)
+    if (hasCompletedOnboarding !== undefined)
+      privateMetadata.hasCompletedOnboarding = hasCompletedOnboarding;
+    if (hasCompletedWebOnboarding !== undefined)
+      privateMetadata.hasCompletedWebOnboarding = hasCompletedWebOnboarding;
+    if (companyName) privateMetadata.companyName = companyName;
+    if (professionalLink) privateMetadata.professionalLink = professionalLink;
+    if (facebookUrl) privateMetadata.facebookUrl = facebookUrl;
+    if (location) privateMetadata.location = location;
+    if (onboardingData) privateMetadata.onboardingData = onboardingData;
     if (sex) privateMetadata.sex = sex;
     if (dateOfBirth) privateMetadata.dateOfBirth = dateOfBirth;
 
@@ -111,8 +122,62 @@ export async function POST(req: Request) {
       privateMetadata,
     });
 
+    const selectedUserType =
+      typeof userType === "string" ? userType : previousUserType;
+    const primaryEmail = currentUser.emailAddresses[0]?.emailAddress ?? null;
+
+    await identifyServerUser(userId, {
+      email: primaryEmail,
+      userType: selectedUserType,
+      location: typeof location === "string" ? location : null,
+      hasCompletedOnboarding:
+        typeof hasCompletedOnboarding === "boolean"
+          ? hasCompletedOnboarding
+          : null,
+      hasCompletedWebOnboarding:
+        typeof hasCompletedWebOnboarding === "boolean"
+          ? hasCompletedWebOnboarding
+          : null,
+    });
+
+    if (typeof userType === "string" && userType !== previousUserType) {
+      await captureServerEvent(userId, "user_type_selected", {
+        userType,
+        previous_type: previousUserType,
+      });
+    }
+
+    const onboardingPayload =
+      typeof onboardingData === "object" && onboardingData !== null
+        ? (onboardingData as Record<string, unknown>)
+        : {};
+
+    if (hasCompletedWebOnboarding === true || hasCompletedOnboarding === true) {
+      await captureServerEvent(userId, "onboarding_completed", {
+        userType: selectedUserType,
+        location:
+          (typeof onboardingPayload.location === "string"
+            ? onboardingPayload.location
+            : typeof location === "string"
+              ? location
+              : null),
+        budget:
+          typeof onboardingPayload.budget === "number"
+            ? onboardingPayload.budget
+            : null,
+        service_areas: Array.isArray(onboardingPayload.serviceAreas)
+          ? onboardingPayload.serviceAreas
+              .filter((item): item is string => typeof item === "string")
+              .join(",")
+          : null,
+        portfolio_size:
+          typeof onboardingPayload.portfolioSize === "number"
+            ? onboardingPayload.portfolioSize
+            : null,
+      });
+    }
+
     // Sync updated user to Supabase directly (don't rely solely on webhook)
-    let supabaseSynced = false;
     try {
       const updatedUser = await clerk.users.getUser(userId);
       const userData: ClerkUserData = {
@@ -131,7 +196,6 @@ export async function POST(req: Request) {
         unsafe_metadata: updatedUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
       };
       await createUserInSupabase(userData);
-      supabaseSynced = true;
     } catch (syncError) {
       console.error("Supabase sync after metadata update failed:", syncError);
     }

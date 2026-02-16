@@ -8,6 +8,7 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { PropertyCard } from "../../components/PropertyCard";
 import { Property, fetchProperties } from "../../lib/data";
 import { motion, AnimatePresence } from "framer-motion";
+import posthog from "posthog-js";
 import {
   DotsThreeVerticalIcon,
   CaretDownIcon,
@@ -194,6 +195,25 @@ function PropertiesPageContent() {
     sortBy,
   ]);
 
+  useEffect(() => {
+    if (loading) {
+      return;
+    }
+
+    posthog.capture("property_search_performed", {
+      filters: {
+        search_query: searchQuery || null,
+        location: locationFilter,
+        property_type: typeFilter,
+        category: categoryFilter,
+        sort_by: sortBy,
+      },
+      result_count: filteredProperties.length,
+    });
+    // We only want to capture when filters materially change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchQuery, locationFilter, typeFilter, categoryFilter, sortBy, loading]);
+
   // Extract unique values for filters
   const locations = useMemo(
     () =>
@@ -233,6 +253,7 @@ function PropertiesPageContent() {
         isOpen={showPropertyModal}
         onClose={handleClosePropertyModal}
         property={selectedProperty}
+        viewerType={typeof user?.publicMetadata?.userType === "string" ? user.publicMetadata.userType : "renter"}
       />
 
       <main className="max-w-7xl mx-auto px-6 pt-40 pb-20 space-y-8">

@@ -2,6 +2,8 @@ import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient } from "@/lib/user-sync";
+import { notifyUser } from "@/lib/push-notifications";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -30,10 +32,12 @@ export async function POST(req: Request) {
       );
     }
 
+    let clerkUserId = "";
     try {
-      await verifyToken(token, {
+      const { sub } = await verifyToken(token, {
         secretKey: process.env.CLERK_SECRET_KEY!,
       });
+      clerkUserId = sub ?? "";
     } catch (error) {
       log("auth-failed", { error: String(error) });
       return cors(
@@ -220,15 +224,34 @@ export async function POST(req: Request) {
 
       // Handle post-payment logic if it just became completed
       if (dbStatus === "completed" && transaction.status !== "completed") {
+        await captureServerEvent(transaction.user_id || clerkUserId || depositId, "payment_completed", {
+          deposit_id: depositId,
+          amount: transaction.amount || 0,
+          currency: transaction.currency || "XOF",
+          transaction_type: transaction.type || "unknown",
+          provider: transaction.provider || "unknown",
+          property_id: transaction.property_id || null,
+          source: "status_polling",
+        });
+
         log("post-payment-logic", { 
           depositId, 
           type: transaction.type, 
           propertyId: transaction.property_id 
         });
 
+        let notificationTitle = "Paiement confirmé";
+        let notificationBody = "Votre paiement a été traité avec succès";
+
         if (transaction.type === "boost" && transaction.property_id) {
            const expiresAt = new Date();
            expiresAt.setDate(expiresAt.getDate() + 7);
+
+           const { data: property } = await supabase
+             .from("properties")
+             .select("titre")
+             .eq("id", transaction.property_id)
+             .single();
 
            await supabase
              .from("properties")
@@ -237,12 +260,78 @@ export async function POST(req: Request) {
                boost_expires_at: expiresAt.toISOString(),
              })
              .eq("id", transaction.property_id);
+
+           if (property?.titre) {
+             notificationTitle = "Boost activé";
+             notificationBody = `"${property.titre}" est maintenant en avant pour 7 jours`;
+           }
         } else if (transaction.type === "property_lock" && transaction.property_id) {
+           const { data: property } = await supabase
+             .from("properties")
+             .select("titre")
+             .eq("id", transaction.property_id)
+             .single();
+
            await supabase
              .from("properties")
              .update({ status: "locked" })
              .eq("id", transaction.property_id);
+
+           if (property?.titre) {
+             notificationTitle = "Bien réservé avec succès";
+             notificationBody = `Votre réservation pour "${property.titre}" est confirmée`;
+           }
+        } else if (transaction.type === "listing_submission" && transaction.property_id) {
+           await supabase
+             .from("properties")
+             .update({ 
+               transaction_id: transaction.id,
+               payment_id: transaction.deposit_id
+             })
+             .eq("id", transaction.property_id);
+
+           notificationTitle = "Annonce publiée";
+           notificationBody = "Votre annonce est maintenant en ligne";
         }
+
+        // Send payment confirmation notification
+        if (transaction.user_id) {
+          log("sending-payment-notification", { 
+            userId: transaction.user_id, 
+            depositId,
+            type: transaction.type 
+          });
+          
+          await notifyUser(
+            transaction.user_id,
+            "payments",
+            notificationTitle,
+            notificationBody,
+            {
+              type: "payment_completed",
+              transactionId: transaction.id,
+              depositId: depositId,
+              transactionType: transaction.type,
+              amount: transaction.amount,
+            }
+          );
+        }
+      }
+
+      if (dbStatus === "failed" && transaction.status !== "failed") {
+        await captureServerEvent(transaction.user_id || clerkUserId || depositId, "payment_failed", {
+          deposit_id: depositId,
+          amount: transaction.amount || 0,
+          currency: transaction.currency || "XOF",
+          transaction_type: transaction.type || "unknown",
+          provider: transaction.provider || "unknown",
+          property_id: transaction.property_id || null,
+          failure_reason:
+            statusData?.failureReason?.failureMessage ||
+            statusData?.failureReason ||
+            "Payment failed",
+          source: "status_polling",
+        });
       }
     }
 

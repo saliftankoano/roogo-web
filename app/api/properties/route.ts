@@ -5,6 +5,7 @@ import { convertIdsToLabels } from "@/lib/interdictions";
 import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
 import { TIERS_CONFIG, BOOST_DURATION_DAYS } from "@/lib/constants";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -65,11 +66,13 @@ export async function POST(req: Request) {
     }
     console.log("Supabase user found:", user.id);
 
-    // 4. Check if user is an owner, staff, or founder
+    // 4. Check if user is an owner, agent, staff, or founder
     const isStaffOrFounder = user.user_type === "staff" || user.user_type === "founder";
-    if (user.user_type !== "owner" && !isStaffOrFounder) {
-      console.error("User is not an owner, staff, or founder:", user.user_type);
-      return errorResponse("Only property owners, staff, or founders can create listings", 403, req);
+    const canCreateListing = ["owner", "agent", "staff", "founder"].includes(user.user_type);
+
+    if (!canCreateListing) {
+      console.error("User unauthorized to create listing:", user.user_type);
+      return errorResponse("Only owners, agents, staff, or founders can create listings", 403, req);
     }
 
     // 5. Parse and validate request body
@@ -89,11 +92,16 @@ export async function POST(req: Request) {
     const interdictionsLabels = convertIdsToLabels(listingData.interdictions);
 
     // 8. Use TIERS_CONFIG from constants
-    // Staff members can list for free - skip tier pricing
+    
+    // Check if staff is paying (has payment_id)
+    const isStaffPaying = isStaffOrFounder && listingData.payment_id;
+    const isFreeStaffListing = isStaffOrFounder && !listingData.payment_id;
+
     const selectedTier = listingData.tier_id
       ? TIERS_CONFIG[listingData.tier_id as keyof typeof TIERS_CONFIG]
       : null;
-    const tierPrice = isStaffOrFounder 
+    
+    const tierPrice = isFreeStaffListing 
       ? 0 
       : selectedTier
         ? selectedTier.base_fee + listingData.prixMensuel * 0.05
@@ -108,30 +116,30 @@ export async function POST(req: Request) {
     }
 
     // Calculate slot limit with add-ons
-    // Staff listings get generous defaults
-    let slotLimit = isStaffOrFounder ? 100 : (selectedTier?.slot_limit || null);
+    // Staff free listings get generous defaults, otherwise use tier limits
+    let slotLimit = selectedTier?.slot_limit || (isFreeStaffListing ? 100 : null);
     if (slotLimit !== null && listingData.add_ons?.includes("extra_slots")) {
       slotLimit += 25;
     }
 
     // Calculate photo limit with add-ons
-    let photoLimit = isStaffOrFounder ? 20 : (selectedTier?.photo_limit || null);
+    let photoLimit = selectedTier?.photo_limit || (isFreeStaffListing ? 20 : null);
     if (photoLimit !== null && listingData.add_ons?.includes("extra_photos")) {
       photoLimit += 5;
     }
 
     // Calculate open house limit with add-ons
-    let openHouseLimit = isStaffOrFounder ? 5 : (selectedTier?.open_house_limit || null);
+    let openHouseLimit = selectedTier?.open_house_limit || (isFreeStaffListing ? 5 : null);
     if (openHouseLimit !== null && listingData.add_ons?.includes("open_house")) {
       openHouseLimit += 1;
     }
 
-    // Staff listings are automatically verified (en_ligne), owner listings need approval
+    // Staff listings are automatically verified (en_ligne), owner/agent listings need approval
     const propertyStatus = isStaffOrFounder ? "en_ligne" : "en_attente";
 
     // Generate staff transaction ID if needed
-    const staffDepositId = isStaffOrFounder 
-      ? `STAFF-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
+    const staffDepositId = isFreeStaffListing
+      ? `STAFF-FREE-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       : null;
 
     const propertyData = {
@@ -155,14 +163,14 @@ export async function POST(req: Request) {
       interdictions: interdictionsLabels,
       period: "month",
       // Tier information
-      tier_id: isStaffOrFounder ? null : (listingData.tier_id || null),
+      tier_id: listingData.tier_id || null,
       tier_price: tierPrice,
       slot_limit: slotLimit,
       open_house_limit: openHouseLimit,
       photo_limit: photoLimit,
-      video_included: selectedTier?.video_included || listingData.add_ons?.includes("video") || isStaffOrFounder,
-      has_premium_badge: isStaffOrFounder ? true : (selectedTier?.has_badge || false),
-      payment_id: isStaffOrFounder ? staffDepositId : (listingData.payment_id || null),
+      video_included: selectedTier?.video_included || listingData.add_ons?.includes("video") || isFreeStaffListing,
+      has_premium_badge: isStaffPaying ? (selectedTier?.has_badge || false) : (isFreeStaffListing ? true : (selectedTier?.has_badge || false)),
+      payment_id: listingData.payment_id || staffDepositId,
       // Boost information
       is_boosted: isBoosted,
       boost_expires_at: boostExpiresAt,
@@ -193,8 +201,8 @@ export async function POST(req: Request) {
     console.log("Property created successfully:", propertyId, isStaffOrFounder ? "(Verified)" : "(Pending)");
 
     // 10. Create transaction record
-    if (isStaffOrFounder && staffDepositId) {
-      // Create a $0 transaction record for staff listings (audit trail)
+    if (isFreeStaffListing && staffDepositId) {
+      // Create a $0 transaction record for free staff listings (audit trail)
       console.log("Creating staff listing transaction record...");
       const staffTransaction = {
         deposit_id: staffDepositId,
@@ -284,6 +292,21 @@ export async function POST(req: Request) {
         }
       }
     }
+
+    await captureServerEvent(user.id, "property_listing_created", {
+      property_id: propertyId,
+      property_type: listingData.type || null,
+      price: listingData.prixMensuel || 0,
+      city: listingData.ville || null,
+      quartier: listingData.quartier || null,
+      tier_id: listingData.tier_id || null,
+      status: propertyStatus,
+      creator_type: user.user_type,
+      is_boosted: isBoosted,
+      photo_limit: photoLimit || 0,
+      slot_limit: slotLimit || 0,
+      open_house_limit: openHouseLimit || 0,
+    });
 
     // 12. Return success response
     return cors(

@@ -10,6 +10,7 @@ import { cors, corsOptions, safeError, errorResponse } from "@/lib/api-helpers";
 import { paymentInitiateSchema } from "@/lib/validations";
 import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { BOOST_DURATION_DAYS } from "@/lib/constants";
+import { captureServerEvent } from "@/lib/posthog-server";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -213,6 +214,16 @@ export async function POST(req: Request) {
 
     log("transaction-created", { depositId, provider: payerClientCode, amount });
 
+    await captureServerEvent(user.id, "payment_initiated", {
+      deposit_id: depositId,
+      amount,
+      currency,
+      transaction_type: transactionType,
+      provider: payerClientCode,
+      property_id: propertyId || null,
+      has_otp: !!preAuthorisationCode,
+    });
+
     // 6. Call PawaPay API
     const pawaUrlBase = process.env.PAWAPAY_URL;
     if (!pawaUrlBase) {
@@ -326,6 +337,16 @@ export async function POST(req: Request) {
         result.error ||
         "Payment initiation failed";
 
+      await captureServerEvent(user.id, "payment_failed", {
+        deposit_id: depositId,
+        amount,
+        currency,
+        transaction_type: transactionType,
+        provider: payerClientCode,
+        property_id: propertyId || null,
+        failure_reason: errorMessage,
+      });
+
       return cors(
         NextResponse.json(
           { error: errorMessage, details: result, failureCode: failureReason?.failureCode },
@@ -347,6 +368,16 @@ export async function POST(req: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("deposit_id", depositId);
+
+      await captureServerEvent(user.id, "payment_completed", {
+        deposit_id: depositId,
+        amount,
+        currency,
+        transaction_type: transactionType,
+        provider: payerClientCode,
+        property_id: propertyId || null,
+        source: "initiate_immediate",
+      });
 
       // Post-payment logic for immediate completion
       if (transactionType === "boost" && propertyId) {

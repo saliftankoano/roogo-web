@@ -31,6 +31,12 @@ export interface ClerkUserData {
   public_metadata?: {
     userType?: string;
     role?: string;
+    hasCompletedOnboarding?: boolean;
+    hasCompletedWebOnboarding?: boolean;
+    onboardingData?: any;
+    companyName?: string;
+    facebookUrl?: string;
+    professionalLink?: string;
   };
   private_metadata?: {
     userType?: string;
@@ -38,11 +44,17 @@ export interface ClerkUserData {
     dateOfBirth?: string;
     companyName?: string;
     facebookUrl?: string;
+    professionalLink?: string;
+    phone?: string;
+    whatsappNumber?: string;
+    serviceAreas?: string[];
+    portfolioSize?: number;
   };
   unsafe_metadata?: {
     userType?: string;
     companyName?: string;
     facebookUrl?: string;
+    professionalLink?: string;
   };
 }
 
@@ -83,7 +95,6 @@ export async function createUserInSupabase(data: ClerkUserData) {
       "renter"; // Default to renter
       
     // Valid types: 'owner', 'agent', 'renter', 'staff', 'founder'
-    // Note: 'admin' has been removed - use 'staff' instead
     const validUserTypes = ["owner", "agent", "renter", "staff", "founder"];
     let userType = rawUserType.toLowerCase();
     
@@ -92,8 +103,27 @@ export async function createUserInSupabase(data: ClerkUserData) {
     
     const supabaseUserType = validUserTypes.includes(userType) ? userType : "renter";
 
-    const companyName = private_metadata?.companyName || unsafe_metadata?.companyName;
-    const facebookUrl = private_metadata?.facebookUrl || unsafe_metadata?.facebookUrl;
+    const companyName = public_metadata?.companyName || private_metadata?.companyName || unsafe_metadata?.companyName;
+    const professionalLink = 
+      public_metadata?.professionalLink || 
+      public_metadata?.facebookUrl || 
+      private_metadata?.professionalLink || 
+      private_metadata?.facebookUrl || 
+      unsafe_metadata?.professionalLink || 
+      unsafe_metadata?.facebookUrl;
+    
+    // Additional onboarding data
+    const onboardingData = public_metadata?.onboardingData || {};
+    const onboardingPhone = onboardingData.phone || private_metadata?.phone;
+    const finalPhone = phone || onboardingPhone;
+
+    // Extract type-specific fields for columns
+    const whatsapp = onboardingData.whatsapp || private_metadata?.whatsappNumber;
+    const preferredCity = onboardingData.location || onboardingData.propertyCity;
+    const budgetMax = onboardingData.budget;
+    const serviceAreas = onboardingData.serviceAreas;
+    const portfolioSize = onboardingData.portfolioSize;
+    const referralSource = onboardingData.referralSource;
 
     // 1. Try to find by clerk_id
     let { data: existingUser } = await supabase
@@ -120,10 +150,17 @@ export async function createUserInSupabase(data: ClerkUserData) {
       email,
       full_name: fullName,
       avatar_url: image_url,
-      phone,
+      phone: finalPhone,
       user_type: supabaseUserType,
       company_name: companyName,
-      facebook_url: facebookUrl,
+      professional_link: professionalLink,
+      whatsapp,
+      preferred_city: preferredCity,
+      budget_max: budgetMax,
+      service_areas: serviceAreas,
+      portfolio_size: portfolioSize,
+      referral_source: referralSource,
+      preferences: onboardingData, // Store everything in JSONB as well
     };
 
     let result;

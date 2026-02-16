@@ -5,6 +5,7 @@ import "./globals.css";
 import { NavHandler } from "../components/NavHandler";
 import JsonLd from "../components/JsonLd";
 import { getOrganizationSchema } from "../lib/schemas";
+import { WebOnboardingTour } from "../components/onboarding/WebOnboardingTour";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -74,6 +75,7 @@ export default function RootLayout({
         >
           <JsonLd schema={getOrganizationSchema()} />
           <NavHandler />
+          <WebOnboardingTour />
           {children}
         </body>
       </html>

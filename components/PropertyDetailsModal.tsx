@@ -24,22 +24,41 @@ import {
 } from "@phosphor-icons/react";
 import Image from "next/image";
 import { Property } from "@/lib/data";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
+import { usePropertyEngagement } from "@/hooks/usePropertyEngagement";
 
 interface PropertyDetailsModalProps {
   isOpen: boolean;
   onClose: () => void;
   property: Property | null;
+  viewerType: string;
 }
 
 export default function PropertyDetailsModal({
   isOpen,
   onClose,
   property,
+  viewerType,
 }: PropertyDetailsModalProps) {
   const [currentImageIndex, setCurrentImageIndex] = useState(0);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [fullscreenImageIndex, setFullscreenImageIndex] = useState(0);
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+
+  const { trackImageView, trackContactClick, trackScrollDepth } =
+    usePropertyEngagement({
+      isOpen,
+      property: property
+        ? {
+            id: property.id,
+            propertyType: property.propertyType,
+            price: property.price,
+            city: property.city,
+            quartier: property.quartier,
+          }
+        : null,
+      viewerType,
+    });
 
   // if (!property) return null;
 
@@ -61,6 +80,7 @@ export default function PropertyDetailsModal({
   const images = property ? (property.images && property.images.length > 0 ? property.images : [property.image]) : [];
 
   const openFullscreen = (index: number) => {
+    trackImageView();
     setFullscreenImageIndex(index);
     setIsFullscreen(true);
   };
@@ -70,10 +90,12 @@ export default function PropertyDetailsModal({
   };
 
   const nextImage = () => {
+    trackImageView();
     setFullscreenImageIndex((prev) => (prev + 1) % images.length);
   };
 
   const prevImage = () => {
+    trackImageView();
     setFullscreenImageIndex((prev) => (prev - 1 + images.length) % images.length);
   };
 
@@ -117,7 +139,17 @@ export default function PropertyDetailsModal({
               </div>
 
               {/* Content - Scrollable */}
-              <div className="flex-1 overflow-y-auto">
+              <div
+                ref={scrollContainerRef}
+                className="flex-1 overflow-y-auto"
+                onScroll={(event) => {
+                  const element = event.currentTarget;
+                  trackScrollDepth(
+                    element.scrollTop + element.clientHeight,
+                    element.scrollHeight,
+                  );
+                }}
+              >
                 <div className="p-8 space-y-6">
                   {/* Image Gallery */}
                   <div className="relative">
@@ -344,6 +376,7 @@ export default function PropertyDetailsModal({
                             {property.agent.phone && (
                               <a
                                 href={`tel:${property.agent.phone}`}
+                                onClick={trackContactClick}
                                 className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-neutral-200 hover:border-primary hover:bg-primary/5 transition-all text-sm font-semibold text-neutral-700"
                               >
                                 <PhoneIcon size={16} weight="bold" />
@@ -353,6 +386,7 @@ export default function PropertyDetailsModal({
                             {property.agent.email && (
                               <a
                                 href={`mailto:${property.agent.email}`}
+                                onClick={trackContactClick}
                                 className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-neutral-200 hover:border-primary hover:bg-primary/5 transition-all text-sm font-semibold text-neutral-700"
                               >
                                 <EnvelopeIcon size={16} weight="bold" />
@@ -364,6 +398,7 @@ export default function PropertyDetailsModal({
                                 href={property.agent.facebook_url}
                                 target="_blank"
                                 rel="noopener noreferrer"
+                                onClick={trackContactClick}
                                 className="flex items-center gap-2 bg-white px-4 py-2 rounded-full border border-neutral-200 hover:border-primary hover:bg-primary/5 transition-all text-sm font-semibold text-neutral-700"
                               >
                                 <FacebookLogoIcon size={16} weight="fill" />
@@ -420,6 +455,7 @@ export default function PropertyDetailsModal({
                       href={`https://wa.me/${property.agent.phone.replace(/\D/g, '')}`}
                       target="_blank"
                       rel="noopener noreferrer"
+                      onClick={trackContactClick}
                       className="flex-1 bg-primary hover:bg-primary/90 text-white font-bold py-4 px-6 rounded-full transition-all text-center"
                     >
                       Contacter via WhatsApp

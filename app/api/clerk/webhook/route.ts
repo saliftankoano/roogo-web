@@ -6,6 +6,7 @@ import {
   updateUserInSupabase,
   deleteUserFromSupabase,
 } from "../../../../lib/user-sync";
+import { captureServerEvent, identifyServerUser } from "@/lib/posthog-server";
 
 interface WebhookEvent {
   type: string;
@@ -53,14 +54,47 @@ export async function POST(req: Request) {
     }
     const { type, data } = evt;
 
+
+    const publicMetadata =
+      typeof data.public_metadata === "object" && data.public_metadata !== null
+        ? (data.public_metadata as Record<string, unknown>)
+        : {};
+    const inferredUserType =
+      typeof publicMetadata.userType === "string"
+        ? publicMetadata.userType
+        : "renter";
+    const primaryEmail = data.email_addresses?.[0]?.email_address ?? null;
+
     switch (type) {
       case "user.created":
         await createUserInSupabase(data);
+        await identifyServerUser(data.id, {
+          email: primaryEmail,
+          userType: inferredUserType,
+          signup_method: "clerk",
+        });
+        await captureServerEvent(data.id, "user_signed_up", {
+          userType: inferredUserType,
+          email: primaryEmail,
+          signup_method: "clerk",
+        });
         break;
       case "user.updated":
         await updateUserInSupabase(data);
+        await identifyServerUser(data.id, {
+          email: primaryEmail,
+          userType: inferredUserType,
+        });
+        await captureServerEvent(data.id, "user_profile_updated", {
+          userType: inferredUserType,
+          email: primaryEmail,
+        });
         break;
       case "user.deleted":
+        await captureServerEvent(data.id, "user_deleted", {
+          userType: inferredUserType,
+          email: primaryEmail,
+        });
         await deleteUserFromSupabase(data.id);
         break;
     }

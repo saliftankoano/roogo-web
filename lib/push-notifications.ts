@@ -1,4 +1,5 @@
 import { getSupabaseClient } from "./user-sync";
+import { clerkClient } from "@clerk/nextjs/server";
 
 export interface PushNotificationPayload {
   to: string | string[];
@@ -10,11 +11,17 @@ export interface PushNotificationPayload {
   badge?: number;
 }
 
+export type NotificationType = "viewingRequests" | "messages" | "payments";
+
+interface OnboardingData {
+  notifications?: Partial<Record<NotificationType, boolean>>;
+}
+
 /**
  * Sends a push notification to specific Expo push tokens
  */
 export async function sendExpoPushNotifications(
-  payloads: PushNotificationPayload | PushNotificationPayload[]
+  payloads: PushNotificationPayload | PushNotificationPayload[],
 ) {
   const finalPayloads = Array.isArray(payloads) ? payloads : [payloads];
 
@@ -45,17 +52,75 @@ export async function sendExpoPushNotifications(
 }
 
 /**
+ * Checks if user has enabled notifications for a specific type
+ */
+async function checkNotificationPreference(
+  clerkId: string,
+  notificationType: NotificationType,
+): Promise<boolean> {
+  try {
+    const client = await clerkClient();
+    const user = await client.users.getUser(clerkId);
+
+    const onboardingData = user.publicMetadata?.onboardingData as
+      | OnboardingData
+      | undefined;
+    const preferences = onboardingData?.notifications;
+
+    // If no preferences set, default to enabled (opt-out model)
+    if (!preferences || typeof preferences !== "object") {
+      return true;
+    }
+
+    // Check specific notification type preference
+    const isEnabled = preferences[notificationType];
+    return isEnabled !== false; // Default to true if not explicitly set to false
+  } catch (error) {
+    console.error("Error checking notification preference:", error);
+    // On error, default to sending notification (fail-open)
+    return true;
+  }
+}
+
+/**
  * Sends a notification to all registered tokens for a specific user
+ * Checks user's notification preferences before sending
  */
 export async function notifyUser(
   userId: string,
+  notificationType: NotificationType,
   title: string,
   body: string,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
 ) {
   const supabase = getSupabaseClient();
 
-  // 1. Get tokens for user
+  // 1. Get user's Clerk ID from Supabase
+  const { data: userRecord, error: userError } = await supabase
+    .from("users")
+    .select("clerk_id")
+    .eq("id", userId)
+    .single();
+
+  if (userError || !userRecord?.clerk_id) {
+    console.error("Error fetching user clerk_id:", userError);
+    return false;
+  }
+
+  // 2. Check notification preferences
+  const isEnabled = await checkNotificationPreference(
+    userRecord.clerk_id,
+    notificationType,
+  );
+
+  if (!isEnabled) {
+    console.log(
+      `Notification skipped for user ${userId}: ${notificationType} disabled in preferences`,
+    );
+    return false;
+  }
+
+  // 3. Get tokens for user
   const { data: tokens, error } = await supabase
     .from("user_push_tokens")
     .select("expo_push_token")
@@ -66,7 +131,7 @@ export async function notifyUser(
     return false;
   }
 
-  // 2. Prepare payloads
+  // 4. Prepare payloads
   const pushTokens = tokens.map((t) => t.expo_push_token);
 
   // Expo allows multiple tokens in one payload if the content is the same
@@ -78,6 +143,6 @@ export async function notifyUser(
     sound: "default",
   };
 
-  // 3. Send
+  // 5. Send
   return sendExpoPushNotifications(payload);
 }

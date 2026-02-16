@@ -48,6 +48,14 @@ export default function SitemapPage() {
                     À Propos
                   </Link>
                 </li>
+                <li>
+                  <Link
+                    href="/nous-contacter"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Nous Contacter
+                  </Link>
+                </li>
               </ul>
             </section>
 
@@ -59,7 +67,7 @@ export default function SitemapPage() {
               <ul className="space-y-2">
                 <li>
                   <Link
-                    href="/conditions"
+                    href="/conditions-utilisation"
                     className="text-primary-600 hover:text-primary-700 hover:underline"
                   >
                     Conditions Générales d&apos;Utilisation

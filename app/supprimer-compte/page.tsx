@@ -275,7 +275,7 @@ export default function DeleteAccountPage() {
             <p className="text-sm text-neutral-600 text-center">
               Vous avez des questions ?{" "}
               <a
-                href="/contact"
+                href="/nous-contacter"
                 className="text-primary font-semibold hover:underline"
               >
                 Contactez-nous
