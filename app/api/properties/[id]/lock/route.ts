@@ -153,7 +153,7 @@ export async function POST(
     }
 
     // 7. Call PawaPay API
-    const pawaUrlBase = process.env.PAWAPAY_URL;
+    const pawaPayConfig = resolvePawaPayConfig();
     if (!pawaUrlBase) {
       console.error("PAWAPAY_URL not configured");
       return cors(
@@ -163,8 +163,8 @@ export async function POST(
         )
       );
     }
-    const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
-    const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
+    const pawaUrl = pawaPayConfig.url;
+    const pawaToken = pawaPayConfig.token;
 
     if (!pawaToken) {
       return cors(

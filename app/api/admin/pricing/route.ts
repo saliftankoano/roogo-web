@@ -87,12 +87,19 @@ export async function GET() {
       return NextResponse.json({ error: configError.message }, { status: 500 });
     }
 
-    const commissionPercentage = configData?.commission_percentage ?? 0.05;
+    if (typeof configData?.commission_percentage !== "number") {
+      return NextResponse.json(
+        { error: "Commission percentage is not configured" },
+        { status: 500 },
+      );
+    }
 
-    return NextResponse.json({ 
-      tiers, 
+    const commissionPercentage = configData.commission_percentage;
+
+    return NextResponse.json({
+      tiers,
       addons: addons || [],
-      commissionPercentage
+      commissionPercentage,
     });
   } catch (error) {
     console.error("API error:", error);

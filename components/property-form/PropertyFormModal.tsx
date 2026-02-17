@@ -10,7 +10,6 @@ import {
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
-import { TIERS_CONFIG } from "@/lib/constants";
 import { listingSchema, PROPERTY_TYPES } from "@/lib/validations";
 import { LocationPicker } from "./LocationPicker";
 import { EquipementsSelector } from "./EquipementsSelector";
@@ -35,6 +34,16 @@ interface PricingAddon {
   price: number;
 }
 
+interface PricingTier {
+  id: string;
+  photo_limit: number;
+  slot_limit: number;
+  video_included: boolean;
+  open_house_limit: number;
+  has_badge?: boolean;
+  base_fee: number;
+}
+
 export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   userType,
   onSuccess,
@@ -50,8 +59,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [paymentChoice, setPaymentChoice] = useState<"free" | "pay">(
     ["staff", "founder"].includes(normalizedUserType || "") ? "free" : "pay",
   );
+  const [tiersList, setTiersList] = useState<PricingTier[]>([]);
   const [addonsList, setAddonsList] = useState<PricingAddon[]>([]);
+  const [commissionRate, setCommissionRate] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [commissionConfigError, setCommissionConfigError] = useState<string | null>(null);
 
   const [formData, setFormData] = useState<{
     titre: string;
@@ -90,9 +102,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [photos, setPhotos] = useState<File[]>([]);
 
   const rentAmount = parseInt(formData.prixMensuel, 10) || 0;
-  const commissionAmount = rentAmount * 0.05;
+  const appliedCommissionRate = paymentChoice === "free" ? 0 : (commissionRate ?? 0);
+  const commissionAmount = rentAmount * appliedCommissionRate;
   const selectedTierConfig = selectedTier
-    ? TIERS_CONFIG[selectedTier as keyof typeof TIERS_CONFIG]
+    ? tiersList.find((tier) => tier.id === selectedTier) ?? null
     : null;
   const baseFeeAmount =
     paymentChoice === "free" ? 0 : (selectedTierConfig?.base_fee ?? 0);
@@ -109,11 +122,58 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
   useEffect(() => {
     fetch("/api/pricing")
-      .then((res) => res.json())
-      .then((data) => {
-        if (data.addons) setAddonsList(data.addons);
+      .then(async (res) => {
+        const data = await res.json();
+        if (!res.ok) throw new Error(data?.error || "Failed to load pricing");
+        return data;
       })
-      .catch((err) => console.error("Failed to load addons", err));
+      .then((data) => {
+        if (Array.isArray(data.tiers)) {
+          const apiTiers: PricingTier[] = data.tiers
+            .filter((tier: { id?: string }) => typeof tier.id === "string")
+            .map(
+              (tier: {
+                id: string;
+                photo_limit: number;
+                slot_limit: number;
+                video_included: boolean;
+                open_house_limit: number;
+                has_badge: boolean;
+                min_price: number;
+              }) => ({
+                id: tier.id,
+                photo_limit: tier.photo_limit,
+                slot_limit: tier.slot_limit,
+                video_included: tier.video_included,
+                open_house_limit: tier.open_house_limit,
+                has_badge: tier.has_badge,
+                base_fee: tier.min_price,
+              }),
+            );
+
+          if (apiTiers.length > 0) {
+            setTiersList(apiTiers);
+          }
+        }
+
+        if (data.addons) setAddonsList(data.addons);
+        if (typeof data.commissionPercentage === "number") {
+          setCommissionRate(data.commissionPercentage);
+          setCommissionConfigError(null);
+        } else {
+          setCommissionRate(null);
+          setCommissionConfigError(
+            "Commission non configuree. Verifiez les parametres admin.",
+          );
+        }
+      })
+      .catch((err) => {
+        console.error("Failed to load pricing", err);
+        setCommissionRate(null);
+        setCommissionConfigError(
+          "Commission non configuree. Verifiez les parametres admin.",
+        );
+      });
   }, []);
 
   const handleAutoFill = async () => {
@@ -181,9 +241,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       if (!token) throw new Error("No token found");
 
       if (paymentChoice === "pay") {
-        const tier = TIERS_CONFIG[selectedTier as keyof typeof TIERS_CONFIG];
+        if (commissionRate === null) {
+          throw new Error("Commission non configuree. Verifiez les parametres admin.");
+        }
+
+        const tier = tiersList.find((item) => item.id === selectedTier);
+        if (!tier) {
+          throw new Error("Pack invalide. Veuillez recharger la page.");
+        }
+
         const rent = parseInt(formData.prixMensuel) || 0;
-        const commission = rent * 0.05;
+        const commission = rent * commissionRate;
         const addonsTotal = selectedAddOns.reduce((sum, id) => {
           const addon = addonsList.find((a) => a.id === id);
           return sum + (addon?.price || 0);
@@ -622,30 +690,32 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           )}
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            {Object.entries(TIERS_CONFIG).map(
-              ([key, tier]: [
-                string,
-                (typeof TIERS_CONFIG)[keyof typeof TIERS_CONFIG],
-              ]) => (
-                <div
-                  key={key}
-                  onClick={() => setSelectedTier(key)}
-                  className={`border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedTier === key ? "border-primary bg-primary/5" : "border-neutral-100"}`}
-                >
-                  <h4 className="font-bold text-lg capitalize mb-2">{key}</h4>
-                  <div className="text-2xl font-bold mb-4">
+            {tiersList.map((tier) => (
+              <div
+                key={tier.id}
+                onClick={() => setSelectedTier(tier.id)}
+                className={`border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedTier === tier.id ? "border-primary bg-primary/5" : "border-neutral-100"}`}
+              >
+                <h4 className="font-bold text-lg capitalize mb-2">{tier.id}</h4>
+                  <div className="text-2xl font-bold mb-1">
                     {paymentChoice === "free"
                       ? "0 F"
-                      : `${tier.base_fee.toLocaleString()} F`}
+                      : commissionRate === null
+                        ? "Config requise"
+                        : `${(tier.base_fee + commissionAmount).toLocaleString()} F`}
                   </div>
+                  {paymentChoice === "pay" && (
+                    <div className="text-xs text-neutral-500 mb-3">
+                      Prix pack (frais service inclus)
+                    </div>
+                  )}
                   <ul className="space-y-2 text-sm text-neutral-600">
                     <li>• {tier.photo_limit} photos</li>
                     <li>• {tier.slot_limit} candidats</li>
                     {tier.video_included && <li>• Vidéo incluse</li>}
                   </ul>
-                </div>
-              ),
-            )}
+              </div>
+            ))}
           </div>
 
           {addonsList.length > 0 && (
@@ -688,8 +758,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             <h4 className="font-bold text-lg text-neutral-900">
               Récapitulatif du paiement
             </h4>
+            {paymentChoice === "pay" && commissionConfigError && (
+              <p className="text-xs text-red-600">{commissionConfigError}</p>
+            )}
+            <p className="text-xs text-neutral-500">
+              Le prix du pack affiche deja les frais de service appliques.
+            </p>
             <div className="flex items-center justify-between text-sm text-neutral-600">
-              <span>Sous-total (pack + commission)</span>
+              <span>Pack choisi (frais inclus)</span>
               <span className="font-semibold text-neutral-800">
                 {subtotalAmount.toLocaleString()} F
               </span>

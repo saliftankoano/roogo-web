@@ -66,7 +66,7 @@ export default function AdminSettingsPage() {
   const router = useRouter();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
-  const [commissionPercentage, setCommissionPercentage] = useState<number>(0.05);
+  const [commissionPercentage, setCommissionPercentage] = useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -148,7 +148,7 @@ export default function AdminSettingsPage() {
         body: JSON.stringify({
           tiers: tiers.map((t) => ({ id: t.id, min_price: t.min_price })),
           addons: addons.map((a) => ({ id: a.id, price: a.price })),
-          commissionPercentage,
+          commissionPercentage: commissionPercentage ?? undefined,
         }),
       });
 
@@ -283,7 +283,7 @@ export default function AdminSettingsPage() {
                 <div className="text-3xl font-bold text-blue-200">+</div>
                 <div className="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 rounded-2xl">
                   <div className="text-[10px] font-bold text-blue-200 uppercase mb-1">Commission</div>
-                  <div className="text-xl md:text-2xl font-bold">{(commissionPercentage * 100).toFixed(1)}% du Loyer</div>
+                  <div className="text-xl md:text-2xl font-bold">{((commissionPercentage ?? 0) * 100).toFixed(1)}% du Loyer</div>
                 </div>
               </div>
             </div>
@@ -480,7 +480,7 @@ export default function AdminSettingsPage() {
                       <div className="flex items-center gap-2">
                         <Input
                           type="number"
-                          value={(commissionPercentage * 100).toFixed(1)}
+                          value={((commissionPercentage ?? 0) * 100).toFixed(1)}
                           onChange={(e) => handleCommissionChange(e.target.value)}
                           className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
                           min="0"
@@ -549,7 +549,7 @@ export default function AdminSettingsPage() {
               <CardContent className="p-8">
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
                   {tiers.map((tier) => {
-                    const commission = sampleRent * commissionPercentage;
+                    const commission = sampleRent * (commissionPercentage ?? 0);
                     const total = tier.min_price + commission;
 
                     return (
@@ -579,7 +579,7 @@ export default function AdminSettingsPage() {
                             </span>
                           </div>
                           <div className="flex justify-between items-center text-sm">
-                            <span className="text-neutral-500 font-medium">Commission (${(commissionPercentage * 100).toFixed(1)}%)</span>
+                            <span className="text-neutral-500 font-medium">Commission (${((commissionPercentage ?? 0) * 100).toFixed(1)}%)</span>
                             <span className="font-bold text-neutral-900 bg-neutral-50 px-3 py-1 rounded-lg">
                               {commission.toLocaleString()} XOF
                             </span>

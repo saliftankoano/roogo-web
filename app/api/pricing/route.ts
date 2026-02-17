@@ -33,7 +33,52 @@ export async function GET() {
       return NextResponse.json({ tiers, addons: [] });
     }
 
-    return NextResponse.json({ tiers, addons });
+    // Fetch commission percentage (required)
+    const { data: configData, error: configError } = await supabaseAdmin
+      .from("listing_config")
+      .select("commission_percentage")
+      .eq("id", "default")
+      .single();
+
+    if (configError || typeof configData?.commission_percentage !== "number") {
+      console.error("Error fetching listing config:", configError);
+      return NextResponse.json(
+        { error: "Commission percentage is not configured" },
+        { status: 500 },
+      );
+    }
+
+    let commissionPercentage = configData.commission_percentage;
+
+    // Apply dev pricing overrides if configured (for local testing)
+    if (process.env.DEV_PRICING_OVERRIDE === "true") {
+      const overridePrice = parseFloat(process.env.DEV_TIER_PRICE || "0");
+      if (overridePrice > 0 && tiers) {
+        tiers.forEach((tier: { min_price: number }) => {
+          tier.min_price = overridePrice;
+        });
+      }
+
+      const overrideCommission = process.env.DEV_COMMISSION_PERCENTAGE;
+      if (overrideCommission !== undefined) {
+        commissionPercentage = parseFloat(overrideCommission);
+      }
+
+      const overrideAddonPrice = parseFloat(process.env.DEV_ADDON_PRICE || "0");
+      if (overrideAddonPrice >= 0 && addons) {
+        addons.forEach((addon: { price: number }) => {
+          addon.price = overrideAddonPrice;
+        });
+      }
+
+      console.log("[DEV] Pricing overrides applied", {
+        tierPrice: overridePrice,
+        commissionPercentage,
+        addonPrice: overrideAddonPrice,
+      });
+    }
+
+    return NextResponse.json({ tiers, addons, commissionPercentage });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(

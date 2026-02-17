@@ -4,6 +4,7 @@ import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -182,7 +183,7 @@ export async function POST(req: Request) {
     }
 
     // 4. DB status is still pending/submitted - check PawaPay API for latest
-    const pawaUrlBase = process.env.PAWAPAY_URL;
+    const pawaPayConfig = resolvePawaPayConfig();
     if (!pawaUrlBase) {
       log("error", { error: "PAWAPAY_URL not configured" });
       return cors(
@@ -192,8 +193,8 @@ export async function POST(req: Request) {
         )
       );
     }
-    const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
-    const pawaToken = process.env.PAWAPAY_API_TOKEN;
+    const pawaUrl = pawaPayConfig.url;
+    const pawaToken = pawaPayConfig.token;
 
     if (!pawaToken) {
       log("error", { error: "PAWAPAY_API_TOKEN not configured" });

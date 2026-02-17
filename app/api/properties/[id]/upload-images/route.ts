@@ -184,12 +184,6 @@ export async function POST(
         .eq("id", propertyId);
     }
 
-    const { data: propertyView } = await supabase
-      .from("property_details")
-      .select("primary_image, images")
-      .eq("id", propertyId)
-      .single();
-
     await captureServerEvent(clerkUserId, "property_images_uploaded", {
       property_id: propertyId,
       image_count: uploadedImages.length,

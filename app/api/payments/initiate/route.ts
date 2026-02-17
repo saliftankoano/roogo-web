@@ -11,6 +11,7 @@ import { paymentInitiateSchema } from "@/lib/validations";
 import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -225,18 +226,14 @@ export async function POST(req: Request) {
     });
 
     // 6. Call PawaPay API
-    const pawaUrlBase = process.env.PAWAPAY_URL;
-    if (!pawaUrlBase) {
-      log("error", { error: "PAWAPAY_URL not configured" });
-      return errorResponse("Server configuration error", 500, req);
-    }
-    const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
-    const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
-
-    if (!pawaToken) {
-      log("error", { error: "PAWAPAY_API_TOKEN not configured" });
-      return errorResponse("Server configuration error", 500, req);
-    }
+    const pawaPayConfig = resolvePawaPayConfig();
+    const pawaUrl = pawaPayConfig.url;
+    const pawaToken = pawaPayConfig.token;
+    
+    log("pawapay-config", {
+      environment: pawaPayConfig.environment,
+      url: pawaUrl,
+    });
 
     // Format phone number
     let formattedPhone = phoneNumber.replace(/\s/g, "");

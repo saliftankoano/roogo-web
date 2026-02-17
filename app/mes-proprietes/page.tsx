@@ -97,7 +97,7 @@ export default function MyPropertiesPage() {
   }, [isLoaded, userType, isAgentOrOwner, router]);
 
   const filteredProperties = useMemo(() => {
-    let result = properties.filter((listing) => {
+    const result = properties.filter((listing) => {
       const matchesSearch =
         listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
         listing.description.toLowerCase().includes(searchQuery.toLowerCase());

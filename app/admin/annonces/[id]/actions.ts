@@ -1,13 +1,19 @@
 "use server";
 
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { Transaction } from "@/lib/data";
 
 async function refreshTransactionStatus(tx: Transaction) {
-  const pawaUrlBase = process.env.PAWAPAY_URL || "https://api.sandbox.pawapay.io";
-  const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
-  const pawaToken = process.env.PAWAPAY_API_TOKEN;
+  const pawaPayConfig = resolvePawaPayConfig();
+  const pawaUrl = pawaPayConfig.url;
+  const pawaToken = pawaPayConfig.token;
+  
+  console.log("PawaPay config for refund:", {
+    environment: pawaPayConfig.environment,
+    url: pawaUrl,
+  });
 
   if (!pawaToken || !tx.deposit_id) return tx;
 

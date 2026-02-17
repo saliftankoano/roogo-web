@@ -10,6 +10,7 @@ import { cors, corsOptions, safeError, errorResponse } from "@/lib/api-helpers";
 import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 
 // Schema for Payment Page request
 const paymentPageSchema = z.object({
@@ -211,18 +212,14 @@ export async function POST(req: Request) {
     });
 
     // 6. Call PawaPay Payment Page API
-    const pawaUrlBase = process.env.PAWAPAY_URL;
-    if (!pawaUrlBase) {
-      log("error", { error: "PAWAPAY_URL not configured" });
-      return errorResponse("Server configuration error", 500, req);
-    }
-    const pawaUrl = pawaUrlBase.replace(/\/+$/, "");
-    const pawaToken = process.env.PAWAPAY_API_TOKEN?.trim();
-
-    if (!pawaToken) {
-      log("error", { error: "PAWAPAY_API_TOKEN not configured" });
-      return errorResponse("Server configuration error", 500, req);
-    }
+    const pawaPayConfig = resolvePawaPayConfig();
+    const pawaUrl = pawaPayConfig.url;
+    const pawaToken = pawaPayConfig.token;
+    
+    log("pawapay-config", {
+      environment: pawaPayConfig.environment,
+      url: pawaUrl,
+    });
 
     const explicitReturnUrl = process.env.PAWAPAY_PAYMENTPAGE_RETURN_URL?.trim();
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.roogobf.com";

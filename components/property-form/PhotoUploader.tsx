@@ -1,7 +1,8 @@
 "use client";
 
-import React, { useRef } from "react";
+import React, { useEffect, useMemo, useRef } from "react";
 import { Camera, X, AlertCircle, Image as ImageIcon } from "lucide-react";
+import Image from "next/image";
 
 interface PhotoUploaderProps {
   files: File[];
@@ -34,6 +35,17 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   const isUnderMin = files.length < min;
   const isAtMax = files.length >= max;
 
+  const previewUrls = useMemo(
+    () => files.map((file) => URL.createObjectURL(file)),
+    [files],
+  );
+
+  useEffect(() => {
+    return () => {
+      previewUrls.forEach((url) => URL.revokeObjectURL(url));
+    };
+  }, [previewUrls]);
+
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
@@ -49,10 +61,12 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
       <div className="grid grid-cols-3 sm:grid-cols-4 md:grid-cols-5 gap-3">
         {files.map((file, idx) => (
           <div key={idx} className="relative aspect-square bg-gray-100 rounded-xl overflow-hidden group">
-            <img
-              src={URL.createObjectURL(file)}
+            <Image
+              src={previewUrls[idx]}
               alt={`Preview ${idx + 1}`}
-              className="w-full h-full object-cover"
+              fill
+              unoptimized
+              className="object-cover"
             />
             <button
               type="button"

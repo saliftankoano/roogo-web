@@ -4,7 +4,7 @@ import { getUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
 import { convertIdsToLabels } from "@/lib/interdictions";
 import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
-import { TIERS_CONFIG, BOOST_DURATION_DAYS } from "@/lib/constants";
+import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { listingSchema } from "@/lib/validations";
 import validator from "validator";
@@ -107,20 +107,57 @@ export async function POST(req: Request) {
     // 7. Map interdiction IDs to labels (plain text)
     const interdictionsLabels = convertIdsToLabels(listingData.interdictions);
 
-    // 8. Use TIERS_CONFIG from constants
-    
+    // 8. Resolve tier and commission from database (no hardcoded pricing)
+
     // Check if staff is paying (has payment_id)
     const isStaffPaying = isStaffOrFounder && listingData.payment_id;
     const isFreeStaffListing = isStaffOrFounder && !listingData.payment_id;
 
-    const selectedTier = listingData.tier_id
-      ? TIERS_CONFIG[listingData.tier_id as keyof typeof TIERS_CONFIG]
-      : null;
-    
-    const tierPrice = isFreeStaffListing 
-      ? 0 
+    let selectedTier: {
+      id: string;
+      photo_limit: number;
+      slot_limit: number;
+      video_included: boolean;
+      open_house_limit: number;
+      has_badge: boolean;
+      min_price: number;
+    } | null = null;
+
+    if (listingData.tier_id) {
+      const { data: tierData, error: tierError } = await supabase
+        .from("listing_tiers")
+        .select("id, photo_limit, slot_limit, video_included, open_house_limit, has_badge, min_price")
+        .eq("id", listingData.tier_id)
+        .single();
+
+      if (tierError || !tierData) {
+        console.error("Tier not found:", tierError);
+        return errorResponse("Forfait invalide", 400, req);
+      }
+
+      selectedTier = tierData;
+    }
+
+    let commissionPercentage = 0;
+    if (!isFreeStaffListing) {
+      const { data: configData, error: configError } = await supabase
+        .from("listing_config")
+        .select("commission_percentage")
+        .eq("id", "default")
+        .single();
+
+      if (configError || typeof configData?.commission_percentage !== "number") {
+        console.error("Commission config missing:", configError);
+        return errorResponse("Commission non configuree", 500, req);
+      }
+
+      commissionPercentage = configData.commission_percentage;
+    }
+
+    const tierPrice = isFreeStaffListing
+      ? 0
       : selectedTier
-        ? selectedTier.base_fee + listingData.prixMensuel * 0.05
+        ? selectedTier.min_price + listingData.prixMensuel * commissionPercentage
         : null;
 
     const isBoosted = listingData.add_ons?.includes("boost") || false;
