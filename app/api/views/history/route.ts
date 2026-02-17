@@ -23,7 +23,6 @@ interface HistoryProperty {
   [key: string]: unknown;
 }
 
-
 /**
  * GET /api/views/history - Get user's view history
  */
@@ -44,7 +43,6 @@ export async function GET() {
     if (!userData?.id) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-
 
     // Get view history
     // We query by clerk_id because client-side inserts might not have user_id populated

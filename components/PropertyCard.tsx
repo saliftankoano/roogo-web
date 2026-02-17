@@ -8,9 +8,11 @@ import { cn } from "@/lib/utils";
 interface PropertyCardProps {
   property: Property;
   onClick?: () => void;
+  showStatus?: boolean;
+  className?: string;
 }
 
-export function PropertyCard({ property, onClick }: PropertyCardProps) {
+export function PropertyCard({ property, onClick, showStatus = false, className }: PropertyCardProps) {
   
   const formatTimeAgo = (dateString?: string) => {
     if (!dateString) return "";
@@ -21,20 +23,56 @@ export function PropertyCard({ property, onClick }: PropertyCardProps) {
     const diffInDays = Math.floor(diffInHours / 24);
 
     if (diffInHours < 1) return "À l'instant";
-    if (diffInHours < 24) return `${diffInHours}h ago`;
-    return `${diffInDays} days ago`;
+    if (diffInHours < 24) return `Il y a ${diffInHours}h`;
+    return `Il y a ${diffInDays} jours`;
   };
 
   const timePosted = formatTimeAgo(property.created_at);
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "en_ligne":
+        return "bg-green-100/90 text-green-800 border-green-200";
+      case "locked":
+        return "bg-primary/90 text-white border-primary/20";
+      case "finalized":
+        return "bg-neutral-900 text-white border-neutral-800";
+      case "en_attente":
+        return "bg-yellow-100 text-yellow-900 border-yellow-300";
+      case "expired":
+        return "bg-neutral-100/90 text-neutral-600 border-neutral-200";
+      default:
+        return "bg-neutral-100/90 text-neutral-600 border-neutral-200";
+    }
+  };
+
+  const getStatusLabel = (status: string) => {
+    switch (status) {
+      case "en_ligne":
+        return "En ligne";
+      case "locked":
+        return "Réservé";
+      case "finalized":
+        return "Loué";
+      case "en_attente":
+        return "En attente";
+      case "expired":
+        return "Expiré";
+      default:
+        return status;
+    }
+  };
 
   return (
     <div
       onClick={onClick}
       className={cn(
-        "bg-white rounded-[32px] overflow-hidden border transition-all duration-300 group flex flex-col h-full cursor-pointer",
+        "bg-white rounded-[32px] overflow-hidden border transition-all duration-300 group flex flex-col h-full",
+        onClick && "cursor-pointer",
         property.isSponsored
           ? "ring-2 ring-primary/20 border-primary/50 shadow-[0_0_25px_-5px_rgba(201,106,46,0.2)]"
-          : "border-neutral-100 shadow-sm hover:shadow-xl"
+          : "border-neutral-100 shadow-sm hover:shadow-xl",
+        className
       )}
     >
       {/* Image Container */}
@@ -57,6 +95,20 @@ export function PropertyCard({ property, onClick }: PropertyCardProps) {
               />
               <span className="text-primary text-[10px] font-black tracking-tighter uppercase ml-1">
                 À LA UNE
+              </span>
+            </div>
+          )}
+
+          {/* Status Badge */}
+          {showStatus && property.status && (
+            <div className="absolute top-4 right-4 z-10">
+              <span
+                className={cn(
+                  "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border backdrop-blur-sm",
+                  getStatusColor(property.status)
+                )}
+              >
+                {getStatusLabel(property.status)}
               </span>
             </div>
           )}
@@ -87,7 +139,7 @@ export function PropertyCard({ property, onClick }: PropertyCardProps) {
           <div className="flex items-center gap-1.5">
             <BedIcon size={20} weight="regular" className="text-neutral-400" />
             <span className="text-xs font-semibold text-neutral-500">
-              {property.bedrooms} bd
+              {property.bedrooms} ch
             </span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -97,7 +149,7 @@ export function PropertyCard({ property, onClick }: PropertyCardProps) {
               className="text-neutral-400"
             />
             <span className="text-xs font-semibold text-neutral-500">
-              {property.bathrooms} bt
+              {property.bathrooms} sdb
             </span>
           </div>
           <div className="flex items-center gap-1.5">
@@ -107,7 +159,7 @@ export function PropertyCard({ property, onClick }: PropertyCardProps) {
               className="text-neutral-400"
             />
             <span className="text-xs font-semibold text-neutral-500">
-              {property.area} sq ft
+              {property.area} m²
             </span>
           </div>
         </div>

@@ -81,7 +81,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/annonces/creer"
+                  href="/proprietes"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Publier une annonce

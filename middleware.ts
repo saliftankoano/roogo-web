@@ -13,7 +13,6 @@ const isPublicRoute = createRouteMatcher([
   "/sitemap.xml",
   "/supprimer-compte",
   "/personnel/rejoindre",
-  "/proprietes",
   "/louer/residentiel",
   "/louer/commercial",
   "/publier-bien",

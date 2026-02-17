@@ -65,6 +65,34 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
     }
 
+    const resolveWebProvider = (callbackPayload: unknown): string | null => {
+      if (!callbackPayload || typeof callbackPayload !== "object") return null;
+      const payload = callbackPayload as Record<string, unknown>;
+
+      const directProvider =
+        typeof payload.provider === "string" ? payload.provider : null;
+      const directCorrespondent =
+        typeof payload.correspondent === "string" ? payload.correspondent : null;
+
+      const payer =
+        payload.payer && typeof payload.payer === "object"
+          ? (payload.payer as Record<string, unknown>)
+          : null;
+      const accountDetails =
+        payer?.accountDetails && typeof payer.accountDetails === "object"
+          ? (payer.accountDetails as Record<string, unknown>)
+          : null;
+      const nestedProvider =
+        typeof accountDetails?.provider === "string"
+          ? accountDetails.provider
+          : null;
+
+      const providerHint = `${directProvider || ""} ${directCorrespondent || ""} ${nestedProvider || ""}`.toUpperCase();
+      if (providerHint.includes("ORANGE")) return "web_orange";
+      if (providerHint.includes("MOOV")) return "web_moov";
+      return null;
+    };
+
     // 2. Map Status
     let dbStatus = "pending";
     if (status === "COMPLETED") dbStatus = "completed";
@@ -126,10 +154,13 @@ export async function POST(req: Request) {
       }
     }
 
+    const inferredProvider = resolveWebProvider(data);
+
     const { error: updateError } = await supabase
       .from("transactions")
       .update({
         status: dbStatus,
+        provider: inferredProvider || transaction.provider,
         failure_reason: detailedFailureReason || null,
         metadata: { ...(transaction.metadata || {}), ...data }, // Merge metadata
         updated_at: new Date().toISOString(),

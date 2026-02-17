@@ -89,6 +89,15 @@ export async function POST(
       );
     }
 
+    const { data: existingPrimaryRows } = await supabase
+      .from("property_images")
+      .select("url")
+      .eq("property_id", propertyId)
+      .eq("is_primary", true);
+    const existingPrimaryCount = Array.isArray(existingPrimaryRows)
+      ? existingPrimaryRows.length
+      : 0;
+
     // 5. Upload images to Supabase Storage
     const uploadedImages: Array<{
       url: string;
@@ -107,7 +116,8 @@ export async function POST(
 
       // Convert base64 to buffer
       const buffer = Buffer.from(base64Data, "base64");
-      const fileName = `${propertyId}/${index}.${ext || "jpg"}`;
+      const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+      const fileName = `${propertyId}/${index}-${uniqueSuffix}.${ext || "jpg"}`;
 
       // Determine content type
       const contentType =
@@ -154,7 +164,7 @@ export async function POST(
       url: img.url,
       width: img.width,
       height: img.height,
-      is_primary: index === 0,
+      is_primary: existingPrimaryCount === 0 && index === 0,
     }));
 
     const { error: imagesError } = await supabase
@@ -165,6 +175,20 @@ export async function POST(
       console.error("Error creating image records:", imagesError);
       // Still return success with URLs even if DB insert fails
     }
+
+    if (!imagesError && existingPrimaryCount === 0 && uploadedImages.length > 0) {
+      const primaryUrl = uploadedImages[0].url;
+      await supabase
+        .from("properties")
+        .update({ primary_image: primaryUrl })
+        .eq("id", propertyId);
+    }
+
+    const { data: propertyView } = await supabase
+      .from("property_details")
+      .select("primary_image, images")
+      .eq("id", propertyId)
+      .single();
 
     await captureServerEvent(clerkUserId, "property_images_uploaded", {
       property_id: propertyId,

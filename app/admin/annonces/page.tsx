@@ -7,14 +7,9 @@ import {
   CheckIcon,
   MagnifyingGlassIcon,
   PlusIcon,
-  UploadSimpleIcon,
-  HouseIcon,
-  MapPinIcon,
-  InfoIcon,
-  ImageIcon,
-  XIcon,
 } from "@phosphor-icons/react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { Property, fetchProperties } from "@/lib/data";
 import { PropertyCard } from "@/components/PropertyCard";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,113 +17,144 @@ import {
   ExpandableScreen,
   ExpandableScreenContent,
   ExpandableScreenTrigger,
-  useExpandableScreen,
 } from "@/components/ui/expandable-screen";
-import { useAuth } from "@clerk/nextjs";
-import Image from "next/image";
-import { TIERS_CONFIG } from "@/lib/constants";
-import { useSearchParams } from "next/navigation";
-
-interface PricingAddon {
-  id: string;
-  name: string;
-  price: number;
-}
-
-type TierConfigEntry = (typeof TIERS_CONFIG)[keyof typeof TIERS_CONFIG];
-
-interface AdminListingFormData {
-  titre: string;
-  type: string;
-  prixMensuel: string;
-  quartier: string;
-  ville: string;
-  description: string;
-  chambres: string;
-  sdb: string;
-  superficie: string;
-  vehicules: string;
-  cautionMois: string;
-}
-
-// Helper component to access expand/collapse context
-function PropertyFormFooter({ isSubmitting }: { isSubmitting: boolean }) {
-  const { collapse } = useExpandableScreen();
-
-  return (
-    <div className="pt-12 border-t border-neutral-100 flex flex-col sm:flex-row gap-4">
-      <button
-        type="button"
-        onClick={collapse}
-        className="flex-1 py-5 bg-neutral-100 text-neutral-600 rounded-full font-bold text-xl hover:bg-neutral-200 transition-all active:scale-[0.98]"
-      >
-        Annuler
-      </button>
-      <button
-        type="submit"
-        disabled={isSubmitting}
-        className="flex-2 py-5 bg-primary text-white rounded-full font-bold text-xl shadow-xl shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.98] flex items-center justify-center gap-3 disabled:opacity-70"
-      >
-        {isSubmitting ? (
-          <div className="animate-spin rounded-full h-7 w-7 border-b-2 border-white"></div>
-        ) : (
-          <>
-            <UploadSimpleIcon size={28} weight="bold" />
-            <span>Publier Immédiatement</span>
-          </>
-        )}
-      </button>
-    </div>
-  );
-}
+import { useAuth, useUser } from "@clerk/nextjs";
+import { PropertyFormModal } from "@/components/property-form/PropertyFormModal";
+import { getPendingPhotos, removePendingPhotos } from "@/lib/clientPendingPhotos";
 
 export default function AdminListingsPage() {
+  const { user } = useUser();
   const { getToken } = useAuth();
+  const searchParams = useSearchParams();
   const [properties, setProperties] = useState<Property[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
-
-  // Form state for new property
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const searchParams = useSearchParams();
-  
-  // Tier & Payment state
-  const [selectedTier, setSelectedTier] = useState<string | null>(null);
-  const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
-  const [paymentChoice, setPaymentChoice] = useState<"free" | "pay">("free");
-  const [addonsList, setAddonsList] = useState<PricingAddon[]>([]);
+  const finalizeOnceRef = useRef(false);
 
   useEffect(() => {
-    // Load addons
-    fetch("/api/pricing")
-      .then(res => res.json())
-      .then(data => {
-        if (data.addons) setAddonsList(data.addons);
-      })
-      .catch(err => console.error("Failed to load addons", err));
-  }, []);
+    const paymentSuccess = searchParams.get("payment_success");
+    const queryDepositId = searchParams.get("depositId");
+    const storedDepositId =
+      typeof window !== "undefined"
+        ? window.sessionStorage.getItem("pendingPaymentDepositId")
+        : null;
+    const depositId = queryDepositId || storedDepositId;
+    const finalizedKey = depositId ? `listingFinalized:${depositId}` : null;
+    const finalizingKey = depositId ? `listingFinalizing:${depositId}` : null;
 
-  const [formData, setFormData] = useState<AdminListingFormData>({
-    titre: "",
-    type: "house",
-    prixMensuel: "",
-    quartier: "",
-    ville: "ouaga",
-    description: "",
-    chambres: "",
-    sdb: "",
-    superficie: "",
-    vehicules: "",
-    cautionMois: "3",
-  });
+    if (!depositId || finalizeOnceRef.current) {
+      return;
+    }
 
-  // Image state
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  const fileInputRef = useRef<HTMLInputElement>(null);
+    if (finalizedKey && window.sessionStorage.getItem(finalizedKey) === "1") {
+      return;
+    }
+
+    if (finalizingKey && window.sessionStorage.getItem(finalizingKey) === "1") {
+      return;
+    }
+
+    const pendingRaw = typeof window !== "undefined" ? window.sessionStorage.getItem("pendingAdminListing") : null;
+    if (!pendingRaw) return;
+
+    const finalizeFromAdminReturn = async () => {
+      finalizeOnceRef.current = true;
+      if (finalizingKey) window.sessionStorage.setItem(finalizingKey, "1");
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("No token for admin return finalization");
+
+        if (paymentSuccess !== "true") {
+          const statusResponse = await fetch("/api/payments/status", {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ depositId }),
+          });
+          const statusPayload = await statusResponse.json();
+          const paymentCompleted = statusPayload?.status === "COMPLETED";
+
+          if (!statusResponse.ok || !paymentCompleted) {
+            return;
+          }
+        }
+
+        const pending = JSON.parse(pendingRaw) as {
+          formData: Record<string, unknown>;
+          selectedTier: string;
+          selectedAddOns: string[];
+          pendingPhotos?: Array<{ data: string; ext: string }>;
+          pendingPhotosOverflow?: boolean;
+          pendingPhotosCount?: number;
+          pendingPhotosStoredInDb?: boolean;
+        };
+
+        const response = await fetch("/api/properties", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            listingData: {
+              ...pending.formData,
+              prixMensuel: Number(pending.formData.prixMensuel),
+              chambres: Number(pending.formData.chambres),
+              sdb: Number(pending.formData.sdb),
+              superficie: Number(pending.formData.superficie),
+              vehicules: Number(pending.formData.vehicules),
+              cautionMois: Number(pending.formData.cautionMois),
+              tier_id: pending.selectedTier,
+              add_ons: pending.selectedAddOns,
+              payment_id: depositId,
+            },
+          }),
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result?.message || "Finalization from admin return failed");
+        }
+
+        const propertyId = typeof result?.propertyId === "string" ? result.propertyId : null;
+        let pendingPhotos = Array.isArray(pending.pendingPhotos) ? pending.pendingPhotos : [];
+        if (pendingPhotos.length === 0 && pending.pendingPhotosStoredInDb) {
+          pendingPhotos = await getPendingPhotos(depositId);
+        }
+
+        window.sessionStorage.removeItem("pendingAdminListing");
+        window.sessionStorage.removeItem("pendingPaymentDepositId");
+        if (finalizedKey) window.sessionStorage.setItem(finalizedKey, "1");
+
+        if (propertyId && pendingPhotos.length > 0) {
+          await fetch(`/api/properties/${propertyId}/upload-images`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ images: pendingPhotos }),
+          });
+          await removePendingPhotos(depositId);
+
+        } else if (pending.pendingPhotosOverflow) {
+        }
+
+        const { properties: data } = await fetchProperties();
+        setProperties(data);
+      } catch {
+      } finally {
+        if (finalizingKey) window.sessionStorage.removeItem(finalizingKey);
+      }
+    };
+
+    finalizeFromAdminReturn();
+  }, [searchParams, getToken]);
 
   useEffect(() => {
     async function loadProperties() {
@@ -138,38 +164,6 @@ export default function AdminListingsPage() {
     }
     loadProperties();
   }, []);
-
-  // Restore state from session if returning from payment
-  useEffect(() => {
-    const paymentSuccess = searchParams.get("payment_success");
-    const depositId = searchParams.get("depositId");
-    
-    if (paymentSuccess === "true" && depositId) {
-      const savedData = sessionStorage.getItem("pendingAdminListing");
-      if (savedData) {
-        try {
-          const { formData, selectedTier, selectedAddOns } = JSON.parse(savedData) as { formData: AdminListingFormData; selectedTier: string | null; selectedAddOns: string[] };
-          setFormData(formData);
-          setSelectedTier(selectedTier);
-          setSelectedAddOns(selectedAddOns);
-          // Note: Files cannot be restored easily from JSON. 
-          // We might need to ask user to re-upload images or handle images differently.
-          // For now, let's alert the user.
-          alert("Paiement réussi ! Veuillez ré-uploader les images et cliquer sur Publier pour finaliser.");
-          
-          // Clear session
-          sessionStorage.removeItem("pendingAdminListing");
-          
-          // Open the modal automatically? 
-          // We can't easily trigger the ExpandableScreen from here without ref or context access
-          // But the user can click "Nouveau Bien" and the form will be pre-filled due to state update.
-        } catch (e) {
-          console.error("Failed to restore form data", e);
-        }
-      }
-    }
-  }, [searchParams]);
-
 
   const filteredListings = useMemo(() => {
     return properties.filter((listing) => {
@@ -190,7 +184,6 @@ export default function AdminListingsPage() {
     });
   }, [properties, searchQuery, locationFilter, typeFilter, categoryFilter]);
 
-  // Extract unique values for filters
   const locations = useMemo(
     () =>
       Array.from(
@@ -214,187 +207,12 @@ export default function AdminListingsPage() {
     [properties],
   );
 
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files) {
-      const files = Array.from(e.target.files);
-      setSelectedFiles((prev) => [...prev, ...files]);
-
-      const newPreviews = files.map((file) => URL.createObjectURL(file));
-      setPreviews((prev) => [...prev, ...newPreviews]);
-    }
-  };
-
-  const removeFile = (index: number) => {
-    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-    setPreviews((prev) => {
-      URL.revokeObjectURL(prev[index]);
-      return prev.filter((_, i) => i !== index);
-    });
-  };
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => {
-        const base64String = reader.result as string;
-        // Remove the data:image/jpeg;base64, prefix
-        resolve(base64String.split(",")[1]);
-      };
-      reader.onerror = (error) => reject(error);
-    });
-  };
-
-  const handleCreateProperty = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setIsSubmitting(true);
-
-    try {
-      const token = await getToken();
-      if (!token) throw new Error("No token found");
-
-      if (!selectedTier) {
-        alert("Veuillez sélectionner un pack");
-        setIsSubmitting(false);
-        return;
-      }
-
-      // Handle Payment Flow
-      if (paymentChoice === "pay") {
-        // Calculate amount
-        const tier = TIERS_CONFIG[selectedTier as keyof typeof TIERS_CONFIG];
-        const baseFee = tier.base_fee;
-        const rent = parseInt(formData.prixMensuel) || 0;
-        const commission = rent * 0.05;
-        
-        // Add-ons total
-        const addonsTotal = selectedAddOns.reduce((sum, id) => {
-          const addon = addonsList.find(a => a.id === id);
-          return sum + (addon?.price || 0);
-        }, 0);
-        
-        const totalAmount = baseFee + commission + addonsTotal;
-
-        // Save state
-        sessionStorage.setItem("pendingAdminListing", JSON.stringify({
-          formData,
-          selectedTier,
-          selectedAddOns,
-          // We can't save files, so we skip them. 
-          // Ideally we'd upload them first to a temp storage.
-        }));
-
-        // Call payment page API
-        const paymentRes = await fetch("/api/payments/paymentpage", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-            amount: totalAmount,
-            description: `Publication ${formData.titre}`,
-            transactionType: "listing_submission",
-            tier_id: selectedTier,
-            add_ons: selectedAddOns,
-            metadata: {
-              tier_id: selectedTier,
-              add_ons: selectedAddOns,
-              commission
-            }
-          }),
-        });
-
-        const paymentData = await paymentRes.json();
-        if (!paymentRes.ok) throw new Error(paymentData.error || "Payment init failed");
-
-        if (paymentData.redirectUrl) {
-          window.location.href = paymentData.redirectUrl;
-          return; // Stop execution here
-        }
-      }
-
-      // 1. Create the property (Free or Finalizing Paid)
-      const depositId = searchParams.get("depositId"); // If returning from payment
-      
-      const response = await fetch("/api/properties", {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          listingData: {
-            ...formData,
-            prixMensuel: Number(formData.prixMensuel),
-            chambres: Number(formData.chambres),
-            sdb: Number(formData.sdb),
-            superficie: Number(formData.superficie),
-            vehicules: Number(formData.vehicules),
-            cautionMois: Number(formData.cautionMois),
-            equipements: [],
-            interdictions: [],
-            tier_id: selectedTier,
-            add_ons: selectedAddOns,
-            payment_id: depositId || null, // Pass depositId if available
-          },
-        }),
-      });
-
-
-      const result = await response.json();
-      if (!result.success) {
-        throw new Error(result.message || "Failed to create property");
-      }
-
-      const propertyId = result.propertyId;
-
-      // 2. Upload images if any
-      if (selectedFiles.length > 0) {
-        const base64Images = await Promise.all(
-          selectedFiles.map(async (file) => {
-            const base64 = await fileToBase64(file);
-            const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-            return { data: base64, ext };
-          }),
-        );
-
-        const uploadResponse = await fetch(
-          `/api/properties/${propertyId}/upload-images`,
-          {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ images: base64Images }),
-          },
-        );
-
-        const uploadResult = await uploadResponse.json();
-        if (!uploadResult.success) {
-          console.error("Image upload failed:", uploadResult.error);
-          alert("Propriété créée mais l&apos;upload des images a échoué.");
-        }
-      }
-
-      alert("Propriété ajoutée avec succès !");
-      window.location.reload();
-    } catch (error) {
-      console.error("Error creating property:", error);
-      alert(
-        error instanceof Error
-          ? error.message
-          : "Erreur lors de la création de la propriété.",
-      );
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
+  const userType =
+    ((user?.publicMetadata?.userType ||
+      user?.publicMetadata?.user_type) as string) || "staff";
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      {/* Customer Filter Section */}
       <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative">
         <div className="flex items-center justify-between mb-8">
           <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
@@ -416,410 +234,7 @@ export default function AdminListingsPage() {
                 className="bg-neutral-50"
                 closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
               >
-                <div className="max-w-5xl mx-auto py-12 px-6">
-                  <div className="mb-10 text-center">
-                    <h2 className="text-4xl font-bold text-neutral-900 mb-4">
-                      Ajouter une propriété (Staff)
-                    </h2>
-                    <p className="text-neutral-500 text-lg max-w-2xl mx-auto">
-                      En tant que membre du staff, vous pouvez ajouter des biens
-                      gratuitement. Ils seront vérifiés et mis en ligne
-                      immédiatement.
-                    </p>
-                  </div>
-
-                  <form
-                    onSubmit={handleCreateProperty}
-                    className="space-y-8 bg-white p-10 rounded-[40px] border border-neutral-100 shadow-xl"
-                  >
-                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-12">
-                      {/* Left Column: Info */}
-                      <div className="space-y-8">
-                        {/* Basic Info */}
-                        <div className="space-y-6">
-                          <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                            <HouseIcon size={20} className="text-primary" />
-                            Informations de base
-                          </h3>
-
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-neutral-700 ml-1">
-                              Titre de l&apos;annonce
-                            </label>
-                            <input
-                              required
-                              placeholder="Ex: Villa moderne avec piscine"
-                              className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                              value={formData.titre}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  titre: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-sm font-bold text-neutral-700 ml-1">
-                                Type
-                              </label>
-                              <select
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none"
-                                value={formData.type}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    type: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="house">Maison</option>
-                                <option value="apartment">Appartement</option>
-                                <option value="villa">Villa</option>
-                                <option value="studio">Studio</option>
-                                <option value="commercial">Commerce</option>
-                              </select>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-bold text-neutral-700 ml-1">
-                                Prix (CFA/mois)
-                              </label>
-                              <input
-                                required
-                                type="number"
-                                placeholder="500000"
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                                value={formData.prixMensuel}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    prixMensuel: e.target.value,
-                                  })
-                                }
-                              />
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* Location */}
-                        <div className="space-y-6">
-                          <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                            <MapPinIcon size={20} className="text-primary" />
-                            Localisation
-                          </h3>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-sm font-bold text-neutral-700 ml-1">
-                                Ville
-                              </label>
-                              <select
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none appearance-none"
-                                value={formData.ville}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    ville: e.target.value,
-                                  })
-                                }
-                              >
-                                <option value="ouaga">Ouagadougou</option>
-                                <option value="bobo">Bobo-Dioulasso</option>
-                              </select>
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-sm font-bold text-neutral-700 ml-1">
-                                Quartier
-                              </label>
-                              <input
-                                required
-                                placeholder="Ex: Ouaga 2000"
-                                className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                                value={formData.quartier}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    quartier: e.target.value,
-                                  })
-                                }
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-neutral-700 ml-1">
-                              Caution (mois)
-                            </label>
-                            <input
-                              type="number"
-                              className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none"
-                              value={formData.cautionMois}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  cautionMois: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-
-                        {/* Details */}
-                        <div className="space-y-6">
-                          <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                            <InfoIcon size={20} className="text-primary" />
-                            Détails du bien
-                          </h3>
-
-                          <div className="grid grid-cols-2 gap-4">
-                            <div className="space-y-2">
-                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
-                                Chambres
-                              </label>
-                              <input required min="1" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.chambres}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    chambres: e.target.value,
-                                  })
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
-                                SDB
-                              </label>
-                              <input required min="1" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.sdb}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    sdb: e.target.value,
-                                  })
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
-                                m²
-                              </label>
-                              <input required min="1" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.superficie}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    superficie: e.target.value,
-                                  })
-                                }
-                              />
-                            </div>
-                            <div className="space-y-2">
-                              <label className="text-xs font-bold text-neutral-500 uppercase tracking-wider ml-1">
-                                Parkings
-                              </label>
-                              <input required min="0" type="number" placeholder="0" className="w-full px-6 py-4 bg-neutral-50 rounded-2xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none" value={formData.vehicules}
-                                onChange={(e) =>
-                                  setFormData({
-                                    ...formData,
-                                    vehicules: e.target.value,
-                                  })
-                                }
-                              />
-                            </div>
-                          </div>
-
-                          <div className="space-y-2">
-                            <label className="text-sm font-bold text-neutral-700 ml-1">
-                              Description
-                            </label>
-                            <textarea required minLength={10} rows={4} placeholder="Décrivez le bien en quelques lignes..."
-                              className="w-full px-6 py-4 bg-neutral-50 rounded-3xl border border-neutral-100 focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none resize-none"
-                              value={formData.description}
-                              onChange={(e) =>
-                                setFormData({
-                                  ...formData,
-                                  description: e.target.value,
-                                })
-                              }
-                            />
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Right Column: Photos */}
-                      <div className="space-y-6">
-                        <h3 className="text-lg font-bold text-neutral-900 flex items-center gap-2">
-                          <ImageIcon size={20} className="text-primary" />
-                          Photos du bien
-                        </h3>
-
-                        <div
-                          onClick={() => fileInputRef.current?.click()}
-                          className="border-2 border-dashed border-neutral-200 rounded-[32px] p-12 flex flex-col items-center justify-center gap-4 hover:border-primary/50 hover:bg-primary/5 transition-all cursor-pointer group"
-                        >
-                          <div className="w-16 h-16 bg-neutral-50 rounded-2xl flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                            <UploadSimpleIcon
-                              size={32}
-                              className="text-neutral-400 group-hover:text-primary"
-                            />
-                          </div>
-                          <div className="text-center">
-                            <p className="text-lg font-bold text-neutral-900">
-                              Cliquez pour ajouter des photos
-                            </p>
-                            <p className="text-neutral-500">
-                              PNG, JPG ou WEBP jusqu&apos;à 10MB
-                            </p>
-                          </div>
-                          <input
-                            type="file"
-                            ref={fileInputRef}
-                            onChange={handleFileChange}
-                            multiple
-                            accept="image/*"
-                            className="hidden"
-                          />
-                        </div>
-
-                        {previews.length > 0 && (
-                          <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-6">
-                            {previews.map((preview, index) => (
-                              <div
-                                key={index}
-                                className="relative aspect-square rounded-2xl overflow-hidden group border border-neutral-100"
-                              >
-                                <Image
-                                  src={preview}
-                                  alt={`Preview ${index}`}
-                                  fill
-                                  className="object-cover"
-                                />
-                                <button
-                                  type="button"
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    removeFile(index);
-                                  }}
-                                  className="absolute top-2 right-2 p-1.5 bg-black/50 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity hover:bg-red-500"
-                                >
-                                  <XIcon size={14} weight="bold" />
-                                </button>
-                              </div>
-                            ))}
-                          </div>
-                        )}
-                      </div>
-                    </div>
-
-                    
-                    {/* Tier & Payment Section */}
-                    <div className="space-y-6 pt-8 border-t border-neutral-100">
-                      <h3 className="text-2xl font-bold text-neutral-900">Offre & Paiement</h3>
-                      
-                      {/* Payment Choice */}
-                      <div className="flex bg-neutral-100 p-1 rounded-xl max-w-md">
-                        <button
-                          type="button"
-                          onClick={() => setPaymentChoice("free")}
-                          className={`flex-1 py-3 rounded-lg font-bold transition-all ${
-                            paymentChoice === "free"
-                              ? "bg-white text-neutral-900 shadow-sm"
-                              : "text-neutral-500 hover:text-neutral-700"
-                          }`}
-                        >
-                          Gratuit (Staff)
-                        </button>
-                        <button
-                          type="button"
-                          onClick={() => setPaymentChoice("pay")}
-                          className={`flex-1 py-3 rounded-lg font-bold transition-all ${
-                            paymentChoice === "pay"
-                              ? "bg-white text-neutral-900 shadow-sm"
-                              : "text-neutral-500 hover:text-neutral-700"
-                          }`}
-                        >
-                          Payer pour client
-                        </button>
-                      </div>
-
-                      {/* Tiers */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        {Object.entries(TIERS_CONFIG).map(([key, tier]: [string, TierConfigEntry]) => (
-                          <div
-                            key={key}
-                            onClick={() => setSelectedTier(key)}
-                            className={`border-2 rounded-2xl p-5 cursor-pointer transition-all ${
-                              selectedTier === key
-                                ? "border-primary bg-primary/5"
-                                : "border-neutral-100 hover:border-neutral-200"
-                            }`}
-                          >
-                            <h4 className="font-bold text-lg capitalize mb-2">{key}</h4>
-                            <div className="text-2xl font-bold mb-4">
-                              {paymentChoice === "free" ? "0 F" : `${tier.base_fee.toLocaleString()} F`}
-                            </div>
-                            <ul className="space-y-2 text-sm text-neutral-600">
-                              <li className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
-                                {tier.photo_limit} photos
-                              </li>
-                              <li className="flex items-center gap-2">
-                                <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
-                                {tier.slot_limit} candidats
-                              </li>
-                              {tier.video_included && (
-                                <li className="flex items-center gap-2">
-                                  <div className="w-1.5 h-1.5 rounded-full bg-neutral-300" />
-                                  Vidéo incluse
-                                </li>
-                              )}
-                            </ul>
-                          </div>
-                        ))}
-                      </div>
-
-                      {/* Add-ons */}
-                      {addonsList.length > 0 && (
-                        <div className="space-y-3">
-                          <h4 className="font-bold text-lg">Options supplémentaires</h4>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                            {addonsList.map((addon) => (
-                              <label
-                                key={addon.id}
-                                className={`flex items-center p-4 border rounded-xl cursor-pointer transition-all ${
-                                  selectedAddOns.includes(addon.id)
-                                    ? "border-primary bg-primary/5"
-                                    : "border-neutral-100 hover:bg-neutral-50"
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className="w-5 h-5 rounded border-neutral-300 text-primary focus:ring-primary"
-                                  checked={selectedAddOns.includes(addon.id)}
-                                  onChange={(e) => {
-                                    if (e.target.checked) {
-                                      setSelectedAddOns([...selectedAddOns, addon.id]);
-                                    } else {
-                                      setSelectedAddOns(selectedAddOns.filter((id) => id !== addon.id));
-                                    }
-                                  }}
-                                />
-                                <div className="ml-3 flex-1">
-                                  <div className="font-bold">{addon.name}</div>
-                                  <div className="text-sm text-neutral-500">
-                                    {paymentChoice === "free" ? "Gratuit" : `+${addon.price.toLocaleString()} F`}
-                                  </div>
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-
-                    <PropertyFormFooter isSubmitting={isSubmitting} />
-                  </form>
-                </div>
+                <PropertyFormModal userType={userType} />
               </ExpandableScreenContent>
             </ExpandableScreen>
 
@@ -878,7 +293,6 @@ export default function AdminListingsPage() {
         </div>
       </div>
 
-      {/* Property Grid */}
       {loading ? (
         <div className="flex flex-col items-center justify-center py-32 space-y-4">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
@@ -935,7 +349,7 @@ export default function AdminListingsPage() {
           <h3 className="text-xl font-bold text-neutral-900 mb-2">
             Aucun résultat trouvé
           </h3>
-          <p className="text-neutral-500 max-w-sm mx-auto font-medium">
+          <p className="text-neutral-500 max-sm mx-auto font-medium">
             Nous n&apos;avons trouvé aucune propriété correspondant à vos
             critères.
           </p>

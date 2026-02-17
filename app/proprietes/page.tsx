@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useEffect, useState, useMemo, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
+import Link from "next/link";
 import { PropertyCard } from "../../components/PropertyCard";
 import { Property, fetchProperties } from "../../lib/data";
 import { motion, AnimatePresence } from "framer-motion";
@@ -14,9 +15,18 @@ import {
   CaretDownIcon,
   MagnifyingGlassIcon,
   CheckIcon,
+  PlusIcon,
+  BuildingsIcon,
 } from "@phosphor-icons/react";
 import UserTypeSelectionModal from "../../components/UserTypeSelectionModal";
 import PropertyDetailsModal from "../../components/PropertyDetailsModal";
+import { PropertyFormModal } from "../../components/property-form/PropertyFormModal";
+import {
+  ExpandableScreen,
+  ExpandableScreenContent,
+  ExpandableScreenTrigger,
+} from "../../components/ui/expandable-screen";
+import { cn } from "../../lib/utils";
 
 function PropertiesPageContent() {
   const { isSignedIn, isLoaded, getToken } = useAuth();
@@ -34,13 +44,22 @@ function PropertiesPageContent() {
   const [showUserTypeModal, setShowUserTypeModal] = useState(false);
 
   // Property details modal
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(null);
+  const [selectedProperty, setSelectedProperty] = useState<Property | null>(
+    null,
+  );
   const [showPropertyModal, setShowPropertyModal] = useState(false);
+
+  // Options menu state
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
       if (sortRef.current && !sortRef.current.contains(event.target as Node)) {
         setIsSortOpen(false);
+      }
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setIsMenuOpen(false);
       }
     }
     document.addEventListener("mousedown", handleClickOutside);
@@ -59,7 +78,6 @@ function PropertiesPageContent() {
   const [categoryFilter, setCategoryFilter] = useState("all");
 
   // Initialize filters from landing page query string.
-  // The hero search bar is "Où souhaitez-vous habiter ?" so we map `q` to the location filter.
   useEffect(() => {
     const q = (searchParams?.get("q") || "").trim();
     if (!q) return;
@@ -77,7 +95,8 @@ function PropertiesPageContent() {
   // Check if user needs to select user type
   useEffect(() => {
     if (isLoaded && isSignedIn && user) {
-      const userType = user.publicMetadata?.userType;
+      const userType =
+        user.publicMetadata?.userType || user.publicMetadata?.user_type;
       if (!userType) {
         setShowUserTypeModal(true);
       }
@@ -95,7 +114,7 @@ function PropertiesPageContent() {
 
   const handleUserTypeSelect = async (
     userType: string,
-    agentInfo?: { companyName: string; facebookUrl?: string }
+    agentInfo?: { companyName: string; facebookUrl?: string },
   ) => {
     try {
       const token = await getToken();
@@ -141,11 +160,26 @@ function PropertiesPageContent() {
     setTimeout(() => setSelectedProperty(null), 300);
   };
 
+  // Check user permissions
+  const userType = (user?.publicMetadata?.userType ||
+    user?.publicMetadata?.user_type) as string | undefined;
+  const canCreateProperty =
+    userType === "agent" ||
+    userType === "owner" ||
+    userType === "staff" ||
+    userType === "founder";
+  const isStaffOrFounder = userType === "staff" || userType === "founder";
+  const isAgentOrOwner = userType === "agent" || userType === "owner";
+
   const filteredProperties = useMemo(() => {
     const result = properties.filter((listing) => {
-      // Only show live properties
-      const isLive = listing.status === "en_ligne";
-      if (!isLive) return false;
+      // For staff/founders: show all properties
+      // For others: only show live properties
+      const statusMatch = isStaffOrFounder
+        ? true
+        : listing.status === "en_ligne";
+
+      if (!statusMatch) return false;
 
       const matchesSearch =
         listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -193,6 +227,7 @@ function PropertiesPageContent() {
     typeFilter,
     categoryFilter,
     sortBy,
+    isStaffOrFounder,
   ]);
 
   useEffect(() => {
@@ -210,19 +245,27 @@ function PropertiesPageContent() {
       },
       result_count: filteredProperties.length,
     });
-    // We only want to capture when filters materially change.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [searchQuery, locationFilter, typeFilter, categoryFilter, sortBy, loading]);
+  }, [
+    searchQuery,
+    locationFilter,
+    typeFilter,
+    categoryFilter,
+    sortBy,
+    loading,
+    filteredProperties.length,
+  ]);
 
   // Extract unique values for filters
   const locations = useMemo(
     () =>
       Array.from(
         new Set(
-          properties.map((p) => p.city).filter((city): city is string => !!city)
-        )
+          properties
+            .map((p) => p.city)
+            .filter((city): city is string => !!city),
+        ),
       ),
-    [properties]
+    [properties],
   );
   const propertyTypes = useMemo(
     () =>
@@ -230,11 +273,27 @@ function PropertiesPageContent() {
         new Set(
           properties
             .map((p) => p.propertyType)
-            .filter((type): type is string => !!type)
-        )
+            .filter((type): type is string => !!type),
+        ),
       ),
-    [properties]
+    [properties],
   );
+
+  // Determine if user owns a property
+  const isOwnerOfProperty = (property: Property) => {
+    return property.owner_id === user?.id;
+  };
+
+  // Get the appropriate route for a property
+  const getPropertyRoute = (property: Property) => {
+    if (isStaffOrFounder) {
+      return `/admin/annonces/${property.id}`;
+    }
+    if (isAgentOrOwner && isOwnerOfProperty(property)) {
+      return `/mes-proprietes/${property.id}`;
+    }
+    return null; // Opens modal
+  };
 
   if (!isLoaded || !isSignedIn) {
     return null;
@@ -253,7 +312,11 @@ function PropertiesPageContent() {
         isOpen={showPropertyModal}
         onClose={handleClosePropertyModal}
         property={selectedProperty}
-        viewerType={typeof user?.publicMetadata?.userType === "string" ? user.publicMetadata.userType : "renter"}
+        viewerType={
+          typeof user?.publicMetadata?.userType === "string"
+            ? user.publicMetadata.userType
+            : "renter"
+        }
       />
 
       <main className="max-w-7xl mx-auto px-6 pt-40 pb-20 space-y-8">
@@ -328,13 +391,77 @@ function PropertiesPageContent() {
             <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
               Filtres de recherche
             </h2>
-            <button className="p-2.5 hover:bg-neutral-50 rounded-full transition-colors border border-neutral-100 shadow-sm">
-              <DotsThreeVerticalIcon
-                size={24}
-                weight="bold"
-                className="text-neutral-400"
-              />
-            </button>
+            <div className="flex items-center gap-3">
+              {canCreateProperty && (
+                <ExpandableScreen
+                  layoutId="add-property-proprietes"
+                  contentRadius="32px"
+                >
+                  <ExpandableScreenTrigger>
+                    <div className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 cursor-pointer">
+                      <PlusIcon size={20} weight="bold" />
+                      <span>Nouveau Bien</span>
+                    </div>
+                  </ExpandableScreenTrigger>
+
+                  <ExpandableScreenContent
+                    className="bg-neutral-50"
+                    closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
+                  >
+                    <PropertyFormModal userType={userType || "owner"} />
+                  </ExpandableScreenContent>
+                </ExpandableScreen>
+              )}
+
+              <div className="relative" ref={menuRef}>
+                <button
+                  onClick={() => setIsMenuOpen(!isMenuOpen)}
+                  className={cn(
+                    "p-2.5 rounded-full transition-all border shadow-sm",
+                    isMenuOpen
+                      ? "bg-neutral-100 border-neutral-200 text-primary"
+                      : "hover:bg-neutral-50 border-neutral-100 text-neutral-400",
+                  )}
+                >
+                  <DotsThreeVerticalIcon size={24} weight="bold" />
+                </button>
+
+                <AnimatePresence>
+                  {isMenuOpen && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      className="absolute top-full right-0 mt-3 w-64 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50"
+                    >
+                      {isStaffOrFounder && (
+                        <Link
+                          href="/admin/annonces"
+                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-neutral-600 hover:bg-neutral-50 hover:text-primary transition-all"
+                        >
+                          <BuildingsIcon size={18} weight="bold" />
+                          Gérer les annonces
+                        </Link>
+                      )}
+
+                      <button
+                        onClick={() => {
+                          setSearchQuery("");
+                          setLocationFilter("all");
+                          setTypeFilter("all");
+                          setCategoryFilter("all");
+                          setIsMenuOpen(false);
+                        }}
+                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-neutral-600 hover:bg-neutral-50 transition-all"
+                      >
+                        <div className="w-[18px] h-[18px] border-2 border-neutral-300 rounded-md" />
+                        Réinitialiser les filtres
+                      </button>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
@@ -396,13 +523,28 @@ function PropertiesPageContent() {
           </div>
         ) : filteredProperties.length > 0 ? (
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
-            {filteredProperties.map((property) => (
-              <PropertyCard
-                key={property.id}
-                property={property}
-                onClick={() => handlePropertyClick(property)}
-              />
-            ))}
+            {filteredProperties.map((property) => {
+              const route = getPropertyRoute(property);
+              const showStatus =
+                isStaffOrFounder ||
+                (isAgentOrOwner && isOwnerOfProperty(property));
+
+              return route ? (
+                <Link
+                  key={property.id}
+                  href={route}
+                  className="block relative group"
+                >
+                  <PropertyCard property={property} showStatus={showStatus} />
+                </Link>
+              ) : (
+                <PropertyCard
+                  key={property.id}
+                  property={property}
+                  onClick={() => handlePropertyClick(property)}
+                />
+              );
+            })}
           </div>
         ) : (
           <div className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-[40px] border border-neutral-100 shadow-sm">
@@ -539,7 +681,13 @@ function FilterSelect({
 
 export default function PropertiesPage() {
   return (
-    <Suspense fallback={<div className="min-h-screen bg-neutral-50/30 flex items-center justify-center"><div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div></div>}>
+    <Suspense
+      fallback={
+        <div className="min-h-screen bg-neutral-50/30 flex items-center justify-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        </div>
+      }
+    >
       <PropertiesPageContent />
     </Suspense>
   );

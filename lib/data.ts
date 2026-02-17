@@ -2,6 +2,7 @@ import { supabase } from "./supabase";
 
 export type Property = {
   id: string;
+  owner_id?: string;
   title: string;
   location: string;
   address: string;
@@ -43,6 +44,7 @@ export type Property = {
 
 interface DBProperty {
   id: string;
+  owner_id: string | null;
   title: string;
   quartier: string;
   city: string;
@@ -78,11 +80,11 @@ interface DBProperty {
   primary_image: string | null;
 }
 
-
 // Helper function to map DB properties to frontend format
 function mapProperty(p: DBProperty): Property {
   return {
     id: p.id,
+    owner_id: p.owner_id || undefined,
     title: p.title,
     location: `${p.quartier}, ${p.city}`,
     address: p.address,
@@ -189,6 +191,7 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
   const p = data as DBProperty;
   return {
     id: p.id,
+    owner_id: p.owner_id || undefined,
     title: p.title,
     location: `${p.quartier}, ${p.city}`,
     address: p.address,

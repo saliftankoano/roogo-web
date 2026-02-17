@@ -1,9 +1,10 @@
 "use client";
 
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
-import { useAuth } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
+import { getPendingPhotos, removePendingPhotos } from "@/lib/clientPendingPhotos";
 
 function PaymentCallbackContent() {
   const searchParams = useSearchParams();
@@ -28,12 +29,38 @@ export default function PaymentCallbackPage() {
   );
 }
 
+type PaymentContext = {
+  transactionType: string | null;
+  amount: number | null;
+  currency: string;
+  propertyId: string | null;
+  propertyTitle: string | null;
+  tierId: string | null;
+  addOns: string[];
+  description: string | null;
+};
+
 function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
+  const { user } = useUser();
   const router = useRouter();
   const [status, setStatus] = useState<"loading" | "success" | "failed" | "pending">("loading");
   const [message, setMessage] = useState("Vérification du paiement...");
   const [attempts, setAttempts] = useState(0);
+  const [isRedirecting, setIsRedirecting] = useState(false);
+  const [paymentContext, setPaymentContext] = useState<PaymentContext | null>(null);
+  const [needsListingFinalization, setNeedsListingFinalization] = useState(false);
+  const [listingFinalized, setListingFinalized] = useState(false);
+  const finalizeOnceRef = useRef(false);
+
+  const rawUserType = user?.publicMetadata?.userType || user?.publicMetadata?.user_type;
+  const userType = typeof rawUserType === "string" ? rawUserType.toLowerCase() : "";
+  const destination =
+    userType === "staff" || userType === "founder"
+      ? "/admin/annonces"
+      : userType === "owner" || userType === "agent"
+        ? "/mes-proprietes"
+        : "/proprietes";
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -50,7 +77,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
       return;
     }
 
-    let timeoutId: NodeJS.Timeout;
+    let timeoutId: ReturnType<typeof setTimeout>;
 
     const checkStatus = async () => {
       try {
@@ -67,6 +94,9 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
         const data = await response.json();
 
         if (response.ok && data.success) {
+          const context = (data.context as PaymentContext | undefined) || null;
+          setPaymentContext(context);
+
           if (data.status === "COMPLETED") {
             setStatus("success");
             setMessage("Paiement réussi !");
@@ -108,6 +138,148 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
     return () => clearTimeout(timeoutId);
   }, [depositId, isLoaded, isSignedIn, attempts, getToken]);
 
+  useEffect(() => {
+    if (status !== "success") return;
+
+    const pendingDraft = window.sessionStorage.getItem("pendingAdminListing");
+    const shouldFinalize = !!pendingDraft && paymentContext?.transactionType === "listing_submission";
+
+    setNeedsListingFinalization(shouldFinalize);
+    if (!shouldFinalize) setListingFinalized(true);
+  }, [status, paymentContext]);
+
+  useEffect(() => {
+    if (status !== "success" || !depositId || !needsListingFinalization || finalizeOnceRef.current) return;
+
+    const finalizedKey = `listingFinalized:${depositId}`;
+    const finalizingKey = `listingFinalizing:${depositId}`;
+    if (window.sessionStorage.getItem(finalizedKey) === "1") {
+      setListingFinalized(true);
+      return;
+    }
+    if (window.sessionStorage.getItem(finalizingKey) === "1") {
+      return;
+    }
+
+    const finalizeListing = async () => {
+      finalizeOnceRef.current = true;
+      window.sessionStorage.setItem(finalizingKey, "1");
+
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("No token for listing finalization");
+
+        const pendingRaw = window.sessionStorage.getItem("pendingAdminListing");
+        if (!pendingRaw) {
+          setListingFinalized(true);
+          return;
+        }
+
+        const pending = JSON.parse(pendingRaw) as {
+          formData: Record<string, unknown>;
+          selectedTier: string;
+          selectedAddOns: string[];
+          pendingPhotos?: Array<{ data: string; ext: string }>;
+          pendingPhotosOverflow?: boolean;
+          pendingPhotosCount?: number;
+          pendingPhotosStoredInDb?: boolean;
+        };
+
+        const response = await fetch("/api/properties", {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization: `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            listingData: {
+              ...pending.formData,
+              prixMensuel: Number(pending.formData.prixMensuel),
+              chambres: Number(pending.formData.chambres),
+              sdb: Number(pending.formData.sdb),
+              superficie: Number(pending.formData.superficie),
+              vehicules: Number(pending.formData.vehicules),
+              cautionMois: Number(pending.formData.cautionMois),
+              tier_id: pending.selectedTier,
+              add_ons: pending.selectedAddOns,
+              payment_id: depositId,
+            },
+          }),
+        });
+
+        const result = await response.json();
+        if (!response.ok || !result.success) {
+          throw new Error(result?.message || "Listing finalization failed");
+        }
+
+        const propertyId = typeof result?.propertyId === "string" ? result.propertyId : null;
+        let pendingPhotos = Array.isArray(pending.pendingPhotos) ? pending.pendingPhotos : [];
+        if (pendingPhotos.length === 0 && pending.pendingPhotosStoredInDb && depositId) {
+          pendingPhotos = await getPendingPhotos(depositId);
+        }
+        window.sessionStorage.removeItem("pendingAdminListing");
+        window.sessionStorage.setItem(finalizedKey, "1");
+
+        if (propertyId && pendingPhotos.length > 0) {
+          await fetch(`/api/properties/${propertyId}/upload-images`, {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization: `Bearer ${token}`,
+            },
+            body: JSON.stringify({ images: pendingPhotos }),
+          });
+          if (depositId) await removePendingPhotos(depositId);
+
+        }
+
+        if (pending.pendingPhotosOverflow) {
+          setMessage("Paiement confirme et annonce creee. Ajoutez les photos depuis la fiche du bien.");
+        } else {
+          setMessage("Paiement confirmé et annonce créée avec succès.");
+        }
+        setListingFinalized(true);
+
+      } catch (error) {
+        const errorMessage = error instanceof Error ? error.message : "Erreur lors de la création de l'annonce";
+        setStatus("failed");
+        setMessage(errorMessage);
+
+      } finally {
+        window.sessionStorage.removeItem(finalizingKey);
+      }
+    };
+
+    finalizeListing();
+  }, [status, depositId, needsListingFinalization, getToken]);
+
+  useEffect(() => {
+    if (!depositId || isRedirecting) return;
+
+    if ((status === "success" && (!needsListingFinalization || listingFinalized)) || status === "failed") {
+      setIsRedirecting(true);
+      const paymentState = status === "success" ? "success" : "failed";
+      const redirectTimer = setTimeout(() => {
+        router.push(`${destination}?payment_status=${paymentState}&depositId=${depositId}`);
+      }, 5000);
+
+      return () => clearTimeout(redirectTimer);
+    }
+  }, [status, depositId, destination, router, isRedirecting, needsListingFinalization, listingFinalized]);
+
+  const transactionLabels: Record<string, string> = {
+    listing_submission: "Publication de votre annonce",
+    property_lock: "Verrouillage du bien",
+    boost: "Boost de votre bien",
+    photography: "Service photo",
+  };
+
+  const purchaseTitle = paymentContext?.description
+    ? paymentContext.description
+    : paymentContext?.transactionType
+      ? transactionLabels[paymentContext.transactionType] || paymentContext.transactionType
+      : null;
+
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
@@ -133,32 +305,63 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
            status === "success" ? "Paiement Réussi" : "Échec du paiement"}
         </h1>
         
-        <p className="text-gray-500 mb-8">
+        <p className="text-gray-500 mb-4">
           {message}
         </p>
+
+        {paymentContext && (status === "success" || status === "failed") && (
+          <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-left space-y-2">
+            {purchaseTitle && (
+              <div className="text-sm text-gray-700">
+                <span className="font-semibold text-gray-900">Objet:</span> {purchaseTitle}
+              </div>
+            )}
+            {paymentContext.propertyTitle && (
+              <div className="text-sm text-gray-700">
+                <span className="font-semibold text-gray-900">Bien concerné:</span> {paymentContext.propertyTitle}
+              </div>
+            )}
+            {paymentContext.tierId && (
+              <div className="text-sm text-gray-700">
+                <span className="font-semibold text-gray-900">Pack:</span> {paymentContext.tierId}
+              </div>
+            )}
+            {paymentContext.addOns.length > 0 && (
+              <div className="text-sm text-gray-700">
+                <span className="font-semibold text-gray-900">Options:</span> {paymentContext.addOns.join(", ")}
+              </div>
+            )}
+            {paymentContext.amount !== null && (
+              <div className="text-sm text-gray-700">
+                <span className="font-semibold text-gray-900">Montant:</span>{" "}
+                {paymentContext.amount.toLocaleString()} {paymentContext.currency}
+              </div>
+            )}
+          </div>
+        )}
+
+        {(status === "success" || status === "failed") && (
+          <p className="text-xs text-gray-400 mb-4">Redirection automatique dans quelques secondes...</p>
+        )}
 
         <div className="space-y-3">
           {status === "success" && (
             <button
               onClick={() => {
-                if (window.opener) {
-                   window.close();
-                } else {
-                   router.push(`/admin/annonces?payment_success=true&depositId=${depositId}`);
-                }
+                router.push(`${destination}?payment_status=success&depositId=${depositId}`);
               }}
               className="w-full bg-black text-white font-medium py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors"
             >
-              Retourner a l&apos;annonce
+              Continuer
             </button>
           )}
 
           {(status === "failed" || status === "success") && (
              <button
-               onClick={() => router.push("/")}
+               onClick={() => router.push(destination)}
                className="w-full bg-gray-100 text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors"
              >
-               Retour a l&apos;accueil
+               Retour à mes espaces
              </button>
           )}
         </div>

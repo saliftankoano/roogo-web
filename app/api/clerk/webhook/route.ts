@@ -54,7 +54,6 @@ export async function POST(req: Request) {
     }
     const { type, data } = evt;
 
-
     const publicMetadata =
       typeof data.public_metadata === "object" && data.public_metadata !== null
         ? (data.public_metadata as Record<string, unknown>)

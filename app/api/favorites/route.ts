@@ -43,7 +43,6 @@ interface FavoriteItem {
   properties: PropertyData | null;
 }
 
-
 async function getSupabaseUserId(clerkId: string): Promise<string | null> {
   const { data } = await supabaseAdmin
     .from("users")

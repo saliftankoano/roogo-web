@@ -167,8 +167,8 @@ export async function POST(req: Request) {
     const currency = "XOF";
     const supabase = getSupabaseClient();
 
-    // Provider is unknown at this stage, will be updated by callback
-    const provider = "PAWAPAY_PAGE"; 
+    // Payment Page provider is selected on pawaPay UI; store web source now, then enrich to web_orange/web_moov later
+    const provider = "web_pending"; 
 
     const { error: dbError } = await supabase.from("transactions").insert({
       deposit_id: depositId,
@@ -224,22 +224,44 @@ export async function POST(req: Request) {
       return errorResponse("Server configuration error", 500, req);
     }
 
+    const explicitReturnUrl = process.env.PAWAPAY_PAYMENTPAGE_RETURN_URL?.trim();
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.roogobf.com";
-    const returnUrl = `${baseUrl}/payments/callback`;
+    const fallbackReturnUrl = `${baseUrl.replace(/\/+$/, "")}/payments/callback`;
+
+    let validatedExplicitReturnUrl: string | null = null;
+    if (explicitReturnUrl) {
+      try {
+        const parsed = new URL(explicitReturnUrl);
+        const isHttps = parsed.protocol === "https:";
+        const host = parsed.hostname.toLowerCase();
+        const isLocalHost = host === "localhost" || host === "127.0.0.1";
+        validatedExplicitReturnUrl = isHttps && !isLocalHost ? explicitReturnUrl : null;
+      } catch {
+        validatedExplicitReturnUrl = null;
+      }
+    }
+
+    const returnUrl = validatedExplicitReturnUrl || fallbackReturnUrl;
 
     const payload = {
       depositId,
       returnUrl,
-      amount: amount.toString(),
-      currency,
+      amountDetails: {
+        amount: amount.toString(),
+        currency,
+      },
       country: "BFA",
-      reason: (description || "Roogo Payment").slice(0, 22).replace(/[^a-zA-Z0-9\s]/g, ""),
+      language: "FR",
+      reason: (description || "Roogo Payment").slice(0, 50).replace(/[^a-zA-Z0-9\s]/g, ""),
     };
 
-    log("pawapay-request", { 
-      url: `${pawaUrl}/v2/paymentpage`, 
-      depositId, 
-      amount: amount.toString()
+    log("pawapay-request", {
+      url: `${pawaUrl}/v2/paymentpage`,
+      depositId,
+      payloadKeys: Object.keys(payload),
+      hasAmountDetails: true,
+      amount: payload.amountDetails.amount,
+      currency: payload.amountDetails.currency,
     });
 
     const response = await fetch(`${pawaUrl}/v2/paymentpage`, {
@@ -273,11 +295,18 @@ export async function POST(req: Request) {
         result 
       });
 
+      const failureMessage =
+        typeof result?.failureReason?.failureMessage === "string"
+          ? result.failureReason.failureMessage
+          : typeof result?.message === "string"
+            ? result.message
+            : "Payment page creation failed";
+
       await getSupabaseClient()
         .from("transactions")
         .update({
           status: "failed",
-          failure_reason: result.message || "Payment page creation failed",
+          failure_reason: failureMessage,
           metadata: { ...(metadata || {}), ...result },
         })
         .eq("deposit_id", depositId);
@@ -289,13 +318,13 @@ export async function POST(req: Request) {
         transaction_type: transactionType,
         provider,
         property_id: propertyId || null,
-        failure_reason: result.message || "Payment page creation failed",
+        failure_reason: failureMessage,
         source: "payment_page",
       });
 
       return cors(
         NextResponse.json(
-          { error: result.message || "Payment initiation failed", details: result },
+          { error: failureMessage, details: result },
           { status: response.status }
         ),
         req

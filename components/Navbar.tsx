@@ -11,15 +11,16 @@ import {
 } from "framer-motion";
 import { useState } from "react";
 import {
-  ListIcon,
-  XIcon,
-  HouseLineIcon,
-  BriefcaseIcon,
-  ChatCircleIcon,
-  BuildingsIcon,
-  GearSixIcon,
-  UsersIcon,
-  ReceiptIcon,
+  List as ListIcon,
+  X as XIcon,
+  HouseLine as HouseLineIcon,
+  Briefcase as BriefcaseIcon,
+  ChatCircle as ChatCircleIcon,
+  Buildings as BuildingsIcon,
+  GearSix as GearSixIcon,
+  Users as UsersIcon,
+  Receipt as ReceiptIcon,
+  House as HouseIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
@@ -44,12 +45,12 @@ export function Navbar() {
     setIsScrolled(latest > 20);
   });
 
-  // Only allow staff and founder user types to see staff menu
-  const userType = user?.publicMetadata?.userType as string | undefined;
+  const userType = (user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined;
   const isStaff =
     userType === "staff" ||
     userType === "founder";
   const isFounder = userType === "founder";
+  const isAgentOrOwner = userType === "agent" || userType === "owner";
 
   const publicNavItems = [
     { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
@@ -65,6 +66,13 @@ export function Navbar() {
     { name: "Agents", href: "/admin/agents", icon: UsersIcon, id: "nav-admin-agents" },
   ];
 
+  const agentOwnerNavItems = [
+    { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
+    { name: "Mes Biens", href: "/mes-proprietes", icon: HouseIcon, id: "nav-mes-biens" },
+    { name: "Propriétés", href: "/proprietes", icon: BuildingsIcon, id: "nav-proprietes" },
+    { name: "Contact", href: "/nous-contacter", icon: ChatCircleIcon, id: "nav-contact" },
+  ];
+
   if (isFounder) {
     staffNavItems.push({
       name: "Paramètres",
@@ -74,7 +82,8 @@ export function Navbar() {
     });
   }
 
-  const navItems = isStaff ? staffNavItems : publicNavItems;
+  // Determine navigation items based on user type
+  const navItems = isStaff ? staffNavItems : (isAgentOrOwner ? agentOwnerNavItems : publicNavItems);
 
   return (
     <>

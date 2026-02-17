@@ -3,13 +3,13 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  UsersIcon,
-  BuildingsIcon,
-  ListIcon,
-  XIcon,
-  ReceiptIcon,
-  ChartLineUpIcon,
-  GearIcon,
+  Users as UsersIcon,
+  Buildings as BuildingsIcon,
+  List as ListIcon,
+  X as XIcon,
+  Receipt as ReceiptIcon,
+  ChartLineUp as ChartLineUpIcon,
+  Gear as GearIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
@@ -41,7 +41,8 @@ export function AdminNavbar() {
     setIsScrolled(latest > 20);
   });
 
-  const isFounder = user?.publicMetadata?.userType === "founder";
+  const userType = (user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined;
+  const isFounder = userType === "founder";
 
   const navItems = useMemo(() => {
     const baseItems = [

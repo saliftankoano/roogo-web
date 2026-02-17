@@ -200,7 +200,6 @@ export async function POST(req: Request) {
       console.error("Supabase sync after metadata update failed:", syncError);
     }
 
-
     return addCorsHeaders(NextResponse.json({ ok: true }));
   } catch (error) {
     console.error("Metadata update error:", error);

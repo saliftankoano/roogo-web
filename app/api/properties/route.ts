@@ -6,10 +6,18 @@ import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
 import { TIERS_CONFIG, BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { listingSchema } from "@/lib/validations";
+import validator from "validator";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
+
+// Helper to sanitize string inputs
+const sanitizeString = (str: string) => {
+  if (typeof str !== "string") return str;
+  return validator.escape(validator.trim(str));
+};
 
 export async function POST(req: Request) {
   console.log("Received POST request to /api/properties");
@@ -85,6 +93,14 @@ export async function POST(req: Request) {
       return errorResponse("Missing listingData in request body", 400, req);
     }
 
+    // 5b. Zod validation (server-side)
+    // Note: We skip photos validation on server as they are uploaded separately
+    const validationResult = listingSchema.omit({ photos: true }).safeParse(listingData);
+    if (!validationResult.success) {
+      console.error("Validation failed:", validationResult.error.format());
+      return errorResponse("Données invalides: " + validationResult.error.issues[0].message, 400, req);
+    }
+
     // 6. Get Supabase client (service role - bypasses RLS)
     const supabase = getSupabaseClient();
 
@@ -116,7 +132,6 @@ export async function POST(req: Request) {
     }
 
     // Calculate slot limit with add-ons
-    // Staff free listings get generous defaults, otherwise use tier limits
     let slotLimit = selectedTier?.slot_limit || (isFreeStaffListing ? 100 : null);
     if (slotLimit !== null && listingData.add_ons?.includes("extra_slots")) {
       slotLimit += 25;
@@ -143,9 +158,9 @@ export async function POST(req: Request) {
       : null;
 
     const propertyData = {
-      agent_id: listingData.owner_id || user.id, // Staff can specify owner_id for the actual property owner
-      title: listingData.titre,
-      description: listingData.description || null,
+      agent_id: listingData.owner_id || user.id,
+      title: sanitizeString(listingData.titre),
+      description: sanitizeString(listingData.description) || null,
       price: listingData.prixMensuel,
       listing_type: "louer" as const,
       property_type: listingData.type,
@@ -154,9 +169,9 @@ export async function POST(req: Request) {
       bathrooms: listingData.sdb || null,
       area: listingData.superficie || null,
       parking_spaces: listingData.vehicules || null,
-      address: `${listingData.quartier}, ${listingData.ville}`,
+      address: `${sanitizeString(listingData.quartier)}, ${sanitizeString(listingData.ville)}`,
       city: listingData.ville,
-      quartier: listingData.quartier,
+      quartier: sanitizeString(listingData.quartier),
       latitude: listingData.latitude || null,
       longitude: listingData.longitude || null,
       caution_mois: listingData.cautionMois || null,
@@ -178,7 +193,6 @@ export async function POST(req: Request) {
       published_at: isStaffOrFounder ? new Date().toISOString() : null,
     };
 
-
     // 9. Insert property
     console.log("Inserting property into database...", isStaffOrFounder ? "(Staff listing - auto-verified)" : "");
     const { data: property, error: propertyError } = await supabase
@@ -189,7 +203,6 @@ export async function POST(req: Request) {
 
     if (propertyError || !property) {
       console.error("Error creating property:", JSON.stringify(propertyError, null, 2));
-      console.error("Property data payload:", JSON.stringify(propertyData, null, 2));
       return errorResponse(
         safeError(propertyError, "Failed to create property"),
         500,
@@ -202,7 +215,6 @@ export async function POST(req: Request) {
 
     // 10. Create transaction record
     if (isFreeStaffListing && staffDepositId) {
-      // Create a $0 transaction record for free staff listings (audit trail)
       console.log("Creating staff listing transaction record...");
       const staffTransaction = {
         deposit_id: staffDepositId,
@@ -217,8 +229,6 @@ export async function POST(req: Request) {
           staff_id: user.id,
           staff_name: user.full_name || user.email,
           owner_id: listingData.owner_id || null,
-          owner_name: listingData.owner_name || null,
-          owner_phone: listingData.owner_phone || null,
           reason: "Founding owner - free listing promotion",
           created_by: "staff_portal",
         },
@@ -232,17 +242,14 @@ export async function POST(req: Request) {
 
       if (txError) {
         console.error("Error creating staff transaction:", txError);
-        // Non-fatal - property is already created
       } else if (txData) {
         console.log("Staff transaction created:", txData.id);
-        // Link transaction to property
         await supabase
           .from("properties")
           .update({ transaction_id: txData.id })
           .eq("id", propertyId);
       }
     } else if (listingData.payment_id) {
-      // Normal flow: link existing transaction to property
       console.log("Linking transaction to property:", listingData.payment_id);
       const { data: updatedTransaction, error: txError } = await supabase
         .from("transactions")

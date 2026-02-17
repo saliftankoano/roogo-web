@@ -60,6 +60,83 @@ export async function POST(req: Request) {
 
     const supabase = getSupabaseClient();
 
+    const resolveWebProvider = (statusPayload: unknown): string | null => {
+      if (!statusPayload || typeof statusPayload !== "object") return null;
+      const payload = statusPayload as Record<string, unknown>;
+
+      const directProvider =
+        typeof payload.provider === "string" ? payload.provider : null;
+      const directCorrespondent =
+        typeof payload.correspondent === "string" ? payload.correspondent : null;
+
+      const payer =
+        payload.payer && typeof payload.payer === "object"
+          ? (payload.payer as Record<string, unknown>)
+          : null;
+      const accountDetails =
+        payer?.accountDetails && typeof payer.accountDetails === "object"
+          ? (payer.accountDetails as Record<string, unknown>)
+          : null;
+      const nestedProvider =
+        typeof accountDetails?.provider === "string"
+          ? accountDetails.provider
+          : null;
+
+      const providerHint = `${directProvider || ""} ${directCorrespondent || ""} ${nestedProvider || ""}`.toUpperCase();
+      if (providerHint.includes("ORANGE")) return "web_orange";
+      if (providerHint.includes("MOOV")) return "web_moov";
+      return null;
+    };
+
+    const getPaymentContext = async (
+      transactionRecord: Record<string, unknown> | null
+    ) => {
+      if (!transactionRecord) return null;
+
+      const metadataRaw = transactionRecord.metadata;
+      const metadata =
+        metadataRaw && typeof metadataRaw === "object"
+          ? (metadataRaw as Record<string, unknown>)
+          : null;
+
+      const addOns = Array.isArray(metadata?.add_ons)
+        ? metadata.add_ons.filter((value): value is string => typeof value === "string")
+        : [];
+
+      const tierId = typeof metadata?.tier_id === "string" ? metadata.tier_id : null;
+      const description =
+        typeof metadata?.description === "string" ? metadata.description : null;
+
+      let propertyTitle: string | null = null;
+      if (typeof transactionRecord.property_id === "string" && transactionRecord.property_id) {
+        const { data: propertyData } = await supabase
+          .from("properties")
+          .select("titre")
+          .eq("id", transactionRecord.property_id)
+          .single();
+        propertyTitle = (propertyData?.titre as string | undefined) || null;
+      }
+
+      return {
+        transactionType:
+          typeof transactionRecord.type === "string" ? transactionRecord.type : null,
+        amount:
+          typeof transactionRecord.amount === "number" ? transactionRecord.amount : null,
+        currency:
+          typeof transactionRecord.currency === "string"
+            ? transactionRecord.currency
+            : "XOF",
+        propertyId:
+          typeof transactionRecord.property_id === "string"
+            ? transactionRecord.property_id
+            : null,
+        propertyTitle,
+        tierId,
+        addOns,
+        description,
+      };
+    };
+
     // 3. Check DB first (callback may have already updated it)
     const { data: transaction, error: fetchError } = await supabase
       .from("transactions")
@@ -91,11 +168,14 @@ export async function POST(req: Request) {
 
         log("returning-db-status", { depositId, status: pawaPayStatus, source: "database" });
 
+        const context = await getPaymentContext(transaction as Record<string, unknown>);
+
         return cors(
           NextResponse.json({
             success: true,
             status: pawaPayStatus,
             raw: { status: pawaPayStatus, ...(transaction.metadata || {}) },
+            context,
           })
         );
       }
@@ -209,10 +289,13 @@ export async function POST(req: Request) {
         previousDbStatus: transaction.status,
       });
 
+      const inferredProvider = resolveWebProvider(statusData);
+
       const { error: updateError } = await supabase
         .from("transactions")
         .update({
           status: dbStatus,
+          provider: inferredProvider || transaction.provider,
           metadata: statusData,
           updated_at: new Date().toISOString(),
         })
@@ -341,11 +424,16 @@ export async function POST(req: Request) {
       success: true 
     });
 
+    const context = await getPaymentContext(
+      transaction ? (transaction as Record<string, unknown>) : null
+    );
+
     return cors(
       NextResponse.json({
         success: true,
         status: status,
         raw: statusData,
+        context,
       })
     );
   } catch (error: unknown) {

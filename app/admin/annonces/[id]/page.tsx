@@ -1108,12 +1108,16 @@ export default function ListingDetailPage() {
                           </span>
                         </div>
                       )}
-                      {metadata?.add_ons?.map((a) => {
+                      {metadata?.add_ons?.map((a, index) => {
                         const Icon = ADD_ON_ICONS[a.id] || InfoIcon;
                         const label = ADD_ON_LABELS[a.id] || a.name;
+                        const addOnPrice =
+                          typeof a.price === "number"
+                            ? a.price
+                            : Number(a.price ?? 0);
                         return (
                           <div
-                            key={a.id}
+                            key={`${a.id}-${index}`}
                             className="flex items-center justify-between text-[10px] font-bold"
                           >
                             <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-widest">
@@ -1121,7 +1125,7 @@ export default function ListingDetailPage() {
                               <span>{label}</span>
                             </div>
                             <span className="text-neutral-900">
-                              {a.price.toLocaleString()} F
+                              {(Number.isFinite(addOnPrice) ? addOnPrice : 0).toLocaleString()} F
                             </span>
                           </div>
                         );

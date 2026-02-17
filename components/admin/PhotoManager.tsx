@@ -20,6 +20,9 @@ interface PhotoManagerProps {
   onPhotosUpdated: (isPro: boolean) => void;
 }
 
+const sanitizePhotoUrls = (urls: string[]) =>
+  urls.filter((url) => typeof url === "string" && url.trim().length > 0);
+
 export default function PhotoManager({
   propertyId,
   initialPhotos = [],
@@ -28,7 +31,7 @@ export default function PhotoManager({
   onPhotosUpdated,
 }: PhotoManagerProps) {
   const { getToken } = useAuth();
-  const [photos, setPhotos] = useState<string[]>(initialPhotos);
+  const [photos, setPhotos] = useState<string[]>(sanitizePhotoUrls(initialPhotos));
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -43,8 +46,9 @@ export default function PhotoManager({
 
   // Update photos when initialPhotos changes (e.g. after refresh)
   useEffect(() => {
-    setPhotos(initialPhotos);
-  }, [initialPhotos]);
+    const sanitized = sanitizePhotoUrls(initialPhotos);
+    setPhotos(sanitized);
+  }, [initialPhotos, propertyId]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -82,7 +86,10 @@ export default function PhotoManager({
       const result = await response.json();
       if (result.success && result.images) {
         // Add new photos to state
-        const newUrls = result.images.map((img: { url: string }) => img.url);
+        const newUrls = sanitizePhotoUrls(
+          result.images.map((img: { url: string }) => img.url)
+        );
+
         setPhotos((prev) => [...prev, ...newUrls]);
       }
     } catch (error) {
@@ -105,6 +112,7 @@ export default function PhotoManager({
 
   const setPrimary = async (index: number) => {
     const photoUrl = photos[index];
+    if (!photoUrl) return;
     // Note: Don't reorder the array - just update the database and rely on primaryImageUrl prop
 
     try {
@@ -131,6 +139,7 @@ export default function PhotoManager({
 
   const removePhoto = async (index: number) => {
     const photoUrl = photos[index];
+    if (!photoUrl) return;
     if (!confirm("Voulez-vous vraiment supprimer cette photo ?")) return;
 
     // Optimistically remove from UI

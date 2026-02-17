@@ -285,7 +285,6 @@ export default function AdminFinancesPage() {
     return null;
   }
 
-
   const chartConfig = {
     premium: { label: "Tier Premium", color: "#c96a2e" },
     standard: { label: "Tier Standard", color: "#e68a4d" },
