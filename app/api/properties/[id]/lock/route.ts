@@ -154,7 +154,7 @@ export async function POST(
 
     // 7. Call PawaPay API
     const pawaPayConfig = resolvePawaPayConfig();
-    if (!pawaUrlBase) {
+    if (!pawaPayConfig.url) {
       console.error("PAWAPAY_URL not configured");
       return cors(
         NextResponse.json(
