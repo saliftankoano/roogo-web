@@ -184,7 +184,7 @@ export async function POST(req: Request) {
 
     // 4. DB status is still pending/submitted - check PawaPay API for latest
     const pawaPayConfig = resolvePawaPayConfig();
-    if (!pawaUrlBase) {
+    if (!pawaPayConfig.url) {
       log("error", { error: "PAWAPAY_URL not configured" });
       return cors(
         NextResponse.json(
