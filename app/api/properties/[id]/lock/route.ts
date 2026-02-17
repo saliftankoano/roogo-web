@@ -3,6 +3,7 @@ import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
+import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 
 // Use service role for reading config
 //const supabaseAdmin = createClient(
