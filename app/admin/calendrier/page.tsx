@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/lib/supabase";
 import { fetchProperties, Property } from "@/lib/data";
 import { TimeInput24h } from "@/components/ui/TimeInput24h";
+import { cn } from "@/lib/utils";
 
 interface OpenHouseSlot {
   id: string;

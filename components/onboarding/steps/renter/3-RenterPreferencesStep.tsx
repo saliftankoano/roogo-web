@@ -26,7 +26,7 @@ const preferencesSchema = z.object({
   rooms: z.enum(["Studio", "1", "2", "3", "4+"]).optional(),
   furnished: z.enum(["Meublé", "Non meublé", "Peu importe"]).optional(),
   budget: z
-    .number({ invalid_type_error: "Entrez un montant valide" })
+    .number({ message: "Entrez un montant valide" })
     .int("Entrez un montant entier")
     .min(0)
     .max(100_000_000, "Montant trop élevé")
