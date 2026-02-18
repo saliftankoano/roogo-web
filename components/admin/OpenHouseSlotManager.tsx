@@ -9,6 +9,7 @@ import {
   UsersIcon,
   CaretDownIcon,
   NavigationArrowIcon,
+  MapPinIcon,
 } from "@phosphor-icons/react";
 import { TimeInput24h } from "@/components/ui/TimeInput24h";
 import { Button } from "@/components/ui/Button";
@@ -17,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { supabase } from "@/lib/supabase";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
+import { cn } from "@/lib/utils";
 
 interface OpenHouseSlot {
   id: string;
@@ -53,7 +55,9 @@ export default function OpenHouseSlotManager({
   const [longitude, setLongitude] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
-  const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>({});
+  const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>(
+    {},
+  );
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
 
@@ -76,7 +80,7 @@ export default function OpenHouseSlotManager({
           `
           *,
           bookings:open_house_bookings(count)
-        `
+        `,
         )
         .eq("property_id", propertyId)
         .order("date", { ascending: true });
@@ -150,7 +154,14 @@ export default function OpenHouseSlotManager({
   };
 
   const handleConfirmAdd = () => {
-    if (!selectedDate || !propertyId || !directions.trim() || !latitude || !longitude) return;
+    if (
+      !selectedDate ||
+      !propertyId ||
+      !directions.trim() ||
+      !latitude ||
+      !longitude
+    )
+      return;
     setShowConfirmation(true);
   };
 
@@ -293,7 +304,10 @@ export default function OpenHouseSlotManager({
                 </label>
                 <TimeInput24h
                   value={startTime}
-                  onChange={(v) => { setStartTime(v); bumpEndTime(v); }}
+                  onChange={(v) => {
+                    setStartTime(v);
+                    bumpEndTime(v);
+                  }}
                   maxTime={endTime}
                   icon={<ClockIcon size={20} weight="bold" />}
                 />
@@ -364,7 +378,13 @@ export default function OpenHouseSlotManager({
                 Annuler
               </Button>
               <Button
-                disabled={isSubmitting || !selectedDate || !directions.trim() || !latitude || !longitude}
+                disabled={
+                  isSubmitting ||
+                  !selectedDate ||
+                  !directions.trim() ||
+                  !latitude ||
+                  !longitude
+                }
                 onClick={handleConfirmAdd}
                 className="bg-primary text-white text-xs font-bold uppercase tracking-wider px-8 h-12 rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95 disabled:opacity-50"
               >
@@ -421,33 +441,69 @@ export default function OpenHouseSlotManager({
                         </div>
                         {slot.directions && (
                           <div className="flex items-start gap-1.5 mt-1.5">
-                            <NavigationArrowIcon size={12} weight="bold" className="text-neutral-300 mt-0.5 shrink-0" />
-                            <div className="flex flex-col gap-1">
-                              <div className="flex items-start gap-2">
-                                <span className="text-xs text-neutral-400 font-medium leading-tight">
-                                  {expandedSlots[slot.id] 
-                                    ? slot.directions 
-                                    : slot.directions.length > 50 
-                                      ? `${slot.directions.slice(0, 50)}...` 
-                                      : slot.directions}
-                                </span>
-                                {slot.directions.length > 50 && (
-                                  <button
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setExpandedSlots(prev => ({ ...prev, [slot.id]: !prev[slot.id] }));
-                                    }}
-                                    className="text-[10px] font-bold text-primary hover:text-primary/80 uppercase tracking-widest shrink-0"
-                                  >
-                                    {expandedSlots[slot.id] ? "Réduire" : "Voir plus"}
-                                  </button>
-                                )}
-                              </div>
+                            <NavigationArrowIcon
+                              size={12}
+                              weight="bold"
+                              className="text-neutral-300 mt-0.5 shrink-0"
+                            />
+                            <div className="flex flex-col gap-2 flex-1 min-w-0">
+                              <motion.div
+                                layout="position"
+                                className="flex flex-col gap-1.5"
+                              >
+                                <p
+                                  className={cn(
+                                    "text-xs font-medium text-neutral-400 leading-relaxed transition-all duration-500",
+                                    !expandedSlots[slot.id] && "line-clamp-2",
+                                  )}
+                                >
+                                  {slot.directions}
+                                </p>
+
+                                <div className="flex items-center gap-4">
+                                  {slot.directions.length > 60 && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedSlots((prev) => ({
+                                          ...prev,
+                                          [slot.id]: !prev[slot.id],
+                                        }));
+                                      }}
+                                      className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest"
+                                    >
+                                      {expandedSlots[slot.id]
+                                        ? "Réduire"
+                                        : "Voir plus"}
+                                    </button>
+                                  )}
+
+                                  {slot.latitude != null &&
+                                    slot.longitude != null && (
+                                      <a
+                                        href={`https://www.google.com/maps/search/?api=1&query=${slot.latitude},${slot.longitude}`}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        onClick={(e) => e.stopPropagation()}
+                                        className="flex items-center gap-1 text-[10px] font-black text-neutral-300 hover:text-primary uppercase tracking-widest transition-colors group/map"
+                                      >
+                                        <MapPinIcon
+                                          size={12}
+                                          weight="bold"
+                                          className="group-hover/map:scale-110 transition-transform"
+                                        />
+                                        Google Maps
+                                      </a>
+                                    )}
+                                </div>
+                              </motion.div>
                             </div>
                           </div>
                         )}
                         {slot.latitude != null && slot.longitude != null && (
-                          <span className="text-[10px] font-mono text-neutral-300 mt-0.5 block ml-4.5">{slot.latitude}, {slot.longitude}</span>
+                          <span className="text-[10px] font-mono text-neutral-300 mt-0.5 block ml-4.5">
+                            {slot.latitude}, {slot.longitude}
+                          </span>
                         )}
                       </div>
                     </div>

@@ -10,6 +10,7 @@ import {
   TrashIcon,
   CalendarBlank,
   NavigationArrowIcon,
+  MapPinIcon,
 } from "@phosphor-icons/react";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -395,25 +396,45 @@ export default function PropertyOpenHouseManager({
                                 <NavigationArrowIcon size={20} weight="bold" />
                               </div>
                               <div className="flex flex-col gap-1 flex-1">
-                                <div className="flex items-start justify-between gap-2">
-                                  <span className="text-xs font-medium text-neutral-600 leading-snug flex-1">
-                                    {expandedSlots[slot.id] 
-                                      ? slot.directions 
-                                      : slot.directions.length > 50 
-                                        ? `${slot.directions.slice(0, 50)}...` 
-                                        : slot.directions}
-                                  </span>
-                                  {slot.directions.length > 50 && (
-                                    <button
-                                      onClick={(e) => {
-                                        e.stopPropagation();
-                                        setExpandedSlots(prev => ({ ...prev, [slot.id]: !prev[slot.id] }));
-                                      }}
-                                      className="text-[10px] font-bold text-primary hover:text-primary/80 uppercase tracking-widest shrink-0 mt-0.5"
-                                    >
-                                      {expandedSlots[slot.id] ? "Réduire" : "Voir plus"}
-                                    </button>
-                                  )}
+                                <div className="flex flex-col gap-2 flex-1 min-w-0">
+                                  <motion.div 
+                                    layout="position"
+                                    className="flex flex-col gap-1.5"
+                                  >
+                                    <p className={cn(
+                                      "text-xs font-medium text-neutral-500 leading-relaxed transition-all duration-500",
+                                      !expandedSlots[slot.id] && "line-clamp-2"
+                                    )}>
+                                      {slot.directions}
+                                    </p>
+                                    
+                                    <div className="flex items-center gap-4">
+                                      {slot.directions.length > 60 && (
+                                        <button
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            setExpandedSlots(prev => ({ ...prev, [slot.id]: !prev[slot.id] }));
+                                          }}
+                                          className="text-[10px] font-black text-primary hover:underline uppercase tracking-widest"
+                                        >
+                                          {expandedSlots[slot.id] ? "Réduire" : "Voir plus"}
+                                        </button>
+                                      )}
+                                      
+                                      {slot.latitude != null && slot.longitude != null && (
+                                        <a
+                                          href={`https://www.google.com/maps/search/?api=1&query=${slot.latitude},${slot.longitude}`}
+                                          target="_blank"
+                                          rel="noopener noreferrer"
+                                          onClick={(e) => e.stopPropagation()}
+                                          className="flex items-center gap-1 text-[10px] font-black text-neutral-400 hover:text-primary uppercase tracking-widest transition-colors group/map"
+                                        >
+                                          <MapPinIcon size={12} weight="bold" className="group-hover/map:scale-110 transition-transform" />
+                                          Google Maps
+                                        </a>
+                                      )}
+                                    </div>
+                                  </motion.div>
                                 </div>
                                 {slot.latitude != null && slot.longitude != null && (
                                   <span className="text-[10px] font-bold text-neutral-400 font-mono">
