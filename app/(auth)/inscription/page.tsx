@@ -30,7 +30,7 @@ export default function SignUpPage() {
         }}
         routing="hash"
         signInUrl="/connexion"
-        forceRedirectUrl="/proprietes"
+        forceRedirectUrl="/onboarding"
       />
     </div>
   );

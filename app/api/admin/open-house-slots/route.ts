@@ -34,10 +34,9 @@ export async function POST(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { property_id, date, start_time, end_time, capacity } = body;
-    
+    const { property_id, date, start_time, end_time, capacity, directions, latitude, longitude } = body;
 
-    if (!property_id || !date || !start_time || !end_time || !capacity) {
+    if (!property_id || !date || !start_time || !end_time || !capacity || !directions || latitude == null || longitude == null) {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
@@ -52,6 +51,9 @@ export async function POST(request: NextRequest) {
         start_time,
         end_time,
         capacity,
+        directions,
+        latitude,
+        longitude,
       })
       .select()
       .single();

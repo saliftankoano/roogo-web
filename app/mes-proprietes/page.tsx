@@ -130,9 +130,9 @@ export default function MyPropertiesPage() {
     });
   }, [properties, searchQuery, statusFilter, sortBy]);
 
-  // Get property route
+  // Get property route - /proprietes/[id] shows the unified detail page
   const getPropertyRoute = (property: Property) => {
-    return `/mes-proprietes/${property.id}`;
+    return `/proprietes/${property.id}`;
   };
 
   if (!isLoaded || !isSignedIn) {

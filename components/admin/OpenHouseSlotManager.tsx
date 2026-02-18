@@ -8,7 +8,9 @@ import {
   ClockIcon,
   UsersIcon,
   CaretDownIcon,
+  NavigationArrowIcon,
 } from "@phosphor-icons/react";
+import { TimeInput24h } from "@/components/ui/TimeInput24h";
 import { Button } from "@/components/ui/Button";
 import { Calendar } from "@/components/ui/calendar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -22,6 +24,9 @@ interface OpenHouseSlot {
   start_time: string;
   end_time: string;
   capacity: number;
+  directions?: string;
+  latitude?: number;
+  longitude?: number;
   bookings: { count: number }[];
 }
 
@@ -43,10 +48,24 @@ export default function OpenHouseSlotManager({
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("12:00");
   const [capacity, setCapacity] = useState(10);
+  const [directions, setDirections] = useState("");
+  const [latitude, setLatitude] = useState<string>("");
+  const [longitude, setLongitude] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>({});
   const [isDatePickerOpen, setIsDatePickerOpen] = useState(false);
   const datePickerRef = useRef<HTMLDivElement>(null);
+
+  const bumpEndTime = (newStart: string) => {
+    const [h, m] = newStart.split(":").map(Number);
+    const endH = Math.min(h + 1, 23);
+    const endStr = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const [curEndH, curEndM] = endTime.split(":").map(Number);
+    if (h > curEndH || (h === curEndH && m >= curEndM)) {
+      setEndTime(endStr);
+    }
+  };
 
   const fetchSlots = useCallback(async () => {
     setLoading(true);
@@ -91,15 +110,25 @@ export default function OpenHouseSlotManager({
   const handleAddSlot = async () => {
     setIsSubmitting(true);
     try {
-      const { error } = await supabase.from("open_house_slots").insert({
-        property_id: propertyId,
-        date: format(selectedDate!, "yyyy-MM-dd"),
-        start_time: startTime,
-        end_time: endTime,
-        capacity,
+      const response = await fetch("/api/admin/open-house-slots", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          property_id: propertyId,
+          date: format(selectedDate!, "yyyy-MM-dd"),
+          start_time: startTime,
+          end_time: endTime,
+          capacity,
+          directions,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
+        }),
       });
 
-      if (error) throw error;
+      if (!response.ok) {
+        const err = await response.json();
+        throw new Error(err.error || "Failed to create slot");
+      }
 
       setIsAdding(false);
       setShowConfirmation(false);
@@ -109,6 +138,9 @@ export default function OpenHouseSlotManager({
       setStartTime("10:00");
       setEndTime("12:00");
       setCapacity(10);
+      setDirections("");
+      setLatitude("");
+      setLongitude("");
     } catch (error) {
       console.error("Error adding slot:", error);
       alert("Erreur lors de l'ajout du créneau");
@@ -118,7 +150,7 @@ export default function OpenHouseSlotManager({
   };
 
   const handleConfirmAdd = () => {
-    if (!selectedDate || !propertyId) return;
+    if (!selectedDate || !propertyId || !directions.trim() || !latitude || !longitude) return;
     setShowConfirmation(true);
   };
 
@@ -259,34 +291,67 @@ export default function OpenHouseSlotManager({
                 <label className="text-[11px] font-bold text-neutral-900 ml-4 uppercase tracking-widest opacity-60">
                   Heure de début
                 </label>
-                <div className="relative group">
-                  <input
-                    type="time"
-                    className="w-full pl-12 pr-6 py-4 bg-white rounded-full border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold appearance-none cursor-pointer"
-                    value={startTime}
-                    onChange={(e) => setStartTime(e.target.value)}
-                  />
-                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                    <ClockIcon size={20} weight="bold" />
-                  </div>
-                </div>
+                <TimeInput24h
+                  value={startTime}
+                  onChange={(v) => { setStartTime(v); bumpEndTime(v); }}
+                  maxTime={endTime}
+                  icon={<ClockIcon size={20} weight="bold" />}
+                />
               </div>
 
               <div className="space-y-2">
                 <label className="text-[11px] font-bold text-neutral-900 ml-4 uppercase tracking-widest opacity-60">
                   Heure de fin
                 </label>
-                <div className="relative group">
-                  <input
-                    type="time"
-                    className="w-full pl-12 pr-6 py-4 bg-white rounded-full border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold appearance-none cursor-pointer"
-                    value={endTime}
-                    onChange={(e) => setEndTime(e.target.value)}
-                  />
-                  <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                    <ClockIcon size={20} weight="bold" />
-                  </div>
+                <TimeInput24h
+                  value={endTime}
+                  onChange={setEndTime}
+                  minTime={startTime}
+                  icon={<ClockIcon size={20} weight="bold" />}
+                />
+              </div>
+            </div>
+
+            {/* Directions + GPS */}
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-neutral-900 ml-4 uppercase tracking-widest opacity-60">
+                Itinéraire / Indications
+              </label>
+              <div className="relative group">
+                <textarea
+                  value={directions}
+                  onChange={(e) => setDirections(e.target.value)}
+                  placeholder="Ex: Après le grand marché Rood Woko, tourner à droite au feu..."
+                  rows={3}
+                  className="w-full pl-12 pr-6 py-4 bg-white rounded-[24px] border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-medium resize-none"
+                />
+                <div className="absolute left-5 top-4 text-neutral-300 group-focus-within:text-primary transition-colors">
+                  <NavigationArrowIcon size={20} weight="bold" />
                 </div>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <label className="text-[11px] font-bold text-neutral-900 ml-4 uppercase tracking-widest opacity-60">
+                Coordonnées GPS
+              </label>
+              <div className="grid grid-cols-2 gap-3">
+                <input
+                  type="number"
+                  step="any"
+                  value={latitude}
+                  onChange={(e) => setLatitude(e.target.value)}
+                  placeholder="Latitude"
+                  className="w-full px-5 py-4 bg-white rounded-full border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold"
+                />
+                <input
+                  type="number"
+                  step="any"
+                  value={longitude}
+                  onChange={(e) => setLongitude(e.target.value)}
+                  placeholder="Longitude"
+                  className="w-full px-5 py-4 bg-white rounded-full border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold"
+                />
               </div>
             </div>
 
@@ -299,7 +364,7 @@ export default function OpenHouseSlotManager({
                 Annuler
               </Button>
               <Button
-                disabled={isSubmitting || !selectedDate}
+                disabled={isSubmitting || !selectedDate || !directions.trim() || !latitude || !longitude}
                 onClick={handleConfirmAdd}
                 className="bg-primary text-white text-xs font-bold uppercase tracking-wider px-8 h-12 rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95 disabled:opacity-50"
               >
@@ -354,6 +419,36 @@ export default function OpenHouseSlotManager({
                             {slot.bookings?.[0]?.count || 0} / {slot.capacity}
                           </span>
                         </div>
+                        {slot.directions && (
+                          <div className="flex items-start gap-1.5 mt-1.5">
+                            <NavigationArrowIcon size={12} weight="bold" className="text-neutral-300 mt-0.5 shrink-0" />
+                            <div className="flex flex-col gap-1">
+                              <div className="flex items-start gap-2">
+                                <span className="text-xs text-neutral-400 font-medium leading-tight">
+                                  {expandedSlots[slot.id] 
+                                    ? slot.directions 
+                                    : slot.directions.length > 50 
+                                      ? `${slot.directions.slice(0, 50)}...` 
+                                      : slot.directions}
+                                </span>
+                                {slot.directions.length > 50 && (
+                                  <button
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setExpandedSlots(prev => ({ ...prev, [slot.id]: !prev[slot.id] }));
+                                    }}
+                                    className="text-[10px] font-bold text-primary hover:text-primary/80 uppercase tracking-widest shrink-0"
+                                  >
+                                    {expandedSlots[slot.id] ? "Réduire" : "Voir plus"}
+                                  </button>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                        )}
+                        {slot.latitude != null && slot.longitude != null && (
+                          <span className="text-[10px] font-mono text-neutral-300 mt-0.5 block ml-4.5">{slot.latitude}, {slot.longitude}</span>
+                        )}
                       </div>
                     </div>
                     <button

@@ -777,7 +777,7 @@ export default function AdminFinancesPage() {
                               <span>Publication ({metadata.tier.name})</span>
                             </div>
                             <span className="text-neutral-900">
-                              {metadata.tier.base_fee.toLocaleString()} F
+                              {(metadata.tier.base_fee ?? 0).toLocaleString()} F
                             </span>
                           </div>
                         )}
@@ -794,7 +794,7 @@ export default function AdminFinancesPage() {
                                 <span>{label}</span>
                               </div>
                               <span className="text-neutral-900">
-                                {a.price.toLocaleString()} F
+                                {(a.price ?? 0).toLocaleString()} F
                               </span>
                             </div>
                           );
@@ -806,7 +806,7 @@ export default function AdminFinancesPage() {
                               <span>Frais Service</span>
                             </div>
                             <span className="text-neutral-900">
-                              {metadata.commission.toLocaleString()} F
+                              {(metadata.commission ?? 0).toLocaleString()} F
                             </span>
                           </div>
                         )}

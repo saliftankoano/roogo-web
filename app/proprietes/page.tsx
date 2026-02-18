@@ -19,7 +19,6 @@ import {
   BuildingsIcon,
 } from "@phosphor-icons/react";
 import UserTypeSelectionModal from "../../components/UserTypeSelectionModal";
-import PropertyDetailsModal from "../../components/PropertyDetailsModal";
 import { PropertyFormModal } from "../../components/property-form/PropertyFormModal";
 import {
   ExpandableScreen,
@@ -44,11 +43,6 @@ function PropertiesPageContent() {
   const [showUserTypeModal, setShowUserTypeModal] = useState(false);
 
   // Property details modal
-  const [selectedProperty, setSelectedProperty] = useState<Property | null>(
-    null,
-  );
-  const [showPropertyModal, setShowPropertyModal] = useState(false);
-
   // Options menu state
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -148,16 +142,6 @@ function PropertiesPageContent() {
       console.error("Error updating user type:", error);
       throw error;
     }
-  };
-
-  const handlePropertyClick = (property: Property) => {
-    setSelectedProperty(property);
-    setShowPropertyModal(true);
-  };
-
-  const handleClosePropertyModal = () => {
-    setShowPropertyModal(false);
-    setTimeout(() => setSelectedProperty(null), 300);
   };
 
   // Check user permissions
@@ -289,10 +273,7 @@ function PropertiesPageContent() {
     if (isStaffOrFounder) {
       return `/admin/annonces/${property.id}`;
     }
-    if (isAgentOrOwner && isOwnerOfProperty(property)) {
-      return `/mes-proprietes/${property.id}`;
-    }
-    return null; // Opens modal
+    return `/proprietes/${property.id}`;
   };
 
   if (!isLoaded || !isSignedIn) {
@@ -305,18 +286,6 @@ function PropertiesPageContent() {
       <UserTypeSelectionModal
         isOpen={showUserTypeModal}
         onSelectUserType={handleUserTypeSelect}
-      />
-
-      {/* Property Details Modal */}
-      <PropertyDetailsModal
-        isOpen={showPropertyModal}
-        onClose={handleClosePropertyModal}
-        property={selectedProperty}
-        viewerType={
-          typeof user?.publicMetadata?.userType === "string"
-            ? user.publicMetadata.userType
-            : "renter"
-        }
       />
 
       <main className="max-w-7xl mx-auto px-6 pt-40 pb-20 space-y-8">
@@ -529,7 +498,7 @@ function PropertiesPageContent() {
                 isStaffOrFounder ||
                 (isAgentOrOwner && isOwnerOfProperty(property));
 
-              return route ? (
+              return (
                 <Link
                   key={property.id}
                   href={route}
@@ -537,12 +506,6 @@ function PropertiesPageContent() {
                 >
                   <PropertyCard property={property} showStatus={showStatus} />
                 </Link>
-              ) : (
-                <PropertyCard
-                  key={property.id}
-                  property={property}
-                  onClick={() => handlePropertyClick(property)}
-                />
               );
             })}
           </div>

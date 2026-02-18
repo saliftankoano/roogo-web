@@ -9,6 +9,8 @@ import {
   PlusIcon,
   TrashIcon,
   CalendarBlank,
+  MapPinIcon,
+  NavigationArrowIcon,
 } from "@phosphor-icons/react";
 import { supabase } from "@/lib/supabase";
 import { cn } from "@/lib/utils";
@@ -21,6 +23,9 @@ interface OpenHouseSlot {
   start_time: string;
   end_time: string;
   capacity: number;
+  directions?: string;
+  latitude?: number;
+  longitude?: number;
   bookings: { count: number }[];
 }
 
@@ -43,8 +48,22 @@ export default function PropertyOpenHouseManager({
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("12:00");
   const [capacity, setCapacity] = useState(10);
+  const [directions, setDirections] = useState("");
+  const [latitude, setLatitude] = useState<string>("");
+  const [longitude, setLongitude] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>({});
+
+  const bumpEndTime = (newStart: string) => {
+    const [h, m] = newStart.split(":").map(Number);
+    const endH = Math.min(h + 1, 23);
+    const endStr = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const [curEndH, curEndM] = endTime.split(":").map(Number);
+    if (h > curEndH || (h === curEndH && m >= curEndM)) {
+      setEndTime(endStr);
+    }
+  };
 
   const fetchSlots = useCallback(async () => {
     try {
@@ -82,6 +101,9 @@ export default function PropertyOpenHouseManager({
           start_time: startTime,
           end_time: endTime,
           capacity,
+          directions,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
         }),
       });
 
@@ -102,7 +124,7 @@ export default function PropertyOpenHouseManager({
   };
 
   const handleConfirmAdd = () => {
-    if (!selectedDate) return;
+    if (!selectedDate || !directions.trim() || !latitude || !longitude) return;
     setShowConfirmation(true);
   };
 
@@ -131,8 +153,8 @@ export default function PropertyOpenHouseManager({
 
   return (
     <div className={cn("grid grid-cols-1 lg:grid-cols-12 gap-10", className)}>
-      {/* Calendar Side */}
-      <div className="lg:col-span-7 xl:col-span-8">
+      {/* Calendar Side — hidden while adding */}
+      <div className={cn("transition-all duration-300", isAdding ? "hidden" : "lg:col-span-7 xl:col-span-8")}>
         <Calendar
           mode="single"
           selected={selectedDate}
@@ -149,8 +171,8 @@ export default function PropertyOpenHouseManager({
         />
       </div>
 
-      {/* Details Side */}
-      <div className="lg:col-span-5 xl:col-span-4 space-y-6">
+      {/* Details Side — expands full width when adding */}
+      <div className={cn("space-y-6 transition-all duration-300", isAdding ? "lg:col-span-12" : "lg:col-span-5 xl:col-span-4")}>
         <div className="bg-white p-8 rounded-[40px] border border-neutral-100 shadow-xl shadow-neutral-200/40 min-h-[450px] flex flex-col transition-all relative overflow-hidden">
           <div className="flex items-center justify-between mb-8">
             <div>
@@ -189,46 +211,104 @@ export default function PropertyOpenHouseManager({
                   exit={{ opacity: 0, scale: 0.95, y: -10 }}
                   className="space-y-6 bg-neutral-50/50 p-8 rounded-[32px] border border-neutral-100 backdrop-blur-sm"
                 >
-                  <div className="space-y-5">
-                    <div className="space-y-2.5">
-                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
-                        Heure de début
-                      </label>
-                      <TimeInput24h
-                        value={startTime}
-                        onChange={setStartTime}
-                        icon={<ClockIcon size={20} weight="bold" />}
-                      />
+                  <div className="space-y-6">
+                    {/* Row 1: Times */}
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-5">
+                      <div className="space-y-2.5">
+                        <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
+                          Heure de début
+                        </label>
+                        <TimeInput24h
+                          value={startTime}
+                          onChange={(v) => { setStartTime(v); bumpEndTime(v); }}
+                          maxTime={endTime}
+                          icon={<ClockIcon size={20} weight="bold" />}
+                        />
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
+                          Heure de fin
+                        </label>
+                        <TimeInput24h
+                          value={endTime}
+                          onChange={setEndTime}
+                          minTime={startTime}
+                          icon={<ClockIcon size={20} weight="bold" />}
+                        />
+                      </div>
                     </div>
 
+                    {/* Row 2: Directions (full width) */}
                     <div className="space-y-2.5">
                       <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
-                        Heure de fin
-                      </label>
-                      <TimeInput24h
-                        value={endTime}
-                        onChange={setEndTime}
-                        icon={<ClockIcon size={20} weight="bold" />}
-                      />
-                    </div>
-
-                    <div className="space-y-2.5">
-                      <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
-                        Capacité max.
+                        Itinéraire / Indications
                       </label>
                       <div className="relative group">
-                        <input
-                          type="number"
-                          value={capacity || ""}
-                          onChange={(e) =>
-                            setCapacity(
-                              e.target.value ? parseInt(e.target.value) : 0
-                            )
-                          }
-                          className="w-full pl-12 pr-6 py-4 bg-white rounded-2xl border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold shadow-sm"
+                        <textarea
+                          value={directions}
+                          onChange={(e) => setDirections(e.target.value)}
+                          placeholder="Ex: Après le grand marché Rood Woko, tourner à droite au feu rouge, puis 200m sur la gauche..."
+                          rows={4}
+                          className="w-full pl-12 pr-6 py-4 bg-white rounded-2xl border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-medium shadow-sm resize-none"
                         />
-                        <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                          <UsersIcon size={20} weight="bold" />
+                        <div className="absolute left-4 top-4 text-neutral-300 group-focus-within:text-primary transition-colors">
+                          <NavigationArrowIcon size={20} weight="bold" />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Row 3: GPS + Capacity */}
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+                      <div className="space-y-2.5">
+                        <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
+                          Latitude
+                        </label>
+                        <div className="relative group">
+                          <input
+                            type="number"
+                            step="any"
+                            value={latitude}
+                            onChange={(e) => setLatitude(e.target.value)}
+                            placeholder="12.3456"
+                            className="w-full px-4 py-4 bg-white rounded-2xl border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold shadow-sm"
+                          />
+                        </div>
+                      </div>
+                      <div className="space-y-2.5">
+                        <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
+                          Longitude
+                        </label>
+                        <div className="relative group">
+                          <input
+                            type="number"
+                            step="any"
+                            value={longitude}
+                            onChange={(e) => setLongitude(e.target.value)}
+                            placeholder="-1.5678"
+                            className="w-full px-4 py-4 bg-white rounded-2xl border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold shadow-sm"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2.5">
+                        <label className="text-[11px] font-bold text-neutral-500 ml-4 uppercase tracking-widest">
+                          Capacité max.
+                        </label>
+                        <div className="relative group">
+                          <input
+                            type="number"
+                            value={capacity || ""}
+                            onChange={(e) =>
+                              setCapacity(
+                                e.target.value ? parseInt(e.target.value) : 0
+                              )
+                            }
+                            className="w-full pl-12 pr-6 py-4 bg-white rounded-2xl border border-neutral-100 focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold shadow-sm"
+                          />
+                          <div className="absolute left-4 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
+                            <UsersIcon size={20} weight="bold" />
+                          </div>
                         </div>
                       </div>
                     </div>
@@ -243,7 +323,7 @@ export default function PropertyOpenHouseManager({
                     </button>
                     <button
                       onClick={handleConfirmAdd}
-                      disabled={isSubmitting}
+                      disabled={isSubmitting || !directions.trim() || !latitude || !longitude}
                       className="flex-1 py-4 bg-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 order-1 sm:order-2"
                     >
                       {isSubmitting ? "En cours..." : "Confirmer"}
@@ -310,6 +390,40 @@ export default function PropertyOpenHouseManager({
                               </span>
                             </div>
                           </div>
+                          {slot.directions && (
+                            <div className="flex items-start gap-4 text-neutral-500 pt-2 border-t border-neutral-100">
+                              <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm shrink-0">
+                                <NavigationArrowIcon size={20} weight="bold" />
+                              </div>
+                              <div className="flex flex-col gap-1 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="text-xs font-medium text-neutral-600 leading-snug flex-1">
+                                    {expandedSlots[slot.id] 
+                                      ? slot.directions 
+                                      : slot.directions.length > 50 
+                                        ? `${slot.directions.slice(0, 50)}...` 
+                                        : slot.directions}
+                                  </span>
+                                  {slot.directions.length > 50 && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedSlots(prev => ({ ...prev, [slot.id]: !prev[slot.id] }));
+                                      }}
+                                      className="text-[10px] font-bold text-primary hover:text-primary/80 uppercase tracking-widest shrink-0 mt-0.5"
+                                    >
+                                      {expandedSlots[slot.id] ? "Réduire" : "Voir plus"}
+                                    </button>
+                                  )}
+                                </div>
+                                {slot.latitude != null && slot.longitude != null && (
+                                  <span className="text-[10px] font-bold text-neutral-400 font-mono">
+                                    {slot.latitude}, {slot.longitude}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <button
                           onClick={() => handleDeleteSlot(slot.id)}

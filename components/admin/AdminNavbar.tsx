@@ -10,6 +10,7 @@ import {
   Receipt as ReceiptIcon,
   ChartLineUp as ChartLineUpIcon,
   Gear as GearIcon,
+  ClipboardText as ClipboardTextIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
@@ -48,6 +49,7 @@ export function AdminNavbar() {
     const baseItems = [
       { label: "Agents", icon: UsersIcon, href: "/admin/agents", id: "admin-nav-agents" },
       { label: "Annonces", icon: BuildingsIcon, href: "/admin/annonces", id: "admin-nav-annonces" },
+      { label: "Candidatures", icon: ClipboardTextIcon, href: "/admin/candidatures", id: "admin-nav-candidatures" },
       { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytiques", id: "admin-nav-analytiques" },
     ];
 

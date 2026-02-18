@@ -15,6 +15,7 @@ import {
   CaretDownIcon,
   CheckIcon,
   CalendarIcon,
+  NavigationArrowIcon,
 } from "@phosphor-icons/react";
 import { supabase } from "@/lib/supabase";
 import { fetchProperties, Property } from "@/lib/data";
@@ -27,6 +28,9 @@ interface OpenHouseSlot {
   start_time: string;
   end_time: string;
   capacity: number;
+  directions?: string;
+  latitude?: number;
+  longitude?: number;
   property: {
     title: string;
     quartier: string;
@@ -48,8 +52,12 @@ export default function AdminCalendarPage() {
   const [startTime, setStartTime] = useState("10:00");
   const [endTime, setEndTime] = useState("12:00");
   const [capacity, setCapacity] = useState(10);
+  const [directions, setDirections] = useState("");
+  const [latitude, setLatitude] = useState<string>("");
+  const [longitude, setLongitude] = useState<string>("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [expandedSlots, setExpandedSlots] = useState<Record<string, boolean>>({});
 
   // Custom select state
   const [isPropSelectOpen, setIsPropSelectOpen] = useState(false);
@@ -152,6 +160,16 @@ export default function AdminCalendarPage() {
     loadProperties();
   }, [fetchSlots, loadProperties]);
 
+  const bumpEndTime = (newStart: string) => {
+    const [h, m] = newStart.split(":").map(Number);
+    const endH = Math.min(h + 1, 23);
+    const endStr = `${String(endH).padStart(2, "0")}:${String(m).padStart(2, "0")}`;
+    const [curEndH, curEndM] = endTime.split(":").map(Number);
+    if (h > curEndH || (h === curEndH && m >= curEndM)) {
+      setEndTime(endStr);
+    }
+  };
+
   const handleAddSlot = async () => {
     setIsSubmitting(true);
     try {
@@ -164,6 +182,9 @@ export default function AdminCalendarPage() {
           start_time: startTime,
           end_time: endTime,
           capacity,
+          directions,
+          latitude: parseFloat(latitude),
+          longitude: parseFloat(longitude),
         }),
       });
 
@@ -181,6 +202,9 @@ export default function AdminCalendarPage() {
       setStartTime("10:00");
       setEndTime("12:00");
       setCapacity(10);
+      setDirections("");
+      setLatitude("");
+      setLongitude("");
     } catch (error) {
       console.error("Error adding slot:", error);
       alert("Erreur lors de l'ajout du créneau");
@@ -191,7 +215,7 @@ export default function AdminCalendarPage() {
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedPropertyId || !slotDate) return;
+    if (!selectedPropertyId || !slotDate || !directions.trim() || !latitude || !longitude) return;
     setShowConfirmation(true);
   };
 
@@ -421,6 +445,38 @@ export default function AdminCalendarPage() {
                               {slot.bookings?.[0]?.count || 0} / {slot.capacity}
                             </span>
                           </div>
+                          {slot.directions && (
+                            <div className="mt-3 flex items-start gap-2 pt-3 border-t border-neutral-100/50">
+                              <NavigationArrowIcon size={14} weight="bold" className="text-neutral-300 mt-0.5 shrink-0" />
+                              <div className="flex flex-col gap-1 flex-1">
+                                <div className="flex items-start justify-between gap-2">
+                                  <span className="text-xs text-neutral-400 font-medium leading-tight flex-1">
+                                    {expandedSlots[slot.id] 
+                                      ? slot.directions 
+                                      : slot.directions.length > 50 
+                                        ? `${slot.directions.slice(0, 50)}...` 
+                                        : slot.directions}
+                                  </span>
+                                  {slot.directions.length > 50 && (
+                                    <button
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setExpandedSlots(prev => ({ ...prev, [slot.id]: !prev[slot.id] }));
+                                      }}
+                                      className="text-[10px] font-bold text-primary hover:text-primary/80 uppercase tracking-widest shrink-0"
+                                    >
+                                      {expandedSlots[slot.id] ? "Réduire" : "Voir plus"}
+                                    </button>
+                                  )}
+                                </div>
+                                {slot.latitude != null && slot.longitude != null && (
+                                  <span className="text-[10px] font-mono text-neutral-300">
+                                    {slot.latitude}, {slot.longitude}
+                                  </span>
+                                )}
+                              </div>
+                            </div>
+                          )}
                         </div>
                         <button
                           onClick={() => handleDeleteSlot(slot.id)}
@@ -510,6 +566,40 @@ export default function AdminCalendarPage() {
                         Participants
                       </span>
                     </div>
+                    {slot.directions && (
+                      <div className="flex items-start gap-3.5 text-neutral-500 pt-3 border-t border-neutral-50">
+                        <div className="w-9 h-9 rounded-2xl bg-neutral-50 flex items-center justify-center shrink-0">
+                          <NavigationArrowIcon size={18} weight="bold" />
+                        </div>
+                        <div className="flex flex-col gap-1 flex-1">
+                          <div className="flex items-start justify-between gap-2">
+                            <span className="text-xs font-medium text-neutral-600 leading-snug flex-1">
+                              {expandedSlots[`upcoming-${slot.id}`] 
+                                ? slot.directions 
+                                : slot.directions.length > 50 
+                                  ? `${slot.directions.slice(0, 50)}...` 
+                                  : slot.directions}
+                            </span>
+                            {slot.directions.length > 50 && (
+                              <button
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setExpandedSlots(prev => ({ ...prev, [`upcoming-${slot.id}`]: !prev[slot.id] }));
+                                }}
+                                className="text-[10px] font-bold text-primary hover:text-primary/80 uppercase tracking-widest shrink-0 mt-0.5"
+                              >
+                                {expandedSlots[`upcoming-${slot.id}`] ? "Réduire" : "Voir plus"}
+                              </button>
+                            )}
+                          </div>
+                          {slot.latitude != null && slot.longitude != null && (
+                            <span className="text-[10px] font-mono text-neutral-300">
+                              {slot.latitude}, {slot.longitude}
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </motion.div>
               ))
@@ -648,7 +738,8 @@ export default function AdminCalendarPage() {
                     </label>
                     <TimeInput24h
                       value={startTime}
-                      onChange={setStartTime}
+                      onChange={(v) => { setStartTime(v); bumpEndTime(v); }}
+                      maxTime={endTime}
                       icon={<ClockIcon size={20} weight="bold" />}
                       className="bg-neutral-50/50"
                     />
@@ -660,6 +751,7 @@ export default function AdminCalendarPage() {
                     <TimeInput24h
                       value={endTime}
                       onChange={setEndTime}
+                      minTime={startTime}
                       icon={<ClockIcon size={20} weight="bold" />}
                       className="bg-neutral-50/50"
                     />
@@ -689,9 +781,54 @@ export default function AdminCalendarPage() {
                   </div>
                 </div>
 
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest ml-4">
+                    Itinéraire / Indications
+                  </label>
+                  <div className="relative group">
+                    <textarea
+                      value={directions}
+                      onChange={(e) => setDirections(e.target.value)}
+                      required
+                      placeholder="Ex: Après le grand marché Rood Woko, tourner à droite au feu..."
+                      rows={3}
+                      className="w-full pl-12 pr-6 py-4 bg-neutral-50/50 rounded-[24px] border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-medium resize-none"
+                    />
+                    <div className="absolute left-4 top-4 text-neutral-300 group-focus-within:text-primary transition-colors">
+                      <NavigationArrowIcon size={20} weight="bold" />
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <label className="text-xs font-bold text-neutral-400 uppercase tracking-widest ml-4">
+                    Coordonnées GPS
+                  </label>
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={latitude}
+                      onChange={(e) => setLatitude(e.target.value)}
+                      placeholder="Latitude"
+                      className="w-full px-5 py-4 bg-neutral-50/50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold"
+                    />
+                    <input
+                      type="number"
+                      step="any"
+                      required
+                      value={longitude}
+                      onChange={(e) => setLongitude(e.target.value)}
+                      placeholder="Longitude"
+                      className="w-full px-5 py-4 bg-neutral-50/50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold"
+                    />
+                  </div>
+                </div>
+
                 <button
                   type="submit"
-                  disabled={isSubmitting}
+                  disabled={isSubmitting || !directions.trim() || !latitude || !longitude}
                   className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 uppercase tracking-widest text-sm"
                 >
                   {isSubmitting ? "Création..." : "Créer le créneau"}

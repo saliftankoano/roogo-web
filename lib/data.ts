@@ -29,6 +29,7 @@ export type Property = {
   city?: string;
   quartier?: string;
   created_at?: string;
+  deposit?: number;
   payment_id?: string;
   transaction_id?: string;
   agent?: {
@@ -75,6 +76,7 @@ interface DBProperty {
   agent_type: string | null;
   agent_company_name: string | null;
   agent_facebook_url: string | null;
+  deposit: number | null;
   payment_id: string | null;
   transaction_id: string | null;
   primary_image: string | null;
@@ -111,6 +113,7 @@ function mapProperty(p: DBProperty): Property {
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
+    deposit: p.deposit || undefined,
     payment_id: p.payment_id || undefined,
     transaction_id: p.transaction_id || undefined,
     agent: {
@@ -218,6 +221,7 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
+    deposit: p.deposit || undefined,
     payment_id: p.payment_id || undefined,
     transaction_id: p.transaction_id || undefined,
     agent: {

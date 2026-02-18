@@ -97,8 +97,8 @@ export async function POST(req: Request) {
       );
     }
 
-    // Build update payload
-    const publicMetadata: Record<string, unknown> = {};
+    // Build update payload - spread existing metadata so we never wipe fields like userType
+    const publicMetadata: Record<string, unknown> = { ...currentPublicMetadata };
     const privateMetadata: Record<string, unknown> = {};
 
     // PUBLIC: userType (access control) + hasCompletedOnboarding (client routing needs this)

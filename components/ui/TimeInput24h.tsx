@@ -8,6 +8,8 @@ interface TimeInput24hProps {
   onChange: (value: string) => void;
   className?: string;
   icon?: React.ReactNode;
+  minTime?: string; // "HH:MM" — options before this are disabled
+  maxTime?: string; // "HH:MM" — options after this are disabled
 }
 
 export function TimeInput24h({
@@ -15,6 +17,8 @@ export function TimeInput24h({
   onChange,
   className,
   icon,
+  minTime,
+  maxTime,
 }: TimeInput24hProps) {
   const [hours, setHours] = useState("10");
   const [minutes, setMinutes] = useState("00");
@@ -47,6 +51,24 @@ export function TimeInput24h({
   const handleMinuteChange = (m: string) => {
     setMinutes(m);
     onChange(`${hours}:${m}`);
+  };
+
+  const [minH, minM] = minTime ? minTime.split(":").map(Number) : [null, null];
+  const [maxH, maxM] = maxTime ? maxTime.split(":").map(Number) : [null, null];
+  const currentHour = parseInt(hours, 10);
+
+  const isHourDisabled = (h: string) => {
+    const hNum = parseInt(h, 10);
+    if (minH !== null && hNum < minH) return true;
+    if (maxH !== null && hNum > maxH) return true;
+    return false;
+  };
+
+  const isMinuteDisabled = (m: string) => {
+    const mNum = parseInt(m, 10);
+    if (minH !== null && currentHour === minH && minM !== null && mNum < minM) return true;
+    if (maxH !== null && currentHour === maxH && maxM !== null && mNum > maxM) return true;
+    return false;
   };
 
   const hourOptions = Array.from({ length: 24 }, (_, i) =>
@@ -87,21 +109,26 @@ export function TimeInput24h({
               Heure
             </p>
             <div className="space-y-0.5">
-              {hourOptions.map((h) => (
-                <button
-                  key={h}
-                  type="button"
-                  onClick={() => handleHourChange(h)}
-                  className={cn(
-                    "w-full py-2 px-3 rounded-xl text-sm font-bold text-left transition-all",
-                    hours === h
-                      ? "bg-primary text-white"
-                      : "text-neutral-600 hover:bg-neutral-50"
-                  )}
-                >
-                  {h}
-                </button>
-              ))}
+              {hourOptions.map((h) => {
+                const disabled = isHourDisabled(h);
+                return (
+                  <button
+                    key={h}
+                    type="button"
+                    onClick={disabled ? undefined : () => handleHourChange(h)}
+                    className={cn(
+                      "w-full py-2 px-3 rounded-xl text-sm font-bold text-left transition-all",
+                      hours === h
+                        ? "bg-primary text-white"
+                        : disabled
+                          ? "text-neutral-200 cursor-not-allowed"
+                          : "text-neutral-600 hover:bg-neutral-50"
+                    )}
+                  >
+                    {h}
+                  </button>
+                );
+              })}
             </div>
           </div>
 
@@ -111,21 +138,26 @@ export function TimeInput24h({
               Min
             </p>
             <div className="space-y-0.5">
-              {minuteOptions.map((m) => (
-                <button
-                  key={m}
-                  type="button"
-                  onClick={() => handleMinuteChange(m)}
-                  className={cn(
-                    "w-full py-2 px-3 rounded-xl text-sm font-bold text-left transition-all",
-                    minutes === m
-                      ? "bg-primary text-white"
-                      : "text-neutral-600 hover:bg-neutral-50"
-                  )}
-                >
-                  {m}
-                </button>
-              ))}
+              {minuteOptions.map((m) => {
+                const disabled = isMinuteDisabled(m);
+                return (
+                  <button
+                    key={m}
+                    type="button"
+                    onClick={disabled ? undefined : () => handleMinuteChange(m)}
+                    className={cn(
+                      "w-full py-2 px-3 rounded-xl text-sm font-bold text-left transition-all",
+                      minutes === m
+                        ? "bg-primary text-white"
+                        : disabled
+                          ? "text-neutral-200 cursor-not-allowed"
+                          : "text-neutral-600 hover:bg-neutral-50"
+                    )}
+                  >
+                    {m}
+                  </button>
+                );
+              })}
             </div>
           </div>
         </div>

@@ -16,6 +16,11 @@ import {
   BathtubIcon,
   SquaresFourIcon,
   CarIcon,
+  UsersIcon,
+  CheckCircleIcon,
+  ClockIcon,
+  XCircleIcon,
+  UserCircleIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
@@ -99,6 +104,25 @@ export default function OwnerPropertyDetailPage() {
   const router = useRouter();
   const [listing, setListing] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
+
+  // Candidatures state
+  interface Applicant {
+    id: string;
+    status: string;
+    created_at: string;
+    users: { full_name: string | null; phone: string | null; avatar_url: string | null } | null;
+  }
+  interface LockTransaction {
+    id: string;
+    amount: number;
+    currency: string;
+    status: string;
+    created_at: string;
+    users: { full_name: string | null } | null;
+  }
+  const [applicants, setApplicants] = useState<Applicant[]>([]);
+  const [lockTransactions, setLockTransactions] = useState<LockTransaction[]>([]);
+  const [loadingApplicants, setLoadingApplicants] = useState(false);
 
   // Edit Management
   const { user: clerkUser } = useUser();
@@ -634,6 +658,71 @@ export default function OwnerPropertyDetailPage() {
             </section>
           )}
         </div>
+      </div>
+
+      {/* Candidatures Section */}
+      <div className="mt-10 space-y-6">
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-xl bg-primary/10 flex items-center justify-center">
+            <UsersIcon size={16} weight="bold" className="text-primary" />
+          </div>
+          <h2 className="text-lg font-black text-neutral-900">Candidatures</h2>
+          <span className="text-xs font-bold text-neutral-400 bg-neutral-100 px-2 py-1 rounded-lg">{applicants.length}</span>
+        </div>
+
+        {lockTransactions.length > 0 && lockTransactions[0].status === "completed" && (
+          <div className="bg-green-50 border border-green-200 rounded-[24px] p-6">
+            <div className="flex items-center gap-3 mb-2">
+              <CheckCircleIcon size={20} weight="fill" className="text-green-600" />
+              <p className="font-black text-green-700">Bien loue</p>
+            </div>
+            <p className="text-sm text-green-600 font-medium">{lockTransactions[0].users?.full_name || "Locataire inconnu"}</p>
+            <p className="text-xs text-green-500 mt-1">
+              {lockTransactions[0].amount.toLocaleString("fr-FR")} FCFA —{" "}
+              {new Date(lockTransactions[0].created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
+            </p>
+          </div>
+        )}
+
+        <section className="bg-white rounded-[32px] border border-neutral-100 shadow-sm overflow-hidden">
+          {loadingApplicants ? (
+            <div className="flex items-center justify-center py-16">
+              <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+            </div>
+          ) : applicants.length === 0 ? (
+            <div className="flex flex-col items-center py-16 gap-3 text-center">
+              <UserCircleIcon size={40} className="text-neutral-200" />
+              <p className="text-sm font-bold text-neutral-400">Aucune candidature pour ce bien</p>
+            </div>
+          ) : (
+            <div className="divide-y divide-neutral-50">
+              {applicants.map((applicant) => {
+                const statusConfig = {
+                  approved: { label: "Accepte", color: "bg-green-100 text-green-700", Icon: CheckCircleIcon },
+                  rejected: { label: "Refuse", color: "bg-red-100 text-red-600", Icon: XCircleIcon },
+                  pending: { label: "En attente", color: "bg-yellow-100 text-yellow-700", Icon: ClockIcon },
+                }[applicant.status] || { label: "En attente", color: "bg-yellow-100 text-yellow-700", Icon: ClockIcon };
+                return (
+                  <div key={applicant.id} className="flex items-center gap-4 p-6">
+                    <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-sm font-black text-primary shrink-0">
+                      {applicant.users?.full_name?.charAt(0)?.toUpperCase() || "?"}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="font-bold text-neutral-900 truncate">{applicant.users?.full_name || "Candidat inconnu"}</p>
+                      <p className="text-xs text-neutral-400 mt-0.5">
+                        {new Date(applicant.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                      </p>
+                    </div>
+                    <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0", statusConfig.color)}>
+                      <statusConfig.Icon size={12} weight="fill" />
+                      {statusConfig.label}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </section>
       </div>
     </div>
   );
