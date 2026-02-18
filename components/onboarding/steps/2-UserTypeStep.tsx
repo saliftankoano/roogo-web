@@ -79,7 +79,7 @@ export function UserTypeStep({ onNext, initialType }: UserTypeStepProps) {
             className={`w-full border-2 rounded-2xl p-5 transition-all text-left flex items-center gap-4 ${
               selectedType === type.id
                 ? "border-primary bg-primary/10"
-                : "border-neutral-800 bg-neutral-900/50 hover:border-neutral-700"
+                : "border-[#3D3027] bg-[#1C1510]/50 hover:border-[#5A4535]"
             }`}
           >
             <type.icon

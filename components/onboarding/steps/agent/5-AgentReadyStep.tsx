@@ -1,15 +1,37 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import { motion } from "framer-motion";
 import { ArrowRightIcon, CheckCircleIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
+import confetti from "canvas-confetti";
 
 interface AgentReadyStepProps {
   onFinish: () => void;
 }
 
 export function AgentReadyStep({ onFinish }: AgentReadyStepProps) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const colors = ["#C96A2E", "#ffffff", "#f5a623"];
+      confetti({
+        angle: 60,
+        spread: 55,
+        particleCount: 80,
+        origin: { x: 0, y: 0.6 },
+        colors,
+      });
+      confetti({
+        angle: 120,
+        spread: 55,
+        particleCount: 80,
+        origin: { x: 1, y: 0.6 },
+        colors,
+      });
+    }, 600);
+    return () => clearTimeout(timer);
+  }, []);
+
   return (
     <div className="space-y-10 w-full max-w-2xl">
       <div className="space-y-4">
