@@ -5,7 +5,6 @@ import { captureServerEvent, identifyServerUser } from "@/lib/posthog-server";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
-// Simple CORS for mobile apps - no origin restriction needed for JWT-authenticated endpoints
 function addCorsHeaders(res: NextResponse) {
   res.headers.set("Access-Control-Allow-Origin", "*");
   res.headers.set(
@@ -56,6 +55,10 @@ export async function POST(req: Request) {
       typeof currentUser.publicMetadata === "object" && currentUser.publicMetadata !== null
         ? (currentUser.publicMetadata as Record<string, unknown>)
         : {};
+    const currentPrivateMetadata =
+      typeof currentUser.privateMetadata === "object" && currentUser.privateMetadata !== null
+        ? (currentUser.privateMetadata as Record<string, unknown>)
+        : {};
     const previousUserType =
       typeof currentPublicMetadata.userType === "string"
         ? currentPublicMetadata.userType
@@ -74,9 +77,13 @@ export async function POST(req: Request) {
       facebookUrl,
       professionalLink,
       location,
-      hasCompletedOnboarding,
+      hasCompletedMobileOnboarding,
+      hasCompletedOnboarding, // legacy alias for hasCompletedMobileOnboarding
       hasCompletedWebOnboarding,
-      onboardingData,
+      mobileOnboardingData,
+      webOnboardingData,
+      onboardingData, // legacy alias for mobileOnboardingData
+      signupPlatform,
     } = input;
 
     // Validations
@@ -97,25 +104,50 @@ export async function POST(req: Request) {
       );
     }
 
-    // Build update payload - spread existing metadata so we never wipe fields like userType
-    const publicMetadata: Record<string, unknown> = { ...currentPublicMetadata };
-    const privateMetadata: Record<string, unknown> = {};
+    if (signupPlatform && !["web", "mobile"].includes(signupPlatform as string)) {
+      return addCorsHeaders(
+        NextResponse.json({ error: "Invalid signupPlatform" }, { status: 400 }),
+      );
+    }
 
-    // PUBLIC: userType (access control) + hasCompletedOnboarding (client routing needs this)
+    // Build update payload — spread existing metadata so we never wipe fields like userType
+    const publicMetadata: Record<string, unknown> = { ...currentPublicMetadata };
+    const privateMetadata: Record<string, unknown> = { ...currentPrivateMetadata };
+
+    // PUBLIC
     if (userType) publicMetadata.userType = userType;
-    if (hasCompletedOnboarding !== undefined)
-      publicMetadata.hasCompletedOnboarding = hasCompletedOnboarding;
+
+    const resolvedMobileCompleted = hasCompletedMobileOnboarding ?? hasCompletedOnboarding;
+    if (resolvedMobileCompleted !== undefined)
+      publicMetadata.hasCompletedMobileOnboarding = resolvedMobileCompleted;
     if (hasCompletedWebOnboarding !== undefined)
       publicMetadata.hasCompletedWebOnboarding = hasCompletedWebOnboarding;
 
-    // PRIVATE: Sensitive personal data only
+    // signupPlatform is write-once — preserve original if already set
+    if (signupPlatform && !currentPublicMetadata.signupPlatform) {
+      publicMetadata.signupPlatform = signupPlatform;
+    }
+
+    // PRIVATE
     if (companyName) privateMetadata.companyName = companyName;
     if (professionalLink) privateMetadata.professionalLink = professionalLink;
     if (facebookUrl) privateMetadata.facebookUrl = facebookUrl;
     if (location) privateMetadata.location = location;
-    if (onboardingData) privateMetadata.onboardingData = onboardingData;
     if (sex) privateMetadata.sex = sex;
     if (dateOfBirth) privateMetadata.dateOfBirth = dateOfBirth;
+
+    // mobileOnboardingData (onboardingData is the legacy alias)
+    const resolvedMobileData = mobileOnboardingData ?? onboardingData;
+    if (resolvedMobileData) privateMetadata.mobileOnboardingData = resolvedMobileData;
+
+    // webOnboardingData — deep-merged so incremental step saves accumulate
+    if (webOnboardingData) {
+      const existing = (currentPrivateMetadata.webOnboardingData ?? {}) as Record<string, unknown>;
+      privateMetadata.webOnboardingData = {
+        ...existing,
+        ...(webOnboardingData as Record<string, unknown>),
+      };
+    }
 
     await clerk.users.updateUser(userId, {
       publicMetadata,
@@ -130,14 +162,16 @@ export async function POST(req: Request) {
       email: primaryEmail,
       userType: selectedUserType,
       location: typeof location === "string" ? location : null,
-      hasCompletedOnboarding:
-        typeof hasCompletedOnboarding === "boolean"
-          ? hasCompletedOnboarding
-          : null,
+      hasCompletedMobileOnboarding:
+        typeof resolvedMobileCompleted === "boolean" ? resolvedMobileCompleted : null,
       hasCompletedWebOnboarding:
-        typeof hasCompletedWebOnboarding === "boolean"
-          ? hasCompletedWebOnboarding
-          : null,
+        typeof hasCompletedWebOnboarding === "boolean" ? hasCompletedWebOnboarding : null,
+      signupPlatform:
+        typeof signupPlatform === "string"
+          ? signupPlatform
+          : typeof currentPublicMetadata.signupPlatform === "string"
+            ? currentPublicMetadata.signupPlatform
+            : null,
     });
 
     if (typeof userType === "string" && userType !== previousUserType) {
@@ -147,32 +181,42 @@ export async function POST(req: Request) {
       });
     }
 
-    const onboardingPayload =
-      typeof onboardingData === "object" && onboardingData !== null
-        ? (onboardingData as Record<string, unknown>)
-        : {};
+    const resolvedOnboardingPayload = (
+      typeof webOnboardingData === "object" && webOnboardingData !== null
+        ? webOnboardingData
+        : typeof resolvedMobileData === "object" && resolvedMobileData !== null
+          ? resolvedMobileData
+          : {}
+    ) as Record<string, unknown>;
 
-    if (hasCompletedWebOnboarding === true || hasCompletedOnboarding === true) {
+    const isCompleted = hasCompletedWebOnboarding === true || resolvedMobileCompleted === true;
+    if (isCompleted) {
       await captureServerEvent(userId, "onboarding_completed", {
         userType: selectedUserType,
+        platform:
+          typeof signupPlatform === "string"
+            ? signupPlatform
+            : hasCompletedWebOnboarding === true
+              ? "web"
+              : "mobile",
         location:
-          (typeof onboardingPayload.location === "string"
-            ? onboardingPayload.location
+          typeof resolvedOnboardingPayload.location === "string"
+            ? resolvedOnboardingPayload.location
             : typeof location === "string"
               ? location
-              : null),
+              : null,
         budget:
-          typeof onboardingPayload.budget === "number"
-            ? onboardingPayload.budget
+          typeof resolvedOnboardingPayload.budget === "number"
+            ? resolvedOnboardingPayload.budget
             : null,
-        service_areas: Array.isArray(onboardingPayload.serviceAreas)
-          ? onboardingPayload.serviceAreas
+        service_areas: Array.isArray(resolvedOnboardingPayload.serviceAreas)
+          ? resolvedOnboardingPayload.serviceAreas
               .filter((item): item is string => typeof item === "string")
               .join(",")
           : null,
         portfolio_size:
-          typeof onboardingPayload.portfolioSize === "number"
-            ? onboardingPayload.portfolioSize
+          typeof resolvedOnboardingPayload.portfolioSize === "number"
+            ? resolvedOnboardingPayload.portfolioSize
             : null,
       });
     }

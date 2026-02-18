@@ -33,9 +33,10 @@ export interface ClerkUserData {
   public_metadata?: {
     userType?: string;
     role?: string;
-    hasCompletedOnboarding?: boolean;
+    hasCompletedMobileOnboarding?: boolean;
+    hasCompletedOnboarding?: boolean; // legacy — same as hasCompletedMobileOnboarding
     hasCompletedWebOnboarding?: boolean;
-    onboardingData?: OnboardingData;
+    signupPlatform?: "web" | "mobile";
     companyName?: string;
     facebookUrl?: string;
     professionalLink?: string;
@@ -51,6 +52,9 @@ export interface ClerkUserData {
     whatsappNumber?: string;
     serviceAreas?: string[];
     portfolioSize?: number;
+    mobileOnboardingData?: OnboardingData;
+    webOnboardingData?: OnboardingData;
+    onboardingData?: OnboardingData; // legacy alias
   };
   unsafe_metadata?: {
     userType?: string;
@@ -114,8 +118,12 @@ export async function createUserInSupabase(data: ClerkUserData) {
       unsafe_metadata?.professionalLink || 
       unsafe_metadata?.facebookUrl;
     
-    // Additional onboarding data
-    const onboardingData = public_metadata?.onboardingData || {};
+    // Merge onboarding data: webOnboardingData overrides mobileOnboardingData, legacy onboardingData as fallback
+    const onboardingData = {
+      ...(private_metadata?.onboardingData ?? {}),
+      ...(private_metadata?.mobileOnboardingData ?? {}),
+      ...(private_metadata?.webOnboardingData ?? {}),
+    } as OnboardingData;
     const onboardingPhone = onboardingData.phone || private_metadata?.phone;
     const finalPhone = phone || onboardingPhone;
 

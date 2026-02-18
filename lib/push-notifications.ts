@@ -62,9 +62,11 @@ async function checkNotificationPreference(
     const client = await clerkClient();
     const user = await client.users.getUser(clerkId);
 
-    const onboardingData = user.publicMetadata?.onboardingData as
-      | OnboardingData
-      | undefined;
+    const onboardingData = (
+      (user.privateMetadata?.mobileOnboardingData as OnboardingData | undefined) ??
+      (user.privateMetadata?.webOnboardingData as OnboardingData | undefined) ??
+      (user.publicMetadata?.onboardingData as OnboardingData | undefined)
+    );
     const preferences = onboardingData?.notifications;
 
     // If no preferences set, default to enabled (opt-out model)

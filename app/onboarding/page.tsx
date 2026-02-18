@@ -6,12 +6,13 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { WelcomeStep } from "@/components/onboarding/steps/1-WelcomeStep";
 import { UserTypeStep } from "@/components/onboarding/steps/2-UserTypeStep";
-import { RenterDiscoverStep } from "@/components/onboarding/steps/renter/3-RenterDiscoverStep";
-import { RenterReadyStep } from "@/components/onboarding/steps/renter/4-RenterReadyStep";
-import { OwnerBenefitsStep } from "@/components/onboarding/steps/owner/3-OwnerBenefitsStep";
+import { RenterPreferencesStep } from "@/components/onboarding/steps/renter/3-RenterPreferencesStep";
+import { RenterContactStep } from "@/components/onboarding/steps/renter/4-RenterContactStep";
+import { RenterReadyStep } from "@/components/onboarding/steps/renter/5-RenterReadyStep";
+import { OwnerDetailsStep } from "@/components/onboarding/steps/owner/3-OwnerDetailsStep";
 import { OwnerReadyStep } from "@/components/onboarding/steps/owner/4-OwnerReadyStep";
 import { AgentInfoStep } from "@/components/onboarding/steps/agent/3-AgentInfoStep";
-import { AgentFeaturesStep } from "@/components/onboarding/steps/agent/4-AgentFeaturesStep";
+import { AgentDetailsStep } from "@/components/onboarding/steps/agent/4-AgentDetailsStep";
 import { AgentReadyStep } from "@/components/onboarding/steps/agent/5-AgentReadyStep";
 
 type RoogoUserType = "renter" | "owner" | "agent" | "staff" | "founder" | "regular";
@@ -123,18 +124,58 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleAgentInfo = async (info: {
-    companyName: string;
-    facebookUrl?: string;
-  }) => {
+  const handleRenterPreferences = async (prefs: Record<string, unknown>) => {
     if (!user) return;
-
     setIsSubmitting(true);
     try {
-      await updateMetadata({
-        companyName: info.companyName,
-        facebookUrl: info.facebookUrl,
-      });
+      await updateMetadata({ webOnboardingData: prefs });
+      handleNext();
+      await user.reload();
+    } catch (error) {
+      console.error("Error updating renter preferences:", error);
+      alert("Impossible d'enregistrer vos préférences. Reessayez.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleRenterContact = async (info: { phone: string }) => {
+    if (!user) return;
+    setIsSubmitting(true);
+    try {
+      if (info.phone !== undefined) {
+        await updateMetadata({ webOnboardingData: { phone: info.phone } });
+      }
+      handleNext();
+      await user.reload();
+    } catch (error) {
+      console.error("Error updating renter contact:", error);
+      alert("Impossible d'enregistrer votre contact. Reessayez.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleOwnerDetails = async (details: Record<string, unknown>) => {
+    if (!user) return;
+    setIsSubmitting(true);
+    try {
+      await updateMetadata({ webOnboardingData: details });
+      handleNext();
+      await user.reload();
+    } catch (error) {
+      console.error("Error updating owner details:", error);
+      alert("Impossible d'enregistrer vos informations. Reessayez.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  const handleAgentInfo = async (info: Record<string, unknown>) => {
+    if (!user) return;
+    setIsSubmitting(true);
+    try {
+      await updateMetadata({ webOnboardingData: info });
       handleNext();
       await user.reload();
     } catch (error) {
@@ -145,11 +186,26 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleAgentDetails = async (details: Record<string, unknown>) => {
+    if (!user) return;
+    setIsSubmitting(true);
+    try {
+      await updateMetadata({ webOnboardingData: details });
+      handleNext();
+      await user.reload();
+    } catch (error) {
+      console.error("Error updating agent details:", error);
+      alert("Impossible d'enregistrer vos informations. Reessayez.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleFinish = async () => {
     if (!completedKey || !stepKey || !effectiveUserType) return;
 
     try {
-      await updateMetadata({ hasCompletedWebOnboarding: true });
+      await updateMetadata({ hasCompletedWebOnboarding: true, signupPlatform: "web" });
       await user?.reload();
     } catch (error) {
       console.error("Error flagging web onboarding completion:", error);
@@ -162,13 +218,13 @@ export default function OnboardingPage() {
 
   if (!isLoaded || !isInitialized) {
     return (
-      <div className="fixed inset-0 bg-[#0f0c0a] flex items-center justify-center">
+      <div className="fixed inset-0 bg-[#2B241D] flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
-  const totalSteps = effectiveUserType === "agent" ? 5 : 4;
+  const totalSteps = effectiveUserType === "agent" ? 5 : effectiveUserType === "renter" ? 5 : 4;
 
   return (
     <OnboardingShell currentStep={step} totalSteps={totalSteps}>
@@ -181,15 +237,16 @@ export default function OnboardingPage() {
       {/* Renter Flow */}
       {effectiveUserType === "renter" && (
         <>
-          {step === 3 && <RenterDiscoverStep onNext={handleNext} />}
-          {step === 4 && <RenterReadyStep onFinish={handleFinish} />}
+          {step === 3 && <RenterPreferencesStep onNext={handleRenterPreferences} />}
+          {step === 4 && <RenterContactStep onNext={handleRenterContact} />}
+          {step === 5 && <RenterReadyStep onFinish={handleFinish} />}
         </>
       )}
 
       {/* Owner Flow */}
       {effectiveUserType === "owner" && (
         <>
-          {step === 3 && <OwnerBenefitsStep onNext={handleNext} />}
+          {step === 3 && <OwnerDetailsStep onNext={handleOwnerDetails} />}
           {step === 4 && <OwnerReadyStep onFinish={handleFinish} />}
         </>
       )}
@@ -198,7 +255,7 @@ export default function OnboardingPage() {
       {effectiveUserType === "agent" && (
         <>
           {step === 3 && <AgentInfoStep onNext={handleAgentInfo} />}
-          {step === 4 && <AgentFeaturesStep onNext={handleNext} />}
+          {step === 4 && <AgentDetailsStep onNext={handleAgentDetails} />}
           {step === 5 && <AgentReadyStep onFinish={handleFinish} />}
         </>
       )}
