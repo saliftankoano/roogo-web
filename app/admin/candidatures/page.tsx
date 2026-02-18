@@ -6,7 +6,6 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { createClient } from "@supabase/supabase-js";
 import {
   UsersIcon,
   HouseLineIcon,
@@ -84,7 +83,7 @@ export default function AdminCandidaturesPage() {
       return;
     }
     loadData();
-  }, [isLoaded, userType]);
+  }, [isLoaded, userType, router]);
 
   const loadData = async () => {
     setLoading(true);

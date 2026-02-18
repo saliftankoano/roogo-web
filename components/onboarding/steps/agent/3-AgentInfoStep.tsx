@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { BuildingsIcon, BriefcaseIcon, CheckCircleIcon } from "@phosphor-icons/react";
+import { BuildingsIcon, BriefcaseIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/input";
 
@@ -65,7 +65,7 @@ export function AgentInfoStep({ onNext }: AgentInfoStepProps) {
       >
         <div className="space-y-2">
           <label className="text-sm font-semibold text-neutral-300 ml-1">
-            Nom de l'entreprise <span className="text-primary">*</span>
+            Nom de l&apos;entreprise <span className="text-primary">*</span>
           </label>
           <div className="relative">
             <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">

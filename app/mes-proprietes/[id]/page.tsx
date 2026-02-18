@@ -120,9 +120,9 @@ export default function OwnerPropertyDetailPage() {
     created_at: string;
     users: { full_name: string | null } | null;
   }
-  const [applicants, setApplicants] = useState<Applicant[]>([]);
-  const [lockTransactions, setLockTransactions] = useState<LockTransaction[]>([]);
-  const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const [applicants] = useState<Applicant[]>([]);
+  const [lockTransactions] = useState<LockTransaction[]>([]);
+  const [loadingApplicants] = useState(false);
 
   // Edit Management
   const { user: clerkUser } = useUser();

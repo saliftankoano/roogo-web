@@ -9,7 +9,6 @@ import {
   PlusIcon,
   TrashIcon,
   CalendarBlank,
-  MapPinIcon,
   NavigationArrowIcon,
 } from "@phosphor-icons/react";
 import { supabase } from "@/lib/supabase";
