@@ -5,7 +5,7 @@ import { Button } from "./ui/Button";
 import { motion } from "framer-motion";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { MagnifyingGlassIcon, MapPinIcon } from "@phosphor-icons/react";
+import { MagnifyingGlassIcon, MapPinIcon, GooglePlayLogoIcon } from "@phosphor-icons/react";
 
 export function Hero() {
   const router = useRouter();
@@ -86,6 +86,25 @@ export function Hero() {
             Rechercher
           </Button>
         </motion.form>
+
+        {/* Google Play Store CTA */}
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
+          className="mt-6 flex justify-center"
+        >
+          <a
+            href="https://play.google.com/store/apps/details?id=com.kazedra.roogo"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-2 px-6 py-3 rounded-full bg-white/10 backdrop-blur-md border border-white/20 text-white hover:bg-white/20 transition-all font-medium text-sm sm:text-base"
+          >
+            <GooglePlayLogoIcon size={24} weight="fill" />
+            <span>Télécharger sur Google Play</span>
+          </a>
+        </motion.div>
+
 
         {/* Quick Links / Tags */}
         <motion.div 
