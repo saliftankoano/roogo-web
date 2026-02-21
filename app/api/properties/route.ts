@@ -1,6 +1,6 @@
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
-import { getUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
+import { getOrSyncUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
 import { convertIdsToLabels } from "@/lib/interdictions";
 import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
@@ -63,7 +63,7 @@ export async function POST(req: Request) {
 
     // 3. Get user from Supabase
     console.log("Fetching Supabase user for Clerk ID:", clerkUserId);
-    const user = await getUserByClerkId(clerkUserId);
+    const user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) {
       console.error("User not found in Supabase");
       return errorResponse(
@@ -99,6 +99,26 @@ export async function POST(req: Request) {
     if (!validationResult.success) {
       console.error("Validation failed:", validationResult.error.format());
       return errorResponse("Données invalides: " + validationResult.error.issues[0].message, 400, req);
+    }
+
+    // 5c. owner_id: only staff/founder may set it; validate user exists and is owner/agent
+    const ownerId = listingData.owner_id;
+    if (ownerId) {
+      if (!isStaffOrFounder) {
+        return errorResponse("owner_id is only allowed for staff or founder", 400, req);
+      }
+      const supabaseForCheck = getSupabaseClient();
+      const { data: targetUser, error: targetError } = await supabaseForCheck
+        .from("users")
+        .select("id, user_type")
+        .eq("id", ownerId)
+        .single();
+      if (targetError || !targetUser) {
+        return errorResponse("owner_id: user not found", 400, req);
+      }
+      if (!["owner", "agent"].includes(targetUser.user_type ?? "")) {
+        return errorResponse("owner_id: user must be owner or agent", 400, req);
+      }
     }
 
     // 6. Get Supabase client (service role - bypasses RLS)
