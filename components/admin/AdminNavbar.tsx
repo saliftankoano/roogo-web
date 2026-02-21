@@ -47,7 +47,7 @@ export function AdminNavbar() {
 
   const navItems = useMemo(() => {
     const baseItems = [
-      { label: "Agents", icon: UsersIcon, href: "/admin/agents", id: "admin-nav-agents" },
+      { label: "Utilisateurs", icon: UsersIcon, href: "/admin/utilisateurs", id: "admin-nav-agents" },
       { label: "Annonces", icon: BuildingsIcon, href: "/admin/annonces", id: "admin-nav-annonces" },
       { label: "Candidatures", icon: ClipboardTextIcon, href: "/admin/candidatures", id: "admin-nav-candidatures" },
       { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytiques", id: "admin-nav-analytiques" },
