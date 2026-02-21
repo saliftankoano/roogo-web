@@ -48,7 +48,14 @@ export const listingSchema = z.object({
   payment_id: z.string().optional(),
   transaction_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
-});
+
+  // Staff/founder: listing on behalf of client
+  on_behalf_of_client: z.boolean().optional(),
+  owner_id: z.uuid().optional(),
+}).refine(
+  (data) => !data.on_behalf_of_client || (data.on_behalf_of_client && data.owner_id),
+  { message: "Sélectionnez un propriétaire ou agent", path: ["owner_id"] }
+);
 
 export const PROPERTY_TYPES = [
   { id: "appartement", label: "Appartement" },
@@ -88,7 +95,7 @@ export const paymentInitiateSchema = z.object({
     "property_lock",
     "photography",
   ]),
-  propertyId: z.string().uuid().optional(),
+  propertyId: z.uuid().optional(),
   preAuthorisationCode: z.string().optional(),
   description: z.string().max(100).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
