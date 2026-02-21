@@ -12,6 +12,8 @@ if (isUpstashConfigured) {
   redis = Redis.fromEnv();
 }
 
+export { redis };
+
 // Different rate limits for different endpoints
 export const paymentLimiter = redis
   ? new Ratelimit({
