@@ -1,11 +1,13 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   UploadSimpleIcon,
   HouseIcon,
   MapPinIcon,
   InfoIcon,
+  MagnifyingGlassIcon,
+  XCircleIcon,
 } from "@phosphor-icons/react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
@@ -26,6 +28,13 @@ import {
 interface PropertyFormModalProps {
   userType: string;
   onSuccess?: () => void;
+}
+
+interface OwnersAgentsUser {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  user_type: string;
 }
 
 interface PricingAddon {
@@ -64,6 +73,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [commissionRate, setCommissionRate] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [commissionConfigError, setCommissionConfigError] = useState<string | null>(null);
+
+  const [onBehalfOfClient, setOnBehalfOfClient] = useState(false);
+  const [selectedOwner, setSelectedOwner] = useState<OwnersAgentsUser | null>(null);
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [ownerResults, setOwnerResults] = useState<OwnersAgentsUser[]>([]);
+  const [loadingOwnerSearch, setLoadingOwnerSearch] = useState(false);
+  const [ownerSearchError, setOwnerSearchError] = useState<string | null>(null);
+  const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
+  const ownerComboboxRef = useRef<HTMLDivElement>(null);
+
+  const selectedOwnerId = selectedOwner?.id ?? null;
 
   const [formData, setFormData] = useState<{
     titre: string;
@@ -176,6 +196,58 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       });
   }, []);
 
+  const isStaffOrFounder = ["staff", "founder"].includes(normalizedUserType || "");
+
+  // Debounced search for owners/agents
+  useEffect(() => {
+    if (!onBehalfOfClient || !isStaffOrFounder || ownerSearch.length < 1) {
+      setOwnerResults([]);
+      setOwnerSearchError(null);
+      setShowOwnerDropdown(false);
+      return;
+    }
+    setLoadingOwnerSearch(true);
+    setOwnerSearchError(null);
+    const timer = setTimeout(() => {
+      getToken()
+        .then((token) => {
+          if (!token) throw new Error("No token");
+          return fetch(
+            `/api/users/owners-agents?q=${encodeURIComponent(ownerSearch)}`,
+            { headers: { Authorization: `Bearer ${token}` } },
+          );
+        })
+        .then(async (res) => {
+          const data = await res.json();
+          if (!res.ok) throw new Error(data?.error || "Failed to load users");
+          return data;
+        })
+        .then((data) => {
+          setOwnerResults(Array.isArray(data.users) ? data.users : []);
+          setShowOwnerDropdown(true);
+          setOwnerSearchError(null);
+        })
+        .catch((err) => {
+          console.error("Owner search failed:", err);
+          setOwnerResults([]);
+          setOwnerSearchError(err instanceof Error ? err.message : "Erreur lors de la recherche");
+        })
+        .finally(() => setLoadingOwnerSearch(false));
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [ownerSearch, onBehalfOfClient, isStaffOrFounder, getToken]);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleMouseDown = (e: MouseEvent) => {
+      if (ownerComboboxRef.current && !ownerComboboxRef.current.contains(e.target as Node)) {
+        setShowOwnerDropdown(false);
+      }
+    };
+    document.addEventListener("mousedown", handleMouseDown);
+    return () => document.removeEventListener("mousedown", handleMouseDown);
+  }, []);
+
   const handleAutoFill = async () => {
     const mockData = getMockPropertyData();
     setFormData(mockData);
@@ -197,6 +269,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       vehicules: Number(formData.vehicules),
       cautionMois: Number(formData.cautionMois),
       photos: photos,
+      on_behalf_of_client: onBehalfOfClient,
+      owner_id: onBehalfOfClient ? selectedOwnerId ?? undefined : undefined,
     });
 
     if (!result.success) {
@@ -320,6 +394,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               pendingPhotosOverflow,
               pendingPhotosCount,
               pendingPhotosStoredInDb,
+              onBehalfOfClient,
+              selectedOwnerId,
             }),
           );
 
@@ -351,6 +427,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             tier_id: selectedTier,
             add_ons: selectedAddOns,
             payment_id: depositId || undefined,
+            on_behalf_of_client: onBehalfOfClient,
+            owner_id: onBehalfOfClient ? selectedOwnerId ?? undefined : undefined,
           },
         }),
       });
@@ -686,6 +764,108 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               >
                 Payer pour client
               </button>
+            </div>
+          )}
+
+          {isStaffOrFounder && (
+            <div className="space-y-3">
+              <label className="flex items-center gap-3 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={onBehalfOfClient}
+                  onChange={(e) => {
+                    setOnBehalfOfClient(e.target.checked);
+                    if (!e.target.checked) {
+                      setSelectedOwner(null);
+                      setOwnerSearch("");
+                      setOwnerResults([]);
+                    }
+                  }}
+                  className="w-5 h-5 rounded border-neutral-300 text-primary"
+                />
+                <span className="font-bold text-neutral-900">Annonce pour le compte d&apos;un client</span>
+              </label>
+              {onBehalfOfClient && (
+                <div className="space-y-2">
+                  <label className="text-sm font-bold text-neutral-700 ml-1">
+                    Propriétaire ou agent <span className="text-red-500">*</span>
+                  </label>
+                  <div ref={ownerComboboxRef} className="relative">
+                    {selectedOwner ? (
+                      <div className={`flex items-center justify-between w-full px-6 py-4 bg-neutral-50 rounded-2xl border ${errors.owner_id ? "border-red-500" : "border-neutral-100"}`}>
+                        <div className="flex flex-col">
+                          <span className="font-semibold text-neutral-900 text-sm">
+                            {selectedOwner.full_name || selectedOwner.email}
+                          </span>
+                          <span className="text-xs text-neutral-500">
+                            {selectedOwner.email} &middot; {selectedOwner.user_type}
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setSelectedOwner(null);
+                            setOwnerSearch("");
+                            setOwnerResults([]);
+                          }}
+                          className="text-neutral-400 hover:text-neutral-700 transition-colors ml-3 shrink-0"
+                          aria-label="Effacer la sélection"
+                        >
+                          <XCircleIcon size={20} weight="fill" />
+                        </button>
+                      </div>
+                    ) : (
+                      <div className={`flex items-center gap-3 w-full px-6 py-4 bg-neutral-50 rounded-2xl border ${errors.owner_id ? "border-red-500" : "border-neutral-100"}`}>
+                        {loadingOwnerSearch
+                          ? <Loader2 className="animate-spin text-neutral-400 shrink-0" size={18} />
+                          : <MagnifyingGlassIcon size={18} className="text-neutral-400 shrink-0" />
+                        }
+                        <input
+                          type="text"
+                          value={ownerSearch}
+                          onChange={(e) => setOwnerSearch(e.target.value)}
+                          onFocus={() => ownerResults.length > 0 && setShowOwnerDropdown(true)}
+                          placeholder="Rechercher par nom ou email..."
+                          className="flex-1 bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400"
+                        />
+                      </div>
+                    )}
+                    {showOwnerDropdown && ownerResults.length > 0 && !selectedOwner && (
+                      <ul className="absolute z-50 mt-1 w-full bg-white border border-neutral-100 rounded-2xl shadow-lg overflow-auto max-h-60">
+                        {ownerResults.map((u) => (
+                          <li
+                            key={u.id}
+                            onMouseDown={(e) => {
+                              e.preventDefault();
+                              setSelectedOwner(u);
+                              setOwnerSearch("");
+                              setOwnerResults([]);
+                              setShowOwnerDropdown(false);
+                            }}
+                            className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-neutral-50 transition-colors"
+                          >
+                            <div className="flex flex-col">
+                              <span className="text-sm font-semibold text-neutral-900">
+                                {u.full_name || u.email}
+                              </span>
+                              <span className="text-xs text-neutral-400">{u.email}</span>
+                            </div>
+                            <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 capitalize ml-3 shrink-0">
+                              {u.user_type}
+                            </span>
+                          </li>
+                        ))}
+                      </ul>
+                    )}
+                    {ownerSearchError && (
+                      <p className="text-xs text-red-600 mt-1 ml-1">{ownerSearchError}</p>
+                    )}
+                  </div>
+                  {errors.owner_id && (
+                    <p className="text-xs text-red-600 ml-1">{errors.owner_id}</p>
+                  )}
+                </div>
+              )}
             </div>
           )}
 
