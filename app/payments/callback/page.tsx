@@ -183,7 +183,12 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           pendingPhotosOverflow?: boolean;
           pendingPhotosCount?: number;
           pendingPhotosStoredInDb?: boolean;
+          onBehalfOfClient?: boolean;
+          selectedOwnerId?: string | null;
         };
+
+        const onBehalfOfClient = !!pending.onBehalfOfClient;
+        const selectedOwnerId = pending.selectedOwnerId ?? null;
 
         const response = await fetch("/api/properties", {
           method: "POST",
@@ -203,6 +208,8 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
               tier_id: pending.selectedTier,
               add_ons: pending.selectedAddOns,
               payment_id: depositId,
+              on_behalf_of_client: onBehalfOfClient,
+              owner_id: onBehalfOfClient && selectedOwnerId ? selectedOwnerId : undefined,
             },
           }),
         });
