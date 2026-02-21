@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { redis } from "@/lib/rate-limit";
 
 // Initialize Supabase client with environment variables
 const supabaseUrl =
@@ -198,6 +199,12 @@ export async function createUserInSupabase(data: ClerkUserData) {
     }
 
     console.log("✅ User synced to Supabase:", result?.id);
+
+    // Invalidate owners/agents cache when an owner or agent is upserted
+    if (result && ["owner", "agent"].includes(result.user_type)) {
+      await redis?.del("owners-agents:all");
+    }
+
     return result;
   } catch (error) {
     console.error("❌ Error syncing user to Supabase:", error);
@@ -232,6 +239,44 @@ export async function getUserByClerkId(clerkId: string) {
   } catch (error) {
     console.error("Error in getUserByClerkId:", error);
     throw error;
+  }
+}
+
+/**
+ * Find a user in Supabase by Clerk ID, with email fallback.
+ * If not found by clerk_id, fetches from Clerk API and syncs/creates the record.
+ * This handles users whose clerk_id was never stored (e.g. founders set up manually).
+ */
+export async function getOrSyncUserByClerkId(clerkId: string): Promise<ReturnType<typeof getUserByClerkId>> {
+  const user = await getUserByClerkId(clerkId);
+  if (user) return user;
+
+  // Not found by clerk_id — try fetching from Clerk and syncing
+  try {
+    const { clerkClient } = await import("@clerk/nextjs/server");
+    const client = await clerkClient();
+    const clerkUser = await client.users.getUser(clerkId);
+
+    const synced = await createUserInSupabase({
+      id: clerkUser.id,
+      email_addresses: clerkUser.emailAddresses.map((e) => ({
+        email_address: e.emailAddress,
+      })),
+      first_name: clerkUser.firstName ?? undefined,
+      last_name: clerkUser.lastName ?? undefined,
+      image_url: clerkUser.imageUrl,
+      phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
+        phone_number: p.phoneNumber,
+      })),
+      public_metadata: clerkUser.publicMetadata as ClerkUserData["public_metadata"],
+      private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+      unsafe_metadata: clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
+    });
+
+    return synced;
+  } catch (syncError) {
+    console.error("Failed to sync user from Clerk:", syncError);
+    return null;
   }
 }
 
