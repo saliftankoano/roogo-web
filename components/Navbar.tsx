@@ -11,21 +11,19 @@ import {
 } from "framer-motion";
 import { useState } from "react";
 import {
-  List as ListIcon,
-  X as XIcon,
-  HouseLine as HouseLineIcon,
-  Briefcase as BriefcaseIcon,
-  ChatCircle as ChatCircleIcon,
-  Buildings as BuildingsIcon,
-  GearSix as GearSixIcon,
-  Users as UsersIcon,
-  Receipt as ReceiptIcon,
-  House as HouseIcon,
+  ListIcon,
+  XIcon,
+  HouseLineIcon,
+  BriefcaseIcon,
+  ChatCircleIcon,
+  BuildingsIcon,
+  HouseIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { cn } from "../lib/utils";
 import { AnimatedBackground } from "./motion-primitives/animated-background";
+import { getAdminNavItems } from "../lib/navigation/adminNav";
 
 export function Navbar() {
   const { scrollY } = useScroll();
@@ -45,45 +43,69 @@ export function Navbar() {
     setIsScrolled(latest > 20);
   });
 
-  const userType = (user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined;
-  const isStaff =
-    userType === "staff" ||
-    userType === "founder";
+  const userType = (user?.publicMetadata?.userType ||
+    user?.publicMetadata?.user_type) as string | undefined;
+  const isStaff = userType === "staff" || userType === "founder";
   const isFounder = userType === "founder";
   const isAgentOrOwner = userType === "agent" || userType === "owner";
 
   const publicNavItems = [
     { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
-    { name: "Propriétés", href: "/proprietes", icon: BuildingsIcon, id: "nav-proprietes" },
-    { name: "Carrières", href: "/carrieres", icon: BriefcaseIcon, id: "nav-carrieres" },
-    { name: "Contact", href: "/nous-contacter", icon: ChatCircleIcon, id: "nav-contact" },
+    {
+      name: "Propriétés",
+      href: "/proprietes",
+      icon: BuildingsIcon,
+      id: "nav-proprietes",
+    },
+    {
+      name: "Carrières",
+      href: "/carrieres",
+      icon: BriefcaseIcon,
+      id: "nav-carrieres",
+    },
+    {
+      name: "Contact",
+      href: "/nous-contacter",
+      icon: ChatCircleIcon,
+      id: "nav-contact",
+    },
   ];
 
-  const staffNavItems = [
-    { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
-    { name: "Propriétés", href: "/admin/annonces", icon: BuildingsIcon, id: "nav-admin-annonces" },
-    { name: "Finances", href: "/admin/finances", icon: ReceiptIcon, id: "nav-admin-finances" },
-    { name: "Agents", href: "/admin/agents", icon: UsersIcon, id: "nav-admin-agents" },
-  ];
+  const staffNavItems = getAdminNavItems(isFounder).map((item) => ({
+    name: item.label,
+    href: item.href,
+    icon: item.icon,
+    id: item.id,
+  }));
 
   const agentOwnerNavItems = [
     { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
-    { name: "Mes Biens", href: "/mes-proprietes", icon: HouseIcon, id: "nav-mes-biens" },
-    { name: "Propriétés", href: "/proprietes", icon: BuildingsIcon, id: "nav-proprietes" },
-    { name: "Contact", href: "/nous-contacter", icon: ChatCircleIcon, id: "nav-contact" },
+    {
+      name: "Mes Biens",
+      href: "/mes-proprietes",
+      icon: HouseIcon,
+      id: "nav-mes-biens",
+    },
+    {
+      name: "Propriétés",
+      href: "/proprietes",
+      icon: BuildingsIcon,
+      id: "nav-proprietes",
+    },
+    {
+      name: "Contact",
+      href: "/nous-contacter",
+      icon: ChatCircleIcon,
+      id: "nav-contact",
+    },
   ];
 
-  if (isFounder) {
-    staffNavItems.push({
-      name: "Paramètres",
-      href: "/admin/parametres",
-      icon: GearSixIcon,
-      id: "nav-admin-parametres",
-    });
-  }
-
   // Determine navigation items based on user type
-  const navItems = isStaff ? staffNavItems : (isAgentOrOwner ? agentOwnerNavItems : publicNavItems);
+  const navItems = isStaff
+    ? staffNavItems
+    : isAgentOrOwner
+      ? agentOwnerNavItems
+      : publicNavItems;
 
   return (
     <>
@@ -99,7 +121,7 @@ export function Navbar() {
         <div
           className={cn(
             "flex items-center justify-between px-4 sm:px-6 py-2 rounded-full transition-all duration-300 border bg-white/80 backdrop-blur-xl shadow-lg border-white/40",
-            isScrolled ? "h-16" : "h-20"
+            isScrolled ? "h-16" : "h-20",
           )}
         >
           {/* Logo */}
@@ -136,14 +158,20 @@ export function Navbar() {
                   data-id={item.id}
                   className={cn(
                     "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
-                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+                    pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(item.href))
                       ? "text-primary"
-                      : "text-neutral-500 hover:text-neutral-900"
+                      : "text-neutral-500 hover:text-neutral-900",
                   )}
                 >
                   <item.icon
                     size={18}
-                    weight={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) ? "fill" : "bold"}
+                    weight={
+                      pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(item.href))
+                        ? "fill"
+                        : "bold"
+                    }
                   />
                   <span className="whitespace-nowrap">{item.name}</span>
                 </Link>
@@ -229,14 +257,20 @@ export function Navbar() {
                   onClick={() => setMobileMenuOpen(false)}
                   className={cn(
                     "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
-                    pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href))
+                    pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(item.href))
                       ? "bg-primary/10 text-primary"
-                      : "text-neutral-600 hover:bg-neutral-50"
+                      : "text-neutral-600 hover:bg-neutral-50",
                   )}
                 >
                   <item.icon
                     size={24}
-                    weight={pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href)) ? "fill" : "bold"}
+                    weight={
+                      pathname === item.href ||
+                      (item.href !== "/" && pathname.startsWith(item.href))
+                        ? "fill"
+                        : "bold"
+                    }
                   />
                   {item.name}
                 </Link>

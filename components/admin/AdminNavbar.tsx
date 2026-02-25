@@ -2,16 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import {
-  Users as UsersIcon,
-  Buildings as BuildingsIcon,
-  List as ListIcon,
-  X as XIcon,
-  Receipt as ReceiptIcon,
-  ChartLineUp as ChartLineUpIcon,
-  Gear as GearIcon,
-  ClipboardText as ClipboardTextIcon,
-} from "@phosphor-icons/react";
+import { ListIcon, XIcon } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import { cn } from "../../lib/utils";
@@ -23,6 +14,7 @@ import {
   AnimatePresence,
 } from "framer-motion";
 import { useState, useMemo } from "react";
+import { getAdminNavItems } from "../../lib/navigation/adminNav";
 
 export function AdminNavbar() {
   const { scrollY } = useScroll();
@@ -42,34 +34,11 @@ export function AdminNavbar() {
     setIsScrolled(latest > 20);
   });
 
-  const userType = (user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined;
+  const userType = (user?.publicMetadata?.userType ||
+    user?.publicMetadata?.user_type) as string | undefined;
   const isFounder = userType === "founder";
 
-  const navItems = useMemo(() => {
-    const baseItems = [
-      { label: "Utilisateurs", icon: UsersIcon, href: "/admin/utilisateurs", id: "admin-nav-agents" },
-      { label: "Annonces", icon: BuildingsIcon, href: "/admin/annonces", id: "admin-nav-annonces" },
-      { label: "Candidatures", icon: ClipboardTextIcon, href: "/admin/candidatures", id: "admin-nav-candidatures" },
-      { label: "Analytics", icon: ChartLineUpIcon, href: "/admin/analytiques", id: "admin-nav-analytiques" },
-    ];
-
-    if (isFounder) {
-      baseItems.push({
-        label: "Finances",
-        icon: ReceiptIcon,
-        href: "/admin/finances",
-        id: "admin-nav-finances",
-      });
-      baseItems.push({
-        label: "Paramètres",
-        icon: GearIcon,
-        href: "/admin/parametres",
-        id: "admin-nav-parametres",
-      });
-    }
-
-    return baseItems;
-  }, [isFounder]);
+  const navItems = useMemo(() => getAdminNavItems(isFounder), [isFounder]);
 
   return (
     <motion.header
@@ -84,7 +53,7 @@ export function AdminNavbar() {
       <div
         className={cn(
           "flex items-center justify-between px-4 sm:px-6 py-2 rounded-full transition-all duration-300 border bg-white/80 backdrop-blur-xl shadow-lg border-white/40",
-          isScrolled ? "h-16" : "h-20"
+          isScrolled ? "h-16" : "h-20",
         )}
       >
         <Link href="/" className="flex items-center shrink-0 group">
@@ -126,7 +95,7 @@ export function AdminNavbar() {
                     "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
                     isActive
                       ? "text-primary"
-                      : "text-neutral-500 hover:text-neutral-900"
+                      : "text-neutral-500 hover:text-neutral-900",
                   )}
                 >
                   <Icon size={18} weight={isActive ? "fill" : "bold"} />
@@ -198,7 +167,7 @@ export function AdminNavbar() {
                     "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
                     isActive
                       ? "bg-primary/10 text-primary"
-                      : "text-neutral-600 hover:bg-neutral-50"
+                      : "text-neutral-600 hover:bg-neutral-50",
                   )}
                 >
                   <Icon size={24} weight={isActive ? "fill" : "bold"} />
