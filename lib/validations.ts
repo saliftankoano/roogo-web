@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-export const listingSchema = z.object({
+export const listingBaseSchema = z.object({
   // Step 1
   titre: z.string().min(4, "Le titre doit contenir au moins 4 caractères"),
   type: z.enum(["villa", "appartement", "maison", "terrain", "commercial"]),
@@ -52,7 +52,9 @@ export const listingSchema = z.object({
   // Staff/founder: listing on behalf of client
   on_behalf_of_client: z.boolean().optional(),
   owner_id: z.uuid().optional(),
-}).refine(
+});
+
+export const listingSchema = listingBaseSchema.refine(
   (data) => !data.on_behalf_of_client || (data.on_behalf_of_client && data.owner_id),
   { message: "Sélectionnez un propriétaire ou agent", path: ["owner_id"] }
 );

@@ -6,7 +6,7 @@ import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
 import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { listingSchema } from "@/lib/validations";
+import { listingBaseSchema } from "@/lib/validations";
 import validator from "validator";
 
 export async function OPTIONS(req: Request) {
@@ -95,7 +95,7 @@ export async function POST(req: Request) {
 
     // 5b. Zod validation (server-side)
     // Note: We skip photos validation on server as they are uploaded separately
-    const validationResult = listingSchema.omit({ photos: true }).safeParse(listingData);
+    const validationResult = listingBaseSchema.omit({ photos: true }).safeParse(listingData);
     if (!validationResult.success) {
       console.error("Validation failed:", validationResult.error.format());
       return errorResponse("Données invalides: " + validationResult.error.issues[0].message, 400, req);
