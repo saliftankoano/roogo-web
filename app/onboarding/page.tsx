@@ -204,16 +204,21 @@ export default function OnboardingPage() {
   const handleFinish = async () => {
     if (!completedKey || !stepKey || !effectiveUserType) return;
 
+    setIsSubmitting(true);
     try {
       await updateMetadata({ hasCompletedWebOnboarding: true, signupPlatform: "web" });
+      // Reload the Clerk session so the updated JWT is used on the next request,
+      // ensuring the middleware gate sees hasCompletedWebOnboarding = true.
       await user?.reload();
+      localStorage.setItem(completedKey, "true");
+      localStorage.removeItem(stepKey);
+      router.push(effectiveUserType === "renter" ? "/proprietes" : "/mes-proprietes");
     } catch (error) {
       console.error("Error flagging web onboarding completion:", error);
+      alert("Impossible d'enregistrer votre profil. Veuillez réessayer.");
+    } finally {
+      setIsSubmitting(false);
     }
-
-    localStorage.setItem(completedKey, "true");
-    localStorage.removeItem(stepKey);
-    router.push(effectiveUserType === "renter" ? "/proprietes" : "/mes-proprietes");
   };
 
   if (!isLoaded || !isInitialized) {
