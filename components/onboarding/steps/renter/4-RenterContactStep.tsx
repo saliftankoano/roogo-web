@@ -2,10 +2,11 @@
 
 import React, { useState } from "react";
 import { motion } from "framer-motion";
-import { PhoneIcon, WarningCircleIcon } from "@phosphor-icons/react";
+import { PhoneIcon, BellIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 
 const BF_DIGITS = 8;
 
@@ -19,7 +20,7 @@ const contactSchema = z.object({
 type FieldErrors = { phone?: string };
 
 interface RenterContactStepProps {
-  onNext: (info: { phone: string }) => void;
+  onNext: (info: { phone: string; notifications: { newListings: boolean } }) => void;
 }
 
 function FieldError({ msg }: { msg?: string }) {
@@ -34,6 +35,7 @@ function FieldError({ msg }: { msg?: string }) {
 
 export function RenterContactStep({ onNext }: RenterContactStepProps) {
   const [phone, setPhone] = useState("");
+  const [newListings, setNewListings] = useState(true);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [shakeKey, setShakeKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -56,7 +58,7 @@ export function RenterContactStep({ onNext }: RenterContactStepProps) {
 
     setErrors({});
     setIsSubmitting(true);
-    onNext({ phone: `+226${parsed.data.phone}` });
+    onNext({ phone: `+226${parsed.data.phone}`, notifications: { newListings } });
   };
 
   return (
@@ -125,6 +127,22 @@ export function RenterContactStep({ onNext }: RenterContactStepProps) {
             </div>
           </div>
           <FieldError msg={errors.phone} />
+        </div>
+
+        {/* Notifications */}
+        <div className="space-y-2">
+          <label className="text-sm font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
+            <BellIcon size={14} weight="bold" className="text-primary" />
+            Notifications
+          </label>
+          <div className="bg-[#1C1510] border border-[#3D3027] rounded-xl">
+            <div className="flex items-center justify-between px-4 py-3">
+              <span className="text-sm font-medium text-neutral-300">
+                Nouvelles annonces correspondant à ma recherche
+              </span>
+              <Switch checked={newListings} onCheckedChange={setNewListings} />
+            </div>
+          </div>
         </div>
 
         <motion.div

@@ -781,12 +781,12 @@ export default function AdminFinancesPage() {
                             </span>
                           </div>
                         )}
-                        {metadata?.add_ons?.map((a) => {
+                        {metadata?.add_ons?.map((a, i) => {
                           const Icon = ADD_ON_ICONS[a.id] || InfoIcon;
                           const label = ADD_ON_LABELS[a.id] || a.name;
                           return (
                             <div
-                              key={a.id}
+                              key={`${a.id}-${i}`}
                               className="flex items-center justify-between text-[10px] font-bold"
                             >
                               <div className="flex items-center gap-1.5 text-neutral-400 uppercase tracking-wider">

@@ -17,6 +17,7 @@ const isPublicRoute = createRouteMatcher([
   "/louer/residentiel",
   "/louer/commercial",
   "/publier-bien",
+  "/api/careers/apply",
   // API routes that need to be public (webhooks, health)
   "/api/health",
   "/api/pawapay/callback",

@@ -121,6 +121,43 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
   const [photos, setPhotos] = useState<File[]>([]);
 
+  // Load draft on mount
+  useEffect(() => {
+    const savedDraft = localStorage.getItem("roogo_property_draft");
+    if (savedDraft) {
+      try {
+        const draft = JSON.parse(savedDraft);
+        setFormData((prev) => ({ ...prev, ...draft.formData }));
+        setSelectedTier(draft.selectedTier);
+        setSelectedAddOns(draft.selectedAddOns);
+        setOnBehalfOfClient(draft.onBehalfOfClient);
+        setSelectedOwner(draft.selectedOwner);
+      } catch (e) {
+        console.error("Failed to parse draft", e);
+      }
+    }
+  }, []);
+
+  const handleSaveDraft = () => {
+    const draft = {
+      formData,
+      selectedTier,
+      selectedAddOns,
+      onBehalfOfClient,
+      selectedOwner,
+      updatedAt: new Date().toISOString(),
+    };
+    localStorage.setItem("roogo_property_draft", JSON.stringify(draft));
+    alert("Brouillon enregistré avec succès !");
+  };
+
+  const handleClearDraft = () => {
+    if (confirm("Voulez-vous vraiment effacer le brouillon ?")) {
+      localStorage.removeItem("roogo_property_draft");
+      window.location.reload();
+    }
+  };
+
   const rentAmount = parseInt(formData.prixMensuel, 10) || 0;
   const appliedCommissionRate = paymentChoice === "free" ? 0 : (commissionRate ?? 0);
   const commissionAmount = rentAmount * appliedCommissionRate;
@@ -459,6 +496,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       }
 
       alert("Propriété ajoutée avec succès !");
+      localStorage.removeItem("roogo_property_draft");
       if (onSuccess) onSuccess();
       else window.location.reload();
       collapse();
@@ -479,16 +517,32 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <h2 className="text-4xl font-bold text-neutral-900">
             Ajouter une propriété
           </h2>
-          {isDevelopment() && normalizedUserType === "founder" && (
+          <div className="flex items-center gap-2">
+            {isDevelopment() && normalizedUserType === "founder" && (
+              <button
+                type="button"
+                onClick={handleAutoFill}
+                className="px-4 py-2 text-sm bg-purple-100 text-purple-700 rounded-lg font-medium hover:bg-purple-200 transition-colors flex items-center gap-2"
+              >
+                <span>✨</span>
+                Remplir auto (Dev)
+              </button>
+            )}
             <button
               type="button"
-              onClick={handleAutoFill}
-              className="px-4 py-2 text-sm bg-purple-100 text-purple-700 rounded-lg font-medium hover:bg-purple-200 transition-colors flex items-center gap-2"
+              onClick={handleSaveDraft}
+              className="px-4 py-2 text-sm bg-blue-50 text-blue-600 rounded-lg font-bold hover:bg-blue-100 transition-colors"
             >
-              <span>✨</span>
-              Remplir auto (Dev)
+              Enregistrer brouillon
             </button>
-          )}
+            <button
+              type="button"
+              onClick={handleClearDraft}
+              className="px-4 py-2 text-sm bg-neutral-100 text-neutral-500 rounded-lg font-bold hover:bg-neutral-200 transition-colors"
+            >
+              Effacer
+            </button>
+          </div>
         </div>
         <p className="text-neutral-500 text-lg max-w-2xl mx-auto">
           Remplissez les informations ci-dessous pour mettre votre bien en

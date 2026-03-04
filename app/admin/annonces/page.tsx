@@ -32,6 +32,7 @@ export default function AdminListingsPage() {
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [isFiltersVisible, setIsFiltersVisible] = useState(true);
   const finalizeOnceRef = useRef(false);
 
   useEffect(() => {
@@ -213,11 +214,25 @@ export default function AdminListingsPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative">
+      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative overflow-hidden">
         <div className="flex items-center justify-between mb-8">
-          <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
-            Filtres des propriétés
-          </h2>
+          <div className="flex items-center gap-4">
+            <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
+              Filtres des propriétés
+            </h2>
+            <button 
+              onClick={() => setIsFiltersVisible(!isFiltersVisible)}
+              className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:text-primary transition-colors flex items-center gap-1.5"
+            >
+              {isFiltersVisible ? "Masquer" : "Afficher"}
+              <motion.div
+                animate={{ rotate: isFiltersVisible ? 0 : 180 }}
+                transition={{ duration: 0.3 }}
+              >
+                <CaretDownIcon size={14} weight="bold" />
+              </motion.div>
+            </button>
+          </div>
           <div className="flex items-center gap-3">
             <ExpandableScreen
               layoutId="add-property-staff"
@@ -248,49 +263,61 @@ export default function AdminListingsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
-          <div className="space-y-3">
-            <label className="text-[13px] font-bold text-neutral-900 ml-4 uppercase tracking-wider opacity-60">
-              Mot-clé
-            </label>
-            <div className="relative group">
-              <input
-                type="text"
-                placeholder="Entrez un mot-clé..."
-                className="w-full pl-12 pr-6 py-4 bg-neutral-50/50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-[15px] placeholder:text-neutral-300 font-medium"
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-              />
-              <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
-                <MagnifyingGlassIcon size={20} weight="bold" />
+        <AnimatePresence initial={false}>
+          {isFiltersVisible && (
+            <motion.div 
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+              className="overflow-hidden"
+            >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pt-2">
+                <div className="space-y-3">
+                  <label className="text-[13px] font-bold text-neutral-900 ml-4 uppercase tracking-wider opacity-60">
+                    Mot-clé
+                  </label>
+                  <div className="relative group">
+                    <input
+                      type="text"
+                      placeholder="Entrez un mot-clé..."
+                      className="w-full pl-12 pr-6 py-4 bg-neutral-50/50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-[15px] placeholder:text-neutral-300 font-medium"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                    />
+                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
+                      <MagnifyingGlassIcon size={20} weight="bold" />
+                    </div>
+                  </div>
+                </div>
+
+                <FilterSelect
+                  label="Localisation"
+                  value={locationFilter}
+                  onChange={setLocationFilter}
+                  options={locations}
+                  placeholder="Toutes les zones"
+                />
+
+                <FilterSelect
+                  label="Type de bien"
+                  value={typeFilter}
+                  onChange={setTypeFilter}
+                  options={propertyTypes}
+                  placeholder="Tous les types"
+                />
+
+                <FilterSelect
+                  label="Catégorie"
+                  value={categoryFilter}
+                  onChange={setCategoryFilter}
+                  options={["Residential", "Business"]}
+                  placeholder="Toutes catégories"
+                />
               </div>
-            </div>
-          </div>
-
-          <FilterSelect
-            label="Localisation"
-            value={locationFilter}
-            onChange={setLocationFilter}
-            options={locations}
-            placeholder="Toutes les zones"
-          />
-
-          <FilterSelect
-            label="Type de bien"
-            value={typeFilter}
-            onChange={setTypeFilter}
-            options={propertyTypes}
-            placeholder="Tous les types"
-          />
-
-          <FilterSelect
-            label="Catégorie"
-            value={categoryFilter}
-            onChange={setCategoryFilter}
-            options={["Residential", "Business"]}
-            placeholder="Toutes catégories"
-          />
-        </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {loading ? (

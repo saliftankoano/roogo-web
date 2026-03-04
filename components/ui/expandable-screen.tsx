@@ -121,17 +121,19 @@ export function ExpandableScreenTrigger({
             className="absolute inset-0 transform-gpu will-change-transform"
           />
           {/* Content layer that fades out on expand */}
-          <motion.div
+          <motion.button
             initial={{ opacity: 0, scale: 0.8 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ delay: 0.2 }}
             exit={{ opacity: 0, scale: 0.8 }}
             layout={false}
             onClick={expand}
-            className="relative cursor-pointer"
+            className="relative cursor-pointer bg-transparent border-none p-0 m-0 text-left appearance-none"
+            aria-expanded={false}
+            aria-haspopup="dialog"
           >
             {children}
-          </motion.div>
+          </motion.button>
         </motion.div>
       )}
     </AnimatePresence>
@@ -144,6 +146,7 @@ interface ExpandableScreenContentProps {
   className?: string;
   showCloseButton?: boolean;
   closeButtonClassName?: string;
+  ariaLabel?: string;
 }
 
 export function ExpandableScreenContent({
@@ -151,14 +154,46 @@ export function ExpandableScreenContent({
   className = "",
   showCloseButton = true,
   closeButtonClassName = "",
+  ariaLabel = "Expanded content",
 }: ExpandableScreenContentProps) {
   const { isExpanded, collapse, layoutId, contentRadius, animationDuration } =
     useExpandableScreen();
 
+  // Focus management
+  useEffect(() => {
+    if (isExpanded) {
+      const focusableElements = document.querySelectorAll(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])'
+      );
+      const firstElement = focusableElements[0] as HTMLElement;
+      if (firstElement) firstElement.focus();
+
+      const handleKeyDown = (e: KeyboardEvent) => {
+        if (e.key === "Escape") collapse();
+      };
+      window.addEventListener("keydown", handleKeyDown);
+      return () => window.removeEventListener("keydown", handleKeyDown);
+    }
+  }, [isExpanded, collapse]);
+
   return (
     <AnimatePresence initial={false}>
       {isExpanded && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-2">
+        <div 
+          className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-2"
+          role="dialog"
+          aria-modal="true"
+          aria-label={ariaLabel}
+        >
+          {/* Overlay for clicking outside */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={collapse}
+            className="absolute inset-0 bg-black/20 backdrop-blur-sm"
+          />
+          
           {/* Morphing background with shared layoutId */}
           <motion.div
             layoutId={layoutId}

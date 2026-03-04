@@ -2,7 +2,6 @@
 
 import { Footer } from "../../components/Footer";
 import { motion } from "framer-motion";
-import { Button } from "../../components/ui/Button";
 import {
   EnvelopeSimpleIcon,
   LightbulbIcon,
@@ -10,6 +9,12 @@ import {
   UsersThreeIcon,
 } from "@phosphor-icons/react";
 import Image from "next/image";
+import {
+  ExpandableScreen,
+  ExpandableScreenContent,
+  ExpandableScreenTrigger,
+} from "@/components/ui/expandable-screen";
+import { HustleApplicationModal } from "@/components/carrieres/HustleApplicationModal";
 export default function CareersPage() {
   const container = {
     hidden: { opacity: 0 },
@@ -199,14 +204,25 @@ export default function CareersPage() {
               sommes toujours à l&apos;écoute des talents exceptionnels.
               Envoyez-nous votre candidature spontanée.
             </p>
-            <Button
-              variant="primary"
-              size="lg"
-              className="inline-flex items-center gap-2"
-            >
-              <EnvelopeSimpleIcon size={20} weight="bold" />
-              Candidature Spontanée
-            </Button>
+            <div className="flex justify-center">
+              <ExpandableScreen
+                layoutId="career-spontaneous-application"
+                contentRadius="32px"
+              >
+                <ExpandableScreenTrigger>
+                  <div className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-lg font-semibold text-white transition-colors hover:bg-primary-hover">
+                    <EnvelopeSimpleIcon size={20} weight="bold" />
+                    Candidature Spontanée
+                  </div>
+                </ExpandableScreenTrigger>
+                <ExpandableScreenContent
+                  className="bg-neutral-50"
+                  closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
+                >
+                  <HustleApplicationModal />
+                </ExpandableScreenContent>
+              </ExpandableScreen>
+            </div>
           </motion.div>
         </div>
       </main>

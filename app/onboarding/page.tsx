@@ -139,13 +139,11 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleRenterContact = async (info: { phone: string }) => {
+  const handleRenterContact = async (info: { phone: string; notifications: { newListings: boolean } }) => {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      if (info.phone !== undefined) {
-        await updateMetadata({ webOnboardingData: { phone: info.phone } });
-      }
+      await updateMetadata({ webOnboardingData: { phone: info.phone, notifications: info.notifications } });
       handleNext();
       await user.reload();
     } catch (error) {
@@ -175,7 +173,11 @@ export default function OnboardingPage() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await updateMetadata({ webOnboardingData: info });
+      await updateMetadata({
+        ...(typeof info.companyName === "string" && { companyName: info.companyName }),
+        ...(typeof info.facebookUrl === "string" && info.facebookUrl && { facebookUrl: info.facebookUrl }),
+        webOnboardingData: info,
+      });
       handleNext();
       await user.reload();
     } catch (error) {

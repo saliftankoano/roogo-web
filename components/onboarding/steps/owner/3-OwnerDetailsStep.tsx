@@ -7,6 +7,7 @@ import {
   WhatsappLogoIcon,
   MapPinIcon,
   HouseIcon,
+  BellIcon,
   CheckCircleIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
@@ -30,8 +31,13 @@ const ownerDetailsSchema = z
     propertyCity: z.enum(["Ouagadougou", "Bobo-Dioulasso"], {
       message: "Choisissez la ville du bien",
     }),
-    propertyAvailable: z.enum(["oui", "non", "bientot"], {
+    propertyAvailable: z.enum(["Oui, maintenant", "Dans 1-2 semaines", "Dans 1-3 mois"], {
       message: "Choisissez la disponibilité",
+    }),
+    notifications: z.object({
+      viewingRequests: z.boolean(),
+      messages: z.boolean(),
+      payments: z.boolean(),
     }),
   })
   .superRefine((data, ctx) => {
@@ -56,20 +62,27 @@ type FieldErrors = Partial<
   Record<"phone" | "whatsapp" | "propertyCity" | "propertyAvailable", string>
 >;
 
+interface OwnerNotifications {
+  viewingRequests: boolean;
+  messages: boolean;
+  payments: boolean;
+}
+
 interface OwnerDetailsStepProps {
   onNext: (details: {
     phone: string;
     whatsapp?: string;
     propertyCity: string;
     propertyAvailable: string;
+    notifications: OwnerNotifications;
   }) => void;
 }
 
 const CITIES = ["Ouagadougou", "Bobo-Dioulasso"] as const;
 const AVAILABILITY_OPTIONS = [
-  { id: "oui", label: "Oui, disponible immédiatement" },
-  { id: "non", label: "Non, déjà loué" },
-  { id: "bientot", label: "Bientôt disponible" },
+  { id: "Oui, maintenant", label: "Oui, disponible maintenant" },
+  { id: "Dans 1-2 semaines", label: "Dans 1-2 semaines" },
+  { id: "Dans 1-3 mois", label: "Dans 1-3 mois" },
 ] as const;
 
 const CHIP =
@@ -132,6 +145,11 @@ export function OwnerDetailsStep({ onNext }: OwnerDetailsStepProps) {
   const [isSameAsPhone, setIsSameAsPhone] = useState(false);
   const [propertyCity, setPropertyCity] = useState("");
   const [propertyAvailable, setPropertyAvailable] = useState("");
+  const [notifications, setNotifications] = useState<OwnerNotifications>({
+    viewingRequests: true,
+    messages: true,
+    payments: true,
+  });
   const [errors, setErrors] = useState<FieldErrors>({});
   const [shakeKey, setShakeKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -148,6 +166,7 @@ export function OwnerDetailsStep({ onNext }: OwnerDetailsStepProps) {
       isSameAsPhone,
       propertyCity: propertyCity || undefined,
       propertyAvailable: propertyAvailable || undefined,
+      notifications,
     });
 
     if (!parsed.success) {
@@ -174,6 +193,7 @@ export function OwnerDetailsStep({ onNext }: OwnerDetailsStepProps) {
           : undefined,
       propertyCity: parsed.data.propertyCity,
       propertyAvailable: parsed.data.propertyAvailable,
+      notifications: parsed.data.notifications,
     });
   };
 
@@ -292,6 +312,33 @@ export function OwnerDetailsStep({ onNext }: OwnerDetailsStepProps) {
               ))}
             </div>
             <FieldError msg={errors.propertyAvailable} />
+          </div>
+        </div>
+
+        {/* Row 3 — Notifications */}
+        <div className="space-y-3">
+          <label className="text-sm font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
+            <BellIcon size={16} weight="bold" className="text-primary" />
+            Notifications
+          </label>
+          <div className="bg-[#1C1510] border border-[#3D3027] rounded-xl divide-y divide-[#3D3027]">
+            {(
+              [
+                { key: "viewingRequests", label: "Demandes de visite" },
+                { key: "messages", label: "Messages" },
+                { key: "payments", label: "Paiements" },
+              ] as { key: keyof OwnerNotifications; label: string }[]
+            ).map(({ key, label }) => (
+              <div key={key} className="flex items-center justify-between px-4 py-3">
+                <span className="text-sm font-medium text-neutral-300">{label}</span>
+                <Switch
+                  checked={notifications[key]}
+                  onCheckedChange={(v) =>
+                    setNotifications((n) => ({ ...n, [key]: v }))
+                  }
+                />
+              </div>
+            ))}
           </div>
         </div>
 

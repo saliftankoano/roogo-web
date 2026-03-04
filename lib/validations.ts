@@ -55,8 +55,9 @@ export const listingBaseSchema = z.object({
 });
 
 export const listingSchema = listingBaseSchema.refine(
-  (data) => !data.on_behalf_of_client || (data.on_behalf_of_client && data.owner_id),
-  { message: "Sélectionnez un propriétaire ou agent", path: ["owner_id"] }
+  (data) =>
+    !data.on_behalf_of_client || (data.on_behalf_of_client && data.owner_id),
+  { message: "Sélectionnez un propriétaire ou agent", path: ["owner_id"] },
 );
 
 export const PROPERTY_TYPES = [
@@ -101,4 +102,37 @@ export const paymentInitiateSchema = z.object({
   preAuthorisationCode: z.string().optional(),
   description: z.string().max(100).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
+});
+
+export const hustleApplicationSchema = z.object({
+  fullName: z.string().min(2, "Le nom complet est requis"),
+  email: z.email("Adresse email invalide"),
+  phone: z
+    .string()
+    .min(8, "Le numéro de téléphone doit contenir 8 chiffres")
+    .max(8, "Le numéro de téléphone ne peut pas contenir plus de 8 chiffres")
+    .regex(/^[0-9]+$/, "Numéro de téléphone invalide (8 chiffres requis)"),
+  secondaryPhone: z
+    .string()
+    .min(8, "Le numéro doit contenir 8 chiffres")
+    .max(8, "Le numéro ne peut pas contenir plus de 8 chiffres")
+    .regex(/^[0-9]+$/, "Numéro invalide")
+    .optional()
+    .or(z.literal("")),
+  proudAchievement: z
+    .string()
+    .min(10, "Veuillez détailler votre réalisation (min 10 caractères)"),
+  difficultProblem: z
+    .string()
+    .min(10, "Veuillez détailler le problème résolu (min 10 caractères)"),
+  thirtyDayStrategy: z
+    .string()
+    .min(20, "Veuillez détailler votre stratégie (min 20 caractères)"),
+  proofLinks: z.string().optional(),
+  neighborhoodChallenge: z
+    .string()
+    .min(
+      20,
+      "Veuillez détailler votre réponse au challenge (min 20 caractères)",
+    ),
 });
