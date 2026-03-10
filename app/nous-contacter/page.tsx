@@ -31,8 +31,14 @@ export default function ContactPage() {
   const contactInfo = [
     {
       icon: PhoneIcon,
-      label: "Téléphone",
-      value: "+226 25 30 00 00",
+      label: "Téléphone (Moov)",
+      value: "+226 53 11 11 19",
+      subValue: "Lun - Ven, 8h - 18h",
+    },
+    {
+      icon: PhoneIcon,
+      label: "Téléphone (Orange)",
+      value: "+226 67 00 61 16",
       subValue: "Lun - Ven, 8h - 18h",
     },
     {
@@ -44,13 +50,13 @@ export default function ContactPage() {
     {
       icon: MapPinIcon,
       label: "Adresse",
-      value: "Ouaga 2000, Secteur 15",
+      value: "Karpala, 3ème boutique après le groupe l'académie",
       subValue: "Ouagadougou, Burkina Faso",
     },
     {
       icon: WhatsappLogoIcon,
       label: "WhatsApp",
-      value: "+226 70 00 00 00",
+      value: "+226 67 00 61 16",
       subValue: "Assistance rapide",
     },
   ];

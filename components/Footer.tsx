@@ -133,13 +133,13 @@ export function Footer() {
           <div>
             <h4 className="font-bold text-neutral-900 mb-6">Contact</h4>
             <ul className="space-y-4">
-              <li className="flex items-center gap-3 text-neutral-500">
-                <MapPin size={20} />
-                <span>Ouagadougou, Burkina Faso</span>
+              <li className="flex items-start gap-3 text-neutral-500">
+                <MapPin size={20} className="shrink-0 mt-1" />
+                <span>Karpala, 3ème boutique après le groupe l&apos;académie, Ouagadougou</span>
               </li>
               <li className="flex items-center gap-3 text-neutral-500">
                 <Phone size={20} />
-                <span>+226 70 00 00 00</span>
+                <span>+226 53 11 11 19 / 67 00 61 16</span>
               </li>
               <li className="flex items-center gap-3 text-neutral-500">
                 <EnvelopeSimple size={20} />

@@ -21,7 +21,7 @@ export function getOrganizationSchema() {
     },
     contactPoint: {
       "@type": "ContactPoint",
-      telephone: "+226-70-00-00-00",
+      telephone: "+226-53-11-11-19",
       contactType: "customer service",
       availableLanguage: "French",
     },
