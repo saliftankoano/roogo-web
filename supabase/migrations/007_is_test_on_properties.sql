@@ -1,0 +1,1 @@
+ALTER TABLE properties ADD COLUMN IF NOT EXISTS is_test BOOLEAN DEFAULT false;
