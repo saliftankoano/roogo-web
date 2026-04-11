@@ -157,11 +157,11 @@ function PropertiesPageContent() {
 
   const filteredProperties = useMemo(() => {
     const result = properties.filter((listing) => {
-      // For staff/founders: show all properties
-      // For others: only show live properties
+      // For staff/founders: show all properties (including test ones)
+      // For others: only show live, non-test properties
       const statusMatch = isStaffOrFounder
         ? true
-        : listing.status === "en_ligne";
+        : listing.status === "en_ligne" && !listing.is_test;
 
       if (!statusMatch) return false;
 

@@ -32,6 +32,7 @@ export type Property = {
   deposit?: number;
   payment_id?: string;
   transaction_id?: string;
+  is_test?: boolean;
   agent?: {
     full_name: string;
     phone: string;
@@ -80,6 +81,7 @@ interface DBProperty {
   payment_id: string | null;
   transaction_id: string | null;
   primary_image: string | null;
+  is_test: boolean | null;
 }
 
 // Helper function to map DB properties to frontend format
@@ -116,6 +118,7 @@ function mapProperty(p: DBProperty): Property {
     deposit: p.deposit || undefined,
     payment_id: p.payment_id || undefined,
     transaction_id: p.transaction_id || undefined,
+    is_test: p.is_test || false,
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
@@ -140,6 +143,7 @@ export async function fetchProperties(options?: {
   let query = supabase
     .from("property_details")
     .select("*", { count: "exact" })
+    .eq("is_test", false)
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
@@ -150,7 +154,13 @@ export async function fetchProperties(options?: {
   const { data, error, count } = await query;
 
   if (error) {
-    console.error("Error fetching properties:", error);
+    console.error(
+      "Error fetching properties:",
+      error.message,
+      error.code,
+      error.details,
+      error.hint,
+    );
     return { properties: [], total: 0 };
   }
 

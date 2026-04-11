@@ -1,3 +1,14 @@
+// Canonical property types — must stay in sync with roogo mobile: forms/listingSchema.ts PROPERTY_TYPE_IDS
+export const PROPERTY_TYPE_IDS = [
+  "villa",
+  "appartement",
+  "maison",
+  "terrain",
+  "commercial",
+  "célibatorium",
+] as const;
+export type PropertyTypeId = (typeof PROPERTY_TYPE_IDS)[number];
+
 // Time constants
 export const BOOST_DURATION_DAYS = 7;
 // @deprecated - Early Bird duration is now configured dynamically in the database via early_bird_config table.

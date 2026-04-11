@@ -233,7 +233,7 @@ export async function POST(req: Request) {
       longitude: listingData.longitude || null,
       caution_mois: listingData.cautionMois || null,
       interdictions: interdictionsLabels,
-      period: "month",
+      period: listingData.frequence === "journalier" ? "day" : "month",
       // Tier information
       tier_id: listingData.tier_id || null,
       tier_price: tierPrice,
@@ -248,6 +248,8 @@ export async function POST(req: Request) {
       boost_expires_at: boostExpiresAt,
       // Set published_at for staff listings since they go live immediately
       published_at: isStaffOrFounder ? new Date().toISOString() : null,
+      // Only staff/founder may mark a listing as test (hidden from public)
+      is_test: isStaffOrFounder ? (listingData.is_test === true) : false,
     };
 
     // 9. Insert property
