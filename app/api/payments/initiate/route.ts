@@ -388,6 +388,18 @@ export async function POST(req: Request) {
             boost_expires_at: expiresAt.toISOString(),
           })
           .eq("id", propertyId);
+      } else if (transactionType === "rent_payment" && metadata) {
+        const scheduleId = (metadata as Record<string, unknown>)?.scheduleId as string | undefined;
+        if (scheduleId) {
+          await supabase
+            .from("rent_schedules")
+            .update({
+              status: "paid",
+              transaction_id: depositId,
+              paid_at: new Date().toISOString(),
+            })
+            .eq("id", scheduleId);
+        }
       }
     }
 

@@ -376,6 +376,21 @@ export async function POST(req: Request) {
 
            notificationTitle = "Annonce publiée";
            notificationBody = "Votre annonce est maintenant en ligne";
+        } else if (transaction.type === "rent_payment" && transaction.metadata) {
+           const meta = transaction.metadata as Record<string, unknown>;
+           const scheduleId = meta?.scheduleId as string | undefined;
+           if (scheduleId) {
+             await supabase
+               .from("rent_schedules")
+               .update({
+                 status: "paid",
+                 transaction_id: transaction.id,
+                 paid_at: new Date().toISOString(),
+               })
+               .eq("id", scheduleId);
+           }
+           notificationTitle = "Loyer payé";
+           notificationBody = "Votre paiement de loyer a été confirmé";
         }
 
         // Send payment confirmation notification
