@@ -1,9 +1,10 @@
 import { z } from "zod";
+import { PROPERTY_TYPE_IDS } from "./constants";
 
 export const listingBaseSchema = z.object({
   // Step 1
   titre: z.string().min(4, "Le titre doit contenir au moins 4 caractères"),
-  type: z.enum(["villa", "appartement", "maison", "terrain", "commercial"]),
+  type: z.enum(PROPERTY_TYPE_IDS),
   prixMensuel: z.coerce
     .number()
     .int()
@@ -42,6 +43,7 @@ export const listingBaseSchema = z.object({
       z.enum(["no_animaux", "no_fumeurs", "no_etudiants", "no_colocation"]),
     )
     .optional(),
+  frequence: z.enum(["mensuel", "journalier"]).optional(),
 
   // Step 3
   tier_id: z.enum(["essentiel", "standard", "premium"]).optional(),
@@ -97,6 +99,7 @@ export const paymentInitiateSchema = z.object({
     "lock",
     "property_lock",
     "photography",
+    "rent_payment",
   ]),
   propertyId: z.uuid().optional(),
   preAuthorisationCode: z.string().optional(),

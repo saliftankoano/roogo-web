@@ -1,6 +1,8 @@
 /**
  * PawaPay Configuration Resolver
- * 
+ *
+ * Sandbox test MSISDNs (Burkina Faso): see `docs/pawapay-test-numbers.md`.
+ *
  * Provides centralized configuration for PawaPay payment processing with:
  * - Local mode toggle (sandbox/live) for development
  * - Production safety (always forces live)
@@ -15,7 +17,7 @@ export interface PawaPayConfig {
 
 /**
  * Resolves PawaPay configuration based on environment
- * 
+ *
  * Rules:
  * - Production: Always uses live credentials (ignores PAWAPAY_LOCAL_MODE)
  * - Development: Uses PAWAPAY_LOCAL_MODE to choose sandbox or live (defaults to sandbox)
@@ -27,17 +29,18 @@ export function resolvePawaPayConfig(): PawaPayConfig {
   if (isProduction) {
     // Production: always force live credentials
     const url = process.env.PAWAPAY_LIVE_URL || process.env.PAWAPAY_URL;
-    const token = process.env.PAWAPAY_LIVE_API_TOKEN || process.env.PAWAPAY_API_TOKEN;
+    const token =
+      process.env.PAWAPAY_LIVE_API_TOKEN || process.env.PAWAPAY_API_TOKEN;
 
     if (!url) {
       throw new Error(
-        "Production PawaPay configuration error: PAWAPAY_LIVE_URL (or PAWAPAY_URL) is not configured"
+        "Production PawaPay configuration error: PAWAPAY_LIVE_URL (or PAWAPAY_URL) is not configured",
       );
     }
 
     if (!token) {
       throw new Error(
-        "Production PawaPay configuration error: PAWAPAY_LIVE_API_TOKEN (or PAWAPAY_API_TOKEN) is not configured"
+        "Production PawaPay configuration error: PAWAPAY_LIVE_API_TOKEN (or PAWAPAY_API_TOKEN) is not configured",
       );
     }
 
@@ -54,19 +57,20 @@ export function resolvePawaPayConfig(): PawaPayConfig {
   if (localMode === "live") {
     // Local live mode
     const url = process.env.PAWAPAY_LIVE_URL || process.env.PAWAPAY_URL;
-    const token = process.env.PAWAPAY_LIVE_API_TOKEN || process.env.PAWAPAY_API_TOKEN;
+    const token =
+      process.env.PAWAPAY_LIVE_API_TOKEN || process.env.PAWAPAY_API_TOKEN;
 
     if (!url) {
       throw new Error(
         "Local live mode error: PAWAPAY_LIVE_URL (or PAWAPAY_URL) is not configured. " +
-        "Set these variables or switch PAWAPAY_LOCAL_MODE to 'sandbox'."
+          "Set these variables or switch PAWAPAY_LOCAL_MODE to 'sandbox'.",
       );
     }
 
     if (!token) {
       throw new Error(
         "Local live mode error: PAWAPAY_LIVE_API_TOKEN (or PAWAPAY_API_TOKEN) is not configured. " +
-        "Set these variables or switch PAWAPAY_LOCAL_MODE to 'sandbox'."
+          "Set these variables or switch PAWAPAY_LOCAL_MODE to 'sandbox'.",
       );
     }
 
@@ -79,19 +83,20 @@ export function resolvePawaPayConfig(): PawaPayConfig {
 
   // Local sandbox mode (default)
   const url = process.env.PAWAPAY_SANDBOX_URL || process.env.PAWAPAY_URL;
-  const token = process.env.PAWAPAY_SANDBOX_API_TOKEN || process.env.PAWAPAY_API_TOKEN;
+  const token =
+    process.env.PAWAPAY_SANDBOX_API_TOKEN || process.env.PAWAPAY_API_TOKEN;
 
   if (!url) {
     throw new Error(
       "Local sandbox mode error: PAWAPAY_SANDBOX_URL (or PAWAPAY_URL) is not configured. " +
-      "Set these variables or check your .env.local file."
+        "Set these variables or check your .env.local file.",
     );
   }
 
   if (!token) {
     throw new Error(
       "Local sandbox mode error: PAWAPAY_SANDBOX_API_TOKEN (or PAWAPAY_API_TOKEN) is not configured. " +
-      "Set these variables or check your .env.local file."
+        "Set these variables or check your .env.local file.",
     );
   }
 
