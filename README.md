@@ -1,5 +1,7 @@
 ## Backend for Clerk privateMetadata sync
 
+02345678
+
 ### Stack
 
 - **Next.js (App Router, TypeScript)**
@@ -131,6 +133,7 @@ DEV_PRICING_OVERRIDE=false
 ```
 
 Result:
+
 - PawaPay sandbox
 - normal pricing locally
 - no real money charged
@@ -145,6 +148,7 @@ DEV_PRICING_OVERRIDE=true
 ```
 
 Result:
+
 - PawaPay sandbox
 - lowered local test pricing
 - no real money charged
@@ -159,6 +163,7 @@ DEV_PRICING_OVERRIDE=true
 ```
 
 Result:
+
 - PawaPay live
 - lowered local test pricing (for example 100 XOF)
 - real money charged with low cost
@@ -173,6 +178,7 @@ DEV_PRICING_OVERRIDE=false
 ```
 
 Result:
+
 - PawaPay live
 - normal pricing locally
 - real money charged at normal price
@@ -187,5 +193,6 @@ EXPO_PUBLIC_DEV_PRICING_OVERRIDE=true
 ```
 
 Notes:
+
 - `EXPO_PUBLIC_API_URL` must point to your local backend when testing from a physical device.
 - Mobile `EXPO_PUBLIC_DEV_PRICING_OVERRIDE` changes what user sees in mobile UI, but payment environment still comes from backend `PAWAPAY_LOCAL_MODE`.
