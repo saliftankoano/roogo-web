@@ -1,15 +1,20 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-// Check if Upstash is configured
-const isUpstashConfigured = 
-  process.env.UPSTASH_REDIS_REST_URL && 
-  process.env.UPSTASH_REDIS_REST_TOKEN;
+// Support both standard UPSTASH_ names and Vercel's custom RD_KV_ prefix
+const redisUrl =
+  process.env.UPSTASH_REDIS_REST_URL ||
+  process.env.RD_KV_REST_API_URL;
+const redisToken =
+  process.env.UPSTASH_REDIS_REST_TOKEN ||
+  process.env.RD_KV_REST_API_TOKEN;
+
+const isUpstashConfigured = redisUrl && redisToken;
 
 let redis: Redis | null = null;
 
 if (isUpstashConfigured) {
-  redis = Redis.fromEnv();
+  redis = new Redis({ url: redisUrl!, token: redisToken! });
 }
 
 export { redis };
@@ -54,11 +59,16 @@ export async function checkRateLimit(
     return { success: true, headers };
   }
 
-  const { success, limit, remaining, reset } = await limiter.limit(identifier);
+  try {
+    const { success, limit, remaining, reset } = await limiter.limit(identifier);
 
-  headers.set("X-RateLimit-Limit", limit.toString());
-  headers.set("X-RateLimit-Remaining", remaining.toString());
-  headers.set("X-RateLimit-Reset", reset.toString());
+    headers.set("X-RateLimit-Limit", limit.toString());
+    headers.set("X-RateLimit-Remaining", remaining.toString());
+    headers.set("X-RateLimit-Reset", reset.toString());
 
-  return { success, headers };
+    return { success, headers };
+  } catch (error) {
+    console.warn("Rate limit check failed (Redis unreachable) - allowing request:", error);
+    return { success: true, headers };
+  }
 }
