@@ -99,7 +99,7 @@ export default function MyPropertiesPage() {
   const filteredProperties = useMemo(() => {
     const result = properties.filter((listing) => {
       const matchesSearch =
-        listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (listing.location || listing.address || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         listing.description.toLowerCase().includes(searchQuery.toLowerCase());
 
       const matchesStatus =

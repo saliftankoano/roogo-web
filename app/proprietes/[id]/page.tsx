@@ -245,7 +245,7 @@ export default function PropertyDetailPage() {
         onClose={() => setShowPaymentModal(false)}
         onSuccess={handlePaymentSuccess}
         propertyId={id}
-        propertyTitle={listing.title}
+        propertyLabel={`Propriété au ${listing.location}`}
         rentAmount={rentAmount}
         depositMonths={depositMonths}
       />
@@ -327,7 +327,7 @@ export default function PropertyDetailPage() {
                 </>
               )}
               <div className="relative w-[90%] h-[90%]">
-                <Image src={images[fullscreenIndex]} alt={listing.title} fill className="object-contain" />
+                <Image src={images[fullscreenIndex]} alt={`Propriété à ${listing.location}`} fill className="object-contain" />
               </div>
             </div>
           )}
@@ -349,7 +349,7 @@ export default function PropertyDetailPage() {
                     Premium
                   </span>
                 )}
-                <h1 className="text-2xl font-bold text-neutral-900">{listing.title}</h1>
+                <h1 className="text-2xl font-bold text-neutral-900">{listing.location}</h1>
                 <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium flex-wrap">
                   <MapPinIcon size={14} weight="bold" />
                   <span>{listing.location}</span>
@@ -384,7 +384,7 @@ export default function PropertyDetailPage() {
                   <div className="space-y-3">
                     <div className="relative aspect-video rounded-2xl overflow-hidden cursor-pointer group"
                       onClick={() => { setFullscreenIndex(currentImageIndex); setIsFullscreen(true); }}>
-                      <Image src={images[currentImageIndex]} alt={listing.title} fill
+                      <Image src={images[currentImageIndex]} alt={`Propriété à ${listing.location}`} fill
                         className="object-cover group-hover:scale-[1.02] transition-transform duration-300"
                         sizes="(max-width: 768px) 100vw, 66vw" priority />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />

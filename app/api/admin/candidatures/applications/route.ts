@@ -23,7 +23,7 @@ export async function GET() {
       .from("applications")
       .select(`
         id, status, created_at, property_id, user_id,
-        properties!applications_property_id_fkey ( id, title, quartier, city ),
+        properties!applications_property_id_fkey ( id, quartier, city ),
         users!applications_user_id_fkey ( full_name, phone )
       `)
       .order("created_at", { ascending: false });

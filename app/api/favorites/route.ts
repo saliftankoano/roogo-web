@@ -21,7 +21,6 @@ interface PropertyImage {
 
 interface PropertyData {
   id: string;
-  title?: string;
   quartier?: string;
   city?: string;
   address?: string;
@@ -109,7 +108,6 @@ export async function GET() {
         return {
           id: prop.id,
           uuid: prop.id,
-          title: prop.title || "Sans titre",
           location: prop.quartier ? `${prop.quartier}, ${prop.city || "Ouagadougou"}` : "Ouagadougou",
           address: prop.address || "",
           price: (prop.price || 0).toString(),

@@ -4,7 +4,6 @@ export const isDevelopment = () => {
 
 export const getMockPropertyData = () => {
   return {
-    titre: "Villa Moderne Ouaga 2000",
     type: "villa" as const,
     prixMensuel: "450000",
     quartier: "Ouaga 2000",

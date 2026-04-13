@@ -159,7 +159,7 @@ export default function PropertyDetailsModal({
                     >
                       <Image
                         src={images[currentImageIndex]}
-                        alt={property.title}
+                        alt={`Propriété à ${property.location}`}
                         fill
                         className="object-cover transition-transform group-hover:scale-105"
                       />
@@ -199,7 +199,7 @@ export default function PropertyDetailsModal({
                           >
                             <Image
                               src={img}
-                              alt={`${property.title} ${idx + 1}`}
+                              alt={`Propriété ${idx + 1}`}
                               fill
                               className="object-cover"
                             />
@@ -213,7 +213,7 @@ export default function PropertyDetailsModal({
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
                       <h3 className="text-3xl font-bold text-neutral-900 mb-2">
-                        {property.title}
+                        {property.location}
                       </h3>
                       <div className="flex items-center text-neutral-600">
                         <MapPinIcon size={18} weight="bold" className="mr-2" />
@@ -512,7 +512,7 @@ export default function PropertyDetailsModal({
               >
                 <Image
                   src={images[fullscreenImageIndex]}
-                  alt={`${property.title} ${fullscreenImageIndex + 1}`}
+                  alt={`Propriété à ${property.location} — ${fullscreenImageIndex + 1}`}
                   fill
                   className="object-contain"
                 />

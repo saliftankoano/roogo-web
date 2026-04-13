@@ -160,7 +160,6 @@ export default function OwnerPropertyDetailPage() {
   const startEditing = () => {
     if (!listing) return;
     setEditForm({
-      title: listing.title,
       description: listing.description,
       price: listing.price,
       address: listing.address,
@@ -207,7 +206,6 @@ export default function OwnerPropertyDetailPage() {
     const changes: { field: string; old: PropertyFieldValue; new: PropertyFieldValue; label: string }[] = [];
     
     const fields: { key: keyof Property; label: string }[] = [
-      { key: "title", label: "Titre" },
       { key: "description", label: "Description" },
       { key: "price", label: "Prix" },
       { key: "address", label: "Adresse" },
@@ -370,18 +368,9 @@ export default function OwnerPropertyDetailPage() {
                 </span>
               )}
             </div>
-            {isEditing ? (
-              <input
-                type="text"
-                value={editForm.title}
-                onChange={(e) => handleEditChange("title", e.target.value)}
-                className="text-2xl font-bold text-neutral-900 bg-neutral-50 border border-neutral-200 rounded-lg px-2 py-1 w-full"
-              />
-            ) : (
-              <h1 className="text-2xl font-bold text-neutral-900">
-                {listing.title}
-              </h1>
-            )}
+            <h1 className="text-2xl font-bold text-neutral-900">
+              {listing.location}
+            </h1>
             <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium">
               <MapPinIcon size={14} weight="bold" />
               {isEditing ? (

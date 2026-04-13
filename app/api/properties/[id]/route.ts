@@ -9,7 +9,6 @@ const supabaseAdmin = createClient(
 );
 
 interface PropertyPatchUpdates {
-  title?: string;
   description?: string;
   price?: string | number;
   address?: string;
@@ -45,7 +44,7 @@ export async function DELETE(
     // Try to find user in Supabase
     const { data: users } = await supabaseAdmin
       .from("users")
-      .select("user_type, clerk_id")
+      .select("id, user_type, clerk_id")
       .eq("clerk_id", userId)
       .limit(1);
 
@@ -74,7 +73,7 @@ export async function DELETE(
           // Re-fetch user after sync
           const { data: syncedUsers } = await supabaseAdmin
             .from("users")
-            .select("user_type, clerk_id")
+            .select("id, user_type, clerk_id")
             .eq("clerk_id", userId)
             .limit(1);
 
@@ -85,22 +84,72 @@ export async function DELETE(
       }
     }
 
-    // Verify user has required privileges
-    if (
-      !user ||
-      !["staff", "founder"].includes(user.user_type)
-    ) {
+    if (!user) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    const { error } = await supabaseAdmin
+    const isAdmin = ["staff", "founder"].includes(user.user_type);
+    const isOwnerOrAgent = ["owner", "agent"].includes(user.user_type);
+
+    if (!isAdmin && !isOwnerOrAgent) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    }
+
+    // For owners/agents, verify they own this property before doing anything
+    if (!isAdmin) {
+      const { data: prop } = await supabaseAdmin
+        .from("properties")
+        .select("id")
+        .eq("id", propertyId)
+        .eq("agent_id", user.id)
+        .maybeSingle();
+
+      if (!prop) {
+        return NextResponse.json({ error: "Not found or not authorized" }, { status: 404 });
+      }
+    }
+
+    // --- Delete Storage files first ---
+    // All images are stored under "listing/{propertyId}/" in Supabase Storage.
+    // List every file in that folder and remove them before deleting the DB row.
+    try {
+      const { data: storageFiles, error: listError } = await supabaseAdmin.storage
+        .from("listing")
+        .list(propertyId);
+
+      if (listError) {
+        console.warn("Could not list storage files for property:", listError.message);
+      } else if (storageFiles && storageFiles.length > 0) {
+        const paths = storageFiles.map((f) => `${propertyId}/${f.name}`);
+        const { error: removeError } = await supabaseAdmin.storage
+          .from("listing")
+          .remove(paths);
+
+        if (removeError) {
+          console.warn("Storage cleanup partial failure:", removeError.message);
+          // Non-fatal — proceed with DB delete even if some files couldn't be removed
+        } else {
+          console.log(`Deleted ${paths.length} storage file(s) for property ${propertyId}`);
+        }
+      }
+    } catch (storageErr) {
+      console.warn("Storage cleanup error (non-fatal):", storageErr);
+    }
+
+    // --- Delete DB row (cascades to all related tables via migration 010) ---
+    const { error, count } = await supabaseAdmin
       .from("properties")
       .delete()
-      .eq("id", propertyId);
+      .eq("id", propertyId)
+      .select("id");
 
     if (error) {
       console.error("Error deleting property:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (!count || count === 0) {
+      return NextResponse.json({ error: "Not found or not authorized" }, { status: 404 });
     }
 
     return NextResponse.json({ success: true });
@@ -178,7 +227,6 @@ export async function PATCH(
 
     // Map frontend fields to database columns if necessary
     const dbUpdates: Record<string, string | number | null> = {};
-    if (updates.title !== undefined) dbUpdates.title = updates.title;
     if (updates.description !== undefined) dbUpdates.description = updates.description;
     if (updates.price !== undefined) dbUpdates.price = Number(updates.price);
     if (updates.address !== undefined) dbUpdates.address = updates.address;

@@ -18,7 +18,7 @@ interface PropertyPaymentModalProps {
   onClose: () => void;
   onSuccess: () => void;
   propertyId: string;
-  propertyTitle: string;
+  propertyLabel: string;
   rentAmount: number;
   depositMonths: number;
 }
@@ -31,7 +31,7 @@ export default function PropertyPaymentModal({
   onClose,
   onSuccess,
   propertyId,
-  propertyTitle,
+  propertyLabel,
   rentAmount,
   depositMonths,
 }: PropertyPaymentModalProps) {
@@ -205,7 +205,7 @@ export default function PropertyPaymentModal({
               </div>
               <div>
                 <p className="font-black text-neutral-900 text-sm">Louer de suite</p>
-                <p className="text-xs text-neutral-400 font-medium truncate max-w-[200px]">{propertyTitle}</p>
+                <p className="text-xs text-neutral-400 font-medium truncate max-w-[200px]">{propertyLabel}</p>
               </div>
             </div>
             {step !== "processing" && (

@@ -2,6 +2,7 @@
 import { useUser } from "@clerk/nextjs";
 
 import { useState, useEffect, useRef } from "react";
+import { PropertyDetailSkeleton } from "@/components/admin/skeletons";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -132,7 +133,6 @@ export default function ListingDetailPage() {
   const startEditing = () => {
     if (!listing) return;
     setEditForm({
-      title: listing.title,
       description: listing.description,
       price: listing.price,
       address: listing.address,
@@ -179,7 +179,6 @@ export default function ListingDetailPage() {
     const changes: { field: string; old: PropertyFieldValue; new: PropertyFieldValue; label: string }[] = [];
     
     const fields: { key: keyof Property; label: string }[] = [
-      { key: "title", label: "Titre" },
       { key: "description", label: "Description" },
       { key: "price", label: "Prix" },
       { key: "address", label: "Adresse" },
@@ -360,13 +359,7 @@ export default function ListingDetailPage() {
     }
   };
 
-  if (loading)
-    return (
-      <div className="flex flex-col items-center justify-center py-32 space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-neutral-400 font-medium">Chargement du bien...</p>
-      </div>
-    );
+  if (loading) return <PropertyDetailSkeleton />;
 
   if (!listing)
     return (
@@ -544,7 +537,7 @@ export default function ListingDetailPage() {
                   <p className="text-neutral-500 text-sm">
                     Êtes-vous sûr de vouloir supprimer définitivement <br />
                     <span className="font-bold text-neutral-900">
-                      {listing.title}
+                      {listing.location}
                     </span>{" "}
                     ? Cette action est irréversible.
                   </p>
@@ -646,18 +639,9 @@ export default function ListingDetailPage() {
                 </span>
               )}
             </div>
-            {isEditing ? (
-              <input
-                type="text"
-                value={editForm.title}
-                onChange={(e) => handleEditChange("title", e.target.value)}
-                className="text-2xl font-bold text-neutral-900 bg-neutral-50 border border-neutral-200 rounded-lg px-2 py-1 w-full"
-              />
-            ) : (
-              <h1 className="text-2xl font-bold text-neutral-900">
-                {listing.title}
-              </h1>
-            )}
+            <h1 className="text-2xl font-bold text-neutral-900">
+              {listing.location}
+            </h1>
             <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium">
               <MapPinIcon size={14} weight="bold" />
               {isEditing ? (

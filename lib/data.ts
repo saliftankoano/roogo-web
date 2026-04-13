@@ -3,7 +3,6 @@ import { supabase } from "./supabase";
 export type Property = {
   id: string;
   owner_id?: string;
-  title: string;
   location: string;
   address: string;
   price: string;
@@ -47,7 +46,6 @@ export type Property = {
 interface DBProperty {
   id: string;
   owner_id: string | null;
-  title: string;
   quartier: string;
   city: string;
   address: string;
@@ -89,7 +87,6 @@ function mapProperty(p: DBProperty): Property {
   return {
     id: p.id,
     owner_id: p.owner_id || undefined,
-    title: p.title,
     location: `${p.quartier}, ${p.city}`,
     address: p.address,
     price: p.price.toString(),
@@ -205,7 +202,6 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
   return {
     id: p.id,
     owner_id: p.owner_id || undefined,
-    title: p.title,
     location: `${p.quartier}, ${p.city}`,
     address: p.address,
     price: p.price.toString(),
@@ -307,7 +303,6 @@ export async function fetchTransactionsByPropertyId(
 export const properties: Property[] = [
   {
     id: "1",
-    title: "Villa Moderne Lakeshore",
     location: "Koulouba",
     address: "Quartier Koulouba, Ouagadougou",
     price: "450000",
@@ -330,7 +325,6 @@ export const properties: Property[] = [
   },
   {
     id: "2",
-    title: "Villa de Luxe Zone A",
     location: "Ouaga 2000",
     address: "Ouaga 2000, Zone A",
     price: "950000",
@@ -358,7 +352,6 @@ export const properties: Property[] = [
   },
   {
     id: "3",
-    title: "Espace Commercial Premium",
     location: "Somgandé",
     address: "Somgandé, Rue 12",
     price: "1200000",
@@ -381,7 +374,6 @@ export const properties: Property[] = [
   },
   {
     id: "4",
-    title: "Maison Familiale Cissin",
     location: "Cissin",
     address: "Cissin, Rue des Manguiers",
     price: "300000",

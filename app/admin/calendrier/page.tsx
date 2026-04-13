@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
+import { SectionBlocksSkeleton } from "@/components/admin/skeletons";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   CalendarBlank,
@@ -33,8 +34,9 @@ interface OpenHouseSlot {
   latitude?: number;
   longitude?: number;
   property: {
-    title: string;
     quartier: string;
+    address?: string;
+    location?: string;
   };
   bookings: { count: number }[];
 }
@@ -140,7 +142,7 @@ export default function AdminCalendarPage() {
         .select(
           `
           *,
-          property:properties(title, quartier),
+          property:properties(quartier, address),
           bookings:open_house_bookings(count)
         `
         )
@@ -429,7 +431,7 @@ export default function AdminCalendarPage() {
                       >
                         <div className="min-w-0 flex-1">
                           <p className="font-bold text-neutral-900 mb-2 truncate text-base">
-                            {slot.property.title}
+                            {slot.property.quartier || slot.property.address || slot.property.location || "Propriété"}
                           </p>
                           <div className="flex flex-wrap items-center gap-4 text-xs text-neutral-500 font-bold uppercase tracking-tight">
                             <span className="flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full shadow-sm">
@@ -522,9 +524,7 @@ export default function AdminCalendarPage() {
           </h2>
           <div className="space-y-5">
             {loading ? (
-              <div className="text-center py-20 text-neutral-400 font-medium italic">
-                Chargement des créneaux...
-              </div>
+              <SectionBlocksSkeleton count={3} height="h-20" />
             ) : upcomingSlots.length === 0 ? (
               <div className="text-center py-20 text-neutral-400 font-medium bg-neutral-50 rounded-[40px] border border-dashed border-neutral-200 px-10">
                 <p className="text-xs uppercase tracking-widest leading-relaxed">
@@ -553,7 +553,7 @@ export default function AdminCalendarPage() {
                   </div>
 
                   <h3 className="font-bold text-neutral-900 text-base mb-5 line-clamp-1 group-hover:text-primary transition-colors">
-                    {slot.property.title}
+                    {slot.property.quartier || slot.property.address || slot.property.location || "Propriété"}
                   </h3>
 
                   <div className="space-y-3">
@@ -698,8 +698,7 @@ export default function AdminCalendarPage() {
                     >
                       <span className="truncate">
                         {selectedPropertyId
-                          ? properties.find((p) => p.id === selectedPropertyId)
-                              ?.title
+                          ? (properties.find((p) => p.id === selectedPropertyId)?.location || "Propriété")
                           : "Sélectionner une propriété"}
                       </span>
                       <CaretDownIcon
@@ -737,7 +736,7 @@ export default function AdminCalendarPage() {
                             >
                               <div className="flex flex-col truncate w-full pr-4">
                                 <span className="text-sm font-bold truncate">
-                                  {p.title}
+                                  {p.location}
                                 </span>
                                 <span className="text-[11px] opacity-60 truncate">
                                   {p.location}
@@ -910,7 +909,7 @@ export default function AdminCalendarPage() {
               <p className="text-neutral-500 font-medium leading-relaxed mb-10">
                 Voulez-vous vraiment créer ce créneau de visite pour{" "}
                 <span className="text-neutral-900 font-bold">
-                  {properties.find((p) => p.id === selectedPropertyId)?.title}
+                  {properties.find((p) => p.id === selectedPropertyId)?.location || "la propriété"}
                 </span>{" "}
                 le{" "}
                 <span className="text-neutral-900 font-bold">

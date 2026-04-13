@@ -27,6 +27,7 @@ import {
 import { getAdminTransactions, ExtendedTransaction } from "./actions";
 import Link from "next/link";
 import { cn } from "@/lib/utils";
+import { FinanceSkeleton } from "@/components/admin/skeletons";
 import {
   Bar,
   BarChart,
@@ -676,12 +677,7 @@ export default function AdminFinancesPage() {
 
         <div className="bg-transparent space-y-4 max-h-[600px] overflow-y-auto pr-2 pb-20 scrollbar-hide">
           {loading ? (
-            <div className="py-20 text-center">
-              <LightningIcon
-                size={32}
-                className="animate-spin text-neutral-300 mx-auto"
-              />
-            </div>
+            <FinanceSkeleton />
           ) : (
             filteredTransactions.map((tx) => {
               const metadata = tx.metadata as TransactionMetadata;
@@ -760,7 +756,7 @@ export default function AdminFinancesPage() {
                             <MapPinIcon size={16} weight="bold" />
                           </div>
                           <span className="text-xs font-bold text-neutral-600 group-hover/link:text-primary transition-colors truncate max-w-[150px]">
-                            {tx.property_title}
+                            {tx.property_address}
                           </span>
                         </Link>
                       )}

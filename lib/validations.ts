@@ -3,7 +3,6 @@ import { PROPERTY_TYPE_IDS } from "./constants";
 
 export const listingBaseSchema = z.object({
   // Step 1
-  titre: z.string().min(4, "Le titre doit contenir au moins 4 caractères"),
   type: z.enum(PROPERTY_TYPE_IDS),
   prixMensuel: z.coerce
     .number()

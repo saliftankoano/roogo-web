@@ -86,7 +86,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const selectedOwnerId = selectedOwner?.id ?? null;
 
   const [formData, setFormData] = useState<{
-    titre: string;
     type: "villa" | "appartement" | "maison" | "terrain" | "commercial";
     prixMensuel: string;
     quartier: string;
@@ -102,7 +101,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     equipements: string[];
     interdictions: string[];
   }>({
-    titre: "",
     type: "villa",
     prixMensuel: "",
     quartier: "",
@@ -565,25 +563,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 <HouseIcon size={20} className="text-primary" />
                 Informations de base
               </h3>
-
-              <div className="space-y-2">
-                <label className="text-sm font-bold text-neutral-700 ml-1">
-                  Titre de l&apos;annonce{" "}
-                  <span className="text-red-500">*</span>
-                </label>
-                <input
-                  required
-                  placeholder="Ex: Villa moderne avec piscine"
-                  className={`w-full px-6 py-4 bg-neutral-50 rounded-2xl border ${errors.titre ? "border-red-500" : "border-neutral-100"} focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all outline-none`}
-                  value={formData.titre}
-                  onChange={(e) =>
-                    setFormData({ ...formData, titre: e.target.value })
-                  }
-                />
-                {errors.titre && (
-                  <p className="text-xs text-red-500 ml-1">{errors.titre}</p>
-                )}
-              </div>
 
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">

@@ -193,19 +193,23 @@ export async function POST(req: Request) {
 
       let notificationTitle = "Paiement confirmé";
       let notificationBody = "Votre paiement a été traité avec succès";
+      const getPropertyLabel = async (propertyId: string) => {
+        const { data: property } = await supabase
+          .from("properties")
+          .select("quartier, address")
+          .eq("id", propertyId)
+          .single();
+
+        if (!property) return null;
+        return property.quartier || property.address || null;
+      };
 
       if (transaction.type === "property_lock") {
         const propertyId = transaction.property_id;
 
         if (propertyId) {
           log("post-payment-lock", { transactionId, propertyId });
-          
-          // Get property title for notification
-          const { data: property } = await supabase
-            .from("properties")
-            .select("titre")
-            .eq("id", propertyId)
-            .single();
+          const propertyLabel = await getPropertyLabel(propertyId);
 
           const { error: lockError } = await supabase
             .from("properties")
@@ -218,9 +222,9 @@ export async function POST(req: Request) {
             log("post-payment-lock-success", { transactionId, propertyId });
           }
 
-          if (property?.titre) {
+          if (propertyLabel) {
             notificationTitle = "Bien réservé avec succès";
-            notificationBody = `Votre réservation pour "${property.titre}" est confirmée`;
+            notificationBody = `Votre réservation pour "${propertyLabel}" est confirmée`;
           }
         }
       } else if (transaction.type === "boost") {
@@ -230,13 +234,7 @@ export async function POST(req: Request) {
           expiresAt.setDate(expiresAt.getDate() + 7); // Boost for 7 days
 
           log("post-payment-boost", { transactionId, propertyId, expiresAt: expiresAt.toISOString() });
-          
-          // Get property title for notification
-          const { data: property } = await supabase
-            .from("properties")
-            .select("titre")
-            .eq("id", propertyId)
-            .single();
+          const propertyLabel = await getPropertyLabel(propertyId);
 
           const { error: boostError } = await supabase
             .from("properties")
@@ -252,9 +250,9 @@ export async function POST(req: Request) {
             log("post-payment-boost-success", { transactionId, propertyId });
           }
 
-          if (property?.titre) {
+          if (propertyLabel) {
             notificationTitle = "Boost activé";
-            notificationBody = `"${property.titre}" est maintenant en avant pour 7 jours`;
+            notificationBody = `"${propertyLabel}" est maintenant en avant pour 7 jours`;
           }
         }
       } else if (transaction.type === "listing") {

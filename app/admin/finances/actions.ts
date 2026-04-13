@@ -6,12 +6,12 @@ import { Transaction } from "@/lib/data";
 
 export interface AdminTransactionRow extends Transaction {
   users: { full_name: string } | null;
-  properties: { title: string } | null;
+  properties: { quartier?: string; address?: string } | null;
 }
 
 export interface ExtendedTransaction extends AdminTransactionRow {
   user_name: string;
-  property_title: string;
+  property_address: string;
   environment?: "sandbox" | "live";
   otp_code?: string | null;
 }
@@ -29,7 +29,7 @@ export async function getAdminTransactions(): Promise<ExtendedTransaction[]> {
       `
       *,
       users:user_id (full_name),
-      properties:property_id (title)
+      properties:property_id (quartier, address)
     `
     )
     .order("created_at", { ascending: false });
@@ -42,6 +42,6 @@ export async function getAdminTransactions(): Promise<ExtendedTransaction[]> {
   return (data as unknown as AdminTransactionRow[] || []).map((tx) => ({
     ...tx,
     user_name: tx.users?.full_name || "Utilisateur inconnu",
-    property_title: tx.properties?.title || "Non lié",
+    property_address: tx.properties?.quartier || tx.properties?.address || "Non lié",
   }));
 }

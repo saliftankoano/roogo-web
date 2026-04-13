@@ -59,7 +59,7 @@ export function getRealEstateListingSchema(property: Property) {
   return {
     "@context": "https://schema.org",
     "@type": "RealEstateListing",
-    name: property.title,
+    name: `Propriété à ${property.location || property.quartier}`,
     description: property.description,
     url: `https://roogo.bf/location?id=${property.id}`,
     image: property.images || [property.image],

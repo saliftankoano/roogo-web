@@ -166,7 +166,7 @@ function PropertiesPageContent() {
       if (!statusMatch) return false;
 
       const matchesSearch =
-        listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (listing.location || listing.address || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         listing.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesLocation =
         locationFilter === "all" ||

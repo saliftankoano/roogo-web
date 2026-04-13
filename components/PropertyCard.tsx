@@ -80,7 +80,7 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
         <div className="relative h-full w-full overflow-hidden rounded-[24px]">
           <Image
             src={property.image}
-            alt={property.title}
+            alt={`Propriété à ${property.location}`}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
             className="object-cover transition-transform duration-500 group-hover:scale-110"
@@ -127,7 +127,7 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
         </div>
 
         <h3 className="text-lg font-bold text-neutral-900 mb-2 line-clamp-1">
-          {property.title}
+          {property.location}
         </h3>
 
         <p className="text-sm text-neutral-500 line-clamp-2 mb-4 grow">

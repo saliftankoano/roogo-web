@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect, useRef } from "react";
+import { PropertyGridSkeleton } from "@/components/admin/skeletons";
 import {
   DotsThreeVerticalIcon,
   CaretDownIcon,
@@ -169,7 +170,7 @@ export default function AdminListingsPage() {
   const filteredListings = useMemo(() => {
     return properties.filter((listing) => {
       const matchesSearch =
-        listing.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (listing.location || listing.address || "").toLowerCase().includes(searchQuery.toLowerCase()) ||
         listing.description.toLowerCase().includes(searchQuery.toLowerCase());
       const matchesLocation =
         locationFilter === "all" ||
@@ -321,12 +322,7 @@ export default function AdminListingsPage() {
       </div>
 
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-32 space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="text-neutral-400 font-medium">
-            Chargement des biens...
-          </p>
-        </div>
+        <PropertyGridSkeleton />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredListings.map((listing) => (

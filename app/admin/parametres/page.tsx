@@ -2,6 +2,7 @@
 
 import { MIN_DEPOSIT_AMOUNT } from "@/lib/payment-limits";
 import { useState, useEffect } from "react";
+import { SectionBlocksSkeleton } from "@/components/admin/skeletons";
 import { useUser } from "@clerk/nextjs";
 import { useRouter } from "next/navigation";
 import {
@@ -176,11 +177,7 @@ export default function AdminSettingsPage() {
   };
 
   if (!isLoaded || loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <SpinnerGapIcon className="w-8 h-8 animate-spin text-neutral-400" />
-      </div>
-    );
+    return <SectionBlocksSkeleton count={3} height="h-40" />;
   }
 
   if (user?.publicMetadata?.userType !== "founder") {

@@ -23,7 +23,7 @@ export async function GET() {
       .from("transactions")
       .select(`
         id, amount, currency, status, provider, payer_phone, created_at, property_id, user_id,
-        properties!transactions_property_id_fkey ( id, title, quartier, city ),
+        properties!transactions_property_id_fkey ( id, quartier, city ),
         users!transactions_user_id_fkey ( full_name, phone )
       `)
       .eq("type", "property_lock")

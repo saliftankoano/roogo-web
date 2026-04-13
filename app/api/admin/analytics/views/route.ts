@@ -25,7 +25,7 @@ export async function GET(request: Request) {
       (trending || []).map(async (item: { property_id: string; view_count: number; unique_viewers: number }) => {
         const { data: prop } = await supabaseAdmin
           .from('properties')
-          .select('title, price, address, property_images(url)')
+          .select('quartier, price, address, property_images(url)')
           .eq('id', item.property_id)
           .single();
 
@@ -36,7 +36,7 @@ export async function GET(request: Request) {
 
         return {
           ...item,
-          title: prop?.title || 'Unknown Property',
+          propertyLabel: prop?.quartier || prop?.address || 'Propriété inconnue',
           price: prop?.price || 0,
           address: prop?.address || '',
           imageUrl

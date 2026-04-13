@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { AnalyticsSkeleton } from "@/components/admin/skeletons";
 import {
   FireIcon,
   EyeIcon,
@@ -15,7 +16,7 @@ interface TrendingProperty {
   property_id: string;
   view_count: number;
   unique_viewers: number;
-  title: string;
+  propertyLabel: string;
   price: number;
   address: string;
   imageUrl: string | null;
@@ -50,12 +51,7 @@ export default function AdminAnalyticsPage() {
   }, []);
 
   if (loading) {
-    return (
-      <div className="flex flex-col items-center justify-center py-32 space-y-4">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-        <p className="text-neutral-400 font-medium">Chargement des analytics...</p>
-      </div>
-    );
+    return <AnalyticsSkeleton />;
   }
 
   if (error) {
@@ -163,7 +159,7 @@ export default function AdminAnalyticsPage() {
                     {prop.imageUrl ? (
                       <Image
                         src={prop.imageUrl}
-                        alt={prop.title}
+                        alt={`Propriété — ${prop.address || ""}`}
                         fill
                         className="object-cover"
                       />
@@ -178,7 +174,7 @@ export default function AdminAnalyticsPage() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="font-bold text-neutral-900 truncate group-hover:text-primary transition-colors">
-                      {prop.title}
+                      {prop.propertyLabel || prop.address || "Propriété"}
                     </p>
                     <p className="text-sm text-neutral-500 truncate">
                       {prop.address}

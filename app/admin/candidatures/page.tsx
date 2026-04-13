@@ -5,6 +5,7 @@ export const dynamic = "force-dynamic";
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { ApplicationListSkeleton } from "@/components/admin/skeletons";
 import { useUser } from "@clerk/nextjs";
 import {
   UsersIcon,
@@ -32,7 +33,7 @@ interface ApplicationRow {
   created_at: string;
   property_id: string;
   user_id: string;
-  properties: { id: string; title: string; quartier: string | null; city: string | null } | null;
+  properties: { id: string; quartier: string | null; city: string | null } | null;
   users: { full_name: string | null; phone: string | null } | null;
 }
 
@@ -46,7 +47,7 @@ interface LockRow {
   created_at: string;
   property_id: string | null;
   user_id: string | null;
-  properties: { id: string; title: string; quartier: string | null; city: string | null } | null;
+  properties: { id: string; quartier: string | null; city: string | null } | null;
   users: { full_name: string | null; phone: string | null } | null;
 }
 
@@ -131,7 +132,7 @@ export default function AdminCandidaturesPage() {
   const filteredApps = applications.filter((a) => {
     const matchSearch = !searchApp ||
       a.users?.full_name?.toLowerCase().includes(searchApp.toLowerCase()) ||
-      a.properties?.title?.toLowerCase().includes(searchApp.toLowerCase());
+      a.properties?.quartier?.toLowerCase().includes(searchApp.toLowerCase());
     const matchStatus = statusFilter === "all" || a.status === statusFilter;
     return matchSearch && matchStatus;
   });
@@ -139,7 +140,7 @@ export default function AdminCandidaturesPage() {
   const filteredLocks = lockTransactions.filter((t) => {
     return !searchLock ||
       t.users?.full_name?.toLowerCase().includes(searchLock.toLowerCase()) ||
-      t.properties?.title?.toLowerCase().includes(searchLock.toLowerCase());
+      t.properties?.quartier?.toLowerCase().includes(searchLock.toLowerCase());
   });
 
   const filteredHustleApplications = hustleApplications.filter((application) => {
@@ -227,9 +228,7 @@ export default function AdminCandidaturesPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-            </div>
+            <ApplicationListSkeleton count={8} />
           ) : filteredApps.length === 0 ? (
             <div className="flex flex-col items-center py-20 gap-3 text-center bg-white rounded-[32px] border border-neutral-100">
               <UserCircleIcon size={40} className="text-neutral-200" />
@@ -252,7 +251,7 @@ export default function AdminCandidaturesPage() {
                       <div className="flex-1 min-w-0 hidden sm:block">
                         {app.properties ? (
                           <Link href={"/admin/annonces/" + app.property_id} className="hover:text-primary transition-colors">
-                            <p className="text-sm font-bold text-neutral-700 truncate hover:text-primary">{app.properties.title}</p>
+                            <p className="text-sm font-bold text-neutral-700 truncate hover:text-primary">{app.properties.quartier || "Propriété"}</p>
                             <p className="text-xs text-neutral-400">{[app.properties.quartier, app.properties.city].filter(Boolean).join(", ")}</p>
                           </Link>
                         ) : (
@@ -285,9 +284,7 @@ export default function AdminCandidaturesPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-            </div>
+            <ApplicationListSkeleton count={6} />
           ) : filteredLocks.length === 0 ? (
             <div className="flex flex-col items-center py-20 gap-3 text-center bg-white rounded-[32px] border border-neutral-100">
               <HouseLineIcon size={40} className="text-neutral-200" />
@@ -311,7 +308,7 @@ export default function AdminCandidaturesPage() {
                       <div className="flex-1 min-w-0 hidden sm:block">
                         {tx.properties && tx.property_id ? (
                           <Link href={"/admin/annonces/" + tx.property_id} className="hover:text-primary transition-colors">
-                            <p className="text-sm font-bold text-neutral-700 truncate hover:text-primary">{tx.properties.title}</p>
+                            <p className="text-sm font-bold text-neutral-700 truncate hover:text-primary">{tx.properties.quartier || "Propriété"}</p>
                             <p className="text-xs text-neutral-400">{[tx.properties.quartier, tx.properties.city].filter(Boolean).join(", ")}</p>
                           </Link>
                         ) : (
@@ -346,9 +343,7 @@ export default function AdminCandidaturesPage() {
           </div>
 
           {loading ? (
-            <div className="flex items-center justify-center py-20">
-              <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
-            </div>
+            <ApplicationListSkeleton count={4} />
           ) : filteredHustleApplications.length === 0 ? (
             <div className="flex flex-col items-center py-20 gap-3 text-center bg-white rounded-[32px] border border-neutral-100">
               <SparkleIcon size={40} className="text-neutral-200" />

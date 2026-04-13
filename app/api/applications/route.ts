@@ -63,7 +63,7 @@ export async function POST(req: Request) {
     // Get property details and owner info
     const { data: property, error: propertyError } = await supabaseAdmin
       .from("properties")
-      .select("id, title, agent_id")
+      .select("id, quartier, address, agent_id")
       .eq("id", propertyId)
       .single();
 
@@ -98,7 +98,7 @@ export async function POST(req: Request) {
     await captureServerEvent(userId, "viewing_request_submitted", {
       application_id: application?.id || null,
       property_id: propertyId,
-      property_title: property.title || null,
+      property_quartier: property.quartier || null,
       applicant_user_type: "renter",
       property_owner_id: property.agent_id || null,
       status: "pending",
@@ -111,7 +111,7 @@ export async function POST(req: Request) {
         property.agent_id,
         "viewingRequests",
         "Nouvelle demande de visite",
-        `${applicantName} souhaite visiter "${property.title}"`,
+        `${applicantName} souhaite visiter votre bien au ${property.quartier || property.address}`,
         {
           type: "viewing_request",
           propertyId,

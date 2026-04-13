@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useMemo, useEffect } from "react";
+import { UserGridSkeleton } from "@/components/admin/skeletons";
 import {
   UserIcon,
   PhoneIcon,
@@ -363,6 +364,7 @@ export default function AdminUsersPage() {
   const [urgencyFilter, setUrgencyFilter] = useState<string>("all");
   const [propertyTypesFilter, setPropertyTypesFilter] = useState<string[]>([]);
   const [hasPropertiesFilter, setHasPropertiesFilter] = useState<string>("all");
+  const [copiedUserId, setCopiedUserId] = useState<string | null>(null);
 
   useEffect(() => {
     async function loadUsers() {
@@ -574,6 +576,18 @@ export default function AdminUsersPage() {
     if (ratio <= 0.6) return "bg-primary/30 text-primary-dark";
     return "bg-primary text-white";
   };
+
+  async function handleCopyPhone(e: React.MouseEvent, user: UserProfile) {
+    e.stopPropagation();
+    if (!user.phone) return;
+    try {
+      await navigator.clipboard.writeText(user.phone);
+      setCopiedUserId(user.id);
+      setTimeout(() => setCopiedUserId(null), 2000);
+    } catch {
+      // clipboard API unavailable — silently ignore
+    }
+  }
 
   function resetAllFilters() {
     setSearchQuery("");
@@ -1051,10 +1065,7 @@ export default function AdminUsersPage() {
 
       {/* User Grid */}
       {loading ? (
-        <div className="flex flex-col items-center justify-center py-32 space-y-4">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="text-neutral-400 font-medium">Chargement des utilisateurs...</p>
-        </div>
+        <UserGridSkeleton />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {sortedUsers.map((user, index) => {
@@ -1206,17 +1217,24 @@ export default function AdminUsersPage() {
                     >
                       Profil
                     </button>
-                    {user.phone && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(`tel:${user.phone}`);
-                        }}
-                        className="w-8 h-8 rounded-lg bg-neutral-50 border border-neutral-100 flex items-center justify-center text-neutral-500 hover:bg-primary hover:text-white hover:border-primary transition-all"
-                      >
+                    <button
+                      onClick={(e) => handleCopyPhone(e, user)}
+                      disabled={!user.phone}
+                      title={user.phone ? `Copier ${user.phone}` : "Pas de numéro"}
+                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
+                        !user.phone
+                          ? "bg-neutral-50 border border-neutral-100 text-neutral-300 cursor-not-allowed opacity-40"
+                          : copiedUserId === user.id
+                            ? "bg-green-500 border border-green-500 text-white"
+                            : "bg-neutral-50 border border-neutral-100 text-neutral-500 hover:bg-primary hover:text-white hover:border-primary"
+                      }`}
+                    >
+                      {copiedUserId === user.id ? (
+                        <CheckCircleIcon size={14} weight="fill" />
+                      ) : (
                         <PhoneIcon size={14} weight="bold" />
-                      </button>
-                    )}
+                      )}
+                    </button>
                     {user.whatsapp && (
                       <button
                         onClick={(e) => {
@@ -1816,6 +1834,21 @@ export default function AdminUsersPage() {
             </div>
           );
         })()}
+      </AnimatePresence>
+
+      {/* Copy phone toast */}
+      <AnimatePresence>
+        {copiedUserId && (
+          <motion.div
+            initial={{ opacity: 0, y: 16 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 16 }}
+            className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2.5 px-5 py-3 bg-neutral-900 text-white text-sm font-bold rounded-2xl shadow-2xl pointer-events-none"
+          >
+            <CheckCircleIcon size={16} weight="fill" className="text-green-400 shrink-0" />
+            Numéro copié dans le presse-papiers
+          </motion.div>
+        )}
       </AnimatePresence>
     </div>
   );

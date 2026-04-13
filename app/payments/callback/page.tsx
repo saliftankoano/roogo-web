@@ -34,7 +34,7 @@ type PaymentContext = {
   amount: number | null;
   currency: string;
   propertyId: string | null;
-  propertyTitle: string | null;
+  propertyLabel: string | null;
   tierId: string | null;
   addOns: string[];
   description: string | null;
@@ -323,9 +323,9 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
                 <span className="font-semibold text-gray-900">Objet:</span> {purchaseTitle}
               </div>
             )}
-            {paymentContext.propertyTitle && (
+            {paymentContext.propertyLabel && (
               <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Bien concerné:</span> {paymentContext.propertyTitle}
+                <span className="font-semibold text-gray-900">Bien concerné:</span> {paymentContext.propertyLabel}
               </div>
             )}
             {paymentContext.tierId && (

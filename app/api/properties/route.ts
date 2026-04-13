@@ -216,7 +216,6 @@ export async function POST(req: Request) {
 
     const propertyData = {
       agent_id: listingData.owner_id || user.id,
-      title: sanitizeString(listingData.titre),
       description: sanitizeString(listingData.description) || null,
       price: listingData.prixMensuel,
       listing_type: "louer" as const,

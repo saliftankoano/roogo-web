@@ -60,6 +60,16 @@ export async function POST(req: Request) {
     log("checking-status", { depositId });
 
     const supabase = getSupabaseClient();
+    const getPropertyLabel = async (propertyId: string) => {
+      const { data: propertyData } = await supabase
+        .from("properties")
+        .select("quartier, address")
+        .eq("id", propertyId)
+        .single();
+
+      if (!propertyData) return null;
+      return propertyData.quartier || propertyData.address || null;
+    };
 
     const resolveWebProvider = (statusPayload: unknown): string | null => {
       if (!statusPayload || typeof statusPayload !== "object") return null;
@@ -108,14 +118,9 @@ export async function POST(req: Request) {
       const description =
         typeof metadata?.description === "string" ? metadata.description : null;
 
-      let propertyTitle: string | null = null;
+      let propertyLabel: string | null = null;
       if (typeof transactionRecord.property_id === "string" && transactionRecord.property_id) {
-        const { data: propertyData } = await supabase
-          .from("properties")
-          .select("titre")
-          .eq("id", transactionRecord.property_id)
-          .single();
-        propertyTitle = (propertyData?.titre as string | undefined) || null;
+        propertyLabel = await getPropertyLabel(transactionRecord.property_id);
       }
 
       return {
@@ -131,7 +136,7 @@ export async function POST(req: Request) {
           typeof transactionRecord.property_id === "string"
             ? transactionRecord.property_id
             : null,
-        propertyTitle,
+        propertyLabel,
         tierId,
         addOns,
         description,
@@ -331,11 +336,7 @@ export async function POST(req: Request) {
            const expiresAt = new Date();
            expiresAt.setDate(expiresAt.getDate() + 7);
 
-           const { data: property } = await supabase
-             .from("properties")
-             .select("titre")
-             .eq("id", transaction.property_id)
-             .single();
+           const propertyLabel = await getPropertyLabel(transaction.property_id);
 
            await supabase
              .from("properties")
@@ -345,25 +346,21 @@ export async function POST(req: Request) {
              })
              .eq("id", transaction.property_id);
 
-           if (property?.titre) {
+           if (propertyLabel) {
              notificationTitle = "Boost activé";
-             notificationBody = `"${property.titre}" est maintenant en avant pour 7 jours`;
+             notificationBody = `"${propertyLabel}" est maintenant en avant pour 7 jours`;
            }
         } else if (transaction.type === "property_lock" && transaction.property_id) {
-           const { data: property } = await supabase
-             .from("properties")
-             .select("titre")
-             .eq("id", transaction.property_id)
-             .single();
+           const propertyLabel = await getPropertyLabel(transaction.property_id);
 
            await supabase
              .from("properties")
              .update({ status: "locked" })
              .eq("id", transaction.property_id);
 
-           if (property?.titre) {
+           if (propertyLabel) {
              notificationTitle = "Bien réservé avec succès";
-             notificationBody = `Votre réservation pour "${property.titre}" est confirmée`;
+             notificationBody = `Votre réservation pour "${propertyLabel}" est confirmée`;
            }
         } else if (transaction.type === "listing_submission" && transaction.property_id) {
            await supabase
