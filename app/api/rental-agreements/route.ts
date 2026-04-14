@@ -78,7 +78,7 @@ export async function POST(req: Request) {
     const { data: property } = await supabaseAdmin
       .from("properties")
       .select(
-        "id, agent_id, address, quartier, price, caution_mois, interdictions, dos_and_donts",
+        "id, agent_id, address, quartier, price, caution_mois, interdictions, dos_and_donts, period",
       )
       .eq("id", propertyId)
       .single();
@@ -177,6 +177,8 @@ export async function POST(req: Request) {
         terms_text: termsText || null,
         start_date: startDate || null,
         end_date: endDate || null,
+        property_frequence:
+          property.period === "day" ? "journalier" : "mensuel",
       })
       .select("id")
       .single();
@@ -186,32 +188,57 @@ export async function POST(req: Request) {
       return errorResponse("Failed to create agreement", 500, req);
     }
 
-    // Renter flow: generate 12 monthly rent schedules immediately (independent of agreement signing)
-    if (isRenterFlow) {
-      const scheduleStart = startDate ? new Date(startDate) : now;
-
-      const schedules = Array.from({ length: 12 }, (_, i) => {
-        const dueDate = addMonths(scheduleStart, i);
-        const isFirst = i === 0;
-        return {
-          agreement_id: agreement.id,
+    // For daily rentals: immediately block the booked dates so no other renter can pick them.
+    // This fires at creation (not at activation) because payment was already captured at lock.
+    if (isRenterFlow && property.period === "day" && startDate && endDate) {
+      const { error: blockError } = await supabaseAdmin
+        .from("property_blocked_dates")
+        .insert({
           property_id: propertyId,
-          renter_id: renterId,
-          owner_id: ownerId,
-          due_date: format(dueDate, "yyyy-MM-dd"),
-          amount: monthlyRent,
-          status: isFirst ? "paid" : "upcoming",
-          transaction_id: isFirst ? lockedTransactionId : null,
-          paid_at: isFirst ? now.toISOString() : null,
-        };
-      });
+          start_date: startDate,
+          end_date: endDate,
+          block_type: "booked",
+          agreement_id: agreement.id,
+          created_by: renterId,
+        });
 
-      const { error: scheduleError } = await supabaseAdmin
-        .from("rent_schedules")
-        .insert(schedules);
+      if (blockError) {
+        console.error(
+          "Error auto-blocking dates for daily agreement:",
+          blockError,
+        );
+        // Non-fatal: agreement is created, dates will be visible as booked after next sync
+      }
+    }
 
-      if (scheduleError) {
-        console.error("Error creating rent schedules:", scheduleError);
+    // Renter flow: generate 12 monthly rent schedules immediately (only for mensuel — daily rentals have no schedule)
+    if (isRenterFlow) {
+      if (property.period !== "day") {
+        const scheduleStart = startDate ? new Date(startDate) : now;
+
+        const schedules = Array.from({ length: 12 }, (_, i) => {
+          const dueDate = addMonths(scheduleStart, i);
+          const isFirst = i === 0;
+          return {
+            agreement_id: agreement.id,
+            property_id: propertyId,
+            renter_id: renterId,
+            owner_id: ownerId,
+            due_date: format(dueDate, "yyyy-MM-dd"),
+            amount: monthlyRent,
+            status: isFirst ? "paid" : "upcoming",
+            transaction_id: isFirst ? lockedTransactionId : null,
+            paid_at: isFirst ? now.toISOString() : null,
+          };
+        });
+
+        const { error: scheduleError } = await supabaseAdmin
+          .from("rent_schedules")
+          .insert(schedules);
+
+        if (scheduleError) {
+          console.error("Error creating rent schedules:", scheduleError);
+        }
       }
 
       // Notify owner to prepare the lease

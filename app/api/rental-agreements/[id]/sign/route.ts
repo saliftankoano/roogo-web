@@ -109,8 +109,11 @@ export async function POST(
       return errorResponse("Failed to record signature", 500, req);
     }
 
-    // Generate 12 rent schedule rows when agreement becomes active
-    if (updateData.status === "active") {
+    // Generate 12 rent schedule rows when agreement becomes active (only for mensuel — daily rentals have no schedule)
+    if (
+      updateData.status === "active" &&
+      agreement.property_frequence !== "journalier"
+    ) {
       const startDate = agreement.start_date
         ? new Date(agreement.start_date)
         : new Date();
