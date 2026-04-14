@@ -13,7 +13,7 @@ import { createUserInSupabase, ClerkUserData } from "@/lib/user-sync";
  */
 export async function POST(req: Request) {
   try {
-    let clerkUser: Awaited<ReturnType<typeof currentUser>>;
+    let normalizedUser: ClerkUserData | null = null;
 
     // Try Bearer token first (mobile app)
     const authHeader = req.headers.get("authorization") ?? "";
@@ -26,7 +26,25 @@ export async function POST(req: Request) {
         });
         if (!userId) throw new Error("No user ID in token");
         const client = await clerkClient();
-        clerkUser = await client.users.getUser(userId) as any;
+        const clerkUser = await client.users.getUser(userId);
+        normalizedUser = {
+          id: clerkUser.id,
+          email_addresses: clerkUser.emailAddresses?.map((e) => ({
+            email_address: e.emailAddress,
+          })),
+          first_name: clerkUser.firstName ?? undefined,
+          last_name: clerkUser.lastName ?? undefined,
+          image_url: clerkUser.imageUrl ?? undefined,
+          phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
+            phone_number: p.phoneNumber,
+          })),
+          public_metadata:
+            clerkUser.publicMetadata as ClerkUserData["public_metadata"],
+          private_metadata:
+            clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+          unsafe_metadata:
+            clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
+        };
       } catch {
         return NextResponse.json({ error: "Invalid token" }, { status: 401 });
       }
@@ -36,25 +54,34 @@ export async function POST(req: Request) {
       if (!userId) {
         return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
       }
-      clerkUser = await currentUser();
+      const clerkUser = await currentUser();
+      if (!clerkUser) {
+        return NextResponse.json({ error: "User not found" }, { status: 404 });
+      }
+
+      normalizedUser = {
+        id: clerkUser.id,
+        email_addresses: clerkUser.emailAddresses?.map((e) => ({
+          email_address: e.emailAddress,
+        })),
+        first_name: clerkUser.firstName ?? undefined,
+        last_name: clerkUser.lastName ?? undefined,
+        image_url: clerkUser.imageUrl ?? undefined,
+        phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
+          phone_number: p.phoneNumber,
+        })),
+        public_metadata:
+          clerkUser.publicMetadata as ClerkUserData["public_metadata"],
+        private_metadata:
+          clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+        unsafe_metadata:
+          clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
+      };
     }
 
-    if (!clerkUser) {
+    if (!normalizedUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
-
-    // Normalize Clerk user data to match expected structure
-    const normalizedUser: ClerkUserData = {
-      id: clerkUser.id,
-      email_addresses: clerkUser.emailAddresses?.map(e => ({ email_address: e.emailAddress })),
-      first_name: clerkUser.firstName ?? undefined,
-      last_name: clerkUser.lastName ?? undefined,
-      image_url: clerkUser.imageUrl ?? undefined,
-      phone_numbers: clerkUser.phoneNumbers?.map(p => ({ phone_number: p.phoneNumber })),
-      public_metadata: clerkUser.publicMetadata as ClerkUserData["public_metadata"],
-      private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
-      unsafe_metadata: clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
-    };
 
     // Use the proper user sync function that handles type mapping
     const result = await createUserInSupabase(normalizedUser);
@@ -62,7 +89,7 @@ export async function POST(req: Request) {
     if (!result) {
       return NextResponse.json(
         { error: "Failed to sync user" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -74,8 +101,11 @@ export async function POST(req: Request) {
   } catch (error: unknown) {
     console.error("Error in user sync:", error);
     return NextResponse.json(
-      { error: "Failed to sync user", details: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      {
+        error: "Failed to sync user",
+        details: error instanceof Error ? error.message : String(error),
+      },
+      { status: 500 },
     );
   }
 }
