@@ -2,7 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
@@ -36,6 +36,7 @@ import {
 import { fetchPropertyById, Property } from "@/lib/data";
 import PropertyPaymentModal from "@/components/payment/PropertyPaymentModal";
 import { cn } from "@/lib/utils";
+import { VIEW_TRACKED_PROPERTIES_SESSION_KEY } from "@/lib/view-tracking";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -122,6 +123,7 @@ export default function PropertyDetailPage() {
   const [applicants, setApplicants] = useState<Applicant[]>([]);
   const [lockTransactions, setLockTransactions] = useState<LockTransaction[]>([]);
   const [loadingApplicants, setLoadingApplicants] = useState(false);
+  const trackedViewIdsRef = useRef<Set<string>>(new Set());
 
   const userType = (user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined;
   const isRenter = userType === "renter" || (!userType && isLoaded);
@@ -174,6 +176,50 @@ export default function PropertyDetailPage() {
     }
     loadApplicants();
   }, [isPropertyOwner, listing, id]);
+
+  useEffect(() => {
+    if (!listing?.id || typeof window === "undefined") {
+      return;
+    }
+
+    const propertyId = listing.id;
+    const trackedIds = readTrackedPropertyIds();
+    if (
+      trackedViewIdsRef.current.has(propertyId) ||
+      trackedIds.has(propertyId)
+    ) {
+      trackedViewIdsRef.current.add(propertyId);
+      return;
+    }
+
+    trackedViewIdsRef.current.add(propertyId);
+
+    async function recordView() {
+      try {
+        const res = await fetch(`/api/properties/${propertyId}/views`, {
+          method: "POST",
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          return;
+        }
+
+        trackedIds.add(propertyId);
+        writeTrackedPropertyIds(trackedIds);
+
+        if (typeof data.viewsCount === "number") {
+          setListing((current) =>
+            current ? { ...current, views: data.viewsCount } : current,
+          );
+        }
+      } catch {
+        trackedViewIdsRef.current.delete(propertyId);
+      }
+    }
+
+    recordView();
+  }, [listing?.id]);
 
   const handleApply = async () => {
     if (!user) return;
@@ -642,5 +688,23 @@ export default function PropertyDetailPage() {
         </main>
       </div>
     </>
+  );
+}
+
+function readTrackedPropertyIds() {
+  try {
+    const raw = window.sessionStorage.getItem(
+      VIEW_TRACKED_PROPERTIES_SESSION_KEY,
+    );
+    return new Set<string>(raw ? (JSON.parse(raw) as string[]) : []);
+  } catch {
+    return new Set<string>();
+  }
+}
+
+function writeTrackedPropertyIds(ids: Set<string>) {
+  window.sessionStorage.setItem(
+    VIEW_TRACKED_PROPERTIES_SESSION_KEY,
+    JSON.stringify([...ids]),
   );
 }
