@@ -34,7 +34,9 @@ export async function POST(req: Request) {
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -45,7 +47,6 @@ export async function POST(req: Request) {
 
     const body = await req.json();
     const {
-      transactionId,
       applicationId,
       propertyId,
       renterId: bodyRenterId,
@@ -57,7 +58,6 @@ export async function POST(req: Request) {
       dosAndDonts = [],
       interdictions = [],
     } = body as {
-      transactionId?: string;
       applicationId?: string;
       propertyId: string;
       renterId?: string;
@@ -77,7 +77,9 @@ export async function POST(req: Request) {
     // Fetch the property (no is_test filter — supports test properties in dev)
     const { data: property } = await supabaseAdmin
       .from("properties")
-      .select("id, agent_id, address, quartier, price, caution_mois, interdictions, dos_and_donts")
+      .select(
+        "id, agent_id, address, quartier, price, caution_mois, interdictions, dos_and_donts",
+      )
       .eq("id", propertyId)
       .single();
 
@@ -93,7 +95,11 @@ export async function POST(req: Request) {
     if (property.agent_id === user.id) {
       // --- Owner flow ---
       if (!bodyRenterId) {
-        return errorResponse("renterId is required when creating an agreement as owner", 400, req);
+        return errorResponse(
+          "renterId is required when creating an agreement as owner",
+          400,
+          req,
+        );
       }
       ownerId = user.id;
       renterId = bodyRenterId;
@@ -131,11 +137,21 @@ export async function POST(req: Request) {
       .from("rental_agreements")
       .select("id, status")
       .eq("property_id", propertyId)
-      .in("status", ["draft", "sent", "renter_signed", "owner_signed", "active"])
+      .in("status", [
+        "draft",
+        "sent",
+        "renter_signed",
+        "owner_signed",
+        "active",
+      ])
       .maybeSingle();
 
     if (existing) {
-      return errorResponse("An active agreement already exists for this property", 409, req);
+      return errorResponse(
+        "An active agreement already exists for this property",
+        409,
+        req,
+      );
     }
 
     const now = new Date();
@@ -152,8 +168,12 @@ export async function POST(req: Request) {
         status: "draft",
         monthly_rent: monthlyRent,
         caution_mois: resolvedCautionMois,
-        dos_and_donts: dosAndDonts.length > 0 ? dosAndDonts : (property.dos_and_donts || []),
-        interdictions: interdictions.length > 0 ? interdictions : (property.interdictions || []),
+        dos_and_donts:
+          dosAndDonts.length > 0 ? dosAndDonts : property.dos_and_donts || [],
+        interdictions:
+          interdictions.length > 0
+            ? interdictions
+            : property.interdictions || [],
         terms_text: termsText || null,
         start_date: startDate || null,
         end_date: endDate || null,

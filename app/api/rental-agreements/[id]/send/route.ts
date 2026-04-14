@@ -5,6 +5,11 @@ import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
 
+interface AgreementPropertyLocation {
+  quartier: string | null;
+  address: string | null;
+}
+
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
@@ -26,7 +31,9 @@ export async function POST(
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -37,13 +44,18 @@ export async function POST(
 
     const { data: agreement, error: fetchError } = await supabaseAdmin
       .from("rental_agreements")
-      .select("id, status, owner_id, renter_id, property_id, properties(quartier, address)")
+      .select(
+        "id, status, owner_id, renter_id, property_id, properties(quartier, address)",
+      )
       .eq("id", agreementId)
       .single();
 
-    if (fetchError || !agreement) return errorResponse("Agreement not found", 404, req);
-    if (agreement.owner_id !== user.id) return errorResponse("Forbidden: you are not the owner", 403, req);
-    if (agreement.status !== "draft") return errorResponse("Agreement is not in draft status", 409, req);
+    if (fetchError || !agreement)
+      return errorResponse("Agreement not found", 404, req);
+    if (agreement.owner_id !== user.id)
+      return errorResponse("Forbidden: you are not the owner", 403, req);
+    if (agreement.status !== "draft")
+      return errorResponse("Agreement is not in draft status", 409, req);
 
     const { error: updateError } = await supabaseAdmin
       .from("rental_agreements")
@@ -55,7 +67,12 @@ export async function POST(
       return errorResponse("Failed to send agreement", 500, req);
     }
 
-    const propertyLocation = (agreement.properties as any)?.quartier || (agreement.properties as any)?.address || "votre bien";
+    const property =
+      (
+        agreement.properties as unknown as AgreementPropertyLocation[] | null
+      )?.[0] ?? null;
+    const propertyLocation =
+      property?.quartier || property?.address || "votre bien";
 
     try {
       await notifyUser(

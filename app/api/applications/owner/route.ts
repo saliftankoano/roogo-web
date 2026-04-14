@@ -4,6 +4,29 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 
+interface OwnerApplicationRow {
+  id: string;
+  property_id: string;
+  user_id: string;
+  status: string;
+  created_at: string;
+  reviewed_at: string | null;
+  rejection_reason: string | null;
+  applicant:
+    | {
+        full_name: string | null;
+        phone: string | null;
+      }[]
+    | null;
+  property:
+    | {
+        quartier: string | null;
+        address: string | null;
+        agent_id: string | null;
+      }[]
+    | null;
+}
+
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
@@ -20,7 +43,9 @@ export async function GET(req: Request) {
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -31,7 +56,8 @@ export async function GET(req: Request) {
 
     const { data, error } = await supabaseAdmin
       .from("applications")
-      .select(`
+      .select(
+        `
         id,
         property_id,
         user_id,
@@ -41,7 +67,8 @@ export async function GET(req: Request) {
         rejection_reason,
         applicant:users!applications_user_id_fkey(full_name, phone),
         property:properties!applications_property_id_fkey(quartier, address, agent_id)
-      `)
+      `,
+      )
       .eq("properties.agent_id", user.id)
       .order("created_at", { ascending: false });
 
@@ -52,20 +79,32 @@ export async function GET(req: Request) {
 
     // Filter client-side to only include applications for this owner's properties
     // (PostgREST filter on embedded resource without !inner nullifies the embed but still returns the row)
-    const applications = (data || [])
-      .filter((app: any) => app.property !== null && app.property?.agent_id === user.id)
-      .map((app: any) => ({
-        id: app.id,
-        property_id: app.property_id,
-        user_id: app.user_id,
-        status: app.status,
-        created_at: app.created_at,
-        reviewed_at: app.reviewed_at,
-        rejection_reason: app.rejection_reason,
-        applicant_name: app.applicant?.full_name || "Utilisateur inconnu",
-        applicant_phone: app.applicant?.phone || null,
-        property_location: app.property?.quartier || app.property?.address || "Propriété inconnue",
-      }));
+    const applications = (
+      (data as unknown as OwnerApplicationRow[] | null) || []
+    )
+      .filter(
+        (app) =>
+          app.property?.[0] !== undefined &&
+          app.property[0].agent_id === user.id,
+      )
+      .map((app) => {
+        const applicant = app.applicant?.[0] ?? null;
+        const property = app.property?.[0] ?? null;
+
+        return {
+          id: app.id,
+          property_id: app.property_id,
+          user_id: app.user_id,
+          status: app.status,
+          created_at: app.created_at,
+          reviewed_at: app.reviewed_at,
+          rejection_reason: app.rejection_reason,
+          applicant_name: applicant?.full_name || "Utilisateur inconnu",
+          applicant_phone: applicant?.phone || null,
+          property_location:
+            property?.quartier || property?.address || "Propriété inconnue",
+        };
+      });
 
     return cors(NextResponse.json({ applications }), req);
   } catch (error) {

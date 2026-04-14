@@ -6,6 +6,11 @@ import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
 import { addMonths, format } from "date-fns";
 
+interface PropertyLocation {
+  quartier: string | null;
+  address: string | null;
+}
+
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
@@ -18,7 +23,7 @@ export async function OPTIONS(req: Request) {
  */
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: agreementId } = await params;
@@ -28,7 +33,9 @@ export async function POST(
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -70,17 +77,22 @@ export async function POST(
         return errorResponse("Renter already signed", 409, req);
       }
       updateData.renter_signed_at = now;
-      updateData.status = agreement.status === "sent" ? "renter_signed" : agreement.status;
+      updateData.status =
+        agreement.status === "sent" ? "renter_signed" : agreement.status;
     } else {
       if (agreement.owner_signed_at) {
         return errorResponse("Owner already signed", 409, req);
       }
       updateData.owner_signed_at = now;
-      updateData.status = agreement.status === "renter_signed" ? "owner_signed" : agreement.status;
+      updateData.status =
+        agreement.status === "renter_signed"
+          ? "owner_signed"
+          : agreement.status;
     }
 
     // Check if both parties will have signed after this update
-    const renterSigned = role === "renter" ? true : !!agreement.renter_signed_at;
+    const renterSigned =
+      role === "renter" ? true : !!agreement.renter_signed_at;
     const ownerSigned = role === "owner" ? true : !!agreement.owner_signed_at;
 
     if (renterSigned && ownerSigned) {
@@ -132,14 +144,18 @@ export async function POST(
         .eq("id", agreement.property_id)
         .single();
 
-      const propertyLocation = (property as { quartier?: string; address?: string } | null)?.quartier || (property as any)?.address || "votre bien";
+      const propertyLocationData = property as PropertyLocation | null;
+      const propertyLocation =
+        propertyLocationData?.quartier ||
+        propertyLocationData?.address ||
+        "votre bien";
 
       await notifyUser(
         agreement.renter_id,
         "payments",
         "Contrat de location activé",
         `Votre contrat pour le bien au ${propertyLocation} est maintenant actif. Vos paiements mensuels sont programmés.`,
-        { type: "agreement_active", agreementId }
+        { type: "agreement_active", agreementId },
       );
 
       await notifyUser(
@@ -147,7 +163,7 @@ export async function POST(
         "payments",
         "Contrat de location activé",
         `Le contrat pour le bien au ${propertyLocation} est signé par les deux parties et maintenant actif.`,
-        { type: "agreement_active", agreementId }
+        { type: "agreement_active", agreementId },
       );
     } else {
       // Notify the other party to sign
@@ -157,7 +173,11 @@ export async function POST(
         .eq("id", agreement.property_id)
         .single();
 
-      const propertyLocation2 = (property as { quartier?: string; address?: string } | null)?.quartier || (property as any)?.address || "votre bien";
+      const propertyLocationData = property as PropertyLocation | null;
+      const propertyLocation2 =
+        propertyLocationData?.quartier ||
+        propertyLocationData?.address ||
+        "votre bien";
 
       if (role === "renter") {
         await notifyUser(
@@ -165,14 +185,14 @@ export async function POST(
           "viewingRequests",
           "Le locataire a signé",
           `Le locataire a signé le contrat pour le bien au ${propertyLocation2}. À vous de signer pour l'activer.`,
-          { type: "agreement_renter_signed", agreementId }
+          { type: "agreement_renter_signed", agreementId },
         );
       }
     }
 
     return cors(
       NextResponse.json({ success: true, status: updateData.status }),
-      req
+      req,
     );
   } catch (error) {
     console.error("Error in POST /api/rental-agreements/[id]/sign:", error);
