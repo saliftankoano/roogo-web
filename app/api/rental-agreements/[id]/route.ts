@@ -38,7 +38,7 @@ export async function GET(
       .from("rental_agreements")
       .select(`
         *,
-        properties(id, address, price, quartier, city),
+        properties(id, address, price, quartier, city, property_images(url, is_primary)),
         owner:users!rental_agreements_owner_id_fkey(id, full_name, phone, email),
         renter:users!rental_agreements_renter_id_fkey(id, full_name, phone, email)
       `)
