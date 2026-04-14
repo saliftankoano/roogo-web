@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { captureServerEvent } from "@/lib/posthog-server";
@@ -11,7 +12,7 @@ const supabaseAdmin = createClient(
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
+  },
 );
 
 interface PropertyImage {
@@ -51,12 +52,32 @@ async function getSupabaseUserId(clerkId: string): Promise<string | null> {
   return data?.id || null;
 }
 
+/** Cookie session (web) or Bearer JWT (mobile). */
+async function resolveClerkId(req: Request): Promise<string | null> {
+  const { userId } = await auth();
+  if (userId) return userId;
+
+  const token = (req.headers.get("authorization") ?? "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+  if (!token) return null;
+
+  try {
+    const { sub } = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY!,
+    });
+    return sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /api/favorites - Get user's favorites
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { userId: clerkId } = await auth();
+    const clerkId = await resolveClerkId(req);
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -68,7 +89,8 @@ export async function GET() {
 
     const { data, error } = await supabaseAdmin
       .from("user_favorites")
-      .select(`
+      .select(
+        `
         property_id,
         created_at,
         properties:property_id (
@@ -88,7 +110,8 @@ export async function GET() {
             email
           )
         )
-      `)
+      `,
+      )
       .eq("user_id", userId)
       .order("created_at", { ascending: false });
 
@@ -103,22 +126,30 @@ export async function GET() {
       .filter((item) => item.properties)
       .map((item) => {
         const prop = item.properties!;
-        const primaryImage = prop.property_images?.find((img) => img.is_primary) || prop.property_images?.[0];
-        
+        const primaryImage =
+          prop.property_images?.find((img) => img.is_primary) ||
+          prop.property_images?.[0];
+
         return {
           id: prop.id,
           uuid: prop.id,
-          location: prop.quartier ? `${prop.quartier}, ${prop.city || "Ouagadougou"}` : "Ouagadougou",
+          location: prop.quartier
+            ? `${prop.quartier}, ${prop.city || "Ouagadougou"}`
+            : "Ouagadougou",
           address: prop.address || "",
           price: (prop.price || 0).toString(),
           bedrooms: prop.bedrooms || 0,
           bathrooms: prop.bathrooms || 0,
           area: (prop.area || 0).toString(),
           parking: prop.parking_spaces || 0,
-          period: prop.period === "month" || prop.period === "Mois" ? "Mois" : undefined,
+          period:
+            prop.period === "month" || prop.period === "Mois"
+              ? "Mois"
+              : undefined,
           image: primaryImage ? { uri: primaryImage.url } : null,
           images: prop.property_images?.map((img) => ({ uri: img.url })),
-          category: prop.property_type === "commercial" ? "Business" : "Residential",
+          category:
+            prop.property_type === "commercial" ? "Business" : "Residential",
           isSponsored: !!prop.is_boosted,
           status: prop.status || "en_attente",
           propertyType: prop.property_type,
@@ -128,7 +159,10 @@ export async function GET() {
     return NextResponse.json({ success: true, favorites });
   } catch (error) {
     console.error("Error in favorites API:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
 
@@ -137,7 +171,7 @@ export async function GET() {
  */
 export async function POST(req: Request) {
   try {
-    const { userId: clerkId } = await auth();
+    const clerkId = await resolveClerkId(req);
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -195,6 +229,9 @@ export async function POST(req: Request) {
     }
   } catch (error) {
     console.error("Error in favorites POST:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
