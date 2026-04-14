@@ -1,5 +1,6 @@
 "use client";
 
+import type { SyntheticEvent } from "react";
 import { useEffect, useState } from "react";
 import { useParams } from "next/navigation";
 import Image from "next/image";
@@ -50,7 +51,9 @@ export default function PropertyDeepLinkPage() {
       setPhase("installing");
 
       const ua = navigator.userAgent;
-      const isIOS = /iPad|iPhone|iPod/.test(ua) && !(window as any).MSStream;
+      const isIOS =
+        /iPad|iPhone|iPod/.test(ua) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
       const isAndroid = /Android/.test(ua);
 
       // Small extra delay so the user reads the message before being redirected
@@ -85,7 +88,7 @@ export default function PropertyDeepLinkPage() {
             width={80}
             height={80}
             className="object-cover"
-            onError={(e) => {
+            onError={(e: SyntheticEvent<HTMLImageElement>) => {
               (e.target as HTMLImageElement).style.display = "none";
             }}
           />
@@ -98,8 +101,8 @@ export default function PropertyDeepLinkPage() {
             Ouverture de Roogo…
           </h1>
           <p className="text-sm text-neutral-400 max-w-xs leading-relaxed">
-            Si l&apos;application ne s&apos;ouvre pas automatiquement, nous
-            vous redirigerons vers le téléchargement.
+            Si l&apos;application ne s&apos;ouvre pas automatiquement, nous vous
+            redirigerons vers le téléchargement.
           </p>
           <div className="mt-8 flex gap-1.5 justify-center">
             {[0, 1, 2].map((i) => (
@@ -139,9 +142,7 @@ export default function PropertyDeepLinkPage() {
           <h1 className="text-xl font-black text-neutral-900 mb-2">
             Redirection…
           </h1>
-          <p className="text-sm text-neutral-400 max-w-xs">
-            Un instant…
-          </p>
+          <p className="text-sm text-neutral-400 max-w-xs">Un instant…</p>
         </>
       )}
 

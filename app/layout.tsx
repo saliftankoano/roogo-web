@@ -97,6 +97,7 @@ export default function RootLayout({
                 }}
               />
               <noscript>
+                {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src={`https://www.facebook.com/tr?id=${metaPixelId}&ev=PageView&noscript=1`}
                   alt=""
