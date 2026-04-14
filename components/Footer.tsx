@@ -11,6 +11,7 @@ import {
   Phone,
   MapPin,
 } from "@phosphor-icons/react";
+import { TrustpilotReviewCollector } from "./TrustpilotReviewCollector";
 
 export function Footer() {
   return (
@@ -147,6 +148,10 @@ export function Footer() {
               </li>
             </ul>
           </div>
+        </div>
+
+        <div className="mb-10">
+          <TrustpilotReviewCollector />
         </div>
 
         <div className="border-t border-neutral-100 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">

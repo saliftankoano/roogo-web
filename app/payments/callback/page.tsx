@@ -4,7 +4,10 @@ import { Suspense, useEffect, useRef, useState } from "react";
 import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
-import { getPendingPhotos, removePendingPhotos } from "@/lib/clientPendingPhotos";
+import {
+  getPendingPhotos,
+  removePendingPhotos,
+} from "@/lib/clientPendingPhotos";
 
 function PaymentCallbackContent() {
   const searchParams = useSearchParams();
@@ -44,17 +47,24 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const router = useRouter();
-  const [status, setStatus] = useState<"loading" | "success" | "failed" | "pending">("loading");
+  const [status, setStatus] = useState<
+    "loading" | "success" | "failed" | "pending"
+  >("loading");
   const [message, setMessage] = useState("Vérification du paiement...");
   const [attempts, setAttempts] = useState(0);
   const [isRedirecting, setIsRedirecting] = useState(false);
-  const [paymentContext, setPaymentContext] = useState<PaymentContext | null>(null);
-  const [needsListingFinalization, setNeedsListingFinalization] = useState(false);
+  const [paymentContext, setPaymentContext] = useState<PaymentContext | null>(
+    null,
+  );
+  const [needsListingFinalization, setNeedsListingFinalization] =
+    useState(false);
   const [listingFinalized, setListingFinalized] = useState(false);
   const finalizeOnceRef = useRef(false);
 
-  const rawUserType = user?.publicMetadata?.userType || user?.publicMetadata?.user_type;
-  const userType = typeof rawUserType === "string" ? rawUserType.toLowerCase() : "";
+  const rawUserType =
+    user?.publicMetadata?.userType || user?.publicMetadata?.user_type;
+  const userType =
+    typeof rawUserType === "string" ? rawUserType.toLowerCase() : "";
   const destination =
     userType === "staff" || userType === "founder"
       ? "/admin/annonces"
@@ -73,7 +83,9 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
 
     if (!isSignedIn) {
       setStatus("failed");
-      setMessage("Veuillez vous reconnecter pour vérifier le statut du paiement.");
+      setMessage(
+        "Veuillez vous reconnecter pour vérifier le statut du paiement.",
+      );
       return;
     }
 
@@ -86,7 +98,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": `Bearer ${token}`,
+            Authorization: `Bearer ${token}`,
           },
           body: JSON.stringify({ depositId }),
         });
@@ -100,35 +112,41 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           if (data.status === "COMPLETED") {
             setStatus("success");
             setMessage("Paiement réussi !");
-          } else if (data.status === "FAILED" || data.status === "CANCELLED" || data.status === "REJECTED") {
+          } else if (
+            data.status === "FAILED" ||
+            data.status === "CANCELLED" ||
+            data.status === "REJECTED"
+          ) {
             setStatus("failed");
             setMessage("Le paiement a échoué ou a été annulé.");
           } else {
             if (attempts < 10) {
               setStatus("pending");
               setMessage("Paiement en cours de traitement...");
-              setAttempts(prev => prev + 1);
+              setAttempts((prev) => prev + 1);
               timeoutId = setTimeout(checkStatus, 3000);
             } else {
               setStatus("pending");
-              setMessage("Le paiement prend plus de temps que prévu. Veuillez vérifier plus tard.");
+              setMessage(
+                "Le paiement prend plus de temps que prévu. Veuillez vérifier plus tard.",
+              );
             }
           }
         } else {
           console.error("Status check failed:", data);
           if (attempts < 5) {
-             setAttempts(prev => prev + 1);
-             timeoutId = setTimeout(checkStatus, 3000);
+            setAttempts((prev) => prev + 1);
+            timeoutId = setTimeout(checkStatus, 3000);
           } else {
-             setStatus("failed");
-             setMessage("Impossible de vérifier le statut du paiement.");
+            setStatus("failed");
+            setMessage("Impossible de vérifier le statut du paiement.");
           }
         }
       } catch (error) {
         console.error("Error checking status:", error);
         if (attempts < 5) {
-           setAttempts(prev => prev + 1);
-           timeoutId = setTimeout(checkStatus, 3000);
+          setAttempts((prev) => prev + 1);
+          timeoutId = setTimeout(checkStatus, 3000);
         }
       }
     };
@@ -142,14 +160,22 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
     if (status !== "success") return;
 
     const pendingDraft = window.sessionStorage.getItem("pendingAdminListing");
-    const shouldFinalize = !!pendingDraft && paymentContext?.transactionType === "listing_submission";
+    const shouldFinalize =
+      !!pendingDraft &&
+      paymentContext?.transactionType === "listing_submission";
 
     setNeedsListingFinalization(shouldFinalize);
     if (!shouldFinalize) setListingFinalized(true);
   }, [status, paymentContext]);
 
   useEffect(() => {
-    if (status !== "success" || !depositId || !needsListingFinalization || finalizeOnceRef.current) return;
+    if (
+      status !== "success" ||
+      !depositId ||
+      !needsListingFinalization ||
+      finalizeOnceRef.current
+    )
+      return;
 
     const finalizedKey = `listingFinalized:${depositId}`;
     const finalizingKey = `listingFinalizing:${depositId}`;
@@ -209,7 +235,10 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
               add_ons: pending.selectedAddOns,
               payment_id: depositId,
               on_behalf_of_client: onBehalfOfClient,
-              owner_id: onBehalfOfClient && selectedOwnerId ? selectedOwnerId : undefined,
+              owner_id:
+                onBehalfOfClient && selectedOwnerId
+                  ? selectedOwnerId
+                  : undefined,
             },
           }),
         });
@@ -219,9 +248,16 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           throw new Error(result?.message || "Listing finalization failed");
         }
 
-        const propertyId = typeof result?.propertyId === "string" ? result.propertyId : null;
-        let pendingPhotos = Array.isArray(pending.pendingPhotos) ? pending.pendingPhotos : [];
-        if (pendingPhotos.length === 0 && pending.pendingPhotosStoredInDb && depositId) {
+        const propertyId =
+          typeof result?.propertyId === "string" ? result.propertyId : null;
+        let pendingPhotos = Array.isArray(pending.pendingPhotos)
+          ? pending.pendingPhotos
+          : [];
+        if (
+          pendingPhotos.length === 0 &&
+          pending.pendingPhotosStoredInDb &&
+          depositId
+        ) {
           pendingPhotos = await getPendingPhotos(depositId);
         }
         window.sessionStorage.removeItem("pendingAdminListing");
@@ -237,21 +273,23 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
             body: JSON.stringify({ images: pendingPhotos }),
           });
           if (depositId) await removePendingPhotos(depositId);
-
         }
 
         if (pending.pendingPhotosOverflow) {
-          setMessage("Paiement confirme et annonce creee. Ajoutez les photos depuis la fiche du bien.");
+          setMessage(
+            "Paiement confirme et annonce creee. Ajoutez les photos depuis la fiche du bien.",
+          );
         } else {
           setMessage("Paiement confirmé et annonce créée avec succès.");
         }
         setListingFinalized(true);
-
       } catch (error) {
-        const errorMessage = error instanceof Error ? error.message : "Erreur lors de la création de l'annonce";
+        const errorMessage =
+          error instanceof Error
+            ? error.message
+            : "Erreur lors de la création de l'annonce";
         setStatus("failed");
         setMessage(errorMessage);
-
       } finally {
         window.sessionStorage.removeItem(finalizingKey);
       }
@@ -263,16 +301,30 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
   useEffect(() => {
     if (!depositId || isRedirecting) return;
 
-    if ((status === "success" && (!needsListingFinalization || listingFinalized)) || status === "failed") {
+    if (
+      (status === "success" &&
+        (!needsListingFinalization || listingFinalized)) ||
+      status === "failed"
+    ) {
       setIsRedirecting(true);
       const paymentState = status === "success" ? "success" : "failed";
       const redirectTimer = setTimeout(() => {
-        router.push(`${destination}?payment_status=${paymentState}&depositId=${depositId}`);
+        router.push(
+          `${destination}?payment_status=${paymentState}&depositId=${depositId}`,
+        );
       }, 5000);
 
       return () => clearTimeout(redirectTimer);
     }
-  }, [status, depositId, destination, router, isRedirecting, needsListingFinalization, listingFinalized]);
+  }, [
+    status,
+    depositId,
+    destination,
+    router,
+    isRedirecting,
+    needsListingFinalization,
+    listingFinalized,
+  ]);
 
   const transactionLabels: Record<string, string> = {
     listing_submission: "Publication de votre annonce",
@@ -284,7 +336,8 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
   const purchaseTitle = paymentContext?.description
     ? paymentContext.description
     : paymentContext?.transactionType
-      ? transactionLabels[paymentContext.transactionType] || paymentContext.transactionType
+      ? transactionLabels[paymentContext.transactionType] ||
+        paymentContext.transactionType
       : null;
 
   return (
@@ -307,55 +360,68 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
         </div>
 
         <h1 className="text-2xl font-bold text-gray-900 mb-2">
-          {status === "loading" ? "Chargement..." : 
-           status === "pending" ? "Paiement en cours" :
-           status === "success" ? "Paiement Réussi" : "Échec du paiement"}
+          {status === "loading"
+            ? "Chargement..."
+            : status === "pending"
+              ? "Paiement en cours"
+              : status === "success"
+                ? "Paiement Réussi"
+                : "Échec du paiement"}
         </h1>
-        
-        <p className="text-gray-500 mb-4">
-          {message}
-        </p>
+
+        <p className="text-gray-500 mb-4">{message}</p>
 
         {paymentContext && (status === "success" || status === "failed") && (
           <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-left space-y-2">
             {purchaseTitle && (
               <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Objet:</span> {purchaseTitle}
+                <span className="font-semibold text-gray-900">Objet:</span>{" "}
+                {purchaseTitle}
               </div>
             )}
             {paymentContext.propertyLabel && (
               <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Bien concerné:</span> {paymentContext.propertyLabel}
+                <span className="font-semibold text-gray-900">
+                  Bien concerné:
+                </span>{" "}
+                {paymentContext.propertyLabel}
               </div>
             )}
             {paymentContext.tierId && (
               <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Pack:</span> {paymentContext.tierId}
+                <span className="font-semibold text-gray-900">Pack:</span>{" "}
+                {paymentContext.tierId}
               </div>
             )}
             {paymentContext.addOns.length > 0 && (
               <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Options:</span> {paymentContext.addOns.join(", ")}
+                <span className="font-semibold text-gray-900">Options:</span>{" "}
+                {paymentContext.addOns.join(", ")}
               </div>
             )}
             {paymentContext.amount !== null && (
               <div className="text-sm text-gray-700">
                 <span className="font-semibold text-gray-900">Montant:</span>{" "}
-                {paymentContext.amount.toLocaleString()} {paymentContext.currency}
+                {paymentContext.amount.toLocaleString()}{" "}
+                {paymentContext.currency}
               </div>
             )}
           </div>
         )}
 
         {(status === "success" || status === "failed") && (
-          <p className="text-xs text-gray-400 mb-4">Redirection automatique dans quelques secondes...</p>
+          <p className="text-xs text-gray-400 mb-4">
+            Redirection automatique dans quelques secondes...
+          </p>
         )}
 
         <div className="space-y-3">
           {status === "success" && (
             <button
               onClick={() => {
-                router.push(`${destination}?payment_status=success&depositId=${depositId}`);
+                router.push(
+                  `${destination}?payment_status=success&depositId=${depositId}`,
+                );
               }}
               className="w-full bg-black text-white font-medium py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors"
             >
@@ -363,16 +429,27 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
             </button>
           )}
 
+          {/* Deep link back to the Roogo mobile app (for users who came from the app) */}
+          {status === "success" && (
+            <a
+              href={`roogo://my-properties?payment_status=success&depositId=${depositId ?? ""}`}
+              style={{ backgroundColor: "#C75B3A" }}
+              className="block w-full text-center text-white font-medium py-3 px-4 rounded-xl hover:opacity-90 transition-opacity"
+            >
+              Retourner sur l&apos;application Roogo
+            </a>
+          )}
+
           {(status === "failed" || status === "success") && (
-             <button
-               onClick={() => router.push(destination)}
-               className="w-full bg-gray-100 text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors"
-             >
-               Retour à mes espaces
-             </button>
+            <button
+              onClick={() => router.push(destination)}
+              className="w-full bg-gray-100 text-gray-700 font-medium py-3 px-4 rounded-xl hover:bg-gray-200 transition-colors"
+            >
+              Retour à mes espaces
+            </button>
           )}
         </div>
-        
+
         {status === "pending" && (
           <div className="mt-6 flex items-center justify-center text-sm text-gray-400">
             <AlertCircle className="w-4 h-4 mr-2" />

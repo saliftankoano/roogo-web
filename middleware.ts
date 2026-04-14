@@ -22,9 +22,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/health",
   "/api/pawapay/callback",
   "/api/clerk/webhook",
-  "/api/clerk/users/me/metadata",  // Mobile app uses JWT auth, not session
+  "/api/clerk/users/me/metadata", // Mobile app uses JWT auth, not session
   "/api/cron/(.*)",
   "/api/account/delete-request",
+  // Availability data is public — any user can see blocked dates
+  "/api/properties/(.*)/availability",
 ]);
 
 // Routes that bypass the onboarding gate:
@@ -44,7 +46,8 @@ export default clerkMiddleware(async (auth, req) => {
 
     if (!isOnboardingGateExempt(req)) {
       const { sessionClaims } = await auth();
-      const meta = (sessionClaims?.metadata as Record<string, unknown> | undefined) ?? {};
+      const meta =
+        (sessionClaims?.metadata as Record<string, unknown> | undefined) ?? {};
 
       const hasCompletedWeb = meta.hasCompletedWebOnboarding === true;
       const hasCompletedMobile =
@@ -72,6 +75,7 @@ export const config = {
      * - favicon.ico, sitemap.xml, robots.txt (metadata files)
      * - .* files with extension (static files like .png, .jpg, .svg, .ico, .css, .js)
      */
-    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)","/(api|trpc)(.*)",
+    "/((?!_next/static|_next/image|favicon.ico|sitemap.xml|robots.txt|.*\\..*).*)",
+    "/(api|trpc)(.*)",
   ],
 };

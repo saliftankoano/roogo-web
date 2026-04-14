@@ -7,7 +7,7 @@ export function Stats() {
     { value: "500+", label: "Propriétés listées" },
     { value: "2k+", label: "Utilisateurs actifs" },
     { value: "98%", label: "Taux de satisfaction" },
-    { value: "24h", label: "Temps moyen de location" },
+    { value: "72h", label: "Temps moyen de location" },
   ];
 
   return (

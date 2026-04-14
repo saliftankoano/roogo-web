@@ -1,23 +1,44 @@
-import { auth, currentUser } from "@clerk/nextjs/server";
+import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
+import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { createUserInSupabase, ClerkUserData } from "@/lib/user-sync";
 
 /**
  * POST /api/users/sync
- * 
+ *
  * Syncs the authenticated Clerk user to Supabase.
- * This is a fallback in case the webhook hasn't fired yet.
+ * Accepts both:
+ *  - Cookie-based session (web app via @clerk/nextjs auth())
+ *  - Bearer token (mobile app via Authorization header)
  */
-export async function POST() {
+export async function POST(req: Request) {
   try {
-    // Authenticate with Clerk
-    const { userId } = await auth();
-    if (!userId) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    let clerkUser: Awaited<ReturnType<typeof currentUser>>;
+
+    // Try Bearer token first (mobile app)
+    const authHeader = req.headers.get("authorization") ?? "";
+    const bearerToken = authHeader.replace("Bearer ", "");
+
+    if (bearerToken) {
+      try {
+        const { sub: userId } = await verifyToken(bearerToken, {
+          secretKey: process.env.CLERK_SECRET_KEY!,
+        });
+        if (!userId) throw new Error("No user ID in token");
+        const client = await clerkClient();
+        clerkUser = await client.users.getUser(userId) as any;
+      } catch {
+        return NextResponse.json({ error: "Invalid token" }, { status: 401 });
+      }
+    } else {
+      // Fallback: cookie-based session (web app)
+      const { userId } = await auth();
+      if (!userId) {
+        return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      }
+      clerkUser = await currentUser();
     }
 
-    // Get full user data from Clerk
-    const clerkUser = await currentUser();
     if (!clerkUser) {
       return NextResponse.json({ error: "User not found" }, { status: 404 });
     }
