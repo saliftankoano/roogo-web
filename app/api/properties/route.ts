@@ -1,6 +1,11 @@
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
-import { getOrSyncUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
+import {
+  getOrSyncUserByClerkId,
+  getSupabaseClient,
+  createUserInSupabase,
+  ClerkUserData,
+} from "@/lib/user-sync";
 import { convertIdsToLabels } from "@/lib/interdictions";
 import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
@@ -48,13 +53,15 @@ export async function POST(req: Request) {
     }
 
     // 2. Rate limiting
-    const { success: rateLimitOk, headers: rateLimitHeaders } = await checkRateLimit(
-      listingLimiter,
-      clerkUserId
-    );
+    const { success: rateLimitOk, headers: rateLimitHeaders } =
+      await checkRateLimit(listingLimiter, clerkUserId);
 
     if (!rateLimitOk) {
-      const response = errorResponse("Too many listing requests. Please try again later.", 429, req);
+      const response = errorResponse(
+        "Too many listing requests. Please try again later.",
+        429,
+        req,
+      );
       rateLimitHeaders.forEach((value, key) => {
         response.headers.set(key, value);
       });
@@ -63,24 +70,80 @@ export async function POST(req: Request) {
 
     // 3. Get user from Supabase
     console.log("Fetching Supabase user for Clerk ID:", clerkUserId);
-    const user = await getOrSyncUserByClerkId(clerkUserId);
+    let user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) {
       console.error("User not found in Supabase");
       return errorResponse(
         "User not found. Please ensure Clerk webhooks are set up to sync users to Supabase.",
         404,
-        req
+        req,
       );
     }
     console.log("Supabase user found:", user.id);
 
     // 4. Check if user is an owner, agent, staff, or founder
-    const isStaffOrFounder = user.user_type === "staff" || user.user_type === "founder";
-    const canCreateListing = ["owner", "agent", "staff", "founder"].includes(user.user_type);
+    let isStaffOrFounder =
+      user.user_type === "staff" || user.user_type === "founder";
+    let canCreateListing = ["owner", "agent", "staff", "founder"].includes(
+      user.user_type,
+    );
 
     if (!canCreateListing) {
-      console.error("User unauthorized to create listing:", user.user_type);
-      return errorResponse("Only owners, agents, staff, or founders can create listings", 403, req);
+      // user_type in Supabase may be stale — re-sync from Clerk and retry once
+      console.log(
+        "user_type check failed, re-syncing from Clerk:",
+        user.user_type,
+      );
+      try {
+        const { clerkClient } = await import("@clerk/nextjs/server");
+        const client = await clerkClient();
+        const clerkUser = await client.users.getUser(clerkUserId);
+        const freshUser = await createUserInSupabase({
+          id: clerkUser.id,
+          email_addresses: clerkUser.emailAddresses.map((e) => ({
+            email_address: e.emailAddress,
+          })),
+          first_name: clerkUser.firstName ?? undefined,
+          last_name: clerkUser.lastName ?? undefined,
+          image_url: clerkUser.imageUrl,
+          phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
+            phone_number: p.phoneNumber,
+          })),
+          public_metadata:
+            clerkUser.publicMetadata as ClerkUserData["public_metadata"],
+          private_metadata:
+            clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+          unsafe_metadata:
+            clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
+        });
+        if (
+          freshUser &&
+          ["owner", "agent", "staff", "founder"].includes(freshUser.user_type)
+        ) {
+          console.log("Re-sync succeeded, new user_type:", freshUser.user_type);
+          user = freshUser as typeof user;
+          isStaffOrFounder =
+            user.user_type === "staff" || user.user_type === "founder";
+          canCreateListing = true;
+        } else {
+          console.error(
+            "User still unauthorized after re-sync:",
+            freshUser?.user_type,
+          );
+          return errorResponse(
+            "Only owners, agents, staff, or founders can create listings",
+            403,
+            req,
+          );
+        }
+      } catch (syncError) {
+        console.error("Failed to re-sync user from Clerk:", syncError);
+        return errorResponse(
+          "Only owners, agents, staff, or founders can create listings",
+          403,
+          req,
+        );
+      }
     }
 
     // 5. Parse and validate request body
@@ -95,17 +158,27 @@ export async function POST(req: Request) {
 
     // 5b. Zod validation (server-side)
     // Note: We skip photos validation on server as they are uploaded separately
-    const validationResult = listingBaseSchema.omit({ photos: true }).safeParse(listingData);
+    const validationResult = listingBaseSchema
+      .omit({ photos: true })
+      .safeParse(listingData);
     if (!validationResult.success) {
       console.error("Validation failed:", validationResult.error.format());
-      return errorResponse("Données invalides: " + validationResult.error.issues[0].message, 400, req);
+      return errorResponse(
+        "Données invalides: " + validationResult.error.issues[0].message,
+        400,
+        req,
+      );
     }
 
     // 5c. owner_id: only staff/founder may set it; validate user exists and is owner/agent
     const ownerId = listingData.owner_id;
     if (ownerId) {
       if (!isStaffOrFounder) {
-        return errorResponse("owner_id is only allowed for staff or founder", 400, req);
+        return errorResponse(
+          "owner_id is only allowed for staff or founder",
+          400,
+          req,
+        );
       }
       const supabaseForCheck = getSupabaseClient();
       const { data: targetUser, error: targetError } = await supabaseForCheck
@@ -146,7 +219,9 @@ export async function POST(req: Request) {
     if (listingData.tier_id) {
       const { data: tierData, error: tierError } = await supabase
         .from("listing_tiers")
-        .select("id, photo_limit, slot_limit, video_included, open_house_limit, has_badge, min_price")
+        .select(
+          "id, photo_limit, slot_limit, video_included, open_house_limit, has_badge, min_price",
+        )
         .eq("id", listingData.tier_id)
         .single();
 
@@ -166,7 +241,10 @@ export async function POST(req: Request) {
         .eq("id", "default")
         .single();
 
-      if (configError || typeof configData?.commission_percentage !== "number") {
+      if (
+        configError ||
+        typeof configData?.commission_percentage !== "number"
+      ) {
         console.error("Commission config missing:", configError);
         return errorResponse("Commission non configuree", 500, req);
       }
@@ -177,7 +255,8 @@ export async function POST(req: Request) {
     const tierPrice = isFreeStaffListing
       ? 0
       : selectedTier
-        ? selectedTier.min_price + listingData.prixMensuel * commissionPercentage
+        ? selectedTier.min_price +
+          listingData.prixMensuel * commissionPercentage
         : null;
 
     const isBoosted = listingData.add_ons?.includes("boost") || false;
@@ -189,20 +268,26 @@ export async function POST(req: Request) {
     }
 
     // Calculate slot limit with add-ons
-    let slotLimit = selectedTier?.slot_limit || (isFreeStaffListing ? 100 : null);
+    let slotLimit =
+      selectedTier?.slot_limit || (isFreeStaffListing ? 100 : null);
     if (slotLimit !== null && listingData.add_ons?.includes("extra_slots")) {
       slotLimit += 25;
     }
 
     // Calculate photo limit with add-ons
-    let photoLimit = selectedTier?.photo_limit || (isFreeStaffListing ? 20 : null);
+    let photoLimit =
+      selectedTier?.photo_limit || (isFreeStaffListing ? 20 : null);
     if (photoLimit !== null && listingData.add_ons?.includes("extra_photos")) {
       photoLimit += 5;
     }
 
     // Calculate open house limit with add-ons
-    let openHouseLimit = selectedTier?.open_house_limit || (isFreeStaffListing ? 5 : null);
-    if (openHouseLimit !== null && listingData.add_ons?.includes("open_house")) {
+    let openHouseLimit =
+      selectedTier?.open_house_limit || (isFreeStaffListing ? 5 : null);
+    if (
+      openHouseLimit !== null &&
+      listingData.add_ons?.includes("open_house")
+    ) {
       openHouseLimit += 1;
     }
 
@@ -233,14 +318,26 @@ export async function POST(req: Request) {
       caution_mois: listingData.cautionMois || null,
       interdictions: interdictionsLabels,
       period: listingData.frequence === "journalier" ? "day" : "month",
+      frequence: listingData.frequence ?? "mensuel",
+      sejour_minimum: listingData.sejour_minimum ?? null,
+      capacite_max: listingData.capacite_max ?? null,
+      caution_type: listingData.caution_type ?? null,
+      caution_valeur: listingData.caution_valeur ?? null,
       // Tier information
       tier_id: listingData.tier_id || null,
       tier_price: tierPrice,
       slot_limit: slotLimit,
       open_house_limit: openHouseLimit,
       photo_limit: photoLimit,
-      video_included: selectedTier?.video_included || listingData.add_ons?.includes("video") || isFreeStaffListing,
-      has_premium_badge: isStaffPaying ? (selectedTier?.has_badge || false) : (isFreeStaffListing ? true : (selectedTier?.has_badge || false)),
+      video_included:
+        selectedTier?.video_included ||
+        listingData.add_ons?.includes("video") ||
+        isFreeStaffListing,
+      has_premium_badge: isStaffPaying
+        ? selectedTier?.has_badge || false
+        : isFreeStaffListing
+          ? true
+          : selectedTier?.has_badge || false,
       payment_id: listingData.payment_id || staffDepositId,
       // Boost information
       is_boosted: isBoosted,
@@ -248,11 +345,14 @@ export async function POST(req: Request) {
       // Set published_at for staff listings since they go live immediately
       published_at: isStaffOrFounder ? new Date().toISOString() : null,
       // Only staff/founder may mark a listing as test (hidden from public)
-      is_test: isStaffOrFounder ? (listingData.is_test === true) : false,
+      is_test: isStaffOrFounder ? listingData.is_test === true : false,
     };
 
     // 9. Insert property
-    console.log("Inserting property into database...", isStaffOrFounder ? "(Staff listing - auto-verified)" : "");
+    console.log(
+      "Inserting property into database...",
+      isStaffOrFounder ? "(Staff listing - auto-verified)" : "",
+    );
     const { data: property, error: propertyError } = await supabase
       .from("properties")
       .insert(propertyData)
@@ -260,16 +360,23 @@ export async function POST(req: Request) {
       .single();
 
     if (propertyError || !property) {
-      console.error("Error creating property:", JSON.stringify(propertyError, null, 2));
+      console.error(
+        "Error creating property:",
+        JSON.stringify(propertyError, null, 2),
+      );
       return errorResponse(
         safeError(propertyError, "Failed to create property"),
         500,
-        req
+        req,
       );
     }
 
     const propertyId = property.id;
-    console.log("Property created successfully:", propertyId, isStaffOrFounder ? "(Verified)" : "(Pending)");
+    console.log(
+      "Property created successfully:",
+      propertyId,
+      isStaffOrFounder ? "(Verified)" : "(Pending)",
+    );
 
     // 10. Create transaction record
     if (isFreeStaffListing && staffDepositId) {
@@ -379,12 +486,18 @@ export async function POST(req: Request) {
         success: true,
         propertyId,
         isVerified: isStaffOrFounder,
-        transactionId: isStaffOrFounder ? staffDepositId : listingData.payment_id,
+        transactionId: isStaffOrFounder
+          ? staffDepositId
+          : listingData.payment_id,
       }),
-      req
+      req,
     );
   } catch (error) {
     console.error("Error in POST /api/properties:", error);
-    return errorResponse(safeError(error, "An unexpected error occurred"), 500, req);
+    return errorResponse(
+      safeError(error, "An unexpected error occurred"),
+      500,
+      req,
+    );
   }
 }
