@@ -5,7 +5,7 @@ import { createUserInSupabase, ClerkUserData } from "../../../../lib/user-sync";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 interface PropertyPatchUpdates {
@@ -30,11 +30,11 @@ interface AmenityRow {
 
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -58,11 +58,15 @@ export async function DELETE(
           // Transform Clerk data format to match user-sync expectations
           const transformedData = {
             id: clerkUser.id,
-            email_addresses: clerkUser.emailAddresses?.map(e => ({ email_address: e.emailAddress })),
+            email_addresses: clerkUser.emailAddresses?.map((e) => ({
+              email_address: e.emailAddress,
+            })),
             first_name: clerkUser.firstName,
             last_name: clerkUser.lastName,
             image_url: clerkUser.imageUrl,
-            phone_numbers: clerkUser.phoneNumbers?.map(p => ({ phone_number: p.phoneNumber })),
+            phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
+              phone_number: p.phoneNumber,
+            })),
             public_metadata: clerkUser.publicMetadata,
             private_metadata: clerkUser.privateMetadata,
             unsafe_metadata: clerkUser.unsafeMetadata,
@@ -105,7 +109,10 @@ export async function DELETE(
         .maybeSingle();
 
       if (!prop) {
-        return NextResponse.json({ error: "Not found or not authorized" }, { status: 404 });
+        return NextResponse.json(
+          { error: "Not found or not authorized" },
+          { status: 404 },
+        );
       }
     }
 
@@ -113,12 +120,14 @@ export async function DELETE(
     // All images are stored under "listing/{propertyId}/" in Supabase Storage.
     // List every file in that folder and remove them before deleting the DB row.
     try {
-      const { data: storageFiles, error: listError } = await supabaseAdmin.storage
-        .from("listing")
-        .list(propertyId);
+      const { data: storageFiles, error: listError } =
+        await supabaseAdmin.storage.from("listing").list(propertyId);
 
       if (listError) {
-        console.warn("Could not list storage files for property:", listError.message);
+        console.warn(
+          "Could not list storage files for property:",
+          listError.message,
+        );
       } else if (storageFiles && storageFiles.length > 0) {
         const paths = storageFiles.map((f) => `${propertyId}/${f.name}`);
         const { error: removeError } = await supabaseAdmin.storage
@@ -129,7 +138,9 @@ export async function DELETE(
           console.warn("Storage cleanup partial failure:", removeError.message);
           // Non-fatal — proceed with DB delete even if some files couldn't be removed
         } else {
-          console.log(`Deleted ${paths.length} storage file(s) for property ${propertyId}`);
+          console.log(
+            `Deleted ${paths.length} storage file(s) for property ${propertyId}`,
+          );
         }
       }
     } catch (storageErr) {
@@ -137,7 +148,7 @@ export async function DELETE(
     }
 
     // --- Delete DB row (cascades to all related tables via migration 010) ---
-    const { error, count } = await supabaseAdmin
+    const { data: deletedRows, error } = await supabaseAdmin
       .from("properties")
       .delete()
       .eq("id", propertyId)
@@ -148,8 +159,11 @@ export async function DELETE(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (!count || count === 0) {
-      return NextResponse.json({ error: "Not found or not authorized" }, { status: 404 });
+    if (!deletedRows || deletedRows.length === 0) {
+      return NextResponse.json(
+        { error: "Not found or not authorized" },
+        { status: 404 },
+      );
     }
 
     return NextResponse.json({ success: true });
@@ -157,18 +171,18 @@ export async function DELETE(
     console.error("API error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
 
 export async function PATCH(
   request: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { userId } = await auth();
-    
+
     if (!userId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -192,11 +206,15 @@ export async function PATCH(
         if (clerkUser) {
           const transformedData = {
             id: clerkUser.id,
-            email_addresses: clerkUser.emailAddresses?.map(e => ({ email_address: e.emailAddress })),
+            email_addresses: clerkUser.emailAddresses?.map((e) => ({
+              email_address: e.emailAddress,
+            })),
             first_name: clerkUser.firstName,
             last_name: clerkUser.lastName,
             image_url: clerkUser.imageUrl,
-            phone_numbers: clerkUser.phoneNumbers?.map(p => ({ phone_number: p.phoneNumber })),
+            phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
+              phone_number: p.phoneNumber,
+            })),
             public_metadata: clerkUser.publicMetadata,
             private_metadata: clerkUser.privateMetadata,
             unsafe_metadata: clerkUser.unsafeMetadata,
@@ -218,26 +236,28 @@ export async function PATCH(
     }
 
     // Verify user has required privileges
-    if (
-      !user ||
-      !["staff", "founder"].includes(user.user_type)
-    ) {
+    if (!user || !["staff", "founder"].includes(user.user_type)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // Map frontend fields to database columns if necessary
     const dbUpdates: Record<string, string | number | null> = {};
-    if (updates.description !== undefined) dbUpdates.description = updates.description;
+    if (updates.description !== undefined)
+      dbUpdates.description = updates.description;
     if (updates.price !== undefined) dbUpdates.price = Number(updates.price);
     if (updates.address !== undefined) dbUpdates.address = updates.address;
     if (updates.city !== undefined) dbUpdates.city = updates.city;
     if (updates.quartier !== undefined) dbUpdates.quartier = updates.quartier;
     if (updates.bedrooms !== undefined) dbUpdates.bedrooms = updates.bedrooms;
-    if (updates.bathrooms !== undefined) dbUpdates.bathrooms = updates.bathrooms;
+    if (updates.bathrooms !== undefined)
+      dbUpdates.bathrooms = updates.bathrooms;
     if (updates.area !== undefined) dbUpdates.area = Number(updates.area);
-    if (updates.parking !== undefined) dbUpdates.parking_spaces = updates.parking;
-    if (updates.propertyType !== undefined) dbUpdates.property_type = updates.propertyType;
-    if (updates.period !== undefined) dbUpdates.period = updates.period === "Mois" ? "month" : updates.period;
+    if (updates.parking !== undefined)
+      dbUpdates.parking_spaces = updates.parking;
+    if (updates.propertyType !== undefined)
+      dbUpdates.property_type = updates.propertyType;
+    if (updates.period !== undefined)
+      dbUpdates.period = updates.period === "Mois" ? "month" : updates.period;
 
     const { error } = await supabaseAdmin
       .from("properties")
@@ -265,10 +285,12 @@ export async function PATCH(
           .in("name", updates.amenities);
 
         if (amenitiesData && amenitiesData.length > 0) {
-          const propertyAmenities = amenitiesData.map((amenity: AmenityRow) => ({
-            property_id: propertyId,
-            amenity_id: amenity.id,
-          }));
+          const propertyAmenities = amenitiesData.map(
+            (amenity: AmenityRow) => ({
+              property_id: propertyId,
+              amenity_id: amenity.id,
+            }),
+          );
 
           await supabaseAdmin
             .from("property_amenities")
@@ -282,7 +304,7 @@ export async function PATCH(
     console.error("API error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
