@@ -20,79 +20,84 @@ const nextConfig: NextConfig = {
   },
   experimental: {
     serverActions: {
-      bodySizeLimit: "10mb", // Increase body size limit for image uploads
+      bodySizeLimit: "25mb", // Increase body size limit for image uploads
     },
+    // Default is 10 MB; base64-encoded image JSON bodies can exceed that
+    // on mobile photo batches. Raise to avoid silent truncation of the
+    // request body (which surfaces as SyntaxError in req.json()).
+    middlewareClientMaxBodySize: "25mb",
   },
   async redirects() {
     return [
       {
-        source: '/louer/residentiel',
-        destination: '/proprietes?category=Residential',
+        source: "/louer/residentiel",
+        destination: "/proprietes?category=Residential",
         permanent: true,
       },
       {
-        source: '/louer/commercial',
-        destination: '/proprietes?category=Business',
+        source: "/louer/commercial",
+        destination: "/proprietes?category=Business",
         permanent: true,
       },
       {
-        source: '/publier-bien',
-        destination: '/', // Or a dedicated page if it existed, for now back to home
+        source: "/publier-bien",
+        destination: "/", // Or a dedicated page if it existed, for now back to home
         permanent: false,
       },
       // Old routes redirects for backwards compatibility
       {
-        source: '/location',
-        destination: '/proprietes',
+        source: "/location",
+        destination: "/proprietes",
         permanent: true,
       },
       {
-        source: '/about',
-        destination: '/a-propos',
+        source: "/about",
+        destination: "/a-propos",
         permanent: true,
       },
       {
-        source: '/privacy',
-        destination: '/confidentialite', permanent: true,
-      },
-      {
-        source: '/terms',
-        destination: '/conditions',
+        source: "/privacy",
+        destination: "/confidentialite",
         permanent: true,
       },
       {
-        source: '/deleteme',
-        destination: '/supprimer-compte',
+        source: "/terms",
+        destination: "/conditions",
         permanent: true,
       },
       {
-        source: '/sign-in',
-        destination: '/connexion',
+        source: "/deleteme",
+        destination: "/supprimer-compte",
         permanent: true,
       },
       {
-        source: '/sign-up',
-        destination: '/inscription',
+        source: "/sign-in",
+        destination: "/connexion",
         permanent: true,
       },
       {
-        source: '/staff/join',
-        destination: '/personnel/rejoindre',
+        source: "/sign-up",
+        destination: "/inscription",
         permanent: true,
       },
       {
-        source: '/listings/create',
-        destination: '/annonces/creer',
+        source: "/staff/join",
+        destination: "/personnel/rejoindre",
         permanent: true,
       },
       {
-        source: '/contact',
-        destination: '/nous-contacter',
+        source: "/listings/create",
+        destination: "/annonces/creer",
         permanent: true,
       },
       {
-        source: '/conditions',
-        destination: '/conditions-utilisation',
+        source: "/contact",
+        destination: "/nous-contacter",
+        permanent: true,
+      },
+      {
+        source: "/conditions",
+        destination: "/conditions-utilisation",
         permanent: true,
       },
     ];

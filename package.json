@@ -28,6 +28,7 @@
     "date-fns": "^4.1.0",
     "driver.js": "^1.4.0",
     "framer-motion": "^12.34.0",
+    "heic-to": "^1.4.2",
     "lucide-react": "^0.562.0",
     "next": "15.5.9",
     "posthog-js": "^1.347.2",

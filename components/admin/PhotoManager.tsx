@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import Image from "next/image";
 import { useAuth } from "@clerk/nextjs";
+import { compressImageToBase64 } from "@/lib/clientImageCompression";
 
 interface PhotoManagerProps {
   propertyId: string;
@@ -31,14 +32,17 @@ export default function PhotoManager({
   onPhotosUpdated,
 }: PhotoManagerProps) {
   const { getToken } = useAuth();
-  const [photos, setPhotos] = useState<string[]>(sanitizePhotoUrls(initialPhotos));
+  const [photos, setPhotos] = useState<string[]>(
+    sanitizePhotoUrls(initialPhotos),
+  );
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Find the index of the primary image
-  const primaryIndex = primaryImageUrl ? photos.findIndex(p => p === primaryImageUrl) : 0;
-  
+  const primaryIndex = primaryImageUrl
+    ? photos.findIndex((p) => p === primaryImageUrl)
+    : 0;
 
   useEffect(() => {
     setProfessional(isProfessional);
@@ -62,7 +66,7 @@ export default function PhotoManager({
       const token = await getToken();
       const files = Array.from(e.target.files);
       const processedImages = await Promise.all(
-        files.map((file) => readFile(file))
+        files.map((file) => compressImageToBase64(file)),
       );
 
       const response = await fetch(
@@ -73,31 +77,30 @@ export default function PhotoManager({
             "Content-Type": "application/json",
             Authorization: `Bearer ${token}`,
           },
-          body: JSON.stringify({
-            images: processedImages,
-          }),
-        }
+          body: JSON.stringify({ images: processedImages }),
+        },
       );
 
       if (!response.ok) {
-        throw new Error("Failed to upload images");
+        const body = await response.text().catch(() => "");
+        throw new Error(
+          `HTTP ${response.status} ${response.statusText} — ${body.slice(0, 200)}`,
+        );
       }
 
       const result = await response.json();
       if (result.success && result.images) {
-        // Add new photos to state
         const newUrls = sanitizePhotoUrls(
-          result.images.map((img: { url: string }) => img.url)
+          result.images.map((img: { url: string }) => img.url),
         );
-
         setPhotos((prev) => [...prev, ...newUrls]);
       }
     } catch (error) {
       console.error("Upload error:", error);
-      alert("Erreur lors du téléchargement des images");
+      const detail = error instanceof Error ? error.message : String(error);
+      alert(`Erreur lors du téléchargement des images\n\n${detail}`);
     } finally {
       setLoading(false);
-      // Reset input
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -206,9 +209,16 @@ export default function PhotoManager({
               <button
                 onClick={() => setPrimary(i)}
                 className={`p-2 rounded-full transition-colors ${i === primaryIndex ? "bg-yellow-400 text-white" : "bg-white/20 hover:bg-yellow-400 text-white"}`}
-                title={i === primaryIndex ? "Photo principale" : "Définir comme principale"}
+                title={
+                  i === primaryIndex
+                    ? "Photo principale"
+                    : "Définir comme principale"
+                }
               >
-                <StarIcon size={18} weight={i === primaryIndex ? "fill" : "regular"} />
+                <StarIcon
+                  size={18}
+                  weight={i === primaryIndex ? "fill" : "regular"}
+                />
               </button>
               <button
                 onClick={() => removePhoto(i)}
@@ -270,31 +280,3 @@ export default function PhotoManager({
     </div>
   );
 }
-
-const readFile = (
-  file: File
-): Promise<{ data: string; width: number; height: number; ext: string }> => {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      const dataUrl = e.target?.result as string;
-      // data:image/jpeg;base64,...
-      const base64 = dataUrl.split(",")[1];
-      const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-
-      const img = new window.Image();
-      img.onload = () => {
-        resolve({
-          data: base64,
-          width: img.width,
-          height: img.height,
-          ext,
-        });
-      };
-      img.onerror = reject;
-      img.src = dataUrl;
-    };
-    reader.onerror = reject;
-    reader.readAsDataURL(file);
-  });
-};

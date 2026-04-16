@@ -19,6 +19,7 @@ import { InterdictionsSelector } from "./InterdictionsSelector";
 import { PhotoUploader } from "./PhotoUploader";
 import { useExpandableScreen } from "@/components/ui/expandable-screen";
 import { savePendingPhotos } from "@/lib/clientPendingPhotos";
+import { compressImageToBase64 } from "@/lib/clientImageCompression";
 import {
   getMockPropertyData,
   getMockPropertyPhotos,
@@ -72,10 +73,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [addonsList, setAddonsList] = useState<PricingAddon[]>([]);
   const [commissionRate, setCommissionRate] = useState<number | null>(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [commissionConfigError, setCommissionConfigError] = useState<string | null>(null);
+  const [commissionConfigError, setCommissionConfigError] = useState<
+    string | null
+  >(null);
 
   const [onBehalfOfClient, setOnBehalfOfClient] = useState(false);
-  const [selectedOwner, setSelectedOwner] = useState<OwnersAgentsUser | null>(null);
+  const [selectedOwner, setSelectedOwner] = useState<OwnersAgentsUser | null>(
+    null,
+  );
   const [ownerSearch, setOwnerSearch] = useState("");
   const [ownerResults, setOwnerResults] = useState<OwnersAgentsUser[]>([]);
   const [loadingOwnerSearch, setLoadingOwnerSearch] = useState(false);
@@ -157,10 +162,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   };
 
   const rentAmount = parseInt(formData.prixMensuel, 10) || 0;
-  const appliedCommissionRate = paymentChoice === "free" ? 0 : (commissionRate ?? 0);
+  const appliedCommissionRate =
+    paymentChoice === "free" ? 0 : (commissionRate ?? 0);
   const commissionAmount = rentAmount * appliedCommissionRate;
   const selectedTierConfig = selectedTier
-    ? tiersList.find((tier) => tier.id === selectedTier) ?? null
+    ? (tiersList.find((tier) => tier.id === selectedTier) ?? null)
     : null;
   const baseFeeAmount =
     paymentChoice === "free" ? 0 : (selectedTierConfig?.base_fee ?? 0);
@@ -231,7 +237,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       });
   }, []);
 
-  const isStaffOrFounder = ["staff", "founder"].includes(normalizedUserType || "");
+  const isStaffOrFounder = ["staff", "founder"].includes(
+    normalizedUserType || "",
+  );
 
   // Debounced search for owners/agents
   useEffect(() => {
@@ -265,7 +273,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         .catch((err) => {
           console.error("Owner search failed:", err);
           setOwnerResults([]);
-          setOwnerSearchError(err instanceof Error ? err.message : "Erreur lors de la recherche");
+          setOwnerSearchError(
+            err instanceof Error ? err.message : "Erreur lors de la recherche",
+          );
         })
         .finally(() => setLoadingOwnerSearch(false));
     }, 300);
@@ -275,7 +285,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   // Close dropdown on outside click
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
-      if (ownerComboboxRef.current && !ownerComboboxRef.current.contains(e.target as Node)) {
+      if (
+        ownerComboboxRef.current &&
+        !ownerComboboxRef.current.contains(e.target as Node)
+      ) {
         setShowOwnerDropdown(false);
       }
     };
@@ -305,29 +318,22 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       cautionMois: Number(formData.cautionMois),
       photos: photos,
       on_behalf_of_client: onBehalfOfClient,
-      owner_id: onBehalfOfClient ? selectedOwnerId ?? undefined : undefined,
+      owner_id: onBehalfOfClient ? (selectedOwnerId ?? undefined) : undefined,
     });
 
     if (!result.success) {
       const newErrors: Record<string, string> = {};
-      result.error.issues.forEach((issue: { path: PropertyKey[]; message: string }) => {
-        newErrors[issue.path[0] as string] = issue.message;
-      });
+      result.error.issues.forEach(
+        (issue: { path: PropertyKey[]; message: string }) => {
+          newErrors[issue.path[0] as string] = issue.message;
+        },
+      );
       setErrors(newErrors);
       return false;
     }
 
     setErrors({});
     return true;
-  };
-
-  const fileToBase64 = (file: File): Promise<string> => {
-    return new Promise((resolve, reject) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(file);
-      reader.onload = () => resolve((reader.result as string).split(",")[1]);
-      reader.onerror = (error) => reject(error);
-    });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -351,7 +357,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
       if (paymentChoice === "pay") {
         if (commissionRate === null) {
-          throw new Error("Commission non configuree. Verifiez les parametres admin.");
+          throw new Error(
+            "Commission non configuree. Verifiez les parametres admin.",
+          );
         }
 
         const tier = tiersList.find((item) => item.id === selectedTier);
@@ -394,8 +402,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           throw new Error(paymentData.error || "Payment init failed");
         }
 
-        if (typeof paymentData?.depositId === "string" && paymentData.depositId.length > 0) {
-          sessionStorage.setItem("pendingPaymentDepositId", paymentData.depositId);
+        if (
+          typeof paymentData?.depositId === "string" &&
+          paymentData.depositId.length > 0
+        ) {
+          sessionStorage.setItem(
+            "pendingPaymentDepositId",
+            paymentData.depositId,
+          );
 
           let pendingPhotosStoredInDb = false;
           let pendingPhotosOverflow = false;
@@ -405,8 +419,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             try {
               const pendingPhotos = await Promise.all(
                 photos.map(async (file) => {
-                  const data = await fileToBase64(file);
-                  const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
+                  const { data, ext } = await compressImageToBase64(file);
                   return { data, ext };
                 }),
               );
@@ -433,7 +446,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               selectedOwnerId,
             }),
           );
-
         }
 
         if (paymentData.redirectUrl) {
@@ -463,7 +475,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             add_ons: selectedAddOns,
             payment_id: depositId || undefined,
             on_behalf_of_client: onBehalfOfClient,
-            owner_id: onBehalfOfClient ? selectedOwnerId ?? undefined : undefined,
+            owner_id: onBehalfOfClient
+              ? (selectedOwnerId ?? undefined)
+              : undefined,
           },
         }),
       });
@@ -477,9 +491,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       if (photos.length > 0) {
         const base64Images = await Promise.all(
           photos.map(async (file) => {
-            const base64 = await fileToBase64(file);
-            const ext = file.name.split(".").pop()?.toLowerCase() || "jpg";
-            return { data: base64, ext };
+            const { data, ext } = await compressImageToBase64(file);
+            return { data, ext };
           }),
         );
 
@@ -816,22 +829,28 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   }}
                   className="w-5 h-5 rounded border-neutral-300 text-primary"
                 />
-                <span className="font-bold text-neutral-900">Annonce pour le compte d&apos;un client</span>
+                <span className="font-bold text-neutral-900">
+                  Annonce pour le compte d&apos;un client
+                </span>
               </label>
               {onBehalfOfClient && (
                 <div className="space-y-2">
                   <label className="text-sm font-bold text-neutral-700 ml-1">
-                    Propriétaire ou agent <span className="text-red-500">*</span>
+                    Propriétaire ou agent{" "}
+                    <span className="text-red-500">*</span>
                   </label>
                   <div ref={ownerComboboxRef} className="relative">
                     {selectedOwner ? (
-                      <div className={`flex items-center justify-between w-full px-6 py-4 bg-neutral-50 rounded-2xl border ${errors.owner_id ? "border-red-500" : "border-neutral-100"}`}>
+                      <div
+                        className={`flex items-center justify-between w-full px-6 py-4 bg-neutral-50 rounded-2xl border ${errors.owner_id ? "border-red-500" : "border-neutral-100"}`}
+                      >
                         <div className="flex flex-col">
                           <span className="font-semibold text-neutral-900 text-sm">
                             {selectedOwner.full_name || selectedOwner.email}
                           </span>
                           <span className="text-xs text-neutral-500">
-                            {selectedOwner.email} &middot; {selectedOwner.user_type}
+                            {selectedOwner.email} &middot;{" "}
+                            {selectedOwner.user_type}
                           </span>
                         </div>
                         <button
@@ -848,54 +867,74 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                         </button>
                       </div>
                     ) : (
-                      <div className={`flex items-center gap-3 w-full px-6 py-4 bg-neutral-50 rounded-2xl border ${errors.owner_id ? "border-red-500" : "border-neutral-100"}`}>
-                        {loadingOwnerSearch
-                          ? <Loader2 className="animate-spin text-neutral-400 shrink-0" size={18} />
-                          : <MagnifyingGlassIcon size={18} className="text-neutral-400 shrink-0" />
-                        }
+                      <div
+                        className={`flex items-center gap-3 w-full px-6 py-4 bg-neutral-50 rounded-2xl border ${errors.owner_id ? "border-red-500" : "border-neutral-100"}`}
+                      >
+                        {loadingOwnerSearch ? (
+                          <Loader2
+                            className="animate-spin text-neutral-400 shrink-0"
+                            size={18}
+                          />
+                        ) : (
+                          <MagnifyingGlassIcon
+                            size={18}
+                            className="text-neutral-400 shrink-0"
+                          />
+                        )}
                         <input
                           type="text"
                           value={ownerSearch}
                           onChange={(e) => setOwnerSearch(e.target.value)}
-                          onFocus={() => ownerResults.length > 0 && setShowOwnerDropdown(true)}
+                          onFocus={() =>
+                            ownerResults.length > 0 &&
+                            setShowOwnerDropdown(true)
+                          }
                           placeholder="Rechercher par nom ou email..."
                           className="flex-1 bg-transparent outline-none text-sm text-neutral-900 placeholder:text-neutral-400"
                         />
                       </div>
                     )}
-                    {showOwnerDropdown && ownerResults.length > 0 && !selectedOwner && (
-                      <ul className="absolute z-50 mt-1 w-full bg-white border border-neutral-100 rounded-2xl shadow-lg overflow-auto max-h-60">
-                        {ownerResults.map((u) => (
-                          <li
-                            key={u.id}
-                            onMouseDown={(e) => {
-                              e.preventDefault();
-                              setSelectedOwner(u);
-                              setOwnerSearch("");
-                              setOwnerResults([]);
-                              setShowOwnerDropdown(false);
-                            }}
-                            className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-neutral-50 transition-colors"
-                          >
-                            <div className="flex flex-col">
-                              <span className="text-sm font-semibold text-neutral-900">
-                                {u.full_name || u.email}
+                    {showOwnerDropdown &&
+                      ownerResults.length > 0 &&
+                      !selectedOwner && (
+                        <ul className="absolute z-50 mt-1 w-full bg-white border border-neutral-100 rounded-2xl shadow-lg overflow-auto max-h-60">
+                          {ownerResults.map((u) => (
+                            <li
+                              key={u.id}
+                              onMouseDown={(e) => {
+                                e.preventDefault();
+                                setSelectedOwner(u);
+                                setOwnerSearch("");
+                                setOwnerResults([]);
+                                setShowOwnerDropdown(false);
+                              }}
+                              className="flex items-center justify-between px-5 py-3 cursor-pointer hover:bg-neutral-50 transition-colors"
+                            >
+                              <div className="flex flex-col">
+                                <span className="text-sm font-semibold text-neutral-900">
+                                  {u.full_name || u.email}
+                                </span>
+                                <span className="text-xs text-neutral-400">
+                                  {u.email}
+                                </span>
+                              </div>
+                              <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 capitalize ml-3 shrink-0">
+                                {u.user_type}
                               </span>
-                              <span className="text-xs text-neutral-400">{u.email}</span>
-                            </div>
-                            <span className="text-xs px-2 py-0.5 rounded-full bg-neutral-100 text-neutral-600 capitalize ml-3 shrink-0">
-                              {u.user_type}
-                            </span>
-                          </li>
-                        ))}
-                      </ul>
-                    )}
+                            </li>
+                          ))}
+                        </ul>
+                      )}
                     {ownerSearchError && (
-                      <p className="text-xs text-red-600 mt-1 ml-1">{ownerSearchError}</p>
+                      <p className="text-xs text-red-600 mt-1 ml-1">
+                        {ownerSearchError}
+                      </p>
                     )}
                   </div>
                   {errors.owner_id && (
-                    <p className="text-xs text-red-600 ml-1">{errors.owner_id}</p>
+                    <p className="text-xs text-red-600 ml-1">
+                      {errors.owner_id}
+                    </p>
                   )}
                 </div>
               )}
@@ -910,23 +949,23 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 className={`border-2 rounded-2xl p-5 cursor-pointer transition-all ${selectedTier === tier.id ? "border-primary bg-primary/5" : "border-neutral-100"}`}
               >
                 <h4 className="font-bold text-lg capitalize mb-2">{tier.id}</h4>
-                  <div className="text-2xl font-bold mb-1">
-                    {paymentChoice === "free"
-                      ? "0 F"
-                      : commissionRate === null
-                        ? "Config requise"
-                        : `${(tier.base_fee + commissionAmount).toLocaleString()} F`}
+                <div className="text-2xl font-bold mb-1">
+                  {paymentChoice === "free"
+                    ? "0 F"
+                    : commissionRate === null
+                      ? "Config requise"
+                      : `${(tier.base_fee + commissionAmount).toLocaleString()} F`}
+                </div>
+                {paymentChoice === "pay" && (
+                  <div className="text-xs text-neutral-500 mb-3">
+                    Prix pack (frais service inclus)
                   </div>
-                  {paymentChoice === "pay" && (
-                    <div className="text-xs text-neutral-500 mb-3">
-                      Prix pack (frais service inclus)
-                    </div>
-                  )}
-                  <ul className="space-y-2 text-sm text-neutral-600">
-                    <li>• {tier.photo_limit} photos</li>
-                    <li>• {tier.slot_limit} candidats</li>
-                    {tier.video_included && <li>• Vidéo incluse</li>}
-                  </ul>
+                )}
+                <ul className="space-y-2 text-sm text-neutral-600">
+                  <li>• {tier.photo_limit} photos</li>
+                  <li>• {tier.slot_limit} candidats</li>
+                  {tier.video_included && <li>• Vidéo incluse</li>}
+                </ul>
               </div>
             ))}
           </div>
