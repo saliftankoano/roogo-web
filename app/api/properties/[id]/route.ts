@@ -1,12 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
 import { auth, currentUser } from "@clerk/nextjs/server";
+import {
+  processPropertyStorageCleanupQueue,
+  purgePropertyListingAssets,
+} from "@/lib/property-storage";
+import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createUserInSupabase, ClerkUserData } from "../../../../lib/user-sync";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!,
-);
 
 interface PropertyPatchUpdates {
   description?: string;
@@ -116,35 +115,13 @@ export async function DELETE(
       }
     }
 
-    // --- Delete Storage files first ---
-    // All images are stored under "listing/{propertyId}/" in Supabase Storage.
-    // List every file in that folder and remove them before deleting the DB row.
-    try {
-      const { data: storageFiles, error: listError } =
-        await supabaseAdmin.storage.from("listing").list(propertyId);
+    const preDeleteCleanup = await purgePropertyListingAssets(propertyId);
 
-      if (listError) {
-        console.warn(
-          "Could not list storage files for property:",
-          listError.message,
-        );
-      } else if (storageFiles && storageFiles.length > 0) {
-        const paths = storageFiles.map((f) => `${propertyId}/${f.name}`);
-        const { error: removeError } = await supabaseAdmin.storage
-          .from("listing")
-          .remove(paths);
-
-        if (removeError) {
-          console.warn("Storage cleanup partial failure:", removeError.message);
-          // Non-fatal — proceed with DB delete even if some files couldn't be removed
-        } else {
-          console.log(
-            `Deleted ${paths.length} storage file(s) for property ${propertyId}`,
-          );
-        }
-      }
-    } catch (storageErr) {
-      console.warn("Storage cleanup error (non-fatal):", storageErr);
+    if (preDeleteCleanup.errors.length > 0) {
+      console.warn(
+        "Property storage cleanup before delete had errors:",
+        preDeleteCleanup.errors,
+      );
     }
 
     // --- Delete DB row (cascades to all related tables via migration 010) ---
@@ -166,7 +143,26 @@ export async function DELETE(
       );
     }
 
-    return NextResponse.json({ success: true });
+    const queuedCleanup = await processPropertyStorageCleanupQueue({
+      propertyId,
+      limit: 10,
+    });
+
+    if (queuedCleanup.failedCount > 0) {
+      console.warn("Queued property storage cleanup still pending:", {
+        propertyId,
+        failedCount: queuedCleanup.failedCount,
+      });
+    }
+
+    return NextResponse.json({
+      success: true,
+      storageCleanup: {
+        deletedPathCount:
+          preDeleteCleanup.deletedPathCount + queuedCleanup.deletedPathCount,
+        pendingFailures: queuedCleanup.failedCount,
+      },
+    });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(

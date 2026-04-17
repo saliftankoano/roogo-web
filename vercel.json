@@ -3,6 +3,10 @@
     {
       "path": "/api/cron/aggregate-views",
       "schedule": "0 3 * * *"
+    },
+    {
+      "path": "/api/cron/property-storage-cleanup",
+      "schedule": "0 * * * *"
     }
   ]
 }
