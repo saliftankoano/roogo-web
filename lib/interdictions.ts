@@ -10,10 +10,7 @@ const INTERDICTION_LABEL_MAP: Record<string, string> = {
   no_colocation: "Pas de colocation",
 };
 
-/**
- * Convert interdiction ID to label
- */
-export function getIdToLabel(id: string): string {
+function getIdToLabel(id: string): string {
   return INTERDICTION_LABEL_MAP[id] || id;
 }
 
