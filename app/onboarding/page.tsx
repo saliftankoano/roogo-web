@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
+import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
@@ -17,26 +17,52 @@ import { AgentReadyStep } from "@/components/onboarding/steps/agent/5-AgentReady
 
 type RoogoUserType = "renter" | "owner" | "agent" | "staff" | "founder" | "regular";
 
+function hasCompletedOnboarding(metadata: Record<string, unknown>) {
+  return (
+    metadata.hasCompletedWebOnboarding === true ||
+    metadata.hasCompletedMobileOnboarding === true ||
+    metadata.hasCompletedOnboarding === true
+  );
+}
+
+function getRedirectPath(userType?: RoogoUserType) {
+  return userType === "renter" ? "/proprietes" : "/mes-proprietes";
+}
+
+function getTotalSteps(userType?: RoogoUserType) {
+  if (userType === "agent") return 5;
+  if (userType === "renter") return 5;
+  if (userType === "owner") return 4;
+  return 2;
+}
+
+function clampStep(step: unknown, userType?: RoogoUserType) {
+  const parsedStep =
+    typeof step === "number"
+      ? step
+      : typeof step === "string"
+        ? Number(step)
+        : 1;
+
+  if (!Number.isFinite(parsedStep)) {
+    return 1;
+  }
+
+  return Math.min(Math.max(Math.trunc(parsedStep), 1), getTotalSteps(userType));
+}
+
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
   const { getToken } = useAuth();
   const router = useRouter();
 
-  const userType = (user?.publicMetadata?.userType ||
-    user?.publicMetadata?.user_type) as RoogoUserType | undefined;
-  const userId = user?.id;
-
-  const stepKey = useMemo(
-    () => (userId ? `roogo_onboarding_step_${userId}` : null),
-    [userId],
-  );
-  const completedKey = useMemo(
-    () => (userId ? `roogo_onboarding_completed_${userId}` : null),
-    [userId],
-  );
+  const publicMetadata =
+    (user?.publicMetadata as Record<string, unknown> | undefined) ?? {};
+  const userType = (publicMetadata.userType ||
+    publicMetadata.user_type) as RoogoUserType | undefined;
+  const isCompleted = hasCompletedOnboarding(publicMetadata);
 
   const [step, setStep] = useState<number>(1);
-  const [isInitialized, setIsInitialized] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedUserType, setSelectedUserType] = useState<RoogoUserType | undefined>(
     userType,
@@ -48,41 +74,8 @@ export default function OnboardingPage() {
     }
   }, [userType]);
 
-  // Initialize step from localStorage
-  useEffect(() => {
-    if (typeof window !== "undefined" && stepKey && !isInitialized) {
-      const saved = localStorage.getItem(stepKey);
-      if (saved) {
-        setStep(Number(saved));
-      }
-      setIsInitialized(true);
-    }
-  }, [stepKey, isInitialized]);
-
-  // Persist step to localStorage
-  useEffect(() => {
-    if (typeof window !== "undefined" && stepKey && isInitialized) {
-      localStorage.setItem(stepKey, String(step));
-    }
-  }, [step, stepKey, isInitialized]);
-
   const effectiveUserType = selectedUserType ?? userType;
-
-  // Redirect if already completed
-  useEffect(() => {
-    if (typeof window !== "undefined" && completedKey && effectiveUserType) {
-      const completed = localStorage.getItem(completedKey);
-      if (completed === "true") {
-        router.replace(
-          effectiveUserType === "renter" ? "/proprietes" : "/mes-proprietes",
-        );
-      }
-    }
-  }, [completedKey, router, effectiveUserType]);
-
-  const handleNext = () => {
-    setStep((s) => s + 1);
-  };
+  const totalSteps = getTotalSteps(effectiveUserType);
 
   const updateMetadata = async (payload: Record<string, unknown>) => {
     const token = await getToken();
@@ -107,14 +100,51 @@ export default function OnboardingPage() {
     return response;
   };
 
+  useEffect(() => {
+    if (!isLoaded) return;
+
+    if (isCompleted) {
+      router.replace(getRedirectPath(effectiveUserType));
+      return;
+    }
+
+    setStep(clampStep(publicMetadata.webOnboardingStep, effectiveUserType));
+  }, [
+    effectiveUserType,
+    isCompleted,
+    isLoaded,
+    publicMetadata.webOnboardingStep,
+    router,
+  ]);
+
+  useEffect(() => {
+    setStep((currentStep) => clampStep(currentStep, effectiveUserType));
+  }, [effectiveUserType]);
+
+  const handleWelcomeNext = async () => {
+    if (!user) return;
+
+    setIsSubmitting(true);
+    try {
+      await updateMetadata({ webOnboardingStep: 2 });
+      setStep(2);
+      await user.reload();
+    } catch (error) {
+      console.error("Error updating onboarding step:", error);
+      alert("Impossible d'enregistrer votre progression. Reessayez.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleUserTypeSelect = async (type: string) => {
     if (!user) return;
 
     setIsSubmitting(true);
     try {
-      await updateMetadata({ userType: type });
+      await updateMetadata({ userType: type, webOnboardingStep: 3 });
       setSelectedUserType(type as RoogoUserType);
-      handleNext();
+      setStep(3);
       await user.reload();
     } catch (error) {
       console.error("Error updating user type:", error);
@@ -128,8 +158,8 @@ export default function OnboardingPage() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await updateMetadata({ webOnboardingData: prefs });
-      handleNext();
+      await updateMetadata({ webOnboardingData: prefs, webOnboardingStep: 4 });
+      setStep(4);
       await user.reload();
     } catch (error) {
       console.error("Error updating renter preferences:", error);
@@ -143,8 +173,14 @@ export default function OnboardingPage() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await updateMetadata({ webOnboardingData: { phone: info.phone, notifications: info.notifications } });
-      handleNext();
+      await updateMetadata({
+        webOnboardingData: {
+          phone: info.phone,
+          notifications: info.notifications,
+        },
+        webOnboardingStep: 5,
+      });
+      setStep(5);
       await user.reload();
     } catch (error) {
       console.error("Error updating renter contact:", error);
@@ -158,8 +194,8 @@ export default function OnboardingPage() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await updateMetadata({ webOnboardingData: details });
-      handleNext();
+      await updateMetadata({ webOnboardingData: details, webOnboardingStep: 4 });
+      setStep(4);
       await user.reload();
     } catch (error) {
       console.error("Error updating owner details:", error);
@@ -177,8 +213,9 @@ export default function OnboardingPage() {
         ...(typeof info.companyName === "string" && { companyName: info.companyName }),
         ...(typeof info.facebookUrl === "string" && info.facebookUrl && { facebookUrl: info.facebookUrl }),
         webOnboardingData: info,
+        webOnboardingStep: 4,
       });
-      handleNext();
+      setStep(4);
       await user.reload();
     } catch (error) {
       console.error("Error updating agent info:", error);
@@ -192,8 +229,8 @@ export default function OnboardingPage() {
     if (!user) return;
     setIsSubmitting(true);
     try {
-      await updateMetadata({ webOnboardingData: details });
-      handleNext();
+      await updateMetadata({ webOnboardingData: details, webOnboardingStep: 5 });
+      setStep(5);
       await user.reload();
     } catch (error) {
       console.error("Error updating agent details:", error);
@@ -204,17 +241,19 @@ export default function OnboardingPage() {
   };
 
   const handleFinish = async () => {
-    if (!completedKey || !stepKey || !effectiveUserType) return;
+    if (!effectiveUserType) return;
 
     setIsSubmitting(true);
     try {
-      await updateMetadata({ hasCompletedWebOnboarding: true, signupPlatform: "web" });
+      await updateMetadata({
+        hasCompletedWebOnboarding: true,
+        signupPlatform: "web",
+        webOnboardingStep: null,
+      });
       // Reload the Clerk session so the updated JWT is used on the next request,
       // ensuring the middleware gate sees hasCompletedWebOnboarding = true.
       await user?.reload();
-      localStorage.setItem(completedKey, "true");
-      localStorage.removeItem(stepKey);
-      router.push(effectiveUserType === "renter" ? "/proprietes" : "/mes-proprietes");
+      router.push(getRedirectPath(effectiveUserType));
     } catch (error) {
       console.error("Error flagging web onboarding completion:", error);
       alert("Impossible d'enregistrer votre profil. Veuillez réessayer.");
@@ -223,7 +262,7 @@ export default function OnboardingPage() {
     }
   };
 
-  if (!isLoaded || !isInitialized) {
+  if (!isLoaded || isCompleted) {
     return (
       <div className="fixed inset-0 bg-[#2B241D] flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
@@ -231,11 +270,9 @@ export default function OnboardingPage() {
     );
   }
 
-  const totalSteps = effectiveUserType === "agent" ? 5 : effectiveUserType === "renter" ? 5 : 4;
-
   return (
     <OnboardingShell currentStep={step} totalSteps={totalSteps}>
-      {step === 1 && <WelcomeStep onNext={handleNext} />}
+      {step === 1 && <WelcomeStep onNext={handleWelcomeNext} />}
 
       {step === 2 && (
         <UserTypeStep onNext={handleUserTypeSelect} initialType={userType} />

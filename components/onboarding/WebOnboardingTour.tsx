@@ -10,6 +10,7 @@ import {
   publicOnboardingSteps,
 } from "../../lib/onboardingSteps";
 import { useUser } from "@clerk/nextjs";
+import { usePathname } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "../ui/Button";
 
@@ -72,7 +73,9 @@ export function WebOnboardingTour() {
   const [showCompletionModal, setShowCompletionModal] = useState(false);
   const { user } = useUser();
   const { run, completeTour } = useOnboardingTour();
+  const pathname = usePathname();
   const driverRef = useRef<Driver | null>(null);
+  const isProfileOnboardingRoute = pathname?.startsWith("/onboarding") ?? false;
 
   useEffect(() => {
     setMounted(true);
@@ -165,7 +168,7 @@ export function WebOnboardingTour() {
   }, [mounted, showCompletionModal]);
 
   useEffect(() => {
-    if (!mounted || !run || showCompletionModal) {
+    if (!mounted || !run || showCompletionModal || isProfileOnboardingRoute) {
       return;
     }
 
@@ -185,14 +188,21 @@ export function WebOnboardingTour() {
 
     driverObj.setSteps(steps);
     driverObj.drive();
-  }, [completeTour, mounted, run, showCompletionModal, steps]);
+  }, [
+    completeTour,
+    isProfileOnboardingRoute,
+    mounted,
+    run,
+    showCompletionModal,
+    steps,
+  ]);
 
   const handleModalComplete = () => {
     setShowCompletionModal(false);
     void completeTour();
   };
 
-  if (!mounted) {
+  if (!mounted || isProfileOnboardingRoute) {
     return null;
   }
 

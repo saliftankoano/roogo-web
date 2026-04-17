@@ -80,6 +80,8 @@ export async function POST(req: Request) {
       hasCompletedMobileOnboarding,
       hasCompletedOnboarding, // legacy alias for hasCompletedMobileOnboarding
       hasCompletedWebOnboarding,
+      hasCompletedWebTour,
+      webOnboardingStep,
       mobileOnboardingData,
       webOnboardingData,
       onboardingData, // legacy alias for mobileOnboardingData
@@ -110,6 +112,18 @@ export async function POST(req: Request) {
       );
     }
 
+    if (
+      webOnboardingStep !== undefined &&
+      webOnboardingStep !== null &&
+      (!Number.isInteger(webOnboardingStep) ||
+        (webOnboardingStep as number) < 1 ||
+        (webOnboardingStep as number) > 5)
+    ) {
+      return addCorsHeaders(
+        NextResponse.json({ error: "Invalid webOnboardingStep" }, { status: 400 }),
+      );
+    }
+
     // Build update payload — spread existing metadata so we never wipe fields like userType
     const publicMetadata: Record<string, unknown> = { ...currentPublicMetadata };
     const privateMetadata: Record<string, unknown> = { ...currentPrivateMetadata };
@@ -122,6 +136,13 @@ export async function POST(req: Request) {
       publicMetadata.hasCompletedMobileOnboarding = resolvedMobileCompleted;
     if (hasCompletedWebOnboarding !== undefined)
       publicMetadata.hasCompletedWebOnboarding = hasCompletedWebOnboarding;
+    if (hasCompletedWebTour !== undefined)
+      publicMetadata.hasCompletedWebTour = hasCompletedWebTour;
+    if (webOnboardingStep === null) {
+      delete publicMetadata.webOnboardingStep;
+    } else if (webOnboardingStep !== undefined) {
+      publicMetadata.webOnboardingStep = webOnboardingStep;
+    }
 
     // signupPlatform is write-once — preserve original if already set
     if (signupPlatform && !currentPublicMetadata.signupPlatform) {

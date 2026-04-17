@@ -8,10 +8,9 @@ export function useOnboardingTour() {
 
   useEffect(() => {
     if (isLoaded && user) {
-      const hasCompletedMetadata = !!user.publicMetadata?.hasCompletedWebOnboarding;
-      const hasCompletedLocal = localStorage.getItem("roogo_web_onboarding_completed");
+      const hasCompletedMetadata = !!user.publicMetadata?.hasCompletedWebTour;
 
-      if (!hasCompletedMetadata && !hasCompletedLocal) {
+      if (!hasCompletedMetadata) {
         setRun(true);
       }
     }
@@ -20,8 +19,6 @@ export function useOnboardingTour() {
   const completeTour = useCallback(async () => {
     if (!user) return;
 
-    // Immediately update local state and storage to prevent rerun
-    localStorage.setItem("roogo_web_onboarding_completed", "true");
     setRun(false);
 
     try {
@@ -36,7 +33,7 @@ export function useOnboardingTour() {
           "Content-Type": "application/json",
           Authorization: `Bearer ${token}`,
         },
-        body: JSON.stringify({ hasCompletedWebOnboarding: true }),
+        body: JSON.stringify({ hasCompletedWebTour: true }),
       });
     } catch (error) {
       console.error("Error completing web tour:", error);

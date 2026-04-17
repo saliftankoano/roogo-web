@@ -1,6 +1,92 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 
+type OnboardingGateState = {
+  hasCompletedOnboarding: boolean;
+  userType: string;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function getOnboardingGateState(
+  metadata: Record<string, unknown>,
+): OnboardingGateState {
+  const hasCompletedWeb = metadata.hasCompletedWebOnboarding === true;
+  const hasCompletedMobile =
+    metadata.hasCompletedMobileOnboarding === true ||
+    metadata.hasCompletedOnboarding === true;
+  const userType =
+    typeof metadata.userType === "string" ? metadata.userType : "";
+
+  return {
+    hasCompletedOnboarding: hasCompletedWeb || hasCompletedMobile,
+    userType,
+  };
+}
+
+function getSessionMetadata(
+  sessionClaims: Record<string, unknown> | null | undefined,
+) {
+  const metadata = isRecord(sessionClaims?.metadata)
+    ? sessionClaims.metadata
+    : {};
+  const publicMetadata = isRecord(sessionClaims?.publicMetadata)
+    ? sessionClaims.publicMetadata
+    : {};
+
+  // Support both configured custom claims (`metadata`) and direct/root claims.
+  return {
+    ...(sessionClaims ?? {}),
+    ...publicMetadata,
+    ...metadata,
+  };
+}
+
+async function getUserMetadataGateState(
+  userId: string,
+): Promise<OnboardingGateState | null> {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+
+  if (!secretKey) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(
+      `https://api.clerk.com/v1/users/${encodeURIComponent(userId)}`,
+      {
+        headers: {
+          Authorization: `Bearer ${secretKey}`,
+          "Content-Type": "application/json",
+        },
+        cache: "no-store",
+      },
+    );
+
+    if (!response.ok) {
+      console.error(
+        "Onboarding gate: failed to fetch Clerk user metadata",
+        response.status,
+      );
+      return null;
+    }
+
+    const data = (await response.json()) as Record<string, unknown>;
+    const publicMetadata = isRecord(data.public_metadata)
+      ? data.public_metadata
+      : isRecord(data.publicMetadata)
+        ? data.publicMetadata
+        : {};
+
+    return getOnboardingGateState(publicMetadata);
+  } catch (error) {
+    console.error("Onboarding gate: Clerk metadata fallback failed", error);
+    return null;
+  }
+}
+
 const isPublicRoute = createRouteMatcher([
   "/",
   "/connexion(.*)",
@@ -23,10 +109,15 @@ const isPublicRoute = createRouteMatcher([
   "/api/pawapay/callback",
   "/api/clerk/webhook",
   "/api/clerk/users/me/metadata", // Mobile app uses JWT auth, not session
+  "/api/favorites", // Mobile app authenticates this route with Bearer JWT
+  "/api/applications/me", // Mobile app authenticates this route with Bearer JWT
   "/api/cron/(.*)",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates
   "/api/properties/(.*)/availability",
+  // Shared property links — must be accessible without sign-in
+  "/p/(.*)",
+  "/proprietes/(.*)",
 ]);
 
 // Routes that bypass the onboarding gate:
@@ -45,21 +136,22 @@ export default clerkMiddleware(async (auth, req) => {
     await auth.protect();
 
     if (!isOnboardingGateExempt(req)) {
-      const { sessionClaims } = await auth();
-      const meta =
-        (sessionClaims?.metadata as Record<string, unknown> | undefined) ?? {};
-
-      const hasCompletedWeb = meta.hasCompletedWebOnboarding === true;
-      const hasCompletedMobile =
-        meta.hasCompletedMobileOnboarding === true ||
-        // legacy alias
-        (meta as Record<string, unknown>).hasCompletedOnboarding === true;
-      const userType = typeof meta.userType === "string" ? meta.userType : "";
+      const { sessionClaims, userId } = await auth();
+      const sessionGateState = getOnboardingGateState(
+        getSessionMetadata(sessionClaims as Record<string, unknown> | null),
+      );
+      const serverGateState =
+        !sessionGateState.hasCompletedOnboarding &&
+        !["staff", "founder"].includes(sessionGateState.userType) &&
+        userId
+          ? await getUserMetadataGateState(userId)
+          : null;
+      const gateState = serverGateState ?? sessionGateState;
 
       // Staff and founders are never blocked by the onboarding gate
-      const isBypassRole = ["staff", "founder"].includes(userType);
+      const isBypassRole = ["staff", "founder"].includes(gateState.userType);
 
-      if (!hasCompletedWeb && !hasCompletedMobile && !isBypassRole) {
+      if (!gateState.hasCompletedOnboarding && !isBypassRole) {
         return NextResponse.redirect(new URL("/onboarding", req.url));
       }
     }
