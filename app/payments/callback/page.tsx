@@ -211,10 +211,15 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           pendingPhotosStoredInDb?: boolean;
           onBehalfOfClient?: boolean;
           selectedOwnerId?: string | null;
+          isTestListing?: boolean;
         };
 
         const onBehalfOfClient = !!pending.onBehalfOfClient;
         const selectedOwnerId = pending.selectedOwnerId ?? null;
+        const frequence =
+          pending.formData.frequence === "journalier"
+            ? "journalier"
+            : "mensuel";
 
         const response = await fetch("/api/properties", {
           method: "POST",
@@ -231,6 +236,33 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
               superficie: Number(pending.formData.superficie),
               vehicules: Number(pending.formData.vehicules),
               cautionMois: Number(pending.formData.cautionMois),
+              loyerAvanceMois: Number(pending.formData.loyerAvanceMois ?? 1),
+              frequence,
+              cautionType:
+                frequence === "journalier"
+                  ? (pending.formData.cautionType ?? "aucune")
+                  : undefined,
+              cautionValeur:
+                frequence === "journalier" &&
+                pending.formData.cautionValeur !== undefined &&
+                pending.formData.cautionValeur !== ""
+                  ? Number(pending.formData.cautionValeur)
+                  : undefined,
+              sejour_minimum:
+                frequence === "journalier"
+                  ? Number(pending.formData.sejour_minimum ?? 1)
+                  : undefined,
+              capacite_max:
+                frequence === "journalier"
+                  ? Number(pending.formData.capacite_max ?? 2)
+                  : undefined,
+              dosAndDonts: Array.isArray(pending.formData.dosAndDonts)
+                ? pending.formData.dosAndDonts
+                    .filter((rule): rule is string => typeof rule === "string")
+                    .map((rule) => rule.trim())
+                    .filter(Boolean)
+                    .slice(0, 20)
+                : [],
               tier_id: pending.selectedTier,
               add_ons: pending.selectedAddOns,
               payment_id: depositId,
@@ -239,6 +271,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
                 onBehalfOfClient && selectedOwnerId
                   ? selectedOwnerId
                   : undefined,
+              is_test: pending.isTestListing === true,
             },
           }),
         });

@@ -94,7 +94,14 @@ export default function AdminListingsPage() {
           pendingPhotosOverflow?: boolean;
           pendingPhotosCount?: number;
           pendingPhotosStoredInDb?: boolean;
+          onBehalfOfClient?: boolean;
+          selectedOwnerId?: string | null;
+          isTestListing?: boolean;
         };
+        const frequence =
+          pending.formData.frequence === "journalier"
+            ? "journalier"
+            : "mensuel";
 
         const response = await fetch("/api/properties", {
           method: "POST",
@@ -111,9 +118,42 @@ export default function AdminListingsPage() {
               superficie: Number(pending.formData.superficie),
               vehicules: Number(pending.formData.vehicules),
               cautionMois: Number(pending.formData.cautionMois),
+              loyerAvanceMois: Number(pending.formData.loyerAvanceMois ?? 1),
+              frequence,
+              cautionType:
+                frequence === "journalier"
+                  ? (pending.formData.cautionType ?? "aucune")
+                  : undefined,
+              cautionValeur:
+                frequence === "journalier" &&
+                pending.formData.cautionValeur !== undefined &&
+                pending.formData.cautionValeur !== ""
+                  ? Number(pending.formData.cautionValeur)
+                  : undefined,
+              sejour_minimum:
+                frequence === "journalier"
+                  ? Number(pending.formData.sejour_minimum ?? 1)
+                  : undefined,
+              capacite_max:
+                frequence === "journalier"
+                  ? Number(pending.formData.capacite_max ?? 2)
+                  : undefined,
+              dosAndDonts: Array.isArray(pending.formData.dosAndDonts)
+                ? pending.formData.dosAndDonts
+                    .filter((rule): rule is string => typeof rule === "string")
+                    .map((rule) => rule.trim())
+                    .filter(Boolean)
+                    .slice(0, 20)
+                : [],
               tier_id: pending.selectedTier,
               add_ons: pending.selectedAddOns,
               payment_id: depositId,
+              on_behalf_of_client: !!pending.onBehalfOfClient,
+              owner_id:
+                pending.onBehalfOfClient && pending.selectedOwnerId
+                  ? pending.selectedOwnerId
+                  : undefined,
+              is_test: pending.isTestListing === true,
             },
           }),
         });
