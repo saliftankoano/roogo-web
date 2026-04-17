@@ -18,7 +18,7 @@ export async function OPTIONS(req: Request) {
  */
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: applicationId } = await params;
@@ -29,7 +29,9 @@ export async function POST(
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -41,7 +43,9 @@ export async function POST(
     // Fetch application + verify ownership
     const { data: application, error: fetchError } = await supabaseAdmin
       .from("applications")
-      .select("id, property_id, user_id, status, properties(agent_id, quartier, address)")
+      .select(
+        "id, property_id, user_id, status, properties(agent_id, quartier, address)",
+      )
       .eq("id", applicationId)
       .single();
 
@@ -49,7 +53,11 @@ export async function POST(
       return errorResponse("Application not found", 404, req);
     }
 
-    const property = application.properties as unknown as { agent_id: string; quartier?: string; address?: string } | null;
+    const property = application.properties as unknown as {
+      agent_id: string;
+      quartier?: string;
+      address?: string;
+    } | null;
     if (!property || property.agent_id !== user.id) {
       return errorResponse("Forbidden", 403, req);
     }
@@ -98,7 +106,10 @@ export async function POST(
           "viewingRequests",
           "Demande de visite refusée",
           `Un autre locataire a été sélectionné pour le bien au ${property.quartier || property.address || "votre bien"}.`,
-          { type: "application_rejected", applicationId: (app as { id: string }).id }
+          {
+            type: "application_rejected",
+            applicationId: (app as { id: string }).id,
+          },
         );
       }
     }
@@ -115,12 +126,12 @@ export async function POST(
       "viewingRequests",
       "Félicitations ! Vous avez été sélectionné",
       `Vous avez été sélectionné pour le bien au ${property.quartier || property.address || "votre bien"}. Le propriétaire va vous envoyer le contrat.`,
-      { type: "tenant_attributed", applicationId }
+      { type: "tenant_attributed", applicationId },
     );
 
     return cors(
       NextResponse.json({ success: true, status: "attributed" }),
-      req
+      req,
     );
   } catch (error) {
     console.error("Error in POST /api/applications/[id]/attribute:", error);

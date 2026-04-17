@@ -1,4 +1,5 @@
 import { auth } from "@clerk/nextjs/server";
+import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 
@@ -10,7 +11,7 @@ const supabaseAdmin = createClient(
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
+  },
 );
 
 async function getSupabaseUserId(clerkId: string): Promise<string | null> {
@@ -22,12 +23,31 @@ async function getSupabaseUserId(clerkId: string): Promise<string | null> {
   return data?.id || null;
 }
 
+async function resolveClerkId(req: Request): Promise<string | null> {
+  const { userId } = await auth();
+  if (userId) return userId;
+
+  const token = (req.headers.get("authorization") ?? "")
+    .replace(/^Bearer\s+/i, "")
+    .trim();
+  if (!token) return null;
+
+  try {
+    const { sub } = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY!,
+    });
+    return sub ?? null;
+  } catch {
+    return null;
+  }
+}
+
 /**
  * GET /api/applications/me - Get current user's applications
  */
-export async function GET() {
+export async function GET(req: Request) {
   try {
-    const { userId: clerkId } = await auth();
+    const clerkId = await resolveClerkId(req);
     if (!clerkId) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
@@ -52,6 +72,9 @@ export async function GET() {
     return NextResponse.json({ success: true, applications: data || [] });
   } catch (error) {
     console.error("Error in applications GET:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }
