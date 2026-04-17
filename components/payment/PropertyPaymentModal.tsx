@@ -12,15 +12,17 @@ import {
   CreditCardIcon,
 } from "@phosphor-icons/react";
 import { useAuth } from "@clerk/nextjs";
+import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 
 interface PropertyPaymentModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onSuccess: () => void;
+  onSuccess: (depositId?: string) => void;
   propertyId: string;
   propertyLabel: string;
   rentAmount: number;
   depositMonths: number;
+  advanceRentMonths?: number;
 }
 
 type PaymentProvider = "ORANGE_MONEY" | "MOOV_MONEY";
@@ -34,6 +36,7 @@ export default function PropertyPaymentModal({
   propertyLabel,
   rentAmount,
   depositMonths,
+  advanceRentMonths = 1,
 }: PropertyPaymentModalProps) {
   const { getToken } = useAuth();
   const [step, setStep] = useState<PaymentStep>("provider");
@@ -44,7 +47,12 @@ export default function PropertyPaymentModal({
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const attemptCountRef = useRef(0);
 
-  const totalAmount = depositMonths * rentAmount + rentAmount;
+  const breakdown = getMoveInPaymentBreakdown({
+    monthlyRent: rentAmount,
+    cautionMois: depositMonths,
+    loyerAvanceMois: advanceRentMonths,
+  });
+  const totalAmount = breakdown.totalAmount;
 
   useEffect(() => {
     if (!isOpen) {
@@ -121,7 +129,7 @@ export default function PropertyPaymentModal({
 
       if (data.status === "COMPLETED") {
         setStep("success");
-        onSuccess();
+        onSuccess(id);
         return;
       }
 
@@ -162,7 +170,7 @@ export default function PropertyPaymentModal({
           clearInterval(pollingRef.current!);
           pollingRef.current = null;
           setStep("success");
-          onSuccess();
+          onSuccess(id);
         } else if (data.status === "FAILED" || data.status === "REJECTED") {
           clearInterval(pollingRef.current!);
           pollingRef.current = null;
@@ -223,11 +231,11 @@ export default function PropertyPaymentModal({
             <div className="bg-neutral-50 rounded-2xl p-4 space-y-2 border border-neutral-100">
               <div className="flex justify-between text-sm">
                 <span className="text-neutral-500 font-medium">Caution ({depositMonths} mois)</span>
-                <span className="font-bold text-neutral-900">{formatAmount(depositMonths * rentAmount)} FCFA</span>
+                <span className="font-bold text-neutral-900">{formatAmount(breakdown.cautionAmount)} FCFA</span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-neutral-500 font-medium">1er mois de loyer</span>
-                <span className="font-bold text-neutral-900">{formatAmount(rentAmount)} FCFA</span>
+                <span className="text-neutral-500 font-medium">Loyer d&apos;avance ({breakdown.loyerAvanceMois} mois)</span>
+                <span className="font-bold text-neutral-900">{formatAmount(breakdown.advanceRentAmount)} FCFA</span>
               </div>
               <div className="border-t border-neutral-200 pt-2 mt-2 flex justify-between">
                 <span className="text-sm font-black text-neutral-900">Total</span>
@@ -385,7 +393,7 @@ export default function PropertyPaymentModal({
                 <div>
                   <p className="font-black text-neutral-900 mb-2">Felicitations !</p>
                   <p className="text-sm text-neutral-500">
-                    Votre paiement a ete confirme. Vous avez regle la caution et le premier mois de loyer.
+                    Votre paiement a ete confirme. Vous avez regle la caution et le loyer d&apos;avance.
                   </p>
                 </div>
                 <button

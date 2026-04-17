@@ -29,6 +29,7 @@ export type Property = {
   quartier?: string;
   created_at?: string;
   deposit?: number;
+  loyerAvanceMois?: number;
   payment_id?: string;
   transaction_id?: string;
   is_test?: boolean;
@@ -76,6 +77,8 @@ interface DBProperty {
   agent_company_name: string | null;
   agent_facebook_url: string | null;
   deposit: number | null;
+  caution_mois?: number | null;
+  loyer_avance_mois?: number | null;
   payment_id: string | null;
   transaction_id: string | null;
   primary_image: string | null;
@@ -112,7 +115,8 @@ function mapProperty(p: DBProperty): Property {
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
-    deposit: p.deposit || undefined,
+    deposit: p.caution_mois ?? p.deposit ?? undefined,
+    loyerAvanceMois: p.loyer_avance_mois ?? 1,
     payment_id: p.payment_id || undefined,
     transaction_id: p.transaction_id || undefined,
     is_test: p.is_test || false,
@@ -227,7 +231,8 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
     city: p.city,
     quartier: p.quartier,
     created_at: p.created_at,
-    deposit: p.deposit || undefined,
+    deposit: p.caution_mois ?? p.deposit ?? undefined,
+    loyerAvanceMois: p.loyer_avance_mois ?? 1,
     payment_id: p.payment_id || undefined,
     transaction_id: p.transaction_id || undefined,
     agent: {
@@ -247,7 +252,12 @@ export type Transaction = {
   amount: number;
   currency: string;
   status: "pending" | "completed" | "failed" | "refunded";
-  type: "listing_submission" | "photography" | "boost";
+  type:
+    | "listing_submission"
+    | "photography"
+    | "boost"
+    | "property_lock"
+    | "rent_payment";
   provider: string;
   payer_phone: string;
   property_id: string | null;

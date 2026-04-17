@@ -37,6 +37,7 @@ import { fetchPropertyById, Property } from "@/lib/data";
 import PropertyPaymentModal from "@/components/payment/PropertyPaymentModal";
 import { cn } from "@/lib/utils";
 import { VIEW_TRACKED_PROPERTIES_SESSION_KEY } from "@/lib/view-tracking";
+import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -239,9 +240,27 @@ export default function PropertyDetailPage() {
     finally { setIsApplying(false); }
   };
 
-  const handlePaymentSuccess = () => {
+  const handlePaymentSuccess = async () => {
     setShowPaymentModal(false);
     if (listing) setListing({ ...listing, status: "locked" });
+    try {
+      const token = await getToken();
+      if (!token || !listing) return;
+      await fetch("/api/rental-agreements", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          propertyId: id,
+          monthlyRent: Number(listing.price),
+          startDate: new Date().toISOString().split("T")[0],
+        }),
+      });
+    } catch {
+      // Payment is already complete; agreement creation can be retried from the app if needed.
+    }
   };
 
   const images = listing ? (listing.images?.length > 0 ? listing.images : [listing.image]) : [];
@@ -280,9 +299,15 @@ export default function PropertyDetailPage() {
   }
 
   const rentAmount = Number(listing.price);
-  const depositMonths = Number(listing.deposit || 1);
+  const depositMonths = Number(listing.deposit ?? 0);
+  const advanceRentMonths = Number(listing.loyerAvanceMois ?? 1);
+  const moveInBreakdown = getMoveInPaymentBreakdown({
+    monthlyRent: rentAmount,
+    cautionMois: depositMonths,
+    loyerAvanceMois: advanceRentMonths,
+  });
   const canApply = isRenter && listing.status === "en_ligne" && !hasApplied;
-  const canPay = isRenter && listing.status === "en_ligne" && !!listing.deposit;
+  const canPay = isRenter && listing.status === "en_ligne" && rentAmount > 0;
 
   return (
     <>
@@ -294,6 +319,7 @@ export default function PropertyDetailPage() {
         propertyLabel={`Propriété au ${listing.location}`}
         rentAmount={rentAmount}
         depositMonths={depositMonths}
+        advanceRentMonths={advanceRentMonths}
       />
 
       <Portal>
@@ -318,15 +344,15 @@ export default function PropertyDetailPage() {
                   <div className="bg-neutral-50 rounded-2xl p-4 mb-6 border border-neutral-100 space-y-2">
                     <div className="flex justify-between text-sm">
                       <span className="text-neutral-500">Caution ({depositMonths} mois)</span>
-                      <span className="font-bold">{(depositMonths * rentAmount).toLocaleString("fr-FR")} FCFA</span>
+                      <span className="font-bold">{moveInBreakdown.cautionAmount.toLocaleString("fr-FR")} FCFA</span>
                     </div>
                     <div className="flex justify-between text-sm">
-                      <span className="text-neutral-500">1er mois de loyer</span>
-                      <span className="font-bold">{rentAmount.toLocaleString("fr-FR")} FCFA</span>
+                      <span className="text-neutral-500">Loyer d&apos;avance ({moveInBreakdown.loyerAvanceMois} mois)</span>
+                      <span className="font-bold">{moveInBreakdown.advanceRentAmount.toLocaleString("fr-FR")} FCFA</span>
                     </div>
                     <div className="border-t border-neutral-200 pt-2 flex justify-between">
                       <span className="text-sm font-black">Total</span>
-                      <span className="text-sm font-black text-primary">{(depositMonths * rentAmount + rentAmount).toLocaleString("fr-FR")} FCFA</span>
+                      <span className="text-sm font-black text-primary">{moveInBreakdown.totalAmount.toLocaleString("fr-FR")} FCFA</span>
                     </div>
                   </div>
                   <p className="text-xs text-neutral-400 text-center mb-6">
@@ -507,9 +533,12 @@ export default function PropertyDetailPage() {
                 </p>
                 {listing.deposit && (
                   <p className="text-xs text-neutral-400 mt-2 font-medium">
-                    Caution: {listing.deposit} mois ({(listing.deposit * rentAmount).toLocaleString("fr-FR")} FCFA)
+                    Caution: {listing.deposit} mois ({moveInBreakdown.cautionAmount.toLocaleString("fr-FR")} FCFA)
                   </p>
                 )}
+                <p className="text-xs text-neutral-400 mt-1 font-medium">
+                  Loyer d&apos;avance: {moveInBreakdown.loyerAvanceMois} mois ({moveInBreakdown.advanceRentAmount.toLocaleString("fr-FR")} FCFA)
+                </p>
               </section>
 
               {isRenter && listing.status === "en_ligne" && (

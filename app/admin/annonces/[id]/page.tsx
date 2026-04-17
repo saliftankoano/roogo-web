@@ -92,6 +92,12 @@ interface TransactionMetadata {
     price: number;
   }[];
   total?: number;
+  monthlyRent?: number;
+  cautionMois?: number;
+  loyerAvanceMois?: number;
+  cautionAmount?: number;
+  advanceRentAmount?: number;
+  totalMoveInAmount?: number;
 }
 
 // Property type mapping to French
@@ -909,6 +915,20 @@ export default function ListingDetailPage() {
                 </span>
               </p>
             )}
+            <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4 text-xs font-bold text-neutral-500">
+              <div className="flex items-center justify-between">
+                <span>Caution remboursable</span>
+                <span className="text-neutral-900">
+                  {listing.deposit ?? 0} mois
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Loyer d&apos;avance</span>
+                <span className="text-neutral-900">
+                  {listing.loyerAvanceMois ?? 1} mois
+                </span>
+              </div>
+            </div>
           </section>
 
           {/* Agent Card */}
@@ -1032,6 +1052,8 @@ export default function ListingDetailPage() {
                               ? "bg-orange-50 text-orange-600"
                               : tx.type === "photography"
                               ? "bg-amber-50 text-amber-700"
+                              : tx.type === "property_lock"
+                              ? "bg-green-50 text-green-700"
                               : "bg-blue-50 text-blue-600"
                           )}
                         >
@@ -1039,6 +1061,8 @@ export default function ListingDetailPage() {
                             <BuildingsIcon size={20} weight="fill" />
                           ) : tx.type === "photography" ? (
                             <CameraIcon size={20} weight="fill" />
+                          ) : tx.type === "property_lock" ? (
+                            <ReceiptIcon size={20} weight="fill" />
                           ) : (
                             <LightningIcon size={20} weight="fill" />
                           )}
@@ -1049,6 +1073,8 @@ export default function ListingDetailPage() {
                               ? "Publication"
                               : tx.type === "photography"
                               ? "Photographie"
+                              : tx.type === "property_lock"
+                              ? "Paiement d'entrée"
                               : "Boost"}
                           </p>
                           <p className="text-[9px] text-neutral-400 font-bold mt-1 uppercase tracking-wider">
@@ -1124,6 +1150,26 @@ export default function ListingDetailPage() {
                             {metadata.commission.toLocaleString()} F
                           </span>
                         </div>
+                      )}
+                      {tx.type === "property_lock" && (
+                        <>
+                          <div className="flex items-center justify-between text-[10px] font-bold">
+                            <span className="text-neutral-400 uppercase tracking-widest">
+                              Caution ({metadata?.cautionMois ?? 0} mois)
+                            </span>
+                            <span className="text-neutral-900">
+                              {Number(metadata?.cautionAmount ?? 0).toLocaleString()} F
+                            </span>
+                          </div>
+                          <div className="flex items-center justify-between text-[10px] font-bold">
+                            <span className="text-neutral-400 uppercase tracking-widest">
+                              Loyer d&apos;avance ({metadata?.loyerAvanceMois ?? 1} mois)
+                            </span>
+                            <span className="text-neutral-900">
+                              {Number(metadata?.advanceRentAmount ?? 0).toLocaleString()} F
+                            </span>
+                          </div>
+                        </>
                       )}
                       {/* === PRODUCTION MODE: Include 5% commission === */}
                       {/* Uncomment below and comment the block above for official release */}

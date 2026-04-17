@@ -25,7 +25,7 @@ export async function OPTIONS(req: Request) {
  *      and the first schedule is marked paid (covered by the property_lock payment).
  *
  * Body: { transactionId?, applicationId?, propertyId, renterId?, monthlyRent,
- *         cautionMois?, startDate?, endDate?, termsText?, dosAndDonts?, interdictions? }
+ *         cautionMois?, loyerAvanceMois?, startDate?, endDate?, termsText?, dosAndDonts?, interdictions? }
  */
 export async function POST(req: Request) {
   try {
@@ -52,6 +52,7 @@ export async function POST(req: Request) {
       renterId: bodyRenterId,
       monthlyRent,
       cautionMois = 1,
+      loyerAvanceMois,
       startDate,
       endDate,
       termsText,
@@ -63,6 +64,7 @@ export async function POST(req: Request) {
       renterId?: string;
       monthlyRent: number;
       cautionMois?: number;
+      loyerAvanceMois?: number;
       startDate?: string;
       endDate?: string;
       termsText?: string;
@@ -78,7 +80,7 @@ export async function POST(req: Request) {
     const { data: property } = await supabaseAdmin
       .from("properties")
       .select(
-        "id, agent_id, address, quartier, price, caution_mois, interdictions, dos_and_donts, period",
+        "id, agent_id, address, quartier, price, caution_mois, loyer_avance_mois, interdictions, dos_and_donts, period",
       )
       .eq("id", propertyId)
       .single();
@@ -155,9 +157,21 @@ export async function POST(req: Request) {
     }
 
     const now = new Date();
-    const resolvedCautionMois = cautionMois || property.caution_mois || 1;
+    const resolvedCautionMois = Math.min(
+      12,
+      Math.max(0, Number(cautionMois ?? property.caution_mois ?? 0)),
+    );
+    const resolvedLoyerAvanceMois =
+      property.period === "day"
+        ? 1
+        : Math.min(
+            12,
+            Math.max(1, Number(loyerAvanceMois || property.loyer_avance_mois || 1)),
+          );
+    const isDailyRenterFlow = isRenterFlow && property.period === "day";
 
-    // Agreement always starts as draft — schedules are created immediately (separate concern)
+    // Daily renter bookings are fully consented at payment time, so both sides are auto-signed.
+    // Monthly flows still start as draft and proceed through the signature workflow.
     const { data: agreement, error: insertError } = await supabaseAdmin
       .from("rental_agreements")
       .insert({
@@ -165,9 +179,11 @@ export async function POST(req: Request) {
         owner_id: ownerId,
         renter_id: renterId,
         application_id: applicationId || null,
-        status: "draft",
+        transaction_id: lockedTransactionId,
+        status: isDailyRenterFlow ? "active" : "draft",
         monthly_rent: monthlyRent,
         caution_mois: resolvedCautionMois,
+        loyer_avance_mois: resolvedLoyerAvanceMois,
         dos_and_donts:
           dosAndDonts.length > 0 ? dosAndDonts : property.dos_and_donts || [],
         interdictions:
@@ -179,6 +195,8 @@ export async function POST(req: Request) {
         end_date: endDate || null,
         property_frequence:
           property.period === "day" ? "journalier" : "mensuel",
+        renter_signed_at: isDailyRenterFlow ? now.toISOString() : null,
+        owner_signed_at: isDailyRenterFlow ? now.toISOString() : null,
       })
       .select("id")
       .single();
@@ -190,7 +208,7 @@ export async function POST(req: Request) {
 
     // For daily rentals: immediately block the booked dates so no other renter can pick them.
     // This fires at creation (not at activation) because payment was already captured at lock.
-    if (isRenterFlow && property.period === "day" && startDate && endDate) {
+    if (isDailyRenterFlow && startDate && endDate) {
       const { error: blockError } = await supabaseAdmin
         .from("property_blocked_dates")
         .insert({
@@ -218,7 +236,7 @@ export async function POST(req: Request) {
 
         const schedules = Array.from({ length: 12 }, (_, i) => {
           const dueDate = addMonths(scheduleStart, i);
-          const isFirst = i === 0;
+          const isCoveredByMoveInPayment = i < resolvedLoyerAvanceMois;
           return {
             agreement_id: agreement.id,
             property_id: propertyId,
@@ -226,9 +244,11 @@ export async function POST(req: Request) {
             owner_id: ownerId,
             due_date: format(dueDate, "yyyy-MM-dd"),
             amount: monthlyRent,
-            status: isFirst ? "paid" : "upcoming",
-            transaction_id: isFirst ? lockedTransactionId : null,
-            paid_at: isFirst ? now.toISOString() : null,
+            status: isCoveredByMoveInPayment ? "paid" : "upcoming",
+            transaction_id: isCoveredByMoveInPayment
+              ? lockedTransactionId
+              : null,
+            paid_at: isCoveredByMoveInPayment ? now.toISOString() : null,
           };
         });
 
@@ -241,14 +261,20 @@ export async function POST(req: Request) {
         }
       }
 
-      // Notify owner to prepare the lease
+      // Notify owner; daily stays are already auto-signed, monthly stays still need prep.
       try {
         await notifyUser(
           ownerId,
           "payments",
-          "Propriété sécurisée !",
-          `Un locataire a sécurisé votre bien au ${property.quartier || property.address}. Préparez le contrat de bail.`,
-          { agreementId: agreement.id, propertyId, action: "review_agreement" },
+          isDailyRenterFlow ? "Séjour confirmé !" : "Propriété sécurisée !",
+          isDailyRenterFlow
+            ? `Le séjour réservé pour ${property.quartier || property.address} est confirmé et le contrat est déjà signé.`
+            : `Un locataire a sécurisé votre bien au ${property.quartier || property.address}. Préparez le contrat de bail.`,
+          {
+            agreementId: agreement.id,
+            propertyId,
+            action: isDailyRenterFlow ? "view_agreement" : "review_agreement",
+          },
         );
       } catch (e) {
         console.warn("Failed to send push notification to owner:", e);

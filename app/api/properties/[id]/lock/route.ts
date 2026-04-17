@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
+import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 
 // Use service role for reading config
 //const supabaseAdmin = createClient(
@@ -88,7 +89,7 @@ export async function POST(
     // 4. Validate Property Eligibility (Status must be 'en_ligne')
     const { data: property, error: propError } = await supabase
       .from("properties")
-      .select("price, deposit, status")
+      .select("price, caution_mois, loyer_avance_mois, status")
       .eq("id", propertyId)
       .single();
 
@@ -109,19 +110,13 @@ export async function POST(
       );
     }
 
-    if (!property.deposit) {
-      return cors(
-        NextResponse.json(
-          { error: "Property deposit information is missing" },
-          { status: 400 }
-        )
-      );
-    }
-
-    // 5. Calculate Payment Amount: (deposit_months * rent) + rent
-    const rentAmount = Number(property.price);
-    const depositMonths = Number(property.deposit);
-    const paymentAmount = depositMonths * rentAmount + rentAmount;
+    // 5. Calculate Payment Amount: caution + configured advance rent months
+    const breakdown = getMoveInPaymentBreakdown({
+      monthlyRent: property.price,
+      cautionMois: property.caution_mois,
+      loyerAvanceMois: property.loyer_avance_mois,
+    });
+    const paymentAmount = breakdown.totalAmount;
 
     // 6. Create Transaction Record
     const depositId = crypto.randomUUID();
@@ -141,6 +136,14 @@ export async function POST(
       user_id: user.id,
       property_id: propertyId,
       payer_phone: phoneNumber,
+      metadata: {
+        monthlyRent: breakdown.monthlyRent,
+        cautionMois: breakdown.cautionMois,
+        loyerAvanceMois: breakdown.loyerAvanceMois,
+        cautionAmount: breakdown.cautionAmount,
+        advanceRentAmount: breakdown.advanceRentAmount,
+        totalMoveInAmount: breakdown.totalAmount,
+      },
     });
 
     if (dbError) {

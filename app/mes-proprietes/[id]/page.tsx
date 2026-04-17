@@ -564,6 +564,20 @@ export default function OwnerPropertyDetailPage() {
                 </span>
               </p>
             )}
+            <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4 text-xs font-bold text-neutral-500">
+              <div className="flex items-center justify-between">
+                <span>Caution remboursable</span>
+                <span className="text-neutral-900">
+                  {listing.deposit ?? 0} mois
+                </span>
+              </div>
+              <div className="flex items-center justify-between">
+                <span>Loyer d&apos;avance</span>
+                <span className="text-neutral-900">
+                  {listing.loyerAvanceMois ?? 1} mois
+                </span>
+              </div>
+            </div>
           </section>
 
           {/* Agent Card */}

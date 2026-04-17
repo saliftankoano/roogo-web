@@ -20,7 +20,9 @@ export async function GET(req: Request) {
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -34,12 +36,14 @@ export async function GET(req: Request) {
 
     let query = supabaseAdmin
       .from("rental_agreements")
-      .select(`
+      .select(
+        `
         *,
         properties(id, address, price, quartier, city, property_images(url, is_primary)),
         owner:users!rental_agreements_owner_id_fkey(id, full_name, phone),
         renter:users!rental_agreements_renter_id_fkey(id, full_name, phone)
-      `)
+      `,
+      )
       .order("created_at", { ascending: false });
 
     if (role === "owner") {
@@ -58,7 +62,40 @@ export async function GET(req: Request) {
       return errorResponse("Failed to fetch agreements", 500, req);
     }
 
-    return cors(NextResponse.json({ agreements: agreements || [] }), req);
+    const normalizedAgreements = await Promise.all(
+      (agreements || []).map(async (agreement) => {
+        if (
+          agreement.renter_id !== user.id ||
+          agreement.property_frequence !== "journalier" ||
+          agreement.transaction_id
+        ) {
+          return agreement;
+        }
+
+        const { data: fallbackTransaction } = await supabaseAdmin
+          .from("transactions")
+          .select("id")
+          .eq("property_id", agreement.property_id)
+          .eq("user_id", agreement.renter_id)
+          .eq("type", "property_lock")
+          .eq("status", "completed")
+          .lte("created_at", agreement.created_at)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!fallbackTransaction?.id) {
+          return agreement;
+        }
+
+        return {
+          ...agreement,
+          transaction_id: fallbackTransaction.id,
+        };
+      }),
+    );
+
+    return cors(NextResponse.json({ agreements: normalizedAgreements }), req);
   } catch (error) {
     console.error("Error in GET /api/rental-agreements/me:", error);
     return errorResponse("Internal server error", 500, req);

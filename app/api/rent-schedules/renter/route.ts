@@ -36,7 +36,17 @@ export async function GET(req: Request) {
         `
         *,
         properties(id, address, quartier, city, property_images(url, is_primary)),
-        owner:users!rent_schedules_owner_id_fkey(id, full_name, phone)
+        owner:users!rent_schedules_owner_id_fkey(id, full_name, phone),
+        agreement:rental_agreements!rent_schedules_agreement_id_fkey(
+          id,
+          status,
+          property_frequence,
+          start_date,
+          end_date,
+          caution_mois,
+          loyer_avance_mois,
+          transaction_id
+        )
       `,
       )
       .eq("renter_id", user.id)

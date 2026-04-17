@@ -17,6 +17,7 @@ export const getMockPropertyData = () => {
     superficie: "350",
     vehicules: "2",
     cautionMois: "3",
+    loyerAvanceMois: "1",
     equipements: ["wifi", "securite", "piscine", "jardin"],
     interdictions: ["no_fumeurs", "no_animaux"],
   };

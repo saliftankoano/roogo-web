@@ -11,6 +11,7 @@ import { paymentInitiateSchema } from "@/lib/validations";
 import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 
 interface PawaPayDepositPayload {
@@ -35,13 +36,15 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
   const log = (step: string, data: Record<string, unknown> = {}) => {
-    console.log(JSON.stringify({ 
-      route: "POST /api/payments/initiate", 
-      requestId, 
-      step, 
-      ...data, 
-      timestamp: new Date().toISOString() 
-    }));
+    console.log(
+      JSON.stringify({
+        route: "POST /api/payments/initiate",
+        requestId,
+        step,
+        ...data,
+        timestamp: new Date().toISOString(),
+      }),
+    );
   };
 
   try {
@@ -73,14 +76,16 @@ export async function POST(req: Request) {
     }
 
     // 2. Rate limiting
-    const { success: rateLimitOk, headers: rateLimitHeaders } = await checkRateLimit(
-      paymentLimiter,
-      clerkUserId
-    );
+    const { success: rateLimitOk, headers: rateLimitHeaders } =
+      await checkRateLimit(paymentLimiter, clerkUserId);
 
     if (!rateLimitOk) {
       log("rate-limited", { clerkUserId });
-      const response = errorResponse("Too many payment requests. Please try again later.", 429, req);
+      const response = errorResponse(
+        "Too many payment requests. Please try again later.",
+        429,
+        req,
+      );
       rateLimitHeaders.forEach((value, key) => {
         response.headers.set(key, value);
       });
@@ -110,8 +115,10 @@ export async function POST(req: Request) {
           phone_numbers: clerkUser.phoneNumbers.map((p) => ({
             phone_number: p.phoneNumber,
           })),
-          public_metadata: clerkUser.publicMetadata as ClerkUserData["public_metadata"],
-          private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+          public_metadata:
+            clerkUser.publicMetadata as ClerkUserData["public_metadata"],
+          private_metadata:
+            clerkUser.privateMetadata as ClerkUserData["private_metadata"],
         };
 
         user = await createUserInSupabase(userData);
@@ -121,7 +128,7 @@ export async function POST(req: Request) {
         return errorResponse(
           "User not found. Please try signing in again.",
           404,
-          req
+          req,
         );
       }
     }
@@ -135,7 +142,7 @@ export async function POST(req: Request) {
 
     // 4. Parse and validate body
     const body = await req.json();
-    
+
     let validatedData;
     try {
       validatedData = paymentInitiateSchema.parse(body);
@@ -155,13 +162,13 @@ export async function POST(req: Request) {
       metadata,
     } = validatedData;
 
-    log("request-validated", { 
-      amount, 
-      phoneNumber: phoneNumber.slice(0, 4) + "****", 
-      provider, 
-      transactionType, 
+    log("request-validated", {
+      amount,
+      phoneNumber: phoneNumber.slice(0, 4) + "****",
+      provider,
+      transactionType,
       propertyId,
-      hasOTP: !!preAuthorisationCode 
+      hasOTP: !!preAuthorisationCode,
     });
 
     // Validation for Orange Burkina Faso which requires a pre-authorisation code
@@ -170,7 +177,7 @@ export async function POST(req: Request) {
       return errorResponse(
         "Un code d'autorisation est requis pour Orange Money",
         400,
-        req
+        req,
       );
     }
 
@@ -178,6 +185,38 @@ export async function POST(req: Request) {
     const depositId = crypto.randomUUID();
     const currency = "XOF";
     const supabase = getSupabaseClient();
+    let resolvedAmount = amount;
+    let resolvedMetadata: Record<string, unknown> = metadata || {};
+
+    if (transactionType === "property_lock" && propertyId) {
+      const { data: propertyRecord, error: propertyError } = await supabase
+        .from("properties")
+        .select("price, caution_mois, loyer_avance_mois, period")
+        .eq("id", propertyId)
+        .maybeSingle();
+
+      if (propertyError || !propertyRecord) {
+        return errorResponse("Property not found", 404, req);
+      }
+
+      if (propertyRecord.period !== "day") {
+        const breakdown = getMoveInPaymentBreakdown({
+          monthlyRent: propertyRecord.price,
+          cautionMois: propertyRecord.caution_mois,
+          loyerAvanceMois: propertyRecord.loyer_avance_mois,
+        });
+        resolvedAmount = breakdown.totalAmount;
+        resolvedMetadata = {
+          ...resolvedMetadata,
+          monthlyRent: breakdown.monthlyRent,
+          cautionMois: breakdown.cautionMois,
+          loyerAvanceMois: breakdown.loyerAvanceMois,
+          cautionAmount: breakdown.cautionAmount,
+          advanceRentAmount: breakdown.advanceRentAmount,
+          totalMoveInAmount: breakdown.totalAmount,
+        };
+      }
+    }
 
     // Map provider to PawaPay v2 format
     let payerClientCode: string = provider;
@@ -186,7 +225,7 @@ export async function POST(req: Request) {
 
     const { error: dbError } = await supabase.from("transactions").insert({
       deposit_id: depositId,
-      amount: amount,
+      amount: resolvedAmount,
       currency: currency,
       status: "pending",
       type: transactionType,
@@ -195,29 +234,33 @@ export async function POST(req: Request) {
       property_id: propertyId || null,
       payer_phone: phoneNumber,
       otp_code: preAuthorisationCode || null,
-      metadata: metadata || {},
+      metadata: resolvedMetadata,
     });
 
     if (dbError) {
-      log("db-insert-failed", { 
-        error: String(dbError), 
+      log("db-insert-failed", {
+        error: String(dbError),
         depositId,
         errorCode: dbError.code,
         errorDetails: dbError.details,
         errorHint: dbError.hint,
         errorMessage: dbError.message,
         userId: user.id,
-        amount,
-        provider: payerClientCode
+        amount: resolvedAmount,
+        provider: payerClientCode,
       });
       return errorResponse("Failed to initialize transaction", 500, req);
     }
 
-    log("transaction-created", { depositId, provider: payerClientCode, amount });
+    log("transaction-created", {
+      depositId,
+      provider: payerClientCode,
+      amount: resolvedAmount,
+    });
 
     await captureServerEvent(user.id, "payment_initiated", {
       deposit_id: depositId,
-      amount,
+      amount: resolvedAmount,
       currency,
       transaction_type: transactionType,
       provider: payerClientCode,
@@ -229,7 +272,7 @@ export async function POST(req: Request) {
     const pawaPayConfig = resolvePawaPayConfig();
     const pawaUrl = pawaPayConfig.url;
     const pawaToken = pawaPayConfig.token;
-    
+
     log("pawapay-config", {
       environment: pawaPayConfig.environment,
       url: pawaUrl,
@@ -242,9 +285,13 @@ export async function POST(req: Request) {
     }
     formattedPhone = "226" + formattedPhone.slice(0, 8);
 
-    const pawaProvider = provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
-    const customerMessage = preAuthorisationCode 
-      ? `${preAuthorisationCode} ${(description || "Roogo Payment").replace(/[^a-zA-Z0-9\s]/g, "")}`.slice(0, 22)
+    const pawaProvider =
+      provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
+    const customerMessage = preAuthorisationCode
+      ? `${preAuthorisationCode} ${(description || "Roogo Payment").replace(/[^a-zA-Z0-9\s]/g, "")}`.slice(
+          0,
+          22,
+        )
       : (description || "Roogo Payment")
           .replace(/[^a-zA-Z0-9\s]/g, "")
           .slice(0, 22);
@@ -258,7 +305,7 @@ export async function POST(req: Request) {
           provider: pawaProvider,
         },
       },
-      amount: amount.toString(),
+      amount: resolvedAmount.toString(),
       currency,
       customerMessage,
     };
@@ -267,13 +314,13 @@ export async function POST(req: Request) {
       payload.preAuthorisationCode = preAuthorisationCode;
     }
 
-    log("pawapay-request", { 
-      url: `${pawaUrl}/v2/deposits`, 
-      depositId, 
+    log("pawapay-request", {
+      url: `${pawaUrl}/v2/deposits`,
+      depositId,
       formattedPhone: formattedPhone.slice(0, 6) + "****",
       pawaProvider,
-      amount: amount.toString(),
-      hasOTP: !!preAuthorisationCode
+      amount: resolvedAmount.toString(),
+      hasOTP: !!preAuthorisationCode,
     });
 
     const response = await fetch(`${pawaUrl}/v2/deposits`, {
@@ -293,27 +340,27 @@ export async function POST(req: Request) {
       result = { message: responseText };
     }
 
-    log("pawapay-response", { 
+    log("pawapay-response", {
       httpStatus: response.status,
       ok: response.ok,
       depositId,
       pawaPayStatus: result.status,
       resultKeys: Object.keys(result),
-      result: JSON.stringify(result).slice(0, 500)
+      result: JSON.stringify(result).slice(0, 500),
     });
 
     if (!response.ok) {
-      log("pawapay-error", { 
-        depositId, 
-        httpStatus: response.status, 
-        result 
+      log("pawapay-error", {
+        depositId,
+        httpStatus: response.status,
+        result,
       });
 
       // Extract detailed failure information from PawaPay response
       let detailedFailure = result.message || "API call failed";
       if (result.details?.failureReason) {
         const fr = result.details.failureReason;
-        detailedFailure = `${fr.failureCode || 'ERROR'}: ${fr.failureMessage || result.message || 'Unknown error'}`;
+        detailedFailure = `${fr.failureCode || "ERROR"}: ${fr.failureMessage || result.message || "Unknown error"}`;
       } else if (result.details?.errorMessage) {
         detailedFailure = result.details.errorMessage;
       }
@@ -323,7 +370,7 @@ export async function POST(req: Request) {
         .update({
           status: "failed",
           failure_reason: detailedFailure,
-          metadata: { ...(metadata || {}), ...result },
+          metadata: { ...resolvedMetadata, ...result },
         })
         .eq("deposit_id", depositId);
 
@@ -336,7 +383,7 @@ export async function POST(req: Request) {
 
       await captureServerEvent(user.id, "payment_failed", {
         deposit_id: depositId,
-        amount,
+        amount: resolvedAmount,
         currency,
         transaction_type: transactionType,
         provider: payerClientCode,
@@ -346,10 +393,14 @@ export async function POST(req: Request) {
 
       return cors(
         NextResponse.json(
-          { error: errorMessage, details: result, failureCode: failureReason?.failureCode },
-          { status: response.status }
+          {
+            error: errorMessage,
+            details: result,
+            failureCode: failureReason?.failureCode,
+          },
+          { status: response.status },
         ),
-        req
+        req,
       );
     }
 
@@ -361,14 +412,14 @@ export async function POST(req: Request) {
         .from("transactions")
         .update({
           status: "completed",
-          metadata: { ...(metadata || {}), ...result },
+          metadata: { ...resolvedMetadata, ...result },
           updated_at: new Date().toISOString(),
         })
         .eq("deposit_id", depositId);
 
       await captureServerEvent(user.id, "payment_completed", {
         deposit_id: depositId,
-        amount,
+        amount: resolvedAmount,
         currency,
         transaction_type: transactionType,
         provider: payerClientCode,
@@ -389,13 +440,21 @@ export async function POST(req: Request) {
           })
           .eq("id", propertyId);
       } else if (transactionType === "rent_payment" && metadata) {
-        const scheduleId = (metadata as Record<string, unknown>)?.scheduleId as string | undefined;
+        const scheduleId = (metadata as Record<string, unknown>)?.scheduleId as
+          | string
+          | undefined;
         if (scheduleId) {
+          const { data: completedTransaction } = await supabase
+            .from("transactions")
+            .select("id")
+            .eq("deposit_id", depositId)
+            .maybeSingle();
+
           await supabase
             .from("rent_schedules")
             .update({
               status: "paid",
-              transaction_id: depositId,
+              transaction_id: completedTransaction?.id ?? depositId,
               paid_at: new Date().toISOString(),
             })
             .eq("id", scheduleId);
@@ -403,9 +462,9 @@ export async function POST(req: Request) {
       }
     }
 
-    log("success", { 
-      depositId: result.depositId || depositId, 
-      finalStatus: result.status || "PENDING" 
+    log("success", {
+      depositId: result.depositId || depositId,
+      finalStatus: result.status || "PENDING",
     });
 
     return cors(
@@ -415,14 +474,17 @@ export async function POST(req: Request) {
         status: result.status || "PENDING",
         raw: result,
       }),
-      req
+      req,
     );
   } catch (error: unknown) {
-    log("unhandled-error", { error: String(error), stack: error instanceof Error ? error.stack : undefined });
+    log("unhandled-error", {
+      error: String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return errorResponse(
       safeError(error, "Payment initiation failed"),
       500,
-      req
+      req,
     );
   }
 }

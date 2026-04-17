@@ -17,13 +17,15 @@ const PAWAPAY_IPS = [
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
   const log = (step: string, data: Record<string, unknown> = {}) => {
-    console.log(JSON.stringify({ 
-      route: "POST /api/pawapay/callback", 
-      requestId, 
-      step, 
-      ...data, 
-      timestamp: new Date().toISOString() 
-    }));
+    console.log(
+      JSON.stringify({
+        route: "POST /api/pawapay/callback",
+        requestId,
+        step,
+        ...data,
+        timestamp: new Date().toISOString(),
+      }),
+    );
   };
 
   try {
@@ -31,10 +33,10 @@ export async function POST(req: Request) {
     const forwardedFor = req.headers.get("x-forwarded-for");
     const clientIp = forwardedFor ? forwardedFor.split(",")[0].trim() : null;
 
-    log("callback-received", { 
-      clientIp, 
+    log("callback-received", {
+      clientIp,
       forwardedFor,
-      nodeEnv: process.env.NODE_ENV 
+      nodeEnv: process.env.NODE_ENV,
     });
 
     if (process.env.NODE_ENV === "production") {
@@ -51,13 +53,19 @@ export async function POST(req: Request) {
     const transactionId = data.depositId || data.payoutId || data.refundId;
     const { status, failureReason } = data;
 
-    log("callback-parsed", { 
-      transactionId, 
-      status, 
+    log("callback-parsed", {
+      transactionId,
+      status,
       failureReason,
-      idType: data.depositId ? "deposit" : data.payoutId ? "payout" : data.refundId ? "refund" : "unknown",
+      idType: data.depositId
+        ? "deposit"
+        : data.payoutId
+          ? "payout"
+          : data.refundId
+            ? "refund"
+            : "unknown",
       bodyKeys: Object.keys(data),
-      rawBody: JSON.stringify(data).slice(0, 500)
+      rawBody: JSON.stringify(data).slice(0, 500),
     });
 
     if (!transactionId || !status) {
@@ -72,7 +80,9 @@ export async function POST(req: Request) {
       const directProvider =
         typeof payload.provider === "string" ? payload.provider : null;
       const directCorrespondent =
-        typeof payload.correspondent === "string" ? payload.correspondent : null;
+        typeof payload.correspondent === "string"
+          ? payload.correspondent
+          : null;
 
       const payer =
         payload.payer && typeof payload.payer === "object"
@@ -87,7 +97,8 @@ export async function POST(req: Request) {
           ? accountDetails.provider
           : null;
 
-      const providerHint = `${directProvider || ""} ${directCorrespondent || ""} ${nestedProvider || ""}`.toUpperCase();
+      const providerHint =
+        `${directProvider || ""} ${directCorrespondent || ""} ${nestedProvider || ""}`.toUpperCase();
       if (providerHint.includes("ORANGE")) return "web_orange";
       if (providerHint.includes("MOOV")) return "web_moov";
       return null;
@@ -102,10 +113,10 @@ export async function POST(req: Request) {
     if (status === "REFUNDED") dbStatus = "refunded";
     if (status === "SUBMITTED") dbStatus = "submitted";
 
-    log("status-mapped", { 
-      transactionId, 
-      pawaPayStatus: status, 
-      mappedDbStatus: dbStatus 
+    log("status-mapped", {
+      transactionId,
+      pawaPayStatus: status,
+      mappedDbStatus: dbStatus,
     });
 
     // 3. Update Supabase
@@ -119,35 +130,38 @@ export async function POST(req: Request) {
       .single();
 
     if (fetchError || !transaction) {
-      log("transaction-not-found", { 
-        transactionId, 
+      log("transaction-not-found", {
+        transactionId,
         fetchError: String(fetchError),
         pawaPayStatus: status,
         failureReason: failureReason ? JSON.stringify(failureReason) : null,
-        fullPayload: JSON.stringify(data).slice(0, 1000)
+        fullPayload: JSON.stringify(data).slice(0, 1000),
       });
-      
+
       // Still return 200 OK to PawaPay to acknowledge receipt
       // Even if we can't find the transaction, we don't want PawaPay to retry
-      return NextResponse.json({ 
-        received: true, 
-        warning: "Transaction not found in database" 
-      }, { status: 200 });
+      return NextResponse.json(
+        {
+          received: true,
+          warning: "Transaction not found in database",
+        },
+        { status: 200 },
+      );
     }
 
-    log("transaction-found", { 
-      transactionId, 
-      previousStatus: transaction.status, 
+    log("transaction-found", {
+      transactionId,
+      previousStatus: transaction.status,
       type: transaction.type,
       propertyId: transaction.property_id,
-      userId: transaction.user_id
+      userId: transaction.user_id,
     });
 
     // Extract detailed failure information
     let detailedFailureReason = null;
     if (dbStatus === "failed" && failureReason) {
       // PawaPay sends failureReason as an object with failureMessage, failureCode, etc.
-      if (typeof failureReason === 'object') {
+      if (typeof failureReason === "object") {
         detailedFailureReason = JSON.stringify(failureReason);
       } else {
         detailedFailureReason = String(failureReason);
@@ -171,7 +185,7 @@ export async function POST(req: Request) {
       log("db-update-failed", { transactionId, error: String(updateError) });
       return NextResponse.json(
         { error: "Database update failed" },
-        { status: 500 }
+        { status: 500 },
       );
     }
 
@@ -180,15 +194,19 @@ export async function POST(req: Request) {
     // 4. Handle Post-Payment Logic
     if (dbStatus === "completed") {
       if (transaction.status !== "completed") {
-        await captureServerEvent(transaction.user_id || transactionId, "payment_completed", {
-          deposit_id: transactionId,
-          amount: transaction.amount || 0,
-          currency: transaction.currency || "XOF",
-          transaction_type: transaction.type || "unknown",
-          provider: transaction.provider || "unknown",
-          property_id: transaction.property_id || null,
-          source: "pawapay_callback",
-        });
+        await captureServerEvent(
+          transaction.user_id || transactionId,
+          "payment_completed",
+          {
+            deposit_id: transactionId,
+            amount: transaction.amount || 0,
+            currency: transaction.currency || "XOF",
+            transaction_type: transaction.type || "unknown",
+            provider: transaction.provider || "unknown",
+            property_id: transaction.property_id || null,
+            source: "pawapay_callback",
+          },
+        );
       }
 
       let notificationTitle = "Paiement confirmé";
@@ -210,21 +228,43 @@ export async function POST(req: Request) {
         if (propertyId) {
           log("post-payment-lock", { transactionId, propertyId });
           const propertyLabel = await getPropertyLabel(propertyId);
-
-          const { error: lockError } = await supabase
+          const { data: propertyRecord } = await supabase
             .from("properties")
-            .update({ status: "locked" })
-            .eq("id", propertyId);
-          
-          if (lockError) {
-            log("post-payment-lock-failed", { transactionId, propertyId, error: String(lockError) });
+            .select("period")
+            .eq("id", propertyId)
+            .maybeSingle();
+
+          if (propertyRecord?.period !== "day") {
+            const { error: lockError } = await supabase
+              .from("properties")
+              .update({ status: "locked" })
+              .eq("id", propertyId);
+
+            if (lockError) {
+              log("post-payment-lock-failed", {
+                transactionId,
+                propertyId,
+                error: String(lockError),
+              });
+            } else {
+              log("post-payment-lock-success", { transactionId, propertyId });
+            }
           } else {
-            log("post-payment-lock-success", { transactionId, propertyId });
+            log("post-payment-daily-booking-success", {
+              transactionId,
+              propertyId,
+            });
           }
 
           if (propertyLabel) {
-            notificationTitle = "Bien réservé avec succès";
-            notificationBody = `Votre réservation pour "${propertyLabel}" est confirmée`;
+            notificationTitle =
+              propertyRecord?.period === "day"
+                ? "Séjour réservé avec succès"
+                : "Bien réservé avec succès";
+            notificationBody =
+              propertyRecord?.period === "day"
+                ? `Votre réservation de séjour pour "${propertyLabel}" est confirmée`
+                : `Votre réservation pour "${propertyLabel}" est confirmée`;
           }
         }
       } else if (transaction.type === "boost") {
@@ -233,7 +273,11 @@ export async function POST(req: Request) {
           const expiresAt = new Date();
           expiresAt.setDate(expiresAt.getDate() + 7); // Boost for 7 days
 
-          log("post-payment-boost", { transactionId, propertyId, expiresAt: expiresAt.toISOString() });
+          log("post-payment-boost", {
+            transactionId,
+            propertyId,
+            expiresAt: expiresAt.toISOString(),
+          });
           const propertyLabel = await getPropertyLabel(propertyId);
 
           const { error: boostError } = await supabase
@@ -243,9 +287,13 @@ export async function POST(req: Request) {
               boost_expires_at: expiresAt.toISOString(),
             })
             .eq("id", propertyId);
-          
+
           if (boostError) {
-            log("post-payment-boost-failed", { transactionId, propertyId, error: String(boostError) });
+            log("post-payment-boost-failed", {
+              transactionId,
+              propertyId,
+              error: String(boostError),
+            });
           } else {
             log("post-payment-boost-success", { transactionId, propertyId });
           }
@@ -255,6 +303,36 @@ export async function POST(req: Request) {
             notificationBody = `"${propertyLabel}" est maintenant en avant pour 7 jours`;
           }
         }
+      } else if (transaction.type === "rent_payment" && transaction.metadata) {
+        const meta = transaction.metadata as Record<string, unknown>;
+        const scheduleId = meta.scheduleId as string | undefined;
+
+        if (scheduleId) {
+          const { error: scheduleUpdateError } = await supabase
+            .from("rent_schedules")
+            .update({
+              status: "paid",
+              transaction_id: transaction.id,
+              paid_at: new Date().toISOString(),
+            })
+            .eq("id", scheduleId);
+
+          if (scheduleUpdateError) {
+            log("post-payment-rent-schedule-update-failed", {
+              transactionId,
+              scheduleId,
+              error: String(scheduleUpdateError),
+            });
+          } else {
+            log("post-payment-rent-schedule-update-success", {
+              transactionId,
+              scheduleId,
+            });
+          }
+        }
+
+        notificationTitle = "Loyer payé";
+        notificationBody = "Votre paiement de loyer a été confirmé";
       } else if (transaction.type === "listing") {
         notificationTitle = "Annonce publiée";
         notificationBody = "Votre annonce est maintenant en ligne";
@@ -262,12 +340,12 @@ export async function POST(req: Request) {
 
       // Send payment confirmation notification
       if (transaction.user_id) {
-        log("sending-payment-notification", { 
-          userId: transaction.user_id, 
+        log("sending-payment-notification", {
+          userId: transaction.user_id,
           transactionId,
-          type: transaction.type 
+          type: transaction.type,
         });
-        
+
         await notifyUser(
           transaction.user_id,
           "payments",
@@ -279,32 +357,39 @@ export async function POST(req: Request) {
             depositId: transactionId,
             transactionType: transaction.type,
             amount: transaction.amount,
-          }
+          },
         );
       }
     }
 
     if (dbStatus === "failed" && transaction.status !== "failed") {
-      await captureServerEvent(transaction.user_id || transactionId, "payment_failed", {
-        deposit_id: transactionId,
-        amount: transaction.amount || 0,
-        currency: transaction.currency || "XOF",
-        transaction_type: transaction.type || "unknown",
-        provider: transaction.provider || "unknown",
-        property_id: transaction.property_id || null,
-        failure_reason: detailedFailureReason || "Payment failed",
-        source: "pawapay_callback",
-      });
+      await captureServerEvent(
+        transaction.user_id || transactionId,
+        "payment_failed",
+        {
+          deposit_id: transactionId,
+          amount: transaction.amount || 0,
+          currency: transaction.currency || "XOF",
+          transaction_type: transaction.type || "unknown",
+          provider: transaction.provider || "unknown",
+          property_id: transaction.property_id || null,
+          failure_reason: detailedFailureReason || "Payment failed",
+          source: "pawapay_callback",
+        },
+      );
     }
 
     log("callback-complete", { transactionId, finalStatus: dbStatus });
 
     return NextResponse.json({ received: true });
   } catch (error: unknown) {
-    log("unhandled-error", { error: String(error), stack: error instanceof Error ? error.stack : undefined });
+    log("unhandled-error", {
+      error: String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     return NextResponse.json(
       { error: error instanceof Error ? error.message : String(error) },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

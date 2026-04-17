@@ -93,7 +93,7 @@ export async function PATCH(
     // Fetch agreement to verify ownership and status
     const { data: existing, error: fetchError } = await supabaseAdmin
       .from("rental_agreements")
-      .select("id, owner_id, status")
+      .select("id, owner_id, status, transaction_id")
       .eq("id", agreementId)
       .single();
 
@@ -110,10 +110,25 @@ export async function PATCH(
     }
 
     const body = await req.json();
-    const allowed = ["monthly_rent", "caution_mois", "start_date", "end_date", "dos_and_donts", "interdictions"];
+    const financialFields = ["monthly_rent", "caution_mois", "loyer_avance_mois"];
+    const allowed = [
+      "monthly_rent",
+      "caution_mois",
+      "loyer_avance_mois",
+      "start_date",
+      "end_date",
+      "dos_and_donts",
+      "interdictions",
+    ];
     const updates: Record<string, unknown> = {};
     for (const key of allowed) {
       if (key in body) updates[key] = body[key];
+    }
+
+    if (existing.transaction_id) {
+      for (const key of financialFields) {
+        delete updates[key];
+      }
     }
 
     if (Object.keys(updates).length === 0) {

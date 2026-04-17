@@ -205,6 +205,7 @@ interface AgreementData {
   id: string;
   monthly_rent: number;
   caution_mois: number;
+  loyer_avance_mois?: number;
   start_date: string | null;
   end_date: string | null;
   dos_and_donts: string[];
@@ -257,6 +258,9 @@ function AgreementPdf({ data }: { data: AgreementData }) {
       .filter(Boolean)
       .join(", ") || "—";
   const depositAmount = data.monthly_rent * data.caution_mois;
+  const advanceRentMonths = data.loyer_avance_mois ?? 1;
+  const advanceRentAmount = data.monthly_rent * advanceRentMonths;
+  const moveInTotal = depositAmount + advanceRentAmount;
   const ref = data.id.substring(0, 8).toUpperCase();
 
   const defaultTerms =
@@ -323,9 +327,17 @@ function AgreementPdf({ data }: { data: AgreementData }) {
           </View>
           <View style={styles.tableRow}>
             <Text style={styles.tableLabel}>
-              Caution ({data.caution_mois} mois)
+              Caution remboursable ({data.caution_mois} mois)
             </Text>
             <Text style={styles.tableValue}>{formatFCFA(depositAmount)}</Text>
+          </View>
+          <View style={styles.tableRow}>
+            <Text style={styles.tableLabel}>
+              Loyer d&apos;avance ({advanceRentMonths} mois)
+            </Text>
+            <Text style={styles.tableValue}>
+              {formatFCFA(advanceRentAmount)}
+            </Text>
           </View>
           {data.start_date ? (
             <View style={styles.tableRow}>
@@ -344,7 +356,7 @@ function AgreementPdf({ data }: { data: AgreementData }) {
           <View style={[styles.tableRow, styles.tableRowTotal]}>
             <Text style={styles.tableLabel}>Total à régler à la signature</Text>
             <Text style={styles.tableValue}>
-              {formatFCFA(data.monthly_rent + depositAmount)}
+              {formatFCFA(moveInTotal)}
             </Text>
           </View>
         </View>

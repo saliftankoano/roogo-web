@@ -93,6 +93,7 @@ async function buildReceiptResponse(
   let property = null;
   let renter = null;
   let owner = null;
+  let agreement = null;
 
   if (scheduleId) {
     const { data: scheduleData } = await supabaseAdmin
@@ -112,6 +113,20 @@ async function buildReceiptResponse(
       .eq("id", transaction.property_id)
       .single();
     property = propertyData;
+
+    if (transaction.status === "completed") {
+      const { data: agreementData } = await supabaseAdmin
+        .from("rental_agreements")
+        .select(
+          "id, monthly_rent, caution_mois, loyer_avance_mois, start_date, transaction_id, owner:users!rental_agreements_owner_id_fkey(id, full_name, phone)",
+        )
+        .eq("transaction_id", transaction.id)
+        .maybeSingle();
+      agreement = agreementData;
+      owner =
+        (agreementData as Record<string, unknown> | null)?.owner ??
+        owner;
+    }
   }
 
   const { data: renterData } = await supabaseAdmin
@@ -133,6 +148,7 @@ async function buildReceiptResponse(
         provider: transaction.provider,
         schedule,
         property,
+        agreement,
         renter,
         owner,
       },
