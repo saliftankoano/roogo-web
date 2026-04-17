@@ -37,18 +37,34 @@ export const listingBaseSchema = z.object({
     )
     .optional(),
   cautionMois: z.coerce.number().int().min(0).max(12).optional(),
+  loyerAvanceMois: z.coerce.number().int().min(1).max(12).optional(),
+  cautionType: z.enum(["aucune", "pourcentage", "fixe"]).optional(),
+  cautionValeur: z.coerce.number().min(0).max(100000000).optional(),
+  sejour_minimum: z.coerce.number().int().min(1).max(30).optional(),
+  capacite_max: z.coerce.number().int().min(1).max(20).optional(),
   interdictions: z
     .array(
       z.enum(["no_animaux", "no_fumeurs", "no_etudiants", "no_colocation"]),
     )
     .optional(),
-  frequence: z.enum(["mensuel", "journalier"]).optional(),
+  dosAndDonts: z
+    .array(
+      z
+        .string()
+        .trim()
+        .min(2, "Minimum 2 caractères")
+        .max(200, "Maximum 200 caractères"),
+    )
+    .max(20, "Maximum 20 règles")
+    .optional(),
+  frequence: z.enum(["mensuel", "journalier"]),
 
   // Step 3
-  tier_id: z.enum(["essentiel", "standard", "premium"]).optional(),
+  tier_id: z.enum(["essentiel", "standard", "premium"]),
   payment_id: z.string().optional(),
   transaction_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
+  is_test: z.boolean().optional(),
 
   // Staff/founder: listing on behalf of client
   on_behalf_of_client: z.boolean().optional(),
@@ -67,6 +83,7 @@ export const PROPERTY_TYPES = [
   { id: "maison", label: "Maison" },
   { id: "terrain", label: "Terrain" },
   { id: "commercial", label: "Commercial" },
+  { id: "célibatorium", label: "Célibatorium" },
 ];
 
 export const EQUIPEMENTS = [

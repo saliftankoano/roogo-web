@@ -156,11 +156,18 @@ export async function POST(req: Request) {
       return errorResponse("Missing listingData in request body", 400, req);
     }
 
+    const normalizedListingData = {
+      ...listingData,
+      frequence: listingData.frequence ?? "mensuel",
+      cautionType: listingData.cautionType ?? listingData.caution_type,
+      cautionValeur: listingData.cautionValeur ?? listingData.caution_valeur,
+    };
+
     // 5b. Zod validation (server-side)
     // Note: We skip photos validation on server as they are uploaded separately
     const validationResult = listingBaseSchema
       .omit({ photos: true })
-      .safeParse(listingData);
+      .safeParse(normalizedListingData);
     if (!validationResult.success) {
       console.error("Validation failed:", validationResult.error.format());
       return errorResponse(
@@ -169,9 +176,10 @@ export async function POST(req: Request) {
         req,
       );
     }
+    const parsedListingData = validationResult.data;
 
     // 5c. owner_id: only staff/founder may set it; validate user exists and is owner/agent
-    const ownerId = listingData.owner_id;
+    const ownerId = parsedListingData.owner_id;
     if (ownerId) {
       if (!isStaffOrFounder) {
         return errorResponse(
@@ -198,13 +206,21 @@ export async function POST(req: Request) {
     const supabase = getSupabaseClient();
 
     // 7. Map interdiction IDs to labels (plain text)
-    const interdictionsLabels = convertIdsToLabels(listingData.interdictions);
+    const interdictionsLabels = convertIdsToLabels(
+      parsedListingData.interdictions,
+    );
+    const dosAndDonts = Array.isArray(parsedListingData.dosAndDonts)
+      ? parsedListingData.dosAndDonts
+          .map((rule) => sanitizeString(rule))
+          .filter((rule) => rule.length >= 2)
+          .slice(0, 20)
+      : [];
 
     // 8. Resolve tier and commission from database (no hardcoded pricing)
 
     // Check if staff is paying (has payment_id)
-    const isStaffPaying = isStaffOrFounder && listingData.payment_id;
-    const isFreeStaffListing = isStaffOrFounder && !listingData.payment_id;
+    const isStaffPaying = isStaffOrFounder && parsedListingData.payment_id;
+    const isFreeStaffListing = isStaffOrFounder && !parsedListingData.payment_id;
 
     let selectedTier: {
       id: string;
@@ -216,13 +232,13 @@ export async function POST(req: Request) {
       min_price: number;
     } | null = null;
 
-    if (listingData.tier_id) {
+    if (parsedListingData.tier_id) {
       const { data: tierData, error: tierError } = await supabase
         .from("listing_tiers")
         .select(
           "id, photo_limit, slot_limit, video_included, open_house_limit, has_badge, min_price",
         )
-        .eq("id", listingData.tier_id)
+        .eq("id", parsedListingData.tier_id)
         .single();
 
       if (tierError || !tierData) {
@@ -256,10 +272,10 @@ export async function POST(req: Request) {
       ? 0
       : selectedTier
         ? selectedTier.min_price +
-          listingData.prixMensuel * commissionPercentage
+          parsedListingData.prixMensuel * commissionPercentage
         : null;
 
-    const isBoosted = listingData.add_ons?.includes("boost") || false;
+    const isBoosted = parsedListingData.add_ons?.includes("boost") || false;
     let boostExpiresAt = null;
     if (isBoosted) {
       const date = new Date();
@@ -270,14 +286,20 @@ export async function POST(req: Request) {
     // Calculate slot limit with add-ons
     let slotLimit =
       selectedTier?.slot_limit || (isFreeStaffListing ? 100 : null);
-    if (slotLimit !== null && listingData.add_ons?.includes("extra_slots")) {
+    if (
+      slotLimit !== null &&
+      parsedListingData.add_ons?.includes("extra_slots")
+    ) {
       slotLimit += 25;
     }
 
     // Calculate photo limit with add-ons
     let photoLimit =
       selectedTier?.photo_limit || (isFreeStaffListing ? 20 : null);
-    if (photoLimit !== null && listingData.add_ons?.includes("extra_photos")) {
+    if (
+      photoLimit !== null &&
+      parsedListingData.add_ons?.includes("extra_photos")
+    ) {
       photoLimit += 5;
     }
 
@@ -286,7 +308,7 @@ export async function POST(req: Request) {
       selectedTier?.open_house_limit || (isFreeStaffListing ? 5 : null);
     if (
       openHouseLimit !== null &&
-      listingData.add_ons?.includes("open_house")
+      parsedListingData.add_ons?.includes("open_house")
     ) {
       openHouseLimit += 1;
     }
@@ -300,52 +322,72 @@ export async function POST(req: Request) {
       : null;
 
     const propertyData = {
-      agent_id: listingData.owner_id || user.id,
-      description: sanitizeString(listingData.description) || null,
-      price: listingData.prixMensuel,
+      agent_id: parsedListingData.owner_id || user.id,
+      description: sanitizeString(parsedListingData.description) || null,
+      price: parsedListingData.prixMensuel,
       listing_type: "louer" as const,
-      property_type: listingData.type,
+      property_type: parsedListingData.type,
       status: propertyStatus as "en_attente" | "en_ligne",
-      bedrooms: listingData.chambres || null,
-      bathrooms: listingData.sdb || null,
-      area: listingData.superficie || null,
-      parking_spaces: listingData.vehicules || null,
-      address: `${sanitizeString(listingData.quartier)}, ${sanitizeString(listingData.ville)}`,
-      city: listingData.ville,
-      quartier: sanitizeString(listingData.quartier),
-      latitude: listingData.latitude || null,
-      longitude: listingData.longitude || null,
-      caution_mois: listingData.cautionMois || null,
+      bedrooms: parsedListingData.chambres || null,
+      bathrooms: parsedListingData.sdb || null,
+      area: parsedListingData.superficie || null,
+      parking_spaces: parsedListingData.vehicules || null,
+      address: `${sanitizeString(parsedListingData.quartier)}, ${sanitizeString(parsedListingData.ville)}`,
+      city: parsedListingData.ville,
+      quartier: sanitizeString(parsedListingData.quartier),
+      latitude: parsedListingData.latitude || null,
+      longitude: parsedListingData.longitude || null,
+      caution_mois:
+        parsedListingData.frequence === "journalier"
+          ? null
+          : (parsedListingData.cautionMois ?? null),
+      loyer_avance_mois:
+        parsedListingData.frequence === "journalier"
+          ? 1
+          : parsedListingData.loyerAvanceMois || 1,
       interdictions: interdictionsLabels,
-      period: listingData.frequence === "journalier" ? "day" : "month",
-      frequence: listingData.frequence ?? "mensuel",
-      sejour_minimum: listingData.sejour_minimum ?? null,
-      capacite_max: listingData.capacite_max ?? null,
-      caution_type: listingData.caution_type ?? null,
-      caution_valeur: listingData.caution_valeur ?? null,
+      dos_and_donts: dosAndDonts,
+      period: parsedListingData.frequence === "journalier" ? "day" : "month",
+      frequence: parsedListingData.frequence,
+      sejour_minimum:
+        parsedListingData.frequence === "journalier"
+          ? (parsedListingData.sejour_minimum ?? 1)
+          : null,
+      capacite_max:
+        parsedListingData.frequence === "journalier"
+          ? (parsedListingData.capacite_max ?? 2)
+          : null,
+      caution_type:
+        parsedListingData.frequence === "journalier"
+          ? (parsedListingData.cautionType ?? "aucune")
+          : null,
+      caution_valeur:
+        parsedListingData.frequence === "journalier"
+          ? (parsedListingData.cautionValeur ?? null)
+          : null,
       // Tier information
-      tier_id: listingData.tier_id || null,
+      tier_id: parsedListingData.tier_id || null,
       tier_price: tierPrice,
       slot_limit: slotLimit,
       open_house_limit: openHouseLimit,
       photo_limit: photoLimit,
       video_included:
         selectedTier?.video_included ||
-        listingData.add_ons?.includes("video") ||
+        parsedListingData.add_ons?.includes("video") ||
         isFreeStaffListing,
       has_premium_badge: isStaffPaying
         ? selectedTier?.has_badge || false
         : isFreeStaffListing
           ? true
           : selectedTier?.has_badge || false,
-      payment_id: listingData.payment_id || staffDepositId,
+      payment_id: parsedListingData.payment_id || staffDepositId,
       // Boost information
       is_boosted: isBoosted,
       boost_expires_at: boostExpiresAt,
       // Set published_at for staff listings since they go live immediately
       published_at: isStaffOrFounder ? new Date().toISOString() : null,
       // Only staff/founder may mark a listing as test (hidden from public)
-      is_test: isStaffOrFounder ? listingData.is_test === true : false,
+      is_test: isStaffOrFounder ? parsedListingData.is_test === true : false,
     };
 
     // 9. Insert property
@@ -393,7 +435,7 @@ export async function POST(req: Request) {
         metadata: {
           staff_id: user.id,
           staff_name: user.full_name || user.email,
-          owner_id: listingData.owner_id || null,
+          owner_id: parsedListingData.owner_id || null,
           reason: "Founding owner - free listing promotion",
           created_by: "staff_portal",
         },
@@ -414,15 +456,15 @@ export async function POST(req: Request) {
           .update({ transaction_id: txData.id })
           .eq("id", propertyId);
       }
-    } else if (listingData.payment_id) {
-      console.log("Linking transaction to property:", listingData.payment_id);
+    } else if (parsedListingData.payment_id) {
+      console.log("Linking transaction to property:", parsedListingData.payment_id);
       const { data: updatedTransaction, error: txError } = await supabase
         .from("transactions")
         .update({
           property_id: propertyId,
           updated_at: new Date().toISOString(),
         })
-        .eq("deposit_id", listingData.payment_id)
+        .eq("deposit_id", parsedListingData.payment_id)
         .select()
         .single();
 
@@ -439,15 +481,15 @@ export async function POST(req: Request) {
 
     // 11. Link amenities
     if (
-      listingData.equipements &&
-      Array.isArray(listingData.equipements) &&
-      listingData.equipements.length > 0
+      parsedListingData.equipements &&
+      Array.isArray(parsedListingData.equipements) &&
+      parsedListingData.equipements.length > 0
     ) {
-      console.log("Linking amenities:", listingData.equipements);
+      console.log("Linking amenities:", parsedListingData.equipements);
       const { data: amenities, error: amenitiesError } = await supabase
         .from("amenities")
         .select("id, name")
-        .in("name", listingData.equipements);
+        .in("name", parsedListingData.equipements);
 
       if (!amenitiesError && amenities && amenities.length > 0) {
         const propertyAmenities = amenities.map((amenity) => ({
@@ -467,11 +509,11 @@ export async function POST(req: Request) {
 
     await captureServerEvent(user.id, "property_listing_created", {
       property_id: propertyId,
-      property_type: listingData.type || null,
-      price: listingData.prixMensuel || 0,
-      city: listingData.ville || null,
-      quartier: listingData.quartier || null,
-      tier_id: listingData.tier_id || null,
+      property_type: parsedListingData.type || null,
+      price: parsedListingData.prixMensuel || 0,
+      city: parsedListingData.ville || null,
+      quartier: parsedListingData.quartier || null,
+      tier_id: parsedListingData.tier_id || null,
       status: propertyStatus,
       creator_type: user.user_type,
       is_boosted: isBoosted,
@@ -488,7 +530,7 @@ export async function POST(req: Request) {
         isVerified: isStaffOrFounder,
         transactionId: isStaffOrFounder
           ? staffDepositId
-          : listingData.payment_id,
+          : parsedListingData.payment_id,
       }),
       req,
     );
