@@ -1,13 +1,8 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
 
-// Support both standard UPSTASH_ names and Vercel's custom RD_KV_ prefix
-const redisUrl =
-  process.env.UPSTASH_REDIS_REST_URL ||
-  process.env.RD_KV_REST_API_URL;
-const redisToken =
-  process.env.UPSTASH_REDIS_REST_TOKEN ||
-  process.env.RD_KV_REST_API_TOKEN;
+const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
+const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
 
 const isUpstashConfigured = redisUrl && redisToken;
 
