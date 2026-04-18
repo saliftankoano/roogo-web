@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
-import { addMonths, format } from "date-fns";
+import { addMonths, differenceInMonths, format } from "date-fns";
 
 interface PropertyLocation {
   quartier: string | null;
@@ -109,7 +109,7 @@ export async function POST(
       return errorResponse("Failed to record signature", 500, req);
     }
 
-    // Generate 12 rent schedule rows when agreement becomes active (only for mensuel — daily rentals have no schedule)
+    // Generate rent schedule rows (one per month for the lease term) when agreement becomes active. Daily rentals have no schedule.
     if (
       updateData.status === "active" &&
       agreement.property_frequence !== "journalier"
@@ -118,7 +118,12 @@ export async function POST(
         ? new Date(agreement.start_date)
         : new Date();
 
-      const schedules = Array.from({ length: 12 }, (_, i) => {
+      const endDate = agreement.end_date
+        ? new Date(agreement.end_date)
+        : addMonths(startDate, 12);
+      const scheduleCount = Math.max(1, differenceInMonths(endDate, startDate));
+
+      const schedules = Array.from({ length: scheduleCount }, (_, i) => {
         const dueDate = addMonths(startDate, i);
         return {
           agreement_id: agreementId,
