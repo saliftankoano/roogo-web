@@ -13,6 +13,7 @@ import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
+import { creditOwnerEarningForSchedule } from "@/lib/owner-wallet";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -458,6 +459,8 @@ export async function POST(req: Request) {
               paid_at: new Date().toISOString(),
             })
             .eq("id", scheduleId);
+
+          await creditOwnerEarningForSchedule(scheduleId);
         }
       }
     }

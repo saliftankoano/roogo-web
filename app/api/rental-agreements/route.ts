@@ -5,6 +5,7 @@ import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
 import { addMonths, format } from "date-fns";
+import { creditOwnerEarningsForSchedules } from "@/lib/owner-wallet";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -252,12 +253,18 @@ export async function POST(req: Request) {
           };
         });
 
-        const { error: scheduleError } = await supabaseAdmin
+        const { data: insertedSchedules, error: scheduleError } = await supabaseAdmin
           .from("rent_schedules")
-          .insert(schedules);
+          .insert(schedules)
+          .select("id, status");
 
         if (scheduleError) {
           console.error("Error creating rent schedules:", scheduleError);
+        } else {
+          const paidScheduleIds = (insertedSchedules || [])
+            .filter((schedule) => schedule.status === "paid")
+            .map((schedule) => schedule.id);
+          await creditOwnerEarningsForSchedules(paidScheduleIds);
         }
       }
 

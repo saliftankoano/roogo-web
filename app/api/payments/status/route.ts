@@ -5,6 +5,7 @@ import { getSupabaseClient } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
+import { creditOwnerEarningForSchedule } from "@/lib/owner-wallet";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -306,8 +307,9 @@ export async function POST(req: Request) {
     // 5. Update Supabase with PawaPay status
     if (status && transaction) {
       let dbStatus = "pending";
-      if (status === "COMPLETED" || status === "ACCEPTED")
-        dbStatus = "completed";
+      if (status === "COMPLETED") dbStatus = "completed";
+      if (status === "ACCEPTED" || status === "SUBMITTED")
+        dbStatus = "submitted";
       if (
         status === "FAILED" ||
         status === "CANCELLED" ||
@@ -442,6 +444,8 @@ export async function POST(req: Request) {
                 paid_at: new Date().toISOString(),
               })
               .eq("id", scheduleId);
+
+            await creditOwnerEarningForSchedule(scheduleId);
           }
           notificationTitle = "Loyer payé";
           notificationBody = "Votre paiement de loyer a été confirmé";

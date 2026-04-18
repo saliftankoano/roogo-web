@@ -2,6 +2,10 @@ import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { notifyUser } from "@/lib/push-notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
+import {
+  creditOwnerEarningForSchedule,
+  updateOwnerPayoutFromPawaPayStatus,
+} from "@/lib/owner-wallet";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -71,6 +75,37 @@ export async function POST(req: Request) {
     if (!transactionId || !status) {
       log("invalid-payload", { transactionId, status, data });
       return NextResponse.json({ error: "Invalid payload" }, { status: 400 });
+    }
+
+    if (data.payoutId) {
+      try {
+        const updateResult = await updateOwnerPayoutFromPawaPayStatus(
+          transactionId,
+          status,
+          data,
+          failureReason,
+        );
+        log("owner-payout-updated", {
+          payoutId: transactionId,
+          pawaPayStatus: status,
+          mappedStatus: updateResult.status,
+          updated: updateResult.updated,
+        });
+
+        return NextResponse.json({
+          received: true,
+          payoutUpdated: updateResult.updated,
+        });
+      } catch (payoutError) {
+        log("owner-payout-update-failed", {
+          payoutId: transactionId,
+          error: String(payoutError),
+        });
+        return NextResponse.json(
+          { error: "Payout update failed" },
+          { status: 500 },
+        );
+      }
     }
 
     const resolveWebProvider = (callbackPayload: unknown): string | null => {
@@ -328,6 +363,7 @@ export async function POST(req: Request) {
               transactionId,
               scheduleId,
             });
+            await creditOwnerEarningForSchedule(scheduleId);
           }
         }
 
