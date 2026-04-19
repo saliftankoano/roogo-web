@@ -3,16 +3,17 @@ import { verifyToken } from "@clerk/backend";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
-import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import {
   mapPawaPayPayoutStatus,
   normalizeBurkinaPhone,
   normalizePawaPayProvider,
   updateOwnerPayoutFromPawaPayStatus,
 } from "@/lib/owner-wallet";
+import { initiatePawaPayPayout } from "@/lib/pawapay-payouts";
 
 const DEFAULT_PAYOUT_MIN = 100;
 const DEFAULT_PAYOUT_MAX = 2_000_000;
+const DEPOSIT_SPLIT_WITHDRAWAL_FEE_BPS = 500; // 5% fee on deposit_split earnings at cash-out
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -74,7 +75,7 @@ export async function POST(req: Request) {
 
     const { data: earnings, error: earningsError } = await supabaseAdmin
       .from("owner_earnings")
-      .select("id, owner_id, net_amount, currency")
+      .select("id, owner_id, net_amount, currency, source_type")
       .eq("owner_id", user.id)
       .in("id", uniqueEarningIds);
 
@@ -118,10 +119,26 @@ export async function POST(req: Request) {
       );
     }
 
-    const amount = earnings.reduce(
+    // Compute per-earning withdrawal fees. deposit_split credits carry a 5%
+    // withdrawal-time fee to preserve platform margin on damage settlements;
+    // rent credits were already feed at credit-time so no further deduction.
+    const feesByEarning = new Map<string, number>();
+    let totalWithdrawalFee = 0;
+    for (const earning of earnings) {
+      const net = Number(earning.net_amount || 0);
+      const fee =
+        earning.source_type === "deposit_split"
+          ? Math.round((net * DEPOSIT_SPLIT_WITHDRAWAL_FEE_BPS) / 10_000)
+          : 0;
+      feesByEarning.set(earning.id, fee);
+      totalWithdrawalFee += fee;
+    }
+
+    const grossAmount = earnings.reduce(
       (sum, earning) => sum + Number(earning.net_amount || 0),
       0,
     );
+    const amount = grossAmount - totalWithdrawalFee;
     if (amount < DEFAULT_PAYOUT_MIN || amount > DEFAULT_PAYOUT_MAX) {
       return errorResponse(
         `Payout amount must be between ${DEFAULT_PAYOUT_MIN} and ${DEFAULT_PAYOUT_MAX} XOF`,
@@ -141,7 +158,11 @@ export async function POST(req: Request) {
         provider,
         recipient_phone: phoneNumber,
         status: "requested",
-        metadata: { earningIds: uniqueEarningIds },
+        metadata: {
+          earningIds: uniqueEarningIds,
+          grossAmount,
+          withdrawalFee: totalWithdrawalFee,
+        },
       })
       .select("*")
       .single();
@@ -158,6 +179,7 @@ export async function POST(req: Request) {
           payout_id: payout.id,
           earning_id: earning.id,
           amount: earning.net_amount,
+          withdrawal_fee_amount: feesByEarning.get(earning.id) || 0,
         })),
       );
 
@@ -176,97 +198,38 @@ export async function POST(req: Request) {
       );
     }
 
-    const pawaPayConfig = resolvePawaPayConfig();
-    const payload = {
+    const result = await initiatePawaPayPayout({
       payoutId,
-      amount: amount.toString(),
-      currency: "XOF",
-      recipient: {
-        type: "MMO",
-        accountDetails: {
-          phoneNumber,
-          provider,
-        },
-      },
+      amount,
+      phoneNumber,
+      provider,
       customerMessage: "Roogo payout",
       metadata: {
         ownerId: user.id,
         earningIds: uniqueEarningIds,
       },
-    };
-
-    const response = await fetch(`${pawaPayConfig.url}/v2/payouts`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${pawaPayConfig.token}`,
-      },
-      body: JSON.stringify(payload),
     });
 
-    const responseText = await response.text();
-    let result: Record<string, unknown>;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = { message: responseText };
-    }
+    await updateOwnerPayoutFromPawaPayStatus(
+      payoutId,
+      result.pawaPayStatus,
+      result.payload,
+      result.failureReason,
+    );
 
-    if (!response.ok) {
-      const statusCheck = await checkPayoutStatus(pawaPayConfig, payoutId);
-      if (statusCheck?.status === "FOUND") {
-        const data = statusCheck.data as Record<string, unknown> | undefined;
-        const foundStatus =
-          typeof data?.status === "string" ? data.status : "PROCESSING";
-        await updateOwnerPayoutFromPawaPayStatus(
-          payoutId,
-          foundStatus,
-          data || statusCheck,
-          data?.failureReason,
-        );
-
-        return cors(
-          NextResponse.json({
-            success: true,
-            payoutId,
-            status: mapPawaPayPayoutStatus(foundStatus),
-            amount,
-          }),
-          req,
-        );
-      }
-
-      await updateOwnerPayoutFromPawaPayStatus(
-        payoutId,
-        "FAILED",
-        result,
-        result.failureReason || result.message,
-      );
-
+    if (result.clientError) {
       return errorResponse(
-        typeof result.message === "string"
-          ? result.message
-          : "Failed to initiate payout",
-        response.status,
+        result.clientError.message,
+        result.clientError.httpStatus,
         req,
       );
     }
-
-    const initiationStatus =
-      typeof result.status === "string" ? result.status : "ACCEPTED";
-    const status = mapPawaPayPayoutStatus(initiationStatus);
-    await updateOwnerPayoutFromPawaPayStatus(
-      payoutId,
-      initiationStatus,
-      result,
-      result.failureReason,
-    );
 
     return cors(
       NextResponse.json({
         success: true,
         payoutId,
-        status,
+        status: mapPawaPayPayoutStatus(result.pawaPayStatus),
         amount,
       }),
       req,
@@ -274,20 +237,5 @@ export async function POST(req: Request) {
   } catch (error) {
     console.error("Error in POST /api/owner-wallet/payouts:", error);
     return errorResponse("Internal server error", 500, req);
-  }
-}
-
-async function checkPayoutStatus(
-  config: ReturnType<typeof resolvePawaPayConfig>,
-  payoutId: string,
-) {
-  try {
-    const response = await fetch(`${config.url}/v2/payouts/${payoutId}`, {
-      headers: { Authorization: `Bearer ${config.token}` },
-    });
-    if (!response.ok) return null;
-    return (await response.json()) as Record<string, unknown>;
-  } catch {
-    return null;
   }
 }

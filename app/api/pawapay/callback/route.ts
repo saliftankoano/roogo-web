@@ -6,6 +6,7 @@ import {
   creditOwnerEarningForSchedule,
   updateOwnerPayoutFromPawaPayStatus,
 } from "@/lib/owner-wallet";
+import { updateDepositRefundFromPawaPayStatus } from "@/lib/pawapay-payouts";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -85,16 +86,38 @@ export async function POST(req: Request) {
           data,
           failureReason,
         );
-        log("owner-payout-updated", {
+        if (updateResult.updated) {
+          log("owner-payout-updated", {
+            payoutId: transactionId,
+            pawaPayStatus: status,
+            mappedStatus: updateResult.status,
+          });
+          return NextResponse.json({
+            received: true,
+            payoutUpdated: true,
+          });
+        }
+
+        // Fall back to deposit_refunds — journalier caution refunds share the
+        // PawaPay payout pipeline but live in their own table.
+        const refundResult = await updateDepositRefundFromPawaPayStatus(
+          transactionId,
+          status,
+          data,
+          failureReason,
+        );
+        log("deposit-refund-updated", {
           payoutId: transactionId,
           pawaPayStatus: status,
-          mappedStatus: updateResult.status,
-          updated: updateResult.updated,
+          mappedStatus: refundResult.status,
+          updated: refundResult.updated,
+          holdId: refundResult.holdId,
         });
 
         return NextResponse.json({
           received: true,
-          payoutUpdated: updateResult.updated,
+          payoutUpdated: false,
+          refundUpdated: refundResult.updated,
         });
       } catch (payoutError) {
         log("owner-payout-update-failed", {

@@ -15,7 +15,7 @@ export async function OPTIONS(req: Request) {
  */
 export async function GET(
   req: Request,
-  { params }: { params: Promise<{ transactionId: string }> }
+  { params }: { params: Promise<{ transactionId: string }> },
 ) {
   try {
     const { transactionId } = await params;
@@ -25,7 +25,9 @@ export async function GET(
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -37,7 +39,9 @@ export async function GET(
     // Fetch transaction
     const { data: transaction, error: txError } = await supabaseAdmin
       .from("transactions")
-      .select("id, deposit_id, amount, currency, status, created_at, provider, metadata, property_id, user_id")
+      .select(
+        "id, deposit_id, amount, currency, status, created_at, provider, metadata, property_id, user_id",
+      )
       .eq("id", transactionId)
       .single();
 
@@ -45,7 +49,9 @@ export async function GET(
       // Try by deposit_id
       const { data: txByDeposit, error: depositError } = await supabaseAdmin
         .from("transactions")
-        .select("id, deposit_id, amount, currency, status, created_at, provider, metadata, property_id, user_id")
+        .select(
+          "id, deposit_id, amount, currency, status, created_at, provider, metadata, property_id, user_id",
+        )
         .eq("deposit_id", transactionId)
         .single();
 
@@ -66,7 +72,10 @@ export async function GET(
 
     return buildReceiptResponse(transaction, req);
   } catch (error) {
-    console.error("Error in GET /api/rent-payments/receipt/[transactionId]:", error);
+    console.error(
+      "Error in GET /api/rent-payments/receipt/[transactionId]:",
+      error,
+    );
     return errorResponse("Internal server error", 500, req);
   }
 }
@@ -84,7 +93,7 @@ async function buildReceiptResponse(
     property_id: string | null;
     user_id: string;
   },
-  req: Request
+  req: Request,
 ) {
   const meta = (transaction.metadata || {}) as Record<string, unknown>;
   const scheduleId = meta?.scheduleId as string | undefined;
@@ -98,18 +107,27 @@ async function buildReceiptResponse(
   if (scheduleId) {
     const { data: scheduleData } = await supabaseAdmin
       .from("rent_schedules")
-      .select("*, properties(id, address, quartier, ville), owner:users!rent_schedules_owner_id_fkey(id, full_name, phone)")
+      .select(
+        "*, properties(id, address, quartier, city, property_type, bedrooms, bathrooms, area), owner:users!rent_schedules_owner_id_fkey(id, full_name, phone)",
+      )
       .eq("id", scheduleId)
       .single();
     schedule = scheduleData;
     if (schedule) {
-      property = (schedule as Record<string, unknown>).properties as { address: string; quartier?: string } | null;
-      owner = (schedule as Record<string, unknown>).owner as { full_name: string } | null;
+      property = (schedule as Record<string, unknown>).properties as {
+        address: string;
+        quartier?: string;
+      } | null;
+      owner = (schedule as Record<string, unknown>).owner as {
+        full_name: string;
+      } | null;
     }
   } else if (transaction.property_id) {
     const { data: propertyData } = await supabaseAdmin
       .from("properties")
-      .select("id, address, quartier, agent_id")
+      .select(
+        "id, address, quartier, city, property_type, bedrooms, bathrooms, area, agent_id",
+      )
       .eq("id", transaction.property_id)
       .single();
     property = propertyData;
@@ -123,9 +141,7 @@ async function buildReceiptResponse(
         .eq("transaction_id", transaction.id)
         .maybeSingle();
       agreement = agreementData;
-      owner =
-        (agreementData as Record<string, unknown> | null)?.owner ??
-        owner;
+      owner = (agreementData as Record<string, unknown> | null)?.owner ?? owner;
     }
   }
 
@@ -153,6 +169,6 @@ async function buildReceiptResponse(
         owner,
       },
     }),
-    req
+    req,
   );
 }

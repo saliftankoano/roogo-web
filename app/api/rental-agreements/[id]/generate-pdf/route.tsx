@@ -5,14 +5,17 @@ import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import {
   Document,
+  Image,
   Page,
+  StyleSheet,
   Text,
   View,
-  StyleSheet,
   Font,
   pdf,
   type DocumentProps,
 } from "@react-pdf/renderer";
+import fs from "fs";
+import path from "path";
 import React from "react";
 
 export async function OPTIONS(req: Request) {
@@ -206,6 +209,7 @@ interface AgreementData {
   monthly_rent: number;
   caution_mois: number;
   loyer_avance_mois?: number;
+  property_frequence?: string | null;
   start_date: string | null;
   end_date: string | null;
   dos_and_donts: string[];
@@ -248,30 +252,67 @@ function normalizeAgreementForPdf(raw: Record<string, unknown>): AgreementData {
   };
 }
 
-function AgreementPdf({ data }: { data: AgreementData }) {
+function AgreementPdf({
+  data,
+  logoDataUri,
+}: {
+  data: AgreementData;
+  logoDataUri: string;
+}) {
+  const isDaily = data.property_frequence === "journalier";
+
   const ownerName = data.owner?.full_name || "—";
   const ownerPhone = data.owner?.phone || "—";
   const renterName = data.renter?.full_name || "—";
   const renterPhone = data.renter?.phone || "—";
   const propertyAddress =
-    [data.property?.quartier, data.property?.address, data.property?.city]
-      .filter(Boolean)
-      .join(", ") || "—";
+    [
+      ...new Set(
+        [data.property?.quartier, data.property?.address, data.property?.city].filter(
+          Boolean,
+        ),
+      ),
+    ].join(", ") || "—";
+
   const depositAmount = data.monthly_rent * data.caution_mois;
   const advanceRentMonths = data.loyer_avance_mois ?? 1;
-  const advanceRentAmount = data.monthly_rent * advanceRentMonths;
-  const moveInTotal = depositAmount + advanceRentAmount;
-  const ref = data.id.substring(0, 8).toUpperCase();
 
-  const defaultTerms =
-    "Le présent contrat est soumis aux dispositions légales en vigueur au Burkina Faso régissant les baux d'habitation. Le locataire s'engage à maintenir le bien en bon état et à s'acquitter du loyer à la date convenue. Tout litige sera réglé à l'amiable dans un premier temps, puis devant les juridictions compétentes de Ouagadougou.";
+  // Daily: calculate stay duration in nights; no advance rent applies
+  let nightCount = 0;
+  if (isDaily && data.start_date && data.end_date) {
+    const start = new Date(data.start_date);
+    const end = new Date(data.end_date);
+    nightCount = Math.max(
+      0,
+      Math.round((end.getTime() - start.getTime()) / 86_400_000),
+    );
+  }
+  const stayAmount = data.monthly_rent * nightCount;
+  const advanceRentAmount = isDaily ? 0 : data.monthly_rent * advanceRentMonths;
+  const moveInTotal = isDaily
+    ? stayAmount + depositAmount
+    : depositAmount + advanceRentAmount;
+
+  const ref = data.id.substring(0, 8).toUpperCase();
+  const title = isDaily
+    ? "CONTRAT DE LOCATION COURTE DURÉE"
+    : "CONTRAT DE BAIL";
+
+  const defaultTerms = isDaily
+    ? "Le présent contrat de location courte durée est établi pour la période indiquée ci-dessus. Le locataire s'engage à libérer le logement à la date de départ convenue, à maintenir le bien en bon état et à respecter le règlement intérieur. La caution éventuelle sera restituée dans un délai de 48h après l'état des lieux de sortie, sous réserve de l'absence de dommages. Tout litige sera réglé à l'amiable, puis devant les juridictions compétentes de Ouagadougou."
+    : "Le présent contrat est soumis aux dispositions légales en vigueur au Burkina Faso régissant les baux d'habitation. Le locataire s'engage à maintenir le bien en bon état et à s'acquitter du loyer à la date convenue. Tout litige sera réglé à l'amiable dans un premier temps, puis devant les juridictions compétentes de Ouagadougou.";
 
   return (
-    <Document title={`Contrat de Bail — ${ref}`} author="Roogo">
+    <Document title={`${title} — ${ref}`} author="Roogo">
       <Page size="A4" style={styles.page}>
         {/* ── Header ──────────────────────────────────────────────────────── */}
         <View style={styles.header}>
-          <Text style={styles.headerTitle}>CONTRAT DE BAIL</Text>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image
+            src={logoDataUri}
+            style={{ height: 36, alignSelf: "center", marginBottom: 8 }}
+          />
+          <Text style={styles.headerTitle}>{title}</Text>
           <Text style={styles.headerSub}>
             Généré par Roogo — Marketplace Immobilière du Burkina Faso
           </Text>
@@ -294,7 +335,9 @@ function AgreementPdf({ data }: { data: AgreementData }) {
               </View>
             </View>
             <View style={styles.partyBox}>
-              <Text style={styles.partyLabel}>Locataire / Preneur</Text>
+              <Text style={styles.partyLabel}>
+                {isDaily ? "Voyageur / Hôte" : "Locataire / Preneur"}
+              </Text>
               <View style={styles.row}>
                 <Text style={styles.rowLabel}>Nom</Text>
                 <Text style={styles.rowValue}>{renterName}</Text>
@@ -319,46 +362,97 @@ function AgreementPdf({ data }: { data: AgreementData }) {
         {/* ── Financial ────────────────────────────────────────────────────── */}
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Conditions financières</Text>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableLabel}>Loyer mensuel</Text>
-            <Text style={styles.tableValue}>
-              {formatFCFA(data.monthly_rent)}
-            </Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableLabel}>
-              Caution remboursable ({data.caution_mois} mois)
-            </Text>
-            <Text style={styles.tableValue}>{formatFCFA(depositAmount)}</Text>
-          </View>
-          <View style={styles.tableRow}>
-            <Text style={styles.tableLabel}>
-              Loyer d&apos;avance ({advanceRentMonths} mois)
-            </Text>
-            <Text style={styles.tableValue}>
-              {formatFCFA(advanceRentAmount)}
-            </Text>
-          </View>
-          {data.start_date ? (
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>{"Date d'entrée"}</Text>
-              <Text style={styles.tableValue}>
-                {formatDate(data.start_date)}
-              </Text>
-            </View>
-          ) : null}
-          {data.end_date ? (
-            <View style={styles.tableRow}>
-              <Text style={styles.tableLabel}>Fin du bail</Text>
-              <Text style={styles.tableValue}>{formatDate(data.end_date)}</Text>
-            </View>
-          ) : null}
-          <View style={[styles.tableRow, styles.tableRowTotal]}>
-            <Text style={styles.tableLabel}>Total à régler à la signature</Text>
-            <Text style={styles.tableValue}>
-              {formatFCFA(moveInTotal)}
-            </Text>
-          </View>
+          {isDaily ? (
+            <>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableLabel}>Tarif par nuit</Text>
+                <Text style={styles.tableValue}>
+                  {formatFCFA(data.monthly_rent)}
+                </Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableLabel}>
+                  {`Durée du séjour (${nightCount} nuit${nightCount > 1 ? "s" : ""})`}
+                </Text>
+                <Text style={styles.tableValue}>{formatFCFA(stayAmount)}</Text>
+              </View>
+              {depositAmount > 0 ? (
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>Caution remboursable</Text>
+                  <Text style={styles.tableValue}>
+                    {formatFCFA(depositAmount)}
+                  </Text>
+                </View>
+              ) : null}
+              {data.start_date ? (
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>{"Date d'arrivée"}</Text>
+                  <Text style={styles.tableValue}>
+                    {formatDate(data.start_date)}
+                  </Text>
+                </View>
+              ) : null}
+              {data.end_date ? (
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>Date de départ</Text>
+                  <Text style={styles.tableValue}>
+                    {formatDate(data.end_date)}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={[styles.tableRow, styles.tableRowTotal]}>
+                <Text style={styles.tableLabel}>Total à régler</Text>
+                <Text style={styles.tableValue}>{formatFCFA(moveInTotal)}</Text>
+              </View>
+            </>
+          ) : (
+            <>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableLabel}>Loyer mensuel</Text>
+                <Text style={styles.tableValue}>
+                  {formatFCFA(data.monthly_rent)}
+                </Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableLabel}>
+                  {`Caution remboursable (${data.caution_mois} mois)`}
+                </Text>
+                <Text style={styles.tableValue}>
+                  {formatFCFA(depositAmount)}
+                </Text>
+              </View>
+              <View style={styles.tableRow}>
+                <Text style={styles.tableLabel}>
+                  {`Loyer d'avance (${advanceRentMonths} mois)`}
+                </Text>
+                <Text style={styles.tableValue}>
+                  {formatFCFA(advanceRentAmount)}
+                </Text>
+              </View>
+              {data.start_date ? (
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>{"Date d'entrée"}</Text>
+                  <Text style={styles.tableValue}>
+                    {formatDate(data.start_date)}
+                  </Text>
+                </View>
+              ) : null}
+              {data.end_date ? (
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>Fin du bail</Text>
+                  <Text style={styles.tableValue}>
+                    {formatDate(data.end_date)}
+                  </Text>
+                </View>
+              ) : null}
+              <View style={[styles.tableRow, styles.tableRowTotal]}>
+                <Text style={styles.tableLabel}>
+                  Total à régler à la signature
+                </Text>
+                <Text style={styles.tableValue}>{formatFCFA(moveInTotal)}</Text>
+              </View>
+            </>
+          )}
         </View>
 
         {/* ── Rules ────────────────────────────────────────────────────────── */}
@@ -433,7 +527,11 @@ function AgreementPdf({ data }: { data: AgreementData }) {
               ) : (
                 <>
                   <View style={styles.sigLine} />
-                  <Text style={styles.sigLabel}>Signature du locataire</Text>
+                  <Text style={styles.sigLabel}>
+                    {isDaily
+                      ? "Signature du voyageur"
+                      : "Signature du locataire"}
+                  </Text>
                 </>
               )}
             </View>
@@ -487,6 +585,7 @@ export async function POST(
       .select(
         `
         *,
+        property_frequence,
         properties(id, address, price, quartier, city),
         owner:users!rental_agreements_owner_id_fkey(id, full_name, phone, email),
         renter:users!rental_agreements_renter_id_fkey(id, full_name, phone, email)
@@ -508,8 +607,12 @@ export async function POST(
     const pdfData = normalizeAgreementForPdf(
       agreement as unknown as Record<string, unknown>,
     );
+    const logoBase64 = fs
+      .readFileSync(path.join(process.cwd(), "public", "logo.png"))
+      .toString("base64");
+    const logoDataUri = `data:image/png;base64,${logoBase64}`;
     const element = (
-      <AgreementPdf data={pdfData} />
+      <AgreementPdf data={pdfData} logoDataUri={logoDataUri} />
     ) as React.ReactElement<DocumentProps>;
     const buffer = await pdf(element).toBuffer();
 

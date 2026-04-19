@@ -7,6 +7,18 @@
     {
       "path": "/api/cron/property-storage-cleanup",
       "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/deposit-auto-release",
+      "schedule": "*/30 * * * *"
+    },
+    {
+      "path": "/api/cron/deposit-deadline-reminder",
+      "schedule": "0 * * * *"
+    },
+    {
+      "path": "/api/cron/deposit-evidence-retention",
+      "schedule": "0 4 * * *"
     }
   ]
 }

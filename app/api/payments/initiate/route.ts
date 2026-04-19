@@ -13,7 +13,15 @@ import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
-import { creditOwnerEarningForSchedule } from "@/lib/owner-wallet";
+import {
+  creditOwnerEarningForSchedule,
+  normalizePawaPayProvider,
+} from "@/lib/owner-wallet";
+import {
+  computeJournalierPricing,
+  nightsBetween,
+  type CautionType,
+} from "@/lib/journalier-pricing";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -192,7 +200,9 @@ export async function POST(req: Request) {
     if (transactionType === "property_lock" && propertyId) {
       const { data: propertyRecord, error: propertyError } = await supabase
         .from("properties")
-        .select("price, caution_mois, loyer_avance_mois, period")
+        .select(
+          "price, caution_mois, loyer_avance_mois, period, caution_type, caution_valeur",
+        )
         .eq("id", propertyId)
         .maybeSingle();
 
@@ -216,6 +226,68 @@ export async function POST(req: Request) {
           advanceRentAmount: breakdown.advanceRentAmount,
           totalMoveInAmount: breakdown.totalAmount,
         };
+      } else {
+        // Daily stay. New flow opts in by sending startDate/endDate — server
+        // then recomputes stay cost + caution so the client can't forge the
+        // caution amount. Legacy callers without dates keep the client-sent
+        // amount and skip escrow (no deposit_holds row will be created).
+        const meta = (metadata || {}) as Record<string, unknown>;
+        const startDate =
+          typeof meta.startDate === "string" ? meta.startDate : null;
+        const endDate = typeof meta.endDate === "string" ? meta.endDate : null;
+
+        if (startDate && endDate) {
+          const nights = nightsBetween(startDate, endDate);
+          if (nights <= 0) {
+            return errorResponse(
+              "Booking must span at least one night",
+              400,
+              req,
+            );
+          }
+
+          const breakdown = computeJournalierPricing({
+            nightlyRate: propertyRecord.price,
+            nights,
+            cautionType: propertyRecord.caution_type as CautionType,
+            cautionValeur: propertyRecord.caution_valeur,
+          });
+
+          const payoutPhoneRaw =
+            typeof meta.payoutPhone === "string" ? meta.payoutPhone : null;
+          const payoutProviderRaw =
+            typeof meta.payoutProvider === "string"
+              ? meta.payoutProvider
+              : null;
+          const payoutProvider = payoutProviderRaw
+            ? normalizePawaPayProvider(payoutProviderRaw)
+            : null;
+
+          if (breakdown.cautionAmount > 0) {
+            if (!payoutPhoneRaw || !payoutProvider) {
+              return errorResponse(
+                "payoutPhone and payoutProvider are required for bookings with a caution",
+                400,
+                req,
+              );
+            }
+          }
+
+          resolvedAmount = breakdown.totalAmount;
+          resolvedMetadata = {
+            ...resolvedMetadata,
+            startDate,
+            endDate,
+            nights: breakdown.nights,
+            nightlyRate: breakdown.nightlyRate,
+            stayAmount: breakdown.stayAmount,
+            cautionAmount: breakdown.cautionAmount,
+            cautionType: breakdown.cautionType,
+            cautionValeur: breakdown.cautionValeur,
+            payoutPhone: payoutPhoneRaw || null,
+            payoutProvider: payoutProvider || null,
+          };
+        }
       }
     }
 

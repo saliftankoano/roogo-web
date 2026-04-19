@@ -18,7 +18,11 @@ import {
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
 import { useSearchParams } from "next/navigation";
-import { listingBaseSchema, listingSchema, PROPERTY_TYPES } from "@/lib/validations";
+import {
+  listingBaseSchema,
+  listingSchema,
+  PROPERTY_TYPES,
+} from "@/lib/validations";
 import type { PropertyTypeId } from "@/lib/constants";
 import { LocationPicker } from "./LocationPicker";
 import { EquipementsSelector } from "./EquipementsSelector";
@@ -136,7 +140,10 @@ function toNumber(value: string, fallback = 0) {
 }
 
 function cleanRules(rules: string[]) {
-  return rules.map((rule) => rule.trim()).filter(Boolean).slice(0, 20);
+  return rules
+    .map((rule) => rule.trim())
+    .filter(Boolean)
+    .slice(0, 20);
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -211,7 +218,9 @@ function CounterField({
     <div className="flex items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-white p-4">
       <div>
         <p className="text-sm font-extrabold text-neutral-900">{label}</p>
-        {unit && <p className="text-xs font-semibold text-neutral-400">{unit}</p>}
+        {unit && (
+          <p className="text-xs font-semibold text-neutral-400">{unit}</p>
+        )}
       </div>
       <div className="flex items-center gap-3">
         <button
@@ -269,7 +278,7 @@ function UpsellModal({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
+    <div className="fixed inset-0 z-100 flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
       <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-start justify-between gap-4">
           <div>
@@ -387,8 +396,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     string | null
   >(null);
   const [errors, setErrors] = useState<Record<string, string>>({});
-  const [formData, setFormData] =
-    useState<PropertyFormData>(DEFAULT_FORM_DATA);
+  const [formData, setFormData] = useState<PropertyFormData>(DEFAULT_FORM_DATA);
   const [photos, setPhotos] = useState<File[]>([]);
 
   const [onBehalfOfClient, setOnBehalfOfClient] = useState(false);
@@ -595,12 +603,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     setFormData((current) => ({
       ...current,
       frequence,
-      cautionType: frequence === "journalier" ? current.cautionType || "aucune" : "aucune",
+      cautionType:
+        frequence === "journalier" ? current.cautionType || "aucune" : "aucune",
       cautionValeur: frequence === "journalier" ? current.cautionValeur : "",
       sejour_minimum:
         frequence === "journalier" ? current.sejour_minimum || "1" : "1",
-      capacite_max: frequence === "journalier" ? current.capacite_max || "2" : "2",
-      cautionMois: frequence === "mensuel" ? current.cautionMois || "3" : current.cautionMois,
+      capacite_max:
+        frequence === "journalier" ? current.capacite_max || "2" : "2",
+      cautionMois:
+        frequence === "mensuel"
+          ? current.cautionMois || "3"
+          : current.cautionMois,
       loyerAvanceMois:
         frequence === "mensuel" ? current.loyerAvanceMois || "1" : "1",
     }));
@@ -622,7 +635,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         isDaily && formData.cautionType !== "aucune" && formData.cautionValeur
           ? Number(formData.cautionValeur)
           : undefined,
-      sejour_minimum: isDaily ? Number(formData.sejour_minimum || 1) : undefined,
+      sejour_minimum: isDaily
+        ? Number(formData.sejour_minimum || 1)
+        : undefined,
       capacite_max: isDaily ? Number(formData.capacite_max || 2) : undefined,
       dosAndDonts: cleanRules(formData.dosAndDonts),
       photos,
@@ -740,7 +755,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       updatedAt: new Date().toISOString(),
     };
     localStorage.setItem("roogo_property_draft", JSON.stringify(draft));
-    alert("Brouillon enregistré avec succès. Les photos devront être resélectionnées après un rechargement.");
+    alert(
+      "Brouillon enregistré avec succès. Les photos devront être resélectionnées après un rechargement.",
+    );
   };
 
   const handleClearDraft = () => {
@@ -823,7 +840,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     const token = await getToken();
     if (!token) throw new Error("No token found");
     if (commissionRate === null) {
-      throw new Error("Commission non configurée. Vérifiez les paramètres admin.");
+      throw new Error(
+        "Commission non configurée. Vérifiez les paramètres admin.",
+      );
     }
 
     const tier = tiersList.find((item) => item.id === selectedTier);
@@ -973,7 +992,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             <button
               key={propertyType.id}
               type="button"
-              onClick={() => updateField("type", propertyType.id as PropertyTypeId)}
+              onClick={() =>
+                updateField("type", propertyType.id as PropertyTypeId)
+              }
               className={`rounded-2xl border-2 px-4 py-4 text-left text-sm font-extrabold transition-all ${
                 formData.type === propertyType.id
                   ? "border-primary bg-primary/10 text-primary"
@@ -1121,7 +1142,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               onClick={() =>
                 updateField(
                   "dosAndDonts",
-                  formData.dosAndDonts.filter((_, ruleIndex) => ruleIndex !== index),
+                  formData.dosAndDonts.filter(
+                    (_, ruleIndex) => ruleIndex !== index,
+                  ),
                 )
               }
               className="text-neutral-400 hover:text-red-600"
@@ -1250,7 +1273,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   type="number"
                   min="0"
                   placeholder={
-                    formData.cautionType === "pourcentage" ? "Ex: 20" : "Ex: 15000"
+                    formData.cautionType === "pourcentage"
+                      ? "Ex: 20"
+                      : "Ex: 15000"
                   }
                   className="w-full rounded-2xl border border-neutral-200 bg-white px-5 py-4 outline-none"
                   value={formData.cautionValeur}
@@ -1395,9 +1420,15 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 }`}
               >
                 {loadingOwnerSearch ? (
-                  <Loader2 className="shrink-0 animate-spin text-neutral-400" size={18} />
+                  <Loader2
+                    className="shrink-0 animate-spin text-neutral-400"
+                    size={18}
+                  />
                 ) : (
-                  <MagnifyingGlassIcon size={18} className="shrink-0 text-neutral-400" />
+                  <MagnifyingGlassIcon
+                    size={18}
+                    className="shrink-0 text-neutral-400"
+                  />
                 )}
                 <input
                   type="text"
@@ -1455,7 +1486,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const renderStepThree = () => (
     <div className="space-y-8">
       <SectionTitle
-        icon={<UploadSimpleIcon size={22} className="text-primary" weight="bold" />}
+        icon={
+          <UploadSimpleIcon size={22} className="text-primary" weight="bold" />
+        }
         title="Publication"
       />
 
@@ -1474,7 +1507,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               {formData.frequence === "journalier" ? "par nuit" : "par mois"}
             </p>
           </div>
-          {showFullPreview ? <CaretUpIcon size={22} /> : <CaretDownIcon size={22} />}
+          {showFullPreview ? (
+            <CaretUpIcon size={22} />
+          ) : (
+            <CaretDownIcon size={22} />
+          )}
         </button>
 
         <div className="mt-4 grid grid-cols-2 gap-3 text-sm md:grid-cols-4">
@@ -1546,7 +1583,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                     {moveInBreakdown.loyerAvanceMois} mois
                   </p>
                   <p>
-                    <span className="font-extrabold">Total à l&apos;entrée:</span>{" "}
+                    <span className="font-extrabold">
+                      Total à l&apos;entrée:
+                    </span>{" "}
                     {formatAmount(moveInBreakdown.totalAmount)}
                   </p>
                 </>
@@ -1629,7 +1668,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               onChange={(e) => setIsTestListing(e.target.checked)}
               className="h-5 w-5 rounded border-neutral-300 text-primary"
             />
-            <span className="font-extrabold text-neutral-900">Annonce test</span>
+            <span className="font-extrabold text-neutral-900">
+              Annonce test
+            </span>
           </label>
         </div>
       )}
@@ -1652,7 +1693,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             </span>
           </div>
           <div className="flex justify-between border-t border-neutral-200 pt-3 text-base">
-            <span className="font-extrabold text-neutral-950">Total à payer</span>
+            <span className="font-extrabold text-neutral-950">
+              Total à payer
+            </span>
             <span className="text-xl font-black text-primary">
               {formatAmount(totalAmount)}
             </span>
@@ -1760,7 +1803,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               type="button"
               onClick={handlePublish}
               disabled={isSubmitting}
-              className="flex flex-[2] items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-sm font-extrabold text-white shadow-lg disabled:opacity-70"
+              className="flex flex-2 items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-sm font-extrabold text-white shadow-lg disabled:opacity-70"
             >
               {isSubmitting ? (
                 <Loader2 className="animate-spin" size={22} />

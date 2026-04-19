@@ -94,6 +94,7 @@ export async function POST(req: Request) {
     let renterId: string;
     let isRenterFlow = false;
     let lockedTransactionId: string | null = null;
+    let lockedTransactionMetadata: Record<string, unknown> | null = null;
 
     if (property.agent_id === user.id) {
       // --- Owner flow ---
@@ -111,7 +112,7 @@ export async function POST(req: Request) {
       // Verify the caller has a completed property_lock transaction for this property.
       const { data: transaction } = await supabaseAdmin
         .from("transactions")
-        .select("id, status, type, deposit_id")
+        .select("id, status, type, deposit_id, metadata")
         .eq("property_id", propertyId)
         .eq("user_id", user.id)
         .eq("type", "property_lock")
@@ -133,28 +134,45 @@ export async function POST(req: Request) {
       isRenterFlow = true;
       // Use the Supabase transactions.id (FK target), not the PawaPay deposit ID
       lockedTransactionId = transaction.id;
+      lockedTransactionMetadata =
+        (transaction.metadata as Record<string, unknown> | null) || null;
     }
 
-    // Check no active/draft agreement already exists
-    const { data: existing } = await supabaseAdmin
-      .from("rental_agreements")
-      .select("id, status")
-      .eq("property_id", propertyId)
-      .in("status", [
-        "draft",
-        "sent",
-        "renter_signed",
-        "owner_signed",
-        "active",
-      ])
-      .maybeSingle();
+    // Daily rentals allow multiple concurrent agreements (different guests, different date
+    // ranges). Conflict detection is handled via property_blocked_dates, not here.
+    // For monthly rentals, only one active/draft agreement is permitted at a time.
+    if (property.period !== "day") {
+      const { data: existing } = await supabaseAdmin
+        .from("rental_agreements")
+        .select("id, status, renter_id")
+        .eq("property_id", propertyId)
+        .in("status", [
+          "draft",
+          "sent",
+          "renter_signed",
+          "owner_signed",
+          "active",
+        ])
+        .maybeSingle();
 
-    if (existing) {
-      return errorResponse(
-        "An active agreement already exists for this property",
-        409,
-        req,
-      );
+      if (existing) {
+        // Idempotent renter flow: same renter retrying after a successful payment
+        // (e.g. network drop) — return the existing agreement rather than blocking.
+        if (isRenterFlow && existing.renter_id === user.id) {
+          return cors(
+            NextResponse.json({
+              success: true,
+              agreement: { id: existing.id },
+            }),
+            req,
+          );
+        }
+        return errorResponse(
+          "An active agreement already exists for this property",
+          409,
+          req,
+        );
+      }
     }
 
     const now = new Date();
@@ -167,7 +185,10 @@ export async function POST(req: Request) {
         ? 1
         : Math.min(
             12,
-            Math.max(1, Number(loyerAvanceMois || property.loyer_avance_mois || 1)),
+            Math.max(
+              1,
+              Number(loyerAvanceMois || property.loyer_avance_mois || 1),
+            ),
           );
     const isDailyRenterFlow = isRenterFlow && property.period === "day";
 
@@ -228,6 +249,47 @@ export async function POST(req: Request) {
         );
         // Non-fatal: agreement is created, dates will be visible as booked after next sync
       }
+
+      // Escrow the caution if one was collected on the property_lock transaction.
+      // The payout phone + provider were captured at payment time and stored in metadata.
+      const meta = lockedTransactionMetadata || {};
+      const cautionAmount = Number(meta.cautionAmount || 0);
+      const payoutPhone =
+        typeof meta.payoutPhone === "string" ? meta.payoutPhone : null;
+      const payoutProvider =
+        typeof meta.payoutProvider === "string" ? meta.payoutProvider : null;
+
+      if (cautionAmount > 0 && payoutPhone && payoutProvider) {
+        const stayEndAt = new Date(`${endDate}T12:00:00Z`);
+        const reviewDeadlineAt = new Date(
+          stayEndAt.getTime() + 72 * 60 * 60 * 1000,
+        );
+
+        const { error: holdError } = await supabaseAdmin
+          .from("deposit_holds")
+          .insert({
+            agreement_id: agreement.id,
+            property_id: propertyId,
+            owner_id: ownerId,
+            renter_id: renterId,
+            amount: cautionAmount,
+            currency: "XOF",
+            source_transaction_id: lockedTransactionId,
+            renter_payout_phone: payoutPhone,
+            renter_payout_provider: payoutProvider,
+            status: "held",
+            stay_end_at: stayEndAt.toISOString(),
+            review_deadline_at: reviewDeadlineAt.toISOString(),
+          });
+
+        if (holdError) {
+          console.error(
+            "Error creating deposit hold for daily agreement:",
+            holdError,
+          );
+          // Non-fatal: agreement is created, hold can be backfilled manually if needed.
+        }
+      }
     }
 
     // Renter flow: generate 12 monthly rent schedules immediately (only for mensuel — daily rentals have no schedule)
@@ -253,10 +315,11 @@ export async function POST(req: Request) {
           };
         });
 
-        const { data: insertedSchedules, error: scheduleError } = await supabaseAdmin
-          .from("rent_schedules")
-          .insert(schedules)
-          .select("id, status");
+        const { data: insertedSchedules, error: scheduleError } =
+          await supabaseAdmin
+            .from("rent_schedules")
+            .insert(schedules)
+            .select("id, status");
 
         if (scheduleError) {
           console.error("Error creating rent schedules:", scheduleError);
