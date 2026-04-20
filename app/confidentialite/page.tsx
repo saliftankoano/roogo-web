@@ -44,10 +44,10 @@ export default function PrivacyPage() {
               <p className="mt-2">
                 Contact :{" "}
                 <a
-                  href="mailto:hello@roogo.app"
+                  href="mailto:hello@roogobf.com"
                   className="text-orange-600 hover:underline"
                 >
-                  hello@roogo.app
+                  hello@roogobf.com
                 </a>
               </p>
             </section>
@@ -262,10 +262,10 @@ export default function PrivacyPage() {
               <p className="mt-3">
                 Pour exercer ces droits, contactez-nous à{" "}
                 <a
-                  href="mailto:hello@roogo.app"
+                  href="mailto:hello@roogobf.com"
                   className="text-orange-600 hover:underline"
                 >
-                  hello@roogo.app
+                  hello@roogobf.com
                 </a>
                 . Nous répondons dans un délai de 30 jours.
               </p>
@@ -330,10 +330,10 @@ export default function PrivacyPage() {
                 <br />
                 E-mail :{" "}
                 <a
-                  href="mailto:hello@roogo.app"
+                  href="mailto:hello@roogobf.com"
                   className="text-orange-600 hover:underline"
                 >
-                  hello@roogo.app
+                  hello@roogobf.com
                 </a>
               </p>
             </section>

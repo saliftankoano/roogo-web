@@ -42,10 +42,10 @@ export default function PrivacyPageEn() {
               <p className="mt-2">
                 Contact:{" "}
                 <a
-                  href="mailto:hello@roogo.app"
+                  href="mailto:hello@roogobf.com"
                   className="text-orange-600 hover:underline"
                 >
-                  hello@roogo.app
+                  hello@roogobf.com
                 </a>
               </p>
             </section>
@@ -246,10 +246,10 @@ export default function PrivacyPageEn() {
               <p className="mt-3">
                 To exercise these rights, contact us at{" "}
                 <a
-                  href="mailto:hello@roogo.app"
+                  href="mailto:hello@roogobf.com"
                   className="text-orange-600 hover:underline"
                 >
-                  hello@roogo.app
+                  hello@roogobf.com
                 </a>
                 . We respond within 30 days.
               </p>
@@ -311,10 +311,10 @@ export default function PrivacyPageEn() {
                 <br />
                 Email:{" "}
                 <a
-                  href="mailto:hello@roogo.app"
+                  href="mailto:hello@roogobf.com"
                   className="text-orange-600 hover:underline"
                 >
-                  hello@roogo.app
+                  hello@roogobf.com
                 </a>
               </p>
             </section>
