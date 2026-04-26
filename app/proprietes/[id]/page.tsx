@@ -34,6 +34,7 @@ import {
   ArrowSquareOutIcon,
 } from "@phosphor-icons/react";
 import { fetchPropertyById, Property } from "@/lib/data";
+import { KuulaEmbed } from "@/components/virtual-tour/KuulaEmbed";
 import PropertyPaymentModal from "@/components/payment/PropertyPaymentModal";
 import { cn } from "@/lib/utils";
 import { VIEW_TRACKED_PROPERTIES_SESSION_KEY } from "@/lib/view-tracking";
@@ -482,6 +483,27 @@ export default function PropertyDetailPage() {
                   </div>
                 )}
               </section>
+
+              {listing.virtualTourUrl && (
+                <section className="bg-white p-6 md:p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-4">
+                  <div>
+                    <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
+                      Visite virtuelle
+                    </p>
+                    <h2 className="text-xl font-black text-neutral-900">
+                      Explorez le bien en 3D
+                    </h2>
+                    <p className="mt-2 text-sm font-medium text-neutral-500">
+                      Visitez la propriété à distance grâce à l&apos;expérience
+                      immersive Kuula intégrée.
+                    </p>
+                  </div>
+                  <KuulaEmbed
+                    virtualTourUrl={listing.virtualTourUrl}
+                    title={`Visite virtuelle de ${listing.location}`}
+                  />
+                </section>
+              )}
 
               <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-8">
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">

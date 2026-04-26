@@ -35,7 +35,8 @@ import PhotoManager from "@/components/admin/PhotoManager";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import {
   fetchPropertyById,
-  updatePropertyStatus, updateProperty,
+  updatePropertyStatus,
+  updateProperty,
   deleteProperty,
   Property,
   Transaction,
@@ -44,6 +45,7 @@ import { getSecureTransactions } from "./actions";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
+import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -131,9 +133,10 @@ export default function ListingDetailPage() {
   const [editForm, setEditForm] = useState<Partial<Property>>({});
   const [confirmEditModalOpen, setConfirmEditModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
 
   const isStaffOrFounder = ["staff", "founder"].includes(
-    clerkUser?.publicMetadata?.userType as string
+    clerkUser?.publicMetadata?.userType as string,
   );
 
   const startEditing = () => {
@@ -151,16 +154,25 @@ export default function ListingDetailPage() {
       propertyType: listing.propertyType,
       amenities: [...listing.amenities],
       period: listing.period,
+      virtualTourUrl: listing.virtualTourUrl,
     });
+    setEditError(null);
     setIsEditing(true);
   };
 
   const cancelEditing = () => {
     setIsEditing(false);
     setEditForm({});
+    setEditError(null);
   };
 
-  const handleEditChange = (field: keyof Property, value: PropertyFieldValue) => {
+  const handleEditChange = (
+    field: keyof Property,
+    value: PropertyFieldValue,
+  ) => {
+    if (field === "virtualTourUrl") {
+      setEditError(null);
+    }
     setEditForm((prev) => ({ ...prev, [field]: value }));
   };
 
@@ -182,8 +194,13 @@ export default function ListingDetailPage() {
 
   const getChangedFields = () => {
     if (!listing) return [];
-    const changes: { field: string; old: PropertyFieldValue; new: PropertyFieldValue; label: string }[] = [];
-    
+    const changes: {
+      field: string;
+      old: PropertyFieldValue;
+      new: PropertyFieldValue;
+      label: string;
+    }[] = [];
+
     const fields: { key: keyof Property; label: string }[] = [
       { key: "description", label: "Description" },
       { key: "price", label: "Prix" },
@@ -196,21 +213,30 @@ export default function ListingDetailPage() {
       { key: "parking", label: "Parking" },
       { key: "propertyType", label: "Type de bien" },
       { key: "period", label: "Période" },
+      { key: "virtualTourUrl", label: "Visite virtuelle Kuula" },
     ];
 
     fields.forEach(({ key, label }) => {
       if (editForm[key] !== undefined && editForm[key] !== listing[key]) {
-        changes.push({ field: key, old: listing[key], new: editForm[key], label });
+        changes.push({
+          field: key,
+          old: listing[key],
+          new: editForm[key],
+          label,
+        });
       }
     });
 
     // Check amenities separately
-    if (editForm.amenities && JSON.stringify(editForm.amenities) !== JSON.stringify(listing.amenities)) {
-      changes.push({ 
-        field: "amenities", 
-        old: listing.amenities.join(", "), 
-        new: editForm.amenities.join(", "), 
-        label: "Commodités" 
+    if (
+      editForm.amenities &&
+      JSON.stringify(editForm.amenities) !== JSON.stringify(listing.amenities)
+    ) {
+      changes.push({
+        field: "amenities",
+        old: listing.amenities.join(", "),
+        new: editForm.amenities.join(", "),
+        label: "Commodités",
       });
     }
 
@@ -218,6 +244,19 @@ export default function ListingDetailPage() {
   };
 
   const handleSaveClick = () => {
+    if (typeof editForm.virtualTourUrl === "string") {
+      try {
+        normalizeKuulaVirtualTourUrl(editForm.virtualTourUrl);
+      } catch (error) {
+        setEditError(
+          error instanceof Error
+            ? error.message
+            : "Lien de visite virtuelle invalide",
+        );
+        return;
+      }
+    }
+
     if (getChangedFields().length === 0) {
       setIsEditing(false);
       return;
@@ -258,7 +297,7 @@ export default function ListingDetailPage() {
         const transactionsData = await getSecureTransactions(
           id,
           propertyData?.payment_id,
-          propertyData?.transaction_id
+          propertyData?.transaction_id,
         );
         setTransactions(transactionsData);
       } catch (error) {
@@ -474,7 +513,10 @@ export default function ListingDetailPage() {
                   <div className="flex-1 overflow-y-auto pr-2 space-y-4">
                     <div className="grid grid-cols-1 gap-3">
                       {getChangedFields().map((change) => (
-                        <div key={change.field} className="bg-neutral-50 rounded-xl p-4 border border-neutral-100">
+                        <div
+                          key={change.field}
+                          className="bg-neutral-50 rounded-xl p-4 border border-neutral-100"
+                        >
                           <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-2">
                             {change.label}
                           </p>
@@ -596,7 +638,8 @@ export default function ListingDetailPage() {
                     Supprimer le bien
                   </h3>
                   <p className="text-neutral-500 text-sm">
-                    Êtes-vous sûr de vouloir supprimer définitivement ce bien ? <br />
+                    Êtes-vous sûr de vouloir supprimer définitivement ce bien ?{" "}
+                    <br />
                     Cette action est irréversible.
                   </p>
 
@@ -631,9 +674,9 @@ export default function ListingDetailPage() {
             onClick={() => router.back()}
             className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all duration-200 active:scale-95"
           >
-            <CaretLeftIcon 
-              size={24} 
-              className="text-neutral-700 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-all duration-200" 
+            <CaretLeftIcon
+              size={24}
+              className="text-neutral-700 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-all duration-200"
               weight="bold"
             />
           </button>
@@ -655,7 +698,9 @@ export default function ListingDetailPage() {
                   <input
                     type="text"
                     value={editForm.quartier}
-                    onChange={(e) => handleEditChange("quartier", e.target.value)}
+                    onChange={(e) =>
+                      handleEditChange("quartier", e.target.value)
+                    }
                     placeholder="Quartier"
                     className="bg-neutral-50 border border-neutral-200 rounded px-1"
                   />
@@ -713,7 +758,8 @@ export default function ListingDetailPage() {
           )}
           <Button
             variant="ghost"
-            className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider" onClick={() => setDeleteModalOpen(true)}
+            className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
+            onClick={() => setDeleteModalOpen(true)}
           >
             Supprimer
           </Button>
@@ -722,7 +768,7 @@ export default function ListingDetailPage() {
               onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
               className={cn(
                 "min-w-[180px] justify-between gap-2 border shadow-sm h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider transition-all",
-                getStatusColor(listing.status)
+                getStatusColor(listing.status),
               )}
             >
               {getStatusLabel(listing.status)}
@@ -730,7 +776,7 @@ export default function ListingDetailPage() {
                 size={16}
                 className={cn(
                   "transition-transform",
-                  isStatusDropdownOpen && "rotate-180"
+                  isStatusDropdownOpen && "rotate-180",
                 )}
               />
             </Button>
@@ -766,7 +812,7 @@ export default function ListingDetailPage() {
                       className={cn(
                         "w-full px-4 py-3 text-left text-xs font-bold uppercase tracking-wider hover:bg-neutral-50 transition-colors flex items-center justify-between",
                         status.color,
-                        listing.status === status.id && "bg-neutral-50"
+                        listing.status === status.id && "bg-neutral-50",
                       )}
                     >
                       {status.label}
@@ -803,7 +849,12 @@ export default function ListingDetailPage() {
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Chambres", value: listing.bedrooms, icon: BedIcon, key: "bedrooms" },
+                {
+                  label: "Chambres",
+                  value: listing.bedrooms,
+                  icon: BedIcon,
+                  key: "bedrooms",
+                },
                 {
                   label: "Salles de bain",
                   value: listing.bathrooms,
@@ -817,7 +868,12 @@ export default function ListingDetailPage() {
                   key: "area",
                   suffix: " m²",
                 },
-                { label: "Parking", value: listing.parking, icon: CarIcon, key: "parking" },
+                {
+                  label: "Parking",
+                  value: listing.parking,
+                  icon: CarIcon,
+                  key: "parking",
+                },
               ].map((item, idx) => (
                 <div
                   key={idx}
@@ -836,12 +892,18 @@ export default function ListingDetailPage() {
                       <input
                         type="text"
                         value={editForm[item.key as keyof Property] as string}
-                        onChange={(e) => handleEditChange(item.key as keyof Property, e.target.value)}
+                        onChange={(e) =>
+                          handleEditChange(
+                            item.key as keyof Property,
+                            e.target.value,
+                          )
+                        }
                         className="text-sm font-black text-neutral-900 bg-white border border-neutral-200 rounded px-1 w-full"
                       />
                     ) : (
                       <p className="text-sm font-black text-neutral-900">
-                        {item.value || "-"}{item.suffix || ""}
+                        {item.value || "-"}
+                        {item.suffix || ""}
                       </p>
                     )}
                   </div>
@@ -853,12 +915,64 @@ export default function ListingDetailPage() {
               {isEditing ? (
                 <textarea
                   value={editForm.description}
-                  onChange={(e) => handleEditChange("description", e.target.value)}
+                  onChange={(e) =>
+                    handleEditChange("description", e.target.value)
+                  }
                   className="w-full h-40 p-4 text-neutral-600 leading-relaxed bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                 />
               ) : (
                 <p className="text-neutral-600 leading-relaxed whitespace-pre-wrap">
                   {listing.description}
+                </p>
+              )}
+            </div>
+
+            <div className="space-y-3 rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
+              <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                Visite virtuelle
+              </p>
+              {isEditing ? (
+                <div className="space-y-3">
+                  <input
+                    type="url"
+                    value={String(editForm.virtualTourUrl ?? "")}
+                    onChange={(e) =>
+                      handleEditChange("virtualTourUrl", e.target.value)
+                    }
+                    placeholder="https://kuula.co/share/..."
+                    className="w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-sm font-medium text-neutral-900 outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20"
+                  />
+                  <div className="flex justify-between gap-3 text-xs">
+                    <p className="font-medium text-neutral-500">
+                      Collez le lien de partage Kuula, pas le script
+                      d&apos;intégration.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleEditChange("virtualTourUrl", "")}
+                      className="shrink-0 font-bold text-neutral-500 hover:text-neutral-900"
+                    >
+                      Effacer
+                    </button>
+                  </div>
+                  {editError && (
+                    <p className="text-sm font-semibold text-red-600">
+                      {editError}
+                    </p>
+                  )}
+                </div>
+              ) : listing.virtualTourUrl ? (
+                <a
+                  href={listing.virtualTourUrl}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="break-all text-sm font-semibold text-primary hover:underline"
+                >
+                  {listing.virtualTourUrl}
+                </a>
+              ) : (
+                <p className="text-sm font-medium text-neutral-500">
+                  Aucune visite virtuelle ajoutée.
                 </p>
               )}
             </div>
@@ -946,7 +1060,8 @@ export default function ListingDetailPage() {
                     />
                   ) : (
                     <div className="w-full h-full flex items-center justify-center text-xl font-bold text-primary">
-                      {listing.agent?.full_name?.charAt(0)?.toUpperCase() || "?"}
+                      {listing.agent?.full_name?.charAt(0)?.toUpperCase() ||
+                        "?"}
                     </div>
                   )}
                 </div>
@@ -1051,10 +1166,10 @@ export default function ListingDetailPage() {
                             tx.type === "listing_submission"
                               ? "bg-orange-50 text-orange-600"
                               : tx.type === "photography"
-                              ? "bg-amber-50 text-amber-700"
-                              : tx.type === "property_lock"
-                              ? "bg-green-50 text-green-700"
-                              : "bg-blue-50 text-blue-600"
+                                ? "bg-amber-50 text-amber-700"
+                                : tx.type === "property_lock"
+                                  ? "bg-green-50 text-green-700"
+                                  : "bg-blue-50 text-blue-600",
                           )}
                         >
                           {tx.type === "listing_submission" ? (
@@ -1072,10 +1187,10 @@ export default function ListingDetailPage() {
                             {tx.type === "listing_submission"
                               ? "Publication"
                               : tx.type === "photography"
-                              ? "Photographie"
-                              : tx.type === "property_lock"
-                              ? "Paiement d'entrée"
-                              : "Boost"}
+                                ? "Photographie"
+                                : tx.type === "property_lock"
+                                  ? "Paiement d'entrée"
+                                  : "Boost"}
                           </p>
                           <p className="text-[9px] text-neutral-400 font-bold mt-1 uppercase tracking-wider">
                             ID: {tx.deposit_id.split("-")[0]}
@@ -1088,8 +1203,8 @@ export default function ListingDetailPage() {
                           tx.status === "completed"
                             ? "bg-green-50 text-green-700 border border-green-100"
                             : tx.status === "failed"
-                            ? "bg-red-50 text-red-700 border border-red-100"
-                            : "bg-orange-50 text-orange-700 border border-orange-100"
+                              ? "bg-red-50 text-red-700 border border-red-100"
+                              : "bg-orange-50 text-orange-700 border border-orange-100",
                         )}
                       >
                         {tx.status === "completed" ? (
@@ -1102,8 +1217,8 @@ export default function ListingDetailPage() {
                         {tx.status === "completed"
                           ? "Réussi"
                           : tx.status === "failed"
-                          ? "Échec"
-                          : "Attente"}
+                            ? "Échec"
+                            : "Attente"}
                       </div>
                     </div>
 
@@ -1135,7 +1250,11 @@ export default function ListingDetailPage() {
                               <span>{label}</span>
                             </div>
                             <span className="text-neutral-900">
-                              {(Number.isFinite(addOnPrice) ? addOnPrice : 0).toLocaleString()} F
+                              {(Number.isFinite(addOnPrice)
+                                ? addOnPrice
+                                : 0
+                              ).toLocaleString()}{" "}
+                              F
                             </span>
                           </div>
                         );
@@ -1158,15 +1277,22 @@ export default function ListingDetailPage() {
                               Caution ({metadata?.cautionMois ?? 0} mois)
                             </span>
                             <span className="text-neutral-900">
-                              {Number(metadata?.cautionAmount ?? 0).toLocaleString()} F
+                              {Number(
+                                metadata?.cautionAmount ?? 0,
+                              ).toLocaleString()}{" "}
+                              F
                             </span>
                           </div>
                           <div className="flex items-center justify-between text-[10px] font-bold">
                             <span className="text-neutral-400 uppercase tracking-widest">
-                              Loyer d&apos;avance ({metadata?.loyerAvanceMois ?? 1} mois)
+                              Loyer d&apos;avance (
+                              {metadata?.loyerAvanceMois ?? 1} mois)
                             </span>
                             <span className="text-neutral-900">
-                              {Number(metadata?.advanceRentAmount ?? 0).toLocaleString()} F
+                              {Number(
+                                metadata?.advanceRentAmount ?? 0,
+                              ).toLocaleString()}{" "}
+                              F
                             </span>
                           </div>
                         </>

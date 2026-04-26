@@ -26,6 +26,7 @@ import Image from "next/image";
 import { Property } from "@/lib/data";
 import { useState, useEffect, useRef } from "react";
 import { usePropertyEngagement } from "@/hooks/usePropertyEngagement";
+import { KuulaEmbed } from "@/components/virtual-tour/KuulaEmbed";
 
 interface PropertyDetailsModalProps {
   isOpen: boolean;
@@ -209,6 +210,21 @@ export default function PropertyDetailsModal({
                     )}
                   </div>
 
+                  {property.virtualTourUrl && (
+                    <div className="bg-white border border-neutral-100 rounded-3xl p-6">
+                      <h4 className="text-lg font-bold text-neutral-900 mb-2">
+                        Visite virtuelle
+                      </h4>
+                      <p className="text-sm font-medium text-neutral-500 mb-4">
+                        Explorez la propriété à distance avec la visite Kuula.
+                      </p>
+                      <KuulaEmbed
+                        virtualTourUrl={property.virtualTourUrl}
+                        title={`Visite virtuelle de ${property.location}`}
+                      />
+                    </div>
+                  )}
+
                   {/* Title and Price */}
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1">
@@ -314,7 +330,6 @@ export default function PropertyDetailsModal({
                       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
                         {property.amenities.map((amenity, idx) => {
                           const Icon = getAmenityIcon(amenity);
-  if (!property) return null;
                           return (
                             <div
                               key={idx}

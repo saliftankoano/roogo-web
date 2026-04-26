@@ -33,6 +33,7 @@ export type Property = {
   payment_id?: string;
   transaction_id?: string;
   is_test?: boolean;
+  virtualTourUrl?: string;
   agent?: {
     full_name: string;
     phone: string;
@@ -83,6 +84,7 @@ interface DBProperty {
   transaction_id: string | null;
   primary_image: string | null;
   is_test: boolean | null;
+  virtual_tour_url?: string | null;
 }
 
 // Helper function to map DB properties to frontend format
@@ -100,7 +102,9 @@ function mapProperty(p: DBProperty): Property {
     period: p.period === "month" ? "Mois" : p.period,
     image: p.primary_image || p.images?.[0] || "/hero-bg.jpg",
     images: p.images || [],
-    category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
+    category: (p.property_type === "commercial"
+      ? "Business"
+      : "Residential") as "Business" | "Residential",
     isSponsored: p.is_boosted || false,
     status: p.status,
     propertyType: p.property_type,
@@ -120,6 +124,7 @@ function mapProperty(p: DBProperty): Property {
     payment_id: p.payment_id || undefined,
     transaction_id: p.transaction_id || undefined,
     is_test: p.is_test || false,
+    virtualTourUrl: p.virtual_tour_url || undefined,
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
@@ -181,7 +186,7 @@ export async function fetchProperties(options?: {
 }
 
 export async function fetchFeaturedProperties(
-  limit: number = 4
+  limit: number = 4,
 ): Promise<Property[]> {
   const { properties } = await fetchProperties({
     limit,
@@ -203,48 +208,7 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
   }
 
   const p = data as DBProperty;
-  return {
-    id: p.id,
-    owner_id: p.owner_id || undefined,
-    location: `${p.quartier}, ${p.city}`,
-    address: p.address,
-    price: p.price.toString(),
-    bedrooms: p.bedrooms || 0,
-    bathrooms: p.bathrooms || 0,
-    area: p.area?.toString() || "0",
-    parking: p.parking_spaces || 0,
-    period: p.period === "month" ? "Mois" : p.period,
-    image: p.primary_image || p.images?.[0] || "/hero-bg.jpg",
-    images: p.images || [],
-    category: (p.property_type === "commercial" ? "Business" : "Residential") as "Business" | "Residential",
-    isSponsored: p.is_boosted || false,
-    status: p.status,
-    propertyType: p.property_type,
-    description: p.description || "",
-    amenities: p.amenities || [],
-    views: p.views_count || 0,
-    favorites: p.favorites_count || 0,
-    slot_limit: p.slot_limit || 0,
-    slots_filled: p.slots_filled || 0,
-    photo_limit: p.photo_limit || 0,
-    video_included: p.video_included || false,
-    city: p.city,
-    quartier: p.quartier,
-    created_at: p.created_at,
-    deposit: p.caution_mois ?? p.deposit ?? undefined,
-    loyerAvanceMois: p.loyer_avance_mois ?? 1,
-    payment_id: p.payment_id || undefined,
-    transaction_id: p.transaction_id || undefined,
-    agent: {
-      full_name: p.agent_name || "Agent Inconnu",
-      phone: p.agent_phone || "",
-      email: p.agent_email || undefined,
-      avatar_url: p.agent_avatar || "",
-      user_type: p.agent_type || undefined,
-      company_name: p.agent_company_name || undefined,
-      facebook_url: p.agent_facebook_url || undefined,
-    },
-  };
+  return mapProperty(p);
 }
 export type Transaction = {
   id: string;
@@ -269,22 +233,28 @@ export type Transaction = {
 export async function fetchTransactionsByPropertyId(
   propertyId: string,
   paymentId?: string | null,
-  transactionId?: string | null
+  transactionId?: string | null,
 ): Promise<Transaction[]> {
   // Try multiple ways to find the transaction
   const queries = [];
-  
+
   // 1. Find by property_id
-  queries.push(supabase.from("transactions").select("*").eq("property_id", propertyId));
-  
+  queries.push(
+    supabase.from("transactions").select("*").eq("property_id", propertyId),
+  );
+
   // 2. Find by payment_id (deposit_id)
   if (paymentId) {
-    queries.push(supabase.from("transactions").select("*").eq("deposit_id", paymentId));
+    queries.push(
+      supabase.from("transactions").select("*").eq("deposit_id", paymentId),
+    );
   }
-  
+
   // 3. Find by transaction_id (primary key)
   if (transactionId) {
-    queries.push(supabase.from("transactions").select("*").eq("id", transactionId));
+    queries.push(
+      supabase.from("transactions").select("*").eq("id", transactionId),
+    );
   }
 
   const results = await Promise.all(queries);
@@ -293,7 +263,7 @@ export async function fetchTransactionsByPropertyId(
 
   results.forEach((res) => {
     if (!res.error && res.data) {
-      (res.data as Transaction[]).forEach(tx => {
+      (res.data as Transaction[]).forEach((tx) => {
         if (!seenIds.has(tx.id)) {
           seenIds.add(tx.id);
           allTransactions.push(tx);
@@ -305,7 +275,10 @@ export async function fetchTransactionsByPropertyId(
   });
 
   // Sort by created_at descending
-  allTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+  allTransactions.sort(
+    (a, b) =>
+      new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+  );
 
   return allTransactions;
 }
@@ -408,7 +381,7 @@ export const properties: Property[] = [
 
 export async function updatePropertyStatus(
   id: string,
-  status: string
+  status: string,
 ): Promise<boolean> {
   try {
     const response = await fetch(`/api/properties/${id}/status`, {
@@ -449,7 +422,7 @@ export async function deleteProperty(id: string): Promise<boolean> {
 
 export async function updateProperty(
   id: string,
-  updates: Partial<Property>
+  updates: Partial<Property>,
 ): Promise<boolean> {
   try {
     const response = await fetch(`/api/properties/${id}`, {

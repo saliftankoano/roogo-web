@@ -5,6 +5,7 @@ import {
   purgePropertyListingAssets,
 } from "@/lib/property-storage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { createUserInSupabase, ClerkUserData } from "../../../../lib/user-sync";
 
 interface PropertyPatchUpdates {
@@ -20,6 +21,7 @@ interface PropertyPatchUpdates {
   propertyType?: string;
   period?: string;
   amenities?: string[];
+  virtualTourUrl?: string | null;
 }
 
 interface AmenityRow {
@@ -254,6 +256,23 @@ export async function PATCH(
       dbUpdates.property_type = updates.propertyType;
     if (updates.period !== undefined)
       dbUpdates.period = updates.period === "Mois" ? "month" : updates.period;
+    if (updates.virtualTourUrl !== undefined) {
+      try {
+        dbUpdates.virtual_tour_url = normalizeKuulaVirtualTourUrl(
+          updates.virtualTourUrl,
+        );
+      } catch (error) {
+        return NextResponse.json(
+          {
+            error:
+              error instanceof Error
+                ? error.message
+                : "Lien de visite virtuelle invalide",
+          },
+          { status: 400 },
+        );
+      }
+    }
 
     const { error } = await supabaseAdmin
       .from("properties")

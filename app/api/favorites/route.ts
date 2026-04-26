@@ -35,6 +35,7 @@ interface PropertyData {
   property_type?: string;
   is_boosted?: boolean;
   status?: string;
+  virtual_tour_url?: string | null;
 }
 
 interface FavoriteItem {
@@ -153,6 +154,7 @@ export async function GET(req: Request) {
           isSponsored: !!prop.is_boosted,
           status: prop.status || "en_attente",
           propertyType: prop.property_type,
+          virtualTourUrl: prop.virtual_tour_url || undefined,
         };
       });
 

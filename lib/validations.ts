@@ -57,6 +57,7 @@ export const listingBaseSchema = z.object({
     )
     .max(20, "Maximum 20 règles")
     .optional(),
+  virtualTourUrl: z.string().optional(),
   frequence: z.enum(["mensuel", "journalier"]),
 
   // Step 3

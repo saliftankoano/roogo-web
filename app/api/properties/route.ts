@@ -12,6 +12,7 @@ import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
 import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { listingBaseSchema } from "@/lib/validations";
+import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import validator from "validator";
 
 export async function OPTIONS(req: Request) {
@@ -178,6 +179,27 @@ export async function POST(req: Request) {
     }
     const parsedListingData = validationResult.data;
 
+    let virtualTourUrl: string | null = null;
+    try {
+      virtualTourUrl = normalizeKuulaVirtualTourUrl(
+        parsedListingData.virtualTourUrl,
+      );
+    } catch (error) {
+      return errorResponse(
+        error instanceof Error ? error.message : "Lien Kuula invalide",
+        400,
+        req,
+      );
+    }
+
+    if (!isStaffOrFounder && virtualTourUrl) {
+      return errorResponse(
+        "Seuls les membres du staff peuvent ajouter une visite virtuelle",
+        403,
+        req,
+      );
+    }
+
     // 5c. owner_id: only staff/founder may set it; validate user exists and is owner/agent
     const ownerId = parsedListingData.owner_id;
     if (ownerId) {
@@ -220,7 +242,8 @@ export async function POST(req: Request) {
 
     // Check if staff is paying (has payment_id)
     const isStaffPaying = isStaffOrFounder && parsedListingData.payment_id;
-    const isFreeStaffListing = isStaffOrFounder && !parsedListingData.payment_id;
+    const isFreeStaffListing =
+      isStaffOrFounder && !parsedListingData.payment_id;
 
     let selectedTier: {
       id: string;
@@ -388,6 +411,7 @@ export async function POST(req: Request) {
       published_at: isStaffOrFounder ? new Date().toISOString() : null,
       // Only staff/founder may mark a listing as test (hidden from public)
       is_test: isStaffOrFounder ? parsedListingData.is_test === true : false,
+      virtual_tour_url: isStaffOrFounder ? virtualTourUrl : null,
     };
 
     // 9. Insert property
@@ -457,7 +481,10 @@ export async function POST(req: Request) {
           .eq("id", propertyId);
       }
     } else if (parsedListingData.payment_id) {
-      console.log("Linking transaction to property:", parsedListingData.payment_id);
+      console.log(
+        "Linking transaction to property:",
+        parsedListingData.payment_id,
+      );
       const { data: updatedTransaction, error: txError } = await supabase
         .from("transactions")
         .update({

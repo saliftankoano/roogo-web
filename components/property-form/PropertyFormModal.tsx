@@ -24,6 +24,7 @@ import {
   PROPERTY_TYPES,
 } from "@/lib/validations";
 import type { PropertyTypeId } from "@/lib/constants";
+import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { LocationPicker } from "./LocationPicker";
 import { EquipementsSelector } from "./EquipementsSelector";
 import { InterdictionsSelector } from "./InterdictionsSelector";
@@ -93,6 +94,7 @@ interface PropertyFormData {
   equipements: string[];
   interdictions: string[];
   dosAndDonts: string[];
+  virtualTourUrl: string;
 }
 
 const DEFAULT_FORM_DATA: PropertyFormData = {
@@ -117,6 +119,7 @@ const DEFAULT_FORM_DATA: PropertyFormData = {
   equipements: [],
   interdictions: [],
   dosAndDonts: [],
+  virtualTourUrl: "",
 };
 
 const CITY_OPTIONS: { id: CityId; label: string }[] = [
@@ -144,6 +147,19 @@ function cleanRules(rules: string[]) {
     .map((rule) => rule.trim())
     .filter(Boolean)
     .slice(0, 20);
+}
+
+function getVirtualTourError(value: string): string | undefined {
+  if (!value.trim()) return undefined;
+
+  try {
+    normalizeKuulaVirtualTourUrl(value);
+    return undefined;
+  } catch (error) {
+    return error instanceof Error
+      ? error.message
+      : "Le lien Kuula est invalide.";
+  }
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -464,6 +480,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         ...draft.formData,
         frequence: draft.formData?.frequence ?? prev.frequence,
         dosAndDonts: draft.formData?.dosAndDonts ?? prev.dosAndDonts,
+        virtualTourUrl: draft.formData?.virtualTourUrl ?? prev.virtualTourUrl,
       }));
       setCurrentStep(Math.min(3, Math.max(1, draft.currentStep || 1)));
       setSelectedTier(draft.selectedTier ?? null);
@@ -640,6 +657,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         : undefined,
       capacite_max: isDaily ? Number(formData.capacite_max || 2) : undefined,
       dosAndDonts: cleanRules(formData.dosAndDonts),
+      virtualTourUrl: isStaffOrFounder ? formData.virtualTourUrl.trim() : "",
       photos,
       tier_id: selectedTier ?? undefined,
       add_ons: addOns,
@@ -666,8 +684,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const validateFull = () => {
     const result = listingSchema.safeParse(buildListingData());
     const nextErrors = collectErrors(result);
+    const virtualTourError = isStaffOrFounder
+      ? getVirtualTourError(formData.virtualTourUrl)
+      : undefined;
+    if (virtualTourError) {
+      nextErrors.virtualTourUrl = virtualTourError;
+    }
     setErrors(nextErrors);
-    return { ok: result.success, errors: nextErrors };
+    return {
+      ok: result.success && !virtualTourError,
+      errors: nextErrors,
+    };
   };
 
   const validateStep = (step: number) => {
@@ -690,6 +717,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               description: data.description,
               photos: data.photos,
               dosAndDonts: data.dosAndDonts,
+              virtualTourUrl: data.virtualTourUrl,
             }
           : {
               tier_id: data.tier_id,
@@ -715,6 +743,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               description: true,
               photos: true,
               dosAndDonts: true,
+              virtualTourUrl: true,
             })
           : listingBaseSchema.pick({
               tier_id: true,
@@ -724,6 +753,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
     const result = schema.safeParse(stepFields);
     const nextErrors = collectErrors(result);
+    if (step === 2 && isStaffOrFounder) {
+      const virtualTourError = getVirtualTourError(formData.virtualTourUrl);
+      if (virtualTourError) {
+        nextErrors.virtualTourUrl = virtualTourError;
+      }
+    }
     if (step === 3 && onBehalfOfClient && !selectedOwnerId) {
       nextErrors.owner_id = "Sélectionnez un propriétaire ou agent";
     }
@@ -807,7 +842,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
     const result = await response.json();
     if (!response.ok || !result.success) {
-      throw new Error(result.message || "Failed to create property");
+      throw new Error(
+        result.error || result.message || "Failed to create property",
+      );
     }
 
     const propertyId = result.propertyId;
@@ -1170,6 +1207,27 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <PhotoUploader files={photos} onChange={setPhotos} />
         <FieldError message={errors.photos} />
       </div>
+
+      {isStaffOrFounder && (
+        <div className="space-y-2 rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
+          <label className="text-sm font-extrabold text-neutral-800">
+            Visite virtuelle Kuula
+          </label>
+          <p className="text-xs font-semibold text-neutral-500">
+            Collez le lien de partage Kuula (pas le script d&apos;intégration).
+          </p>
+          <input
+            type="url"
+            placeholder="https://kuula.co/share/collection/7MDZD?logo=1&info=1&fs=1&vr=0&thumbs=1&inst=fr"
+            className={`w-full rounded-2xl border bg-white px-5 py-4 outline-none transition-all focus:border-primary focus:ring-2 focus:ring-primary/20 ${
+              errors.virtualTourUrl ? "border-red-500" : "border-neutral-200"
+            }`}
+            value={formData.virtualTourUrl}
+            onChange={(e) => updateField("virtualTourUrl", e.target.value)}
+          />
+          <FieldError message={errors.virtualTourUrl} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <CounterField
@@ -1565,6 +1623,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 <span className="font-extrabold">Règles:</span>{" "}
                 {cleanRules(formData.dosAndDonts).length || "Aucune"}
               </p>
+              {isStaffOrFounder && (
+                <p>
+                  <span className="font-extrabold">Visite virtuelle:</span>{" "}
+                  {formData.virtualTourUrl.trim() || "Aucune"}
+                </p>
+              )}
               {formData.frequence === "journalier" ? (
                 <>
                   <p>
@@ -1793,7 +1857,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             <button
               type="button"
               onClick={goNext}
-              className="flex flex-[2] items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-sm font-extrabold text-white shadow-lg disabled:opacity-70"
+              className="flex flex-2 items-center justify-center gap-2 rounded-full bg-primary px-5 py-4 text-sm font-extrabold text-white shadow-lg disabled:opacity-70"
             >
               Suivant
               <CaretRightIcon size={18} weight="bold" />
