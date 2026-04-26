@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
-import { getUserByClerkId } from "@/lib/user-sync";
+import { getOrSyncUserByClerkId } from "@/lib/user-sync";
 
 interface OwnerApplicationRow {
   id: string;
@@ -51,7 +51,7 @@ export async function GET(req: Request) {
       return errorResponse("Invalid token", 401, req);
     }
 
-    const user = await getUserByClerkId(clerkUserId);
+    const user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) return errorResponse("User not found", 404, req);
 
     const { data, error } = await supabaseAdmin
