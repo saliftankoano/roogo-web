@@ -36,9 +36,9 @@ export async function POST(req: Request) {
 
     const user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) return errorResponse("User not found", 404, req);
-    if (!["owner", "agent"].includes(user.user_type)) {
+    if (!["owner", "agent", "staff", "founder"].includes(user.user_type)) {
       return errorResponse(
-        "Only owners and agents can request payouts",
+        "Only owners, agents, staff, and founders can request payouts",
         403,
         req,
       );
