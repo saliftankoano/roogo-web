@@ -99,6 +99,7 @@ const isPublicRoute = createRouteMatcher([
   "/robots.txt",
   "/sitemap.xml",
   "/supprimer-compte",
+  "/app",
   "/personnel/rejoindre",
   "/louer/residentiel",
   "/louer/commercial",
