@@ -428,6 +428,13 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
   const ownerComboboxRef = useRef<HTMLDivElement>(null);
   const selectedOwnerId = selectedOwner?.id ?? null;
+  const isDailyListing = formData.frequence === "journalier";
+
+  useEffect(() => {
+    if (isDailyListing && selectedTier !== "essentiel") {
+      setSelectedTier("essentiel");
+    }
+  }, [isDailyListing, selectedTier]);
 
   const rentAmount = parseInt(formData.prixMensuel, 10) || 0;
   const moveInBreakdown = getMoveInPaymentBreakdown({
@@ -897,13 +904,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       const addon = addonsList.find((item) => item.id === id);
       return sum + (addon?.price || 0);
     }, 0);
-    const isDailyListing = formData.frequence === "journalier";
     const commission = isDailyListing ? 0 : rentAmount * commissionRate;
     const amount =
       (isDailyListing ? DAILY_LISTING_PUBLICATION_FEE : tier.base_fee) +
       commission +
       addonsTotal;
-    const paymentDescription = `Pack ${selectedTier}${addOns.length > 0 ? " avec Options" : ""}`;
+    const paymentDescription = isDailyListing
+      ? `Publication journalière${addOns.length > 0 ? " avec Options" : ""}`
+      : `Pack ${selectedTier}${addOns.length > 0 ? " avec Options" : ""}`;
 
     const paymentRes = await fetch("/api/payments/paymentpage", {
       method: "POST",
@@ -1686,50 +1694,82 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
       <div className="space-y-4">
         <h4 className="text-lg font-extrabold text-neutral-950">
-          Packs de publication <span className="text-red-500">*</span>
+          {isDailyListing ? "Publication journalière" : "Packs de publication"}{" "}
+          <span className="text-red-500">*</span>
         </h4>
-        <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-          {tiersList.map((tier) => {
-            const selected = selectedTier === tier.id;
-            const price =
-              paymentChoice === "free"
-                ? 0
-                : formData.frequence === "journalier"
-                  ? DAILY_LISTING_PUBLICATION_FEE
+        {isDailyListing ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedTier("essentiel");
+              setErrors((current) => {
+                const next = { ...current };
+                delete next.tier_id;
+                return next;
+              });
+            }}
+            className="w-full rounded-3xl border-2 border-primary bg-primary/5 p-5 text-left transition-all"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-lg font-extrabold text-neutral-950">
+                  Publication journalière
+                </p>
+                <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
+                  Prix unique pour soumettre une location journalière. Les
+                  options photo, vidéo et visibilité restent disponibles à
+                  l&apos;étape suivante.
+                </p>
+              </div>
+              <p className="shrink-0 text-2xl font-black text-neutral-950">
+                {paymentChoice === "free"
+                  ? formatAmount(0)
+                  : formatAmount(DAILY_LISTING_PUBLICATION_FEE)}
+              </p>
+            </div>
+          </button>
+        ) : (
+          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+            {tiersList.map((tier) => {
+              const selected = selectedTier === tier.id;
+              const price =
+                paymentChoice === "free"
+                  ? 0
                   : tier.base_fee + rentAmount * (commissionRate ?? 0);
-            return (
-              <button
-                key={tier.id}
-                type="button"
-                onClick={() => {
-                  setSelectedTier(tier.id);
-                  setErrors((current) => {
-                    const next = { ...current };
-                    delete next.tier_id;
-                    return next;
-                  });
-                }}
-                className={`rounded-3xl border-2 p-5 text-left transition-all ${
-                  selected
-                    ? "border-primary bg-primary/5"
-                    : "border-neutral-200 bg-white hover:border-neutral-300"
-                }`}
-              >
-                <p className="text-lg font-extrabold capitalize text-neutral-950">
-                  {tier.id}
-                </p>
-                <p className="mt-2 text-2xl font-black text-neutral-950">
-                  {formatAmount(price)}
-                </p>
-                <ul className="mt-4 space-y-2 text-sm font-semibold text-neutral-600">
-                  <li>{tier.photo_limit} photos</li>
-                  <li>{tier.slot_limit} candidats</li>
-                  {tier.video_included && <li>Vidéo incluse</li>}
-                </ul>
-              </button>
-            );
-          })}
-        </div>
+              return (
+                <button
+                  key={tier.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedTier(tier.id);
+                    setErrors((current) => {
+                      const next = { ...current };
+                      delete next.tier_id;
+                      return next;
+                    });
+                  }}
+                  className={`rounded-3xl border-2 p-5 text-left transition-all ${
+                    selected
+                      ? "border-primary bg-primary/5"
+                      : "border-neutral-200 bg-white hover:border-neutral-300"
+                  }`}
+                >
+                  <p className="text-lg font-extrabold capitalize text-neutral-950">
+                    {tier.id}
+                  </p>
+                  <p className="mt-2 text-2xl font-black text-neutral-950">
+                    {formatAmount(price)}
+                  </p>
+                  <ul className="mt-4 space-y-2 text-sm font-semibold text-neutral-600">
+                    <li>{tier.photo_limit} photos</li>
+                    <li>{tier.slot_limit} candidats</li>
+                    {tier.video_included && <li>Vidéo incluse</li>}
+                  </ul>
+                </button>
+              );
+            })}
+          </div>
+        )}
         <FieldError message={errors.tier_id} />
         {paymentChoice === "pay" && commissionConfigError && (
           <p className="text-xs font-semibold text-red-600">
