@@ -217,6 +217,7 @@ interface AgreementData {
   terms_text: string | null;
   owner_signed_at: string | null;
   renter_signed_at: string | null;
+  payment_metadata?: Record<string, unknown> | null;
   property?: {
     address?: string;
     quartier?: string;
@@ -268,14 +269,23 @@ function AgreementPdf({
   const propertyAddress =
     [
       ...new Set(
-        [data.property?.quartier, data.property?.address, data.property?.city].filter(
-          Boolean,
-        ),
+        [
+          data.property?.quartier,
+          data.property?.address,
+          data.property?.city,
+        ].filter(Boolean),
       ),
     ].join(", ") || "—";
 
   const depositAmount = data.monthly_rent * data.caution_mois;
   const advanceRentMonths = data.loyer_avance_mois ?? 1;
+  const paymentMeta = data.payment_metadata || {};
+  const metaNumber = (key: string, fallback = 0) => {
+    const value = paymentMeta[key];
+    return typeof value === "number" && Number.isFinite(value)
+      ? value
+      : fallback;
+  };
 
   // Daily: calculate stay duration in nights; no advance rent applies
   let nightCount = 0;
@@ -288,9 +298,18 @@ function AgreementPdf({
     );
   }
   const stayAmount = data.monthly_rent * nightCount;
+  const dailyStayAmount = metaNumber("stayAmount", stayAmount);
+  const dailyCautionAmount = metaNumber("cautionAmount", depositAmount);
+  const dailyServiceFee = metaNumber("renterServiceFeeAmount", 0);
+  const dailyOwnerCommission = metaNumber("ownerCommissionAmount", 0);
+  const dailyOwnerNet = metaNumber("ownerNetAmount", dailyStayAmount);
+  const dailyTotalCollected = metaNumber(
+    "totalCollectedAmount",
+    dailyStayAmount + dailyCautionAmount + dailyServiceFee,
+  );
   const advanceRentAmount = isDaily ? 0 : data.monthly_rent * advanceRentMonths;
   const moveInTotal = isDaily
-    ? stayAmount + depositAmount
+    ? dailyTotalCollected
     : depositAmount + advanceRentAmount;
 
   const ref = data.id.substring(0, 8).toUpperCase();
@@ -374,15 +393,47 @@ function AgreementPdf({
                 <Text style={styles.tableLabel}>
                   {`Durée du séjour (${nightCount} nuit${nightCount > 1 ? "s" : ""})`}
                 </Text>
-                <Text style={styles.tableValue}>{formatFCFA(stayAmount)}</Text>
+                <Text style={styles.tableValue}>
+                  {formatFCFA(dailyStayAmount)}
+                </Text>
               </View>
-              {depositAmount > 0 ? (
+              {dailyServiceFee > 0 ? (
+                <View style={styles.tableRow}>
+                  <Text style={styles.tableLabel}>
+                    Frais de service Roogo (10%)
+                  </Text>
+                  <Text style={styles.tableValue}>
+                    {formatFCFA(dailyServiceFee)}
+                  </Text>
+                </View>
+              ) : null}
+              {dailyCautionAmount > 0 ? (
                 <View style={styles.tableRow}>
                   <Text style={styles.tableLabel}>Caution remboursable</Text>
                   <Text style={styles.tableValue}>
-                    {formatFCFA(depositAmount)}
+                    {formatFCFA(dailyCautionAmount)}
                   </Text>
                 </View>
+              ) : null}
+              {dailyOwnerCommission > 0 ? (
+                <>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>
+                      Commission propriétaire Roogo (10%)
+                    </Text>
+                    <Text style={styles.tableValue}>
+                      {formatFCFA(dailyOwnerCommission)}
+                    </Text>
+                  </View>
+                  <View style={styles.tableRow}>
+                    <Text style={styles.tableLabel}>
+                      Montant net propriétaire
+                    </Text>
+                    <Text style={styles.tableValue}>
+                      {formatFCFA(dailyOwnerNet)}
+                    </Text>
+                  </View>
+                </>
               ) : null}
               {data.start_date ? (
                 <View style={styles.tableRow}>
@@ -401,7 +452,7 @@ function AgreementPdf({
                 </View>
               ) : null}
               <View style={[styles.tableRow, styles.tableRowTotal]}>
-                <Text style={styles.tableLabel}>Total à régler</Text>
+                <Text style={styles.tableLabel}>Total payé sur Roogo</Text>
                 <Text style={styles.tableValue}>{formatFCFA(moveInTotal)}</Text>
               </View>
             </>
@@ -603,10 +654,22 @@ export async function POST(
       return errorResponse("Forbidden", 403, req);
     }
 
+    let paymentMetadata: Record<string, unknown> | null = null;
+    if (agreement.transaction_id) {
+      const { data: transaction } = await supabaseAdmin
+        .from("transactions")
+        .select("metadata")
+        .eq("id", agreement.transaction_id)
+        .maybeSingle();
+      paymentMetadata =
+        (transaction?.metadata as Record<string, unknown> | null) || null;
+    }
+
     // ── Generate PDF buffer ───────────────────────────────────────────────
-    const pdfData = normalizeAgreementForPdf(
-      agreement as unknown as Record<string, unknown>,
-    );
+    const pdfData = normalizeAgreementForPdf({
+      ...(agreement as unknown as Record<string, unknown>),
+      payment_metadata: paymentMetadata,
+    });
     const logoBase64 = fs
       .readFileSync(path.join(process.cwd(), "public", "logo.png"))
       .toString("base64");

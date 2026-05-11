@@ -136,7 +136,7 @@ async function buildReceiptResponse(
       const { data: agreementData } = await supabaseAdmin
         .from("rental_agreements")
         .select(
-          "id, monthly_rent, caution_mois, loyer_avance_mois, start_date, transaction_id, owner:users!rental_agreements_owner_id_fkey(id, full_name, phone)",
+          "id, monthly_rent, caution_mois, loyer_avance_mois, property_frequence, start_date, end_date, transaction_id, owner:users!rental_agreements_owner_id_fkey(id, full_name, phone)",
         )
         .eq("transaction_id", transaction.id)
         .maybeSingle();
@@ -162,6 +162,7 @@ async function buildReceiptResponse(
         status: transaction.status,
         paidAt: transaction.created_at,
         provider: transaction.provider,
+        metadata: meta,
         schedule,
         property,
         agreement,
