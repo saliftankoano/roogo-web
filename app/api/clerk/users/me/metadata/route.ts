@@ -70,6 +70,8 @@ export async function POST(req: Request) {
       body) as Record<string, unknown>;
 
     const {
+      firstName,
+      lastName,
       userType,
       sex,
       dateOfBirth,
@@ -87,6 +89,24 @@ export async function POST(req: Request) {
       onboardingData, // legacy alias for mobileOnboardingData
       signupPlatform,
     } = input;
+
+    const trimmedFirstName =
+      typeof firstName === "string" ? firstName.trim() : undefined;
+    const trimmedLastName =
+      typeof lastName === "string" ? lastName.trim() : undefined;
+    const hasNameUpdate = firstName !== undefined || lastName !== undefined;
+
+    if (hasNameUpdate && !trimmedFirstName) {
+      return addCorsHeaders(
+        NextResponse.json({ error: "Invalid firstName" }, { status: 400 }),
+      );
+    }
+
+    if (hasNameUpdate && !trimmedLastName) {
+      return addCorsHeaders(
+        NextResponse.json({ error: "Invalid lastName" }, { status: 400 }),
+      );
+    }
 
     // Validations
     if (
@@ -171,6 +191,8 @@ export async function POST(req: Request) {
     }
 
     await clerk.users.updateUser(userId, {
+      ...(trimmedFirstName ? { firstName: trimmedFirstName } : {}),
+      ...(trimmedLastName ? { lastName: trimmedLastName } : {}),
       publicMetadata,
       privateMetadata,
     });
