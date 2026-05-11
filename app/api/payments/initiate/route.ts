@@ -19,6 +19,7 @@ import {
 } from "@/lib/owner-wallet";
 import {
   computeJournalierPricing,
+  JOURNALIER_LISTING_PUBLICATION_FEE,
   nightsBetween,
   type CautionType,
 } from "@/lib/journalier-pricing";
@@ -281,13 +282,50 @@ export async function POST(req: Request) {
             nights: breakdown.nights,
             nightlyRate: breakdown.nightlyRate,
             stayAmount: breakdown.stayAmount,
+            originalCautionAmount: breakdown.originalCautionAmount,
             cautionAmount: breakdown.cautionAmount,
+            cautionCapAmount: breakdown.cautionCapAmount,
             cautionType: breakdown.cautionType,
             cautionValeur: breakdown.cautionValeur,
+            renterServiceFeeBps: breakdown.renterServiceFeeBps,
+            renterServiceFeeAmount: breakdown.renterServiceFeeAmount,
+            ownerCommissionBps: breakdown.ownerCommissionBps,
+            ownerCommissionAmount: breakdown.ownerCommissionAmount,
+            ownerNetAmount: breakdown.ownerNetAmount,
+            totalCollectedAmount: breakdown.totalAmount,
             payoutPhone: payoutPhoneRaw || null,
             payoutProvider: payoutProvider || null,
           };
         }
+      }
+    }
+
+    if (transactionType === "listing_submission") {
+      const meta = (metadata || {}) as Record<string, unknown>;
+
+      if (meta.frequence === "journalier") {
+        const addOns = Array.isArray(meta.add_on_details)
+          ? meta.add_on_details
+          : [];
+        const addOnsTotal = addOns.reduce((total, item) => {
+          if (
+            item &&
+            typeof item === "object" &&
+            "price" in item &&
+            typeof item.price === "number"
+          ) {
+            return total + item.price;
+          }
+          return total;
+        }, 0);
+
+        resolvedAmount = JOURNALIER_LISTING_PUBLICATION_FEE + addOnsTotal;
+        resolvedMetadata = {
+          ...resolvedMetadata,
+          originalClientAmount: amount,
+          publicationFeeAmount: JOURNALIER_LISTING_PUBLICATION_FEE,
+          addOnsTotal,
+        };
       }
     }
 

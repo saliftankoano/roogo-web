@@ -11,6 +11,7 @@ import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
+import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 
 // Schema for Payment Page request
 const paymentPageSchema = z.object({
@@ -155,9 +156,24 @@ export async function POST(req: Request) {
       add_ons,
       metadata,
     } = validatedData;
+    const resolvedMetadata = metadata || {};
+    const isDailyListing =
+      transactionType === "listing_submission" &&
+      resolvedMetadata.frequence === "journalier";
+    const resolvedAmount = isDailyListing
+      ? JOURNALIER_LISTING_PUBLICATION_FEE +
+        (Array.isArray(resolvedMetadata.add_on_details)
+          ? resolvedMetadata.add_on_details.reduce((sum, item) => {
+              if (item && typeof item === "object" && "price" in item) {
+                return sum + Number(item.price || 0);
+              }
+              return sum;
+            }, 0)
+          : 0)
+      : amount;
 
     log("request-validated", { 
-      amount, 
+      amount: resolvedAmount, 
       transactionType, 
       propertyId,
       tier_id 
@@ -173,7 +189,7 @@ export async function POST(req: Request) {
 
     const { error: dbError } = await supabase.from("transactions").insert({
       deposit_id: depositId,
-      amount: amount,
+      amount: resolvedAmount,
       currency: currency,
       status: "pending",
       type: transactionType,
@@ -181,7 +197,8 @@ export async function POST(req: Request) {
       user_id: user.id,
       property_id: propertyId || null,
       metadata: {
-        ...(metadata || {}),
+        ...resolvedMetadata,
+        originalClientAmount: amount,
         tier_id,
         add_ons,
         description,
@@ -198,11 +215,11 @@ export async function POST(req: Request) {
       return errorResponse("Failed to initialize transaction", 500, req);
     }
 
-    log("transaction-created", { depositId, amount });
+    log("transaction-created", { depositId, amount: resolvedAmount });
 
     await captureServerEvent(user.id, "payment_initiated", {
       deposit_id: depositId,
-      amount,
+      amount: resolvedAmount,
       currency,
       transaction_type: transactionType,
       provider,
@@ -244,7 +261,7 @@ export async function POST(req: Request) {
       depositId,
       returnUrl,
       amountDetails: {
-        amount: amount.toString(),
+        amount: resolvedAmount.toString(),
         currency,
       },
       country: "BFA",

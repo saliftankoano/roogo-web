@@ -75,8 +75,9 @@ export async function POST(req: Request) {
 
     const { data: earnings, error: earningsError } = await supabaseAdmin
       .from("owner_earnings")
-      .select("id, owner_id, net_amount, currency, source_type")
+      .select("id, owner_id, net_amount, currency, source_type, available_at")
       .eq("owner_id", user.id)
+      .lte("available_at", new Date().toISOString())
       .in("id", uniqueEarningIds);
 
     if (earningsError) {

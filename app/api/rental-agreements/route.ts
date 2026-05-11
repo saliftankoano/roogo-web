@@ -173,6 +173,22 @@ export async function POST(req: Request) {
           req,
         );
       }
+    } else if (isRenterFlow && lockedTransactionId) {
+      const { data: existingDailyAgreement } = await supabaseAdmin
+        .from("rental_agreements")
+        .select("id")
+        .eq("transaction_id", lockedTransactionId)
+        .maybeSingle();
+
+      if (existingDailyAgreement) {
+        return cors(
+          NextResponse.json({
+            success: true,
+            agreement: { id: existingDailyAgreement.id },
+          }),
+          req,
+        );
+      }
     }
 
     const now = new Date();
@@ -288,6 +304,39 @@ export async function POST(req: Request) {
             holdError,
           );
           // Non-fatal: agreement is created, hold can be backfilled manually if needed.
+        }
+      }
+
+      const stayAmount = Number(meta.stayAmount || 0);
+      const ownerCommissionAmount = Number(meta.ownerCommissionAmount || 0);
+      const ownerCommissionBps = Number(meta.ownerCommissionBps || 0);
+      const ownerNetAmount = Number(meta.ownerNetAmount || 0);
+
+      if (stayAmount > 0 && ownerNetAmount >= 0) {
+        const availableAt = new Date(`${startDate}T00:00:00Z`);
+        const { error: earningError } = await supabaseAdmin
+          .from("owner_earnings")
+          .insert({
+            owner_id: ownerId,
+            schedule_id: null,
+            transaction_id: lockedTransactionId,
+            property_id: propertyId,
+            agreement_id: agreement.id,
+            source_type: "daily_stay",
+            gross_rent_amount: stayAmount,
+            fee_rate_bps: ownerCommissionBps,
+            fee_amount: ownerCommissionAmount,
+            net_amount: ownerNetAmount,
+            currency: "XOF",
+            earned_at: now.toISOString(),
+            available_at: availableAt.toISOString(),
+          });
+
+        if (earningError) {
+          console.error(
+            "Error creating daily stay owner earning:",
+            earningError,
+          );
         }
       }
     }

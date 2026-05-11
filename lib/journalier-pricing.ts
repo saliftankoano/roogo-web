@@ -1,5 +1,11 @@
 export type CautionType = "aucune" | "pourcentage" | "fixe" | null;
 
+export const JOURNALIER_RENTER_SERVICE_FEE_BPS = 1000;
+export const JOURNALIER_OWNER_COMMISSION_BPS = 1000;
+export const JOURNALIER_CAUTION_CAP_BPS = 5000;
+export const JOURNALIER_CAUTION_ABSOLUTE_CAP = 50_000;
+export const JOURNALIER_LISTING_PUBLICATION_FEE = 5_000;
+
 export interface JournalierPricingInput {
   nightlyRate: number;
   nights: number;
@@ -11,7 +17,14 @@ export interface JournalierPricingBreakdown {
   nightlyRate: number;
   nights: number;
   stayAmount: number;
+  originalCautionAmount: number;
   cautionAmount: number;
+  cautionCapAmount: number;
+  renterServiceFeeBps: number;
+  renterServiceFeeAmount: number;
+  ownerCommissionBps: number;
+  ownerCommissionAmount: number;
+  ownerNetAmount: number;
   totalAmount: number;
   cautionType: CautionType;
   cautionValeur: number | null;
@@ -37,19 +50,38 @@ export function computeJournalierPricing(
       ? null
       : Math.max(0, Math.round(Number(input.cautionValeur)));
 
-  let cautionAmount = 0;
+  let originalCautionAmount = 0;
   if (input.cautionType === "fixe" && cautionValeur != null) {
-    cautionAmount = cautionValeur;
+    originalCautionAmount = cautionValeur;
   } else if (input.cautionType === "pourcentage" && cautionValeur != null) {
-    cautionAmount = Math.round((stayAmount * cautionValeur) / 100);
+    originalCautionAmount = Math.round((stayAmount * cautionValeur) / 100);
   }
+  const cautionCapAmount = Math.min(
+    Math.round((stayAmount * JOURNALIER_CAUTION_CAP_BPS) / 10000),
+    JOURNALIER_CAUTION_ABSOLUTE_CAP,
+  );
+  const cautionAmount = Math.min(originalCautionAmount, cautionCapAmount);
+  const renterServiceFeeAmount = Math.round(
+    (stayAmount * JOURNALIER_RENTER_SERVICE_FEE_BPS) / 10000,
+  );
+  const ownerCommissionAmount = Math.round(
+    (stayAmount * JOURNALIER_OWNER_COMMISSION_BPS) / 10000,
+  );
+  const ownerNetAmount = Math.max(0, stayAmount - ownerCommissionAmount);
 
   return {
     nightlyRate,
     nights,
     stayAmount,
+    originalCautionAmount,
     cautionAmount,
-    totalAmount: stayAmount + cautionAmount,
+    cautionCapAmount,
+    renterServiceFeeBps: JOURNALIER_RENTER_SERVICE_FEE_BPS,
+    renterServiceFeeAmount,
+    ownerCommissionBps: JOURNALIER_OWNER_COMMISSION_BPS,
+    ownerCommissionAmount,
+    ownerNetAmount,
+    totalAmount: stayAmount + cautionAmount + renterServiceFeeAmount,
     cautionType: input.cautionType ?? "aucune",
     cautionValeur,
   };

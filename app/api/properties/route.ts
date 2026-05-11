@@ -13,6 +13,7 @@ import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { listingBaseSchema } from "@/lib/validations";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
+import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 import validator from "validator";
 
 export async function OPTIONS(req: Request) {
@@ -291,11 +292,14 @@ export async function POST(req: Request) {
       commissionPercentage = configData.commission_percentage;
     }
 
+    const isDailyListing = parsedListingData.frequence === "journalier";
     const tierPrice = isFreeStaffListing
       ? 0
       : selectedTier
-        ? selectedTier.min_price +
-          parsedListingData.prixMensuel * commissionPercentage
+        ? isDailyListing
+          ? JOURNALIER_LISTING_PUBLICATION_FEE
+          : selectedTier.min_price +
+            parsedListingData.prixMensuel * commissionPercentage
         : null;
 
     const isBoosted = parsedListingData.add_ons?.includes("boost") || false;
@@ -344,6 +348,18 @@ export async function POST(req: Request) {
       ? `STAFF-FREE-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
       : null;
 
+    const dailyCautionValue = (() => {
+      if (!isDailyListing) return null;
+
+      const cautionType = parsedListingData.cautionType ?? "aucune";
+      const cautionValue = parsedListingData.cautionValeur ?? null;
+
+      if (typeof cautionValue !== "number") return null;
+      if (cautionType === "pourcentage") return Math.min(cautionValue, 50);
+      if (cautionType === "fixe") return Math.min(cautionValue, 50_000);
+      return cautionValue;
+    })();
+
     const propertyData = {
       agent_id: parsedListingData.owner_id || user.id,
       description: sanitizeString(parsedListingData.description) || null,
@@ -385,9 +401,7 @@ export async function POST(req: Request) {
           ? (parsedListingData.cautionType ?? "aucune")
           : null,
       caution_valeur:
-        parsedListingData.frequence === "journalier"
-          ? (parsedListingData.cautionValeur ?? null)
-          : null,
+        parsedListingData.frequence === "journalier" ? dailyCautionValue : null,
       // Tier information
       tier_id: parsedListingData.tier_id || null,
       tier_price: tierPrice,

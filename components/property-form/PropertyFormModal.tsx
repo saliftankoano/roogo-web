@@ -39,6 +39,8 @@ import {
 } from "@/lib/mockData";
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 
+const DAILY_LISTING_PUBLICATION_FEE = 5000;
+
 interface PropertyFormModalProps {
   userType: string;
   onSuccess?: () => void;
@@ -437,9 +439,15 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     ? (tiersList.find((tier) => tier.id === selectedTier) ?? null)
     : null;
   const commissionAmount =
-    paymentChoice === "free" ? 0 : rentAmount * (commissionRate ?? 0);
+    paymentChoice === "free" || formData.frequence === "journalier"
+      ? 0
+      : rentAmount * (commissionRate ?? 0);
   const baseFeeAmount =
-    paymentChoice === "free" ? 0 : (selectedTierConfig?.base_fee ?? 0);
+    paymentChoice === "free"
+      ? 0
+      : formData.frequence === "journalier"
+        ? DAILY_LISTING_PUBLICATION_FEE
+        : (selectedTierConfig?.base_fee ?? 0);
   const addOnsAmount =
     paymentChoice === "free"
       ? 0
@@ -889,8 +897,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       const addon = addonsList.find((item) => item.id === id);
       return sum + (addon?.price || 0);
     }, 0);
-    const commission = rentAmount * commissionRate;
-    const amount = tier.base_fee + commission + addonsTotal;
+    const isDailyListing = formData.frequence === "journalier";
+    const commission = isDailyListing ? 0 : rentAmount * commissionRate;
+    const amount =
+      (isDailyListing ? DAILY_LISTING_PUBLICATION_FEE : tier.base_fee) +
+      commission +
+      addonsTotal;
     const paymentDescription = `Pack ${selectedTier}${addOns.length > 0 ? " avec Options" : ""}`;
 
     const paymentRes = await fetch("/api/payments/paymentpage", {
@@ -909,6 +921,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           tier_id: selectedTier,
           add_ons: addOns,
           commission,
+          frequence: formData.frequence,
+          add_on_details: addOns.map((id) => {
+            const addon = addonsList.find((item) => item.id === id);
+            return { id, price: addon?.price || 0 };
+          }),
         },
       }),
     });
@@ -1330,16 +1347,24 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 <input
                   type="number"
                   min="0"
+                  max={formData.cautionType === "pourcentage" ? 50 : 50000}
                   placeholder={
                     formData.cautionType === "pourcentage"
-                      ? "Ex: 20"
-                      : "Ex: 15000"
+                      ? "Max: 50"
+                      : "Max: 50000"
                   }
                   className="w-full rounded-2xl border border-neutral-200 bg-white px-5 py-4 outline-none"
                   value={formData.cautionValeur}
-                  onChange={(e) => updateField("cautionValeur", e.target.value)}
+                  onChange={(e) => {
+                    const raw = Number(e.target.value || 0);
+                    const cap = formData.cautionType === "pourcentage" ? 50 : 50000;
+                    updateField("cautionValeur", String(Math.min(raw, cap)));
+                  }}
                 />
               )}
+              <p className="text-xs font-semibold text-neutral-500">
+                La caution journalière est plafonnée à 50% du séjour, maximum 50,000 FCFA.
+              </p>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
               <CounterField
@@ -1669,7 +1694,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             const price =
               paymentChoice === "free"
                 ? 0
-                : tier.base_fee + rentAmount * (commissionRate ?? 0);
+                : formData.frequence === "journalier"
+                  ? DAILY_LISTING_PUBLICATION_FEE
+                  : tier.base_fee + rentAmount * (commissionRate ?? 0);
             return (
               <button
                 key={tier.id}

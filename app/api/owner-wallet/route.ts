@@ -13,6 +13,8 @@ const ZERO_SUMMARY = {
   availableBalance: 0,
   availableRentCredits: 0,
   totalRentCredits: 0,
+  pendingAvailableBalance: 0,
+  pendingAvailableRentCredits: 0,
   currency: "XOF",
   feeRateBps: 700,
 };
@@ -62,10 +64,32 @@ export async function GET(req: Request) {
 
     const earnings = earningsRows || [];
     const earningIds = earnings.map((earning) => earning.id);
-    const scheduleIds = earnings.map((earning) => earning.schedule_id);
+    const scheduleIds = earnings
+      .map((earning) => earning.schedule_id)
+      .filter((id): id is string => typeof id === "string" && id.length > 0);
+    const propertyIds = [
+      ...new Set(
+        earnings
+          .map((earning) => earning.property_id)
+          .filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          ),
+      ),
+    ];
+    const agreementIds = [
+      ...new Set(
+        earnings
+          .map((earning) => earning.agreement_id)
+          .filter(
+            (id): id is string => typeof id === "string" && id.length > 0,
+          ),
+      ),
+    ];
 
     const [
       { data: schedulesRows },
+      { data: propertiesRows },
+      { data: agreementsRows },
       { data: activeItemsRows },
       { data: payoutsRows },
     ] = await Promise.all([
@@ -82,6 +106,22 @@ export async function GET(req: Request) {
               `,
             )
             .in("id", scheduleIds)
+        : Promise.resolve({ data: [] }),
+      propertyIds.length
+        ? supabaseAdmin
+            .from("properties")
+            .select(
+              "id, address, quartier, city, property_images(url, is_primary)",
+            )
+            .in("id", propertyIds)
+        : Promise.resolve({ data: [] }),
+      agreementIds.length
+        ? supabaseAdmin
+            .from("rental_agreements")
+            .select(
+              "id, start_date, end_date, renter:users!rental_agreements_renter_id_fkey(id, full_name, phone)",
+            )
+            .in("id", agreementIds)
         : Promise.resolve({ data: [] }),
       earningIds.length
         ? supabaseAdmin
@@ -100,6 +140,12 @@ export async function GET(req: Request) {
 
     const scheduleById = new Map(
       (schedulesRows || []).map((schedule) => [schedule.id, schedule]),
+    );
+    const propertyById = new Map(
+      (propertiesRows || []).map((property) => [property.id, property]),
+    );
+    const agreementById = new Map(
+      (agreementsRows || []).map((agreement) => [agreement.id, agreement]),
     );
     const activeEarningIds = new Set(
       (activeItemsRows || []).map((item) => item.earning_id),
@@ -128,10 +174,21 @@ export async function GET(req: Request) {
     const hydratedEarnings = earnings.map((earning) => ({
       ...earning,
       schedule: scheduleById.get(earning.schedule_id) || null,
+      property: propertyById.get(earning.property_id) || null,
+      agreement: agreementById.get(earning.agreement_id) || null,
     }));
 
+    const nowIso = new Date().toISOString();
     const availableEarnings = hydratedEarnings.filter(
-      (earning) => !activeEarningIds.has(earning.id),
+      (earning) =>
+        !activeEarningIds.has(earning.id) &&
+        (!earning.available_at || earning.available_at <= nowIso),
+    );
+    const pendingAvailableEarnings = hydratedEarnings.filter(
+      (earning) =>
+        !activeEarningIds.has(earning.id) &&
+        earning.available_at &&
+        earning.available_at > nowIso,
     );
 
     const summary = summaryRow
@@ -144,6 +201,11 @@ export async function GET(req: Request) {
           availableBalance: summaryRow.available_balance || 0,
           availableRentCredits: summaryRow.available_rent_credits || 0,
           totalRentCredits: summaryRow.total_rent_credits || 0,
+          pendingAvailableBalance: pendingAvailableEarnings.reduce(
+            (sum, earning) => sum + Number(earning.net_amount || 0),
+            0,
+          ),
+          pendingAvailableRentCredits: pendingAvailableEarnings.length,
           currency: "XOF",
           feeRateBps: 700,
         }
