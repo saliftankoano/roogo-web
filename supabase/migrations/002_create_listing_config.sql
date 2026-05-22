@@ -1,13 +1,15 @@
 CREATE TABLE listing_config (
   id TEXT PRIMARY KEY DEFAULT 'default',
   commission_percentage NUMERIC NOT NULL DEFAULT 0.05,
+  daily_owner_commission_percentage NUMERIC NOT NULL DEFAULT 0.10,
   created_at TIMESTAMPTZ DEFAULT NOW(),
   updated_at TIMESTAMPTZ DEFAULT NOW(),
-  CONSTRAINT valid_commission CHECK (commission_percentage >= 0 AND commission_percentage <= 1)
+  CONSTRAINT valid_commission CHECK (commission_percentage >= 0 AND commission_percentage <= 1),
+  CONSTRAINT valid_daily_owner_commission CHECK (daily_owner_commission_percentage >= 0 AND daily_owner_commission_percentage <= 1)
 );
 
 -- Seed with current value
-INSERT INTO listing_config (id, commission_percentage) VALUES ('default', 0.05);
+INSERT INTO listing_config (id, commission_percentage, daily_owner_commission_percentage) VALUES ('default', 0.05, 0.10);
 
 -- Enable RLS
 ALTER TABLE listing_config ENABLE ROW LEVEL SECURITY;

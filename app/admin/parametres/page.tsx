@@ -19,12 +19,7 @@ import {
   PercentIcon,
   CalculatorIcon,
 } from "@phosphor-icons/react";
-import {
-  Tabs,
-  TabsContent,
-  TabsList,
-  TabsTrigger,
-} from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Card,
   CardContent,
@@ -67,7 +62,11 @@ export default function AdminSettingsPage() {
   const router = useRouter();
   const [tiers, setTiers] = useState<Tier[]>([]);
   const [addons, setAddons] = useState<Addon[]>([]);
-  const [commissionPercentage, setCommissionPercentage] = useState<number | null>(null);
+  const [commissionPercentage, setCommissionPercentage] = useState<
+    number | null
+  >(null);
+  const [dailyOwnerCommissionPercentage, setDailyOwnerCommissionPercentage] =
+    useState<number | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -96,6 +95,11 @@ export default function AdminSettingsPage() {
         if (data.commissionPercentage !== undefined) {
           setCommissionPercentage(data.commissionPercentage);
         }
+        if (data.dailyOwnerCommissionPercentage !== undefined) {
+          setDailyOwnerCommissionPercentage(
+            data.dailyOwnerCommissionPercentage,
+          );
+        }
       } catch (error) {
         console.error("Error loading pricing:", error);
         setMessage({
@@ -116,8 +120,8 @@ export default function AdminSettingsPage() {
 
     setTiers(
       tiers.map((tier) =>
-        tier.id === tierId ? { ...tier, min_price: price } : tier
-      )
+        tier.id === tierId ? { ...tier, min_price: price } : tier,
+      ),
     );
   };
 
@@ -127,8 +131,8 @@ export default function AdminSettingsPage() {
 
     setAddons(
       addons.map((addon) =>
-        addon.id === addonId ? { ...addon, price } : addon
-      )
+        addon.id === addonId ? { ...addon, price } : addon,
+      ),
     );
   };
 
@@ -136,6 +140,12 @@ export default function AdminSettingsPage() {
     const percentage = parseFloat(newPercentage);
     if (isNaN(percentage) || percentage < 0 || percentage > 100) return;
     setCommissionPercentage(percentage / 100);
+  };
+
+  const handleDailyOwnerCommissionChange = (newPercentage: string) => {
+    const percentage = parseFloat(newPercentage);
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) return;
+    setDailyOwnerCommissionPercentage(percentage / 100);
   };
 
   const handleSave = async () => {
@@ -150,6 +160,8 @@ export default function AdminSettingsPage() {
           tiers: tiers.map((t) => ({ id: t.id, min_price: t.min_price })),
           addons: addons.map((a) => ({ id: a.id, price: a.price })),
           commissionPercentage: commissionPercentage ?? undefined,
+          dailyOwnerCommissionPercentage:
+            dailyOwnerCommissionPercentage ?? undefined,
         }),
       });
 
@@ -234,13 +246,15 @@ export default function AdminSettingsPage() {
             "flex items-center gap-4 p-4 rounded-2xl border animate-in fade-in slide-in-from-top-4 duration-300",
             message.type === "success"
               ? "bg-green-50/50 text-green-800 border-green-100"
-              : "bg-red-50/50 text-red-800 border-red-100"
+              : "bg-red-50/50 text-red-800 border-red-100",
           )}
         >
-          <div className={cn(
-            "p-2 rounded-full",
-            message.type === "success" ? "bg-green-100" : "bg-red-100"
-          )}>
+          <div
+            className={cn(
+              "p-2 rounded-full",
+              message.type === "success" ? "bg-green-100" : "bg-red-100",
+            )}
+          >
             {message.type === "success" ? (
               <CheckCircleIcon className="w-5 h-5" weight="fill" />
             ) : (
@@ -248,7 +262,7 @@ export default function AdminSettingsPage() {
             )}
           </div>
           <span className="font-medium">{message.text}</span>
-          <button 
+          <button
             onClick={() => setMessage(null)}
             className="ml-auto p-1 hover:bg-neutral-200/50 rounded-lg transition-colors"
           >
@@ -274,32 +288,52 @@ export default function AdminSettingsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-3 md:gap-6">
                 <div className="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 rounded-2xl">
-                  <div className="text-[10px] font-bold text-blue-200 uppercase mb-1">Frais Fixes</div>
-                  <div className="text-xl md:text-2xl font-bold">Forfait Choisi</div>
+                  <div className="text-[10px] font-bold text-blue-200 uppercase mb-1">
+                    Frais Fixes
+                  </div>
+                  <div className="text-xl md:text-2xl font-bold">
+                    Forfait Choisi
+                  </div>
                 </div>
                 <div className="text-3xl font-bold text-blue-200">+</div>
                 <div className="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 rounded-2xl">
-                  <div className="text-[10px] font-bold text-blue-200 uppercase mb-1">Commission</div>
-                  <div className="text-xl md:text-2xl font-bold">{((commissionPercentage ?? 0) * 100).toFixed(1)}% du Loyer</div>
+                  <div className="text-[10px] font-bold text-blue-200 uppercase mb-1">
+                    Commission
+                  </div>
+                  <div className="text-xl md:text-2xl font-bold">
+                    {((commissionPercentage ?? 0) * 100).toFixed(1)}% du Loyer
+                  </div>
+                </div>
+                <div className="text-3xl font-bold text-blue-200">/</div>
+                <div className="bg-white/10 backdrop-blur-md border border-white/20 px-6 py-4 rounded-2xl">
+                  <div className="text-[10px] font-bold text-blue-200 uppercase mb-1">
+                    Journalier
+                  </div>
+                  <div className="text-xl md:text-2xl font-bold">
+                    {((dailyOwnerCommissionPercentage ?? 0) * 100).toFixed(1)}%
+                    réservation
+                  </div>
                 </div>
               </div>
             </div>
             <p className="text-blue-100 text-sm max-w-2xl leading-relaxed">
-              Le coût de publication est basé sur un frais fixe par forfait plus une commission sur la valeur du bien pour assurer une différenciation claire des prix.
+              La publication mensuelle utilise les forfaits et la commission sur
+              loyer. Les réservations journalières utilisent une commission
+              propriétaire séparée sur le montant du séjour.
             </p>
           </div>
         </div>
 
         <TabsList className="bg-neutral-100/80 p-1 rounded-2xl border border-neutral-200/50 w-full md:w-auto h-auto grid grid-cols-2 md:flex">
-          <TabsTrigger 
-            value="pricing" 
+          <TabsTrigger
+            value="pricing"
             className="rounded-xl px-8 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600 transition-all font-semibold"
           >
             <TagIcon className="w-4 h-4 mr-2" weight="bold" />
             Forfaits & Options
           </TabsTrigger>
-          <TabsTrigger 
-            value="simulation" 
+          <TabsTrigger
+            value="simulation"
             className="rounded-xl px-8 py-3 data-[state=active]:bg-white data-[state=active]:shadow-sm data-[state=active]:text-blue-600 transition-all font-semibold"
           >
             <CalculatorIcon className="w-4 h-4 mr-2" weight="bold" />
@@ -307,7 +341,10 @@ export default function AdminSettingsPage() {
           </TabsTrigger>
         </TabsList>
 
-        <TabsContent value="pricing" className="space-y-8 animate-in fade-in duration-500">
+        <TabsContent
+          value="pricing"
+          className="space-y-8 animate-in fade-in duration-500"
+        >
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
             <div className="lg:col-span-2 space-y-8">
               {/* Tier Pricing */}
@@ -318,8 +355,13 @@ export default function AdminSettingsPage() {
                       <TagIcon className="w-6 h-6" weight="duotone" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl">Prix des Forfaits</CardTitle>
-                      <CardDescription>Définissez les frais de base pour chaque niveau de service.</CardDescription>
+                      <CardTitle className="text-xl">
+                        Prix des Forfaits
+                      </CardTitle>
+                      <CardDescription>
+                        Définissez les frais de base pour chaque niveau de
+                        service.
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
@@ -336,7 +378,10 @@ export default function AdminSettingsPage() {
                               {tier.name}
                             </h3>
                             {tier.has_badge && (
-                              <Badge variant="secondary" className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] uppercase font-bold tracking-wider">
+                              <Badge
+                                variant="secondary"
+                                className="bg-blue-50 text-blue-700 border-blue-100 text-[10px] uppercase font-bold tracking-wider"
+                              >
                                 Premium
                               </Badge>
                             )}
@@ -367,12 +412,14 @@ export default function AdminSettingsPage() {
                             <Input
                               type="number"
                               value={tier.min_price}
-                              onChange={(e) => handleTierPriceChange(tier.id, e.target.value)}
+                              onChange={(e) =>
+                                handleTierPriceChange(tier.id, e.target.value)
+                              }
                               className={cn(
                                 "w-40 h-12 pl-4 pr-12 text-right font-bold text-lg rounded-xl transition-all",
                                 tier.min_price < MIN_DEPOSIT_AMOUNT
                                   ? "border-amber-300 bg-amber-50/50 focus-visible:ring-amber-400"
-                                  : "border-neutral-200 focus-visible:ring-blue-500"
+                                  : "border-neutral-200 focus-visible:ring-blue-500",
                               )}
                               min="0"
                               step="100"
@@ -383,9 +430,13 @@ export default function AdminSettingsPage() {
                           </div>
                           {tier.min_price < MIN_DEPOSIT_AMOUNT && (
                             <div className="group relative">
-                              <WarningCircleIcon className="w-5 h-5 text-amber-500" weight="fill" />
+                              <WarningCircleIcon
+                                className="w-5 h-5 text-amber-500"
+                                weight="fill"
+                              />
                               <div className="absolute bottom-full right-0 mb-2 w-48 p-2 bg-neutral-900 text-white text-[10px] rounded-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-10 shadow-xl">
-                                Attention: Le prix est inférieur au minimum recommandé de 100 XOF pour Moov Money.
+                                Attention: Le prix est inférieur au minimum
+                                recommandé de 100 XOF pour Moov Money.
                               </div>
                             </div>
                           )}
@@ -405,8 +456,12 @@ export default function AdminSettingsPage() {
                         <TrendUpIcon className="w-6 h-6" weight="duotone" />
                       </div>
                       <div>
-                        <CardTitle className="text-xl">Options Additionnelles</CardTitle>
-                        <CardDescription>Gérez les prix des services optionnels.</CardDescription>
+                        <CardTitle className="text-xl">
+                          Options Additionnelles
+                        </CardTitle>
+                        <CardDescription>
+                          Gérez les prix des services optionnels.
+                        </CardDescription>
                       </div>
                     </div>
                   </CardHeader>
@@ -430,12 +485,17 @@ export default function AdminSettingsPage() {
                               <Input
                                 type="number"
                                 value={addon.price}
-                                onChange={(e) => handleAddonPriceChange(addon.id, e.target.value)}
+                                onChange={(e) =>
+                                  handleAddonPriceChange(
+                                    addon.id,
+                                    e.target.value,
+                                  )
+                                }
                                 className={cn(
                                   "w-40 h-12 pl-4 pr-12 text-right font-bold text-lg rounded-xl transition-all",
                                   addon.price < MIN_DEPOSIT_AMOUNT
                                     ? "border-amber-300 bg-amber-50/50 focus-visible:ring-amber-400"
-                                    : "border-neutral-200 focus-visible:ring-blue-500"
+                                    : "border-neutral-200 focus-visible:ring-blue-500",
                                 )}
                                 min="0"
                                 step="100"
@@ -445,7 +505,10 @@ export default function AdminSettingsPage() {
                               </span>
                             </div>
                             {addon.price < MIN_DEPOSIT_AMOUNT && (
-                              <WarningCircleIcon className="w-5 h-5 text-amber-500 shrink-0" weight="fill" />
+                              <WarningCircleIcon
+                                className="w-5 h-5 text-amber-500 shrink-0"
+                                weight="fill"
+                              />
                             )}
                           </div>
                         </div>
@@ -457,7 +520,7 @@ export default function AdminSettingsPage() {
             </div>
 
             <div className="space-y-8">
-              {/* Commission Percentage */}
+              {/* Monthly publication commission */}
               <Card className="border-neutral-200/60 shadow-sm overflow-hidden rounded-3xl bg-neutral-900 text-white border-none">
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-3">
@@ -465,31 +528,96 @@ export default function AdminSettingsPage() {
                       <PercentIcon className="w-6 h-6" weight="bold" />
                     </div>
                     <div>
-                      <CardTitle className="text-xl text-white">Frais de Service</CardTitle>
-                      <CardDescription className="text-neutral-400">Commission sur le loyer</CardDescription>
+                      <CardTitle className="text-xl text-white">
+                        Commission mensuelle
+                      </CardTitle>
+                      <CardDescription className="text-neutral-400">
+                        Publication des locations mensuelles
+                      </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
-                      <Label className="text-neutral-300 font-medium">Pourcentage</Label>
+                      <Label className="text-neutral-300 font-medium">
+                        Pourcentage
+                      </Label>
                       <div className="flex items-center gap-2">
                         <Input
                           type="number"
                           value={((commissionPercentage ?? 0) * 100).toFixed(1)}
-                          onChange={(e) => handleCommissionChange(e.target.value)}
+                          onChange={(e) =>
+                            handleCommissionChange(e.target.value)
+                          }
                           className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
                           min="0"
                           max="100"
                           step="0.1"
                         />
-                        <span className="text-neutral-400 font-bold text-lg">%</span>
+                        <span className="text-neutral-400 font-bold text-lg">
+                          %
+                        </span>
                       </div>
                     </div>
                     <Separator className="bg-white/10" />
                     <p className="text-xs text-neutral-400 leading-relaxed italic">
-                      Ce pourcentage est calculé sur la valeur du loyer mensuel et s&apos;ajoute aux frais fixes du forfait choisi lors du paiement de la publication.
+                      Ce pourcentage est calculé sur la valeur du loyer mensuel
+                      et s&apos;ajoute aux frais fixes du forfait choisi lors du
+                      paiement de la publication.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Daily booking owner commission */}
+              <Card className="border-neutral-200/60 shadow-sm overflow-hidden rounded-3xl bg-emerald-900 text-white border-none">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-white/10 text-white rounded-xl">
+                      <PercentIcon className="w-6 h-6" weight="bold" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl text-white">
+                        Commission journalière
+                      </CardTitle>
+                      <CardDescription className="text-emerald-100/70">
+                        Déduite du paiement propriétaire
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-emerald-100 font-medium">
+                        Pourcentage
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={(
+                            (dailyOwnerCommissionPercentage ?? 0) * 100
+                          ).toFixed(1)}
+                          onChange={(e) =>
+                            handleDailyOwnerCommissionChange(e.target.value)
+                          }
+                          className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                        />
+                        <span className="text-emerald-100/70 font-bold text-lg">
+                          %
+                        </span>
+                      </div>
+                    </div>
+                    <Separator className="bg-white/10" />
+                    <p className="text-xs text-emerald-100/70 leading-relaxed italic">
+                      Ce pourcentage est calculé uniquement sur le montant du
+                      séjour journalier. La caution remboursable n&apos;est pas
+                      commissionnée et le locataire ne paie aucun frais de
+                      service.
                     </p>
                   </div>
                 </CardContent>
@@ -505,8 +633,10 @@ export default function AdminSettingsPage() {
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-blue-800 leading-relaxed">
-                    Les prix impactent directement l&apos;attractivité de la plateforme. 
-                    Utilisez l&apos;onglet <strong>Simulateur</strong> pour visualiser ce que le client final paiera réellement.
+                    Les prix impactent directement l&apos;attractivité de la
+                    plateforme. Utilisez l&apos;onglet{" "}
+                    <strong>Simulateur</strong> pour visualiser ce que le client
+                    final paiera réellement.
                   </p>
                 </CardContent>
               </Card>
@@ -514,7 +644,10 @@ export default function AdminSettingsPage() {
           </div>
         </TabsContent>
 
-        <TabsContent value="simulation" className="animate-in fade-in duration-500">
+        <TabsContent
+          value="simulation"
+          className="animate-in fade-in duration-500"
+        >
           <div className="space-y-8">
             <Card className="border-neutral-200/60 shadow-lg overflow-hidden rounded-3xl">
               <CardHeader className="bg-neutral-50/50 border-b border-neutral-100 p-8">
@@ -524,12 +657,19 @@ export default function AdminSettingsPage() {
                       <CalculatorIcon className="w-8 h-8" weight="duotone" />
                     </div>
                     <div>
-                      <CardTitle className="text-2xl">Simulateur de Revenus</CardTitle>
-                      <CardDescription className="text-base">Visualisez le coût total pour vos clients en fonction du loyer.</CardDescription>
+                      <CardTitle className="text-2xl">
+                        Simulateur de Revenus
+                      </CardTitle>
+                      <CardDescription className="text-base">
+                        Visualisez le coût total pour vos clients en fonction du
+                        loyer.
+                      </CardDescription>
                     </div>
                   </div>
                   <div className="bg-white p-4 rounded-2xl border border-neutral-200 shadow-sm flex flex-col gap-2 min-w-[240px]">
-                    <Label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">Loyer Mensuel de Test</Label>
+                    <Label className="text-xs font-bold text-neutral-500 uppercase tracking-wider">
+                      Loyer Mensuel de Test
+                    </Label>
                     <div className="relative">
                       <Input
                         type="number"
@@ -538,7 +678,9 @@ export default function AdminSettingsPage() {
                         className="h-12 pl-4 pr-12 text-xl font-black border-none focus-visible:ring-0 p-0"
                         step="5000"
                       />
-                      <span className="absolute right-0 top-1/2 -translate-y-1/2 font-bold text-neutral-400">XOF</span>
+                      <span className="absolute right-0 top-1/2 -translate-y-1/2 font-bold text-neutral-400">
+                        XOF
+                      </span>
                     </div>
                   </div>
                 </div>
@@ -560,7 +702,9 @@ export default function AdminSettingsPage() {
                               {tier.name}
                             </h4>
                             {tier.has_badge && (
-                              <Badge className="bg-blue-600 hover:bg-blue-600 text-[9px] h-5 px-2">PREMIUM</Badge>
+                              <Badge className="bg-blue-600 hover:bg-blue-600 text-[9px] h-5 px-2">
+                                PREMIUM
+                              </Badge>
                             )}
                           </div>
                           <div className="w-12 h-12 rounded-2xl bg-neutral-50 flex items-center justify-center group-hover:bg-blue-50 transition-colors">
@@ -570,24 +714,34 @@ export default function AdminSettingsPage() {
 
                         <div className="space-y-4 flex-grow">
                           <div className="flex justify-between items-center text-sm">
-                            <span className="text-neutral-500 font-medium">Frais fixes</span>
+                            <span className="text-neutral-500 font-medium">
+                              Frais fixes
+                            </span>
                             <span className="font-bold text-neutral-900 bg-neutral-50 px-3 py-1 rounded-lg">
                               {tier.min_price.toLocaleString()} XOF
                             </span>
                           </div>
                           <div className="flex justify-between items-center text-sm">
-                            <span className="text-neutral-500 font-medium">Commission (${((commissionPercentage ?? 0) * 100).toFixed(1)}%)</span>
+                            <span className="text-neutral-500 font-medium">
+                              Commission ($
+                              {((commissionPercentage ?? 0) * 100).toFixed(1)}%)
+                            </span>
                             <span className="font-bold text-neutral-900 bg-neutral-50 px-3 py-1 rounded-lg">
                               {commission.toLocaleString()} XOF
                             </span>
                           </div>
-                          
+
                           <Separator className="my-6 opacity-50" />
-                          
+
                           <div className="space-y-1">
-                            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Total Publication</div>
+                            <div className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                              Total Publication
+                            </div>
                             <div className="text-3xl font-black text-neutral-900 tracking-tighter">
-                              {total.toLocaleString()} <span className="text-sm font-bold text-neutral-400">XOF</span>
+                              {total.toLocaleString()}{" "}
+                              <span className="text-sm font-bold text-neutral-400">
+                                XOF
+                              </span>
                             </div>
                           </div>
                         </div>
@@ -595,12 +749,20 @@ export default function AdminSettingsPage() {
                         <div className="mt-8 pt-6 border-t border-neutral-50">
                           <div className="grid grid-cols-2 gap-2">
                             <div className="bg-neutral-50/50 p-3 rounded-2xl text-center">
-                              <div className="text-[9px] font-bold text-neutral-400 uppercase mb-1">Photos</div>
-                              <div className="font-bold text-neutral-700">{tier.photo_limit}</div>
+                              <div className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
+                                Photos
+                              </div>
+                              <div className="font-bold text-neutral-700">
+                                {tier.photo_limit}
+                              </div>
                             </div>
                             <div className="bg-neutral-50/50 p-3 rounded-2xl text-center">
-                              <div className="text-[9px] font-bold text-neutral-400 uppercase mb-1">Candidats</div>
-                              <div className="font-bold text-neutral-700">{tier.slot_limit}</div>
+                              <div className="text-[9px] font-bold text-neutral-400 uppercase mb-1">
+                                Candidats
+                              </div>
+                              <div className="font-bold text-neutral-700">
+                                {tier.slot_limit}
+                              </div>
                             </div>
                           </div>
                         </div>
@@ -613,8 +775,10 @@ export default function AdminSettingsPage() {
                 <div className="flex items-center gap-3 text-sm text-neutral-500 mx-auto">
                   <InfoIcon className="w-5 h-5 text-blue-500" />
                   <span>
-                    Simulation basée sur un loyer de <strong>{sampleRent.toLocaleString()} XOF</strong>. 
-                    Le total correspond au montant payé par l&apos;annonceur lors de la publication.
+                    Simulation basée sur un loyer de{" "}
+                    <strong>{sampleRent.toLocaleString()} XOF</strong>. Le total
+                    correspond au montant payé par l&apos;annonceur lors de la
+                    publication.
                   </span>
                 </div>
               </CardFooter>
@@ -650,9 +814,12 @@ export default function AdminSettingsPage() {
                     <WarningCircleIcon className="w-5 h-5" weight="fill" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-amber-900 mb-1">Moov Money</h4>
+                    <h4 className="font-bold text-amber-900 mb-1">
+                      Moov Money
+                    </h4>
                     <p className="text-amber-800/80 text-sm leading-relaxed">
-                      Requiert un montant minimum de <strong>100 XOF</strong> par transaction.
+                      Requiert un montant minimum de <strong>100 XOF</strong>{" "}
+                      par transaction.
                     </p>
                   </div>
                 </div>
@@ -662,9 +829,12 @@ export default function AdminSettingsPage() {
                     <CheckCircleIcon className="w-5 h-5" weight="fill" />
                   </div>
                   <div>
-                    <h4 className="font-bold text-orange-900 mb-1">Orange Money</h4>
+                    <h4 className="font-bold text-orange-900 mb-1">
+                      Orange Money
+                    </h4>
                     <p className="text-orange-800/80 text-sm leading-relaxed">
-                      Accepte les transactions à partir de <strong>1 XOF</strong>.
+                      Accepte les transactions à partir de{" "}
+                      <strong>1 XOF</strong>.
                     </p>
                   </div>
                 </div>
@@ -672,7 +842,8 @@ export default function AdminSettingsPage() {
 
               <div className="p-5 bg-neutral-50 rounded-[1.5rem] border border-neutral-100">
                 <p className="text-neutral-600 text-sm leading-relaxed">
-                  Pour une compatibilité maximale, nous recommandons de fixer tous les prix à <strong>100 XOF ou plus</strong>.
+                  Pour une compatibilité maximale, nous recommandons de fixer
+                  tous les prix à <strong>100 XOF ou plus</strong>.
                 </p>
               </div>
             </div>

@@ -1,16 +1,17 @@
 export type CautionType = "aucune" | "pourcentage" | "fixe" | null;
 
-export const JOURNALIER_RENTER_SERVICE_FEE_BPS = 1000;
-export const JOURNALIER_OWNER_COMMISSION_BPS = 1000;
+export const JOURNALIER_RENTER_SERVICE_FEE_BPS = 0;
+export const DEFAULT_JOURNALIER_OWNER_COMMISSION_BPS = 1000;
 export const JOURNALIER_CAUTION_CAP_BPS = 5000;
 export const JOURNALIER_CAUTION_ABSOLUTE_CAP = 50_000;
-export const JOURNALIER_LISTING_PUBLICATION_FEE = 5_000;
+export const JOURNALIER_LISTING_PUBLICATION_FEE = 0;
 
 export interface JournalierPricingInput {
   nightlyRate: number;
   nights: number;
   cautionType: CautionType;
   cautionValeur: number | null | undefined;
+  ownerCommissionPercentage?: number | null;
 }
 
 export interface JournalierPricingBreakdown {
@@ -64,8 +65,15 @@ export function computeJournalierPricing(
   const renterServiceFeeAmount = Math.round(
     (stayAmount * JOURNALIER_RENTER_SERVICE_FEE_BPS) / 10000,
   );
+  const ownerCommissionBps =
+    input.ownerCommissionPercentage == null
+      ? DEFAULT_JOURNALIER_OWNER_COMMISSION_BPS
+      : Math.round(
+          Math.min(1, Math.max(0, Number(input.ownerCommissionPercentage))) *
+            10000,
+        );
   const ownerCommissionAmount = Math.round(
-    (stayAmount * JOURNALIER_OWNER_COMMISSION_BPS) / 10000,
+    (stayAmount * ownerCommissionBps) / 10000,
   );
   const ownerNetAmount = Math.max(0, stayAmount - ownerCommissionAmount);
 
@@ -78,7 +86,7 @@ export function computeJournalierPricing(
     cautionCapAmount,
     renterServiceFeeBps: JOURNALIER_RENTER_SERVICE_FEE_BPS,
     renterServiceFeeAmount,
-    ownerCommissionBps: JOURNALIER_OWNER_COMMISSION_BPS,
+    ownerCommissionBps,
     ownerCommissionAmount,
     ownerNetAmount,
     totalAmount: stayAmount + cautionAmount + renterServiceFeeAmount,

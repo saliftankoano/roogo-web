@@ -5,7 +5,7 @@ import { auth, clerkClient } from "@clerk/nextjs/server";
 // Use service role to bypass RLS for admin operations
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
+  process.env.SUPABASE_SERVICE_ROLE_KEY!,
 );
 
 interface Tier {
@@ -76,10 +76,11 @@ export async function GET() {
       return NextResponse.json({ error: addonsError.message }, { status: 500 });
     }
 
-    // Fetch commission percentage
+    // Fetch commission percentages
     const { data: configData, error: configError } = await supabaseAdmin
       .from("listing_config")
-      .select("commission_percentage")
+      .select("commission_percentage, daily_owner_commission_percentage")
+      .eq("id", "default")
       .single();
 
     if (configError) {
@@ -87,25 +88,31 @@ export async function GET() {
       return NextResponse.json({ error: configError.message }, { status: 500 });
     }
 
-    if (typeof configData?.commission_percentage !== "number") {
+    if (
+      typeof configData?.commission_percentage !== "number" ||
+      typeof configData?.daily_owner_commission_percentage !== "number"
+    ) {
       return NextResponse.json(
-        { error: "Commission percentage is not configured" },
+        { error: "Commission percentages are not configured" },
         { status: 500 },
       );
     }
 
     const commissionPercentage = configData.commission_percentage;
+    const dailyOwnerCommissionPercentage =
+      configData.daily_owner_commission_percentage;
 
     return NextResponse.json({
       tiers,
       addons: addons || [],
       commissionPercentage,
+      dailyOwnerCommissionPercentage,
     });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }
@@ -127,12 +134,18 @@ export async function PUT(request: NextRequest) {
     }
 
     const body = await request.json();
-    const { tiers, addons, commissionPercentage } = body;
+    const {
+      tiers,
+      addons,
+      commissionPercentage,
+      dailyOwnerCommissionPercentage,
+    } = body;
 
     const results: {
       tiers: Tier[];
       addons: Addon[];
       commissionPercentage?: number;
+      dailyOwnerCommissionPercentage?: number;
       errors: ErrorItem[];
     } = { tiers: [], addons: [], errors: [] };
 
@@ -196,38 +209,64 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update commission percentage if provided
-    if (commissionPercentage !== undefined) {
+    // Update commission percentages if provided
+    if (
+      commissionPercentage !== undefined ||
+      dailyOwnerCommissionPercentage !== undefined
+    ) {
+      const updatePayload: {
+        commission_percentage?: number;
+        daily_owner_commission_percentage?: number;
+        updated_at: string;
+      } = {
+        updated_at: new Date().toISOString(),
+      };
+
+      if (commissionPercentage !== undefined) {
+        updatePayload.commission_percentage = commissionPercentage;
+      }
+      if (dailyOwnerCommissionPercentage !== undefined) {
+        updatePayload.daily_owner_commission_percentage =
+          dailyOwnerCommissionPercentage;
+      }
+
       const { data, error } = await supabaseAdmin
         .from("listing_config")
-        .update({ 
-          commission_percentage: commissionPercentage,
-          updated_at: new Date().toISOString()
-        })
+        .update(updatePayload)
         .eq("id", "default")
         .select()
         .single();
-      
+
       if (error) {
         // Try insert if update fails (e.g. row doesn't exist)
         const { data: insertData, error: insertError } = await supabaseAdmin
           .from("listing_config")
-          .upsert({ 
+          .upsert({
             id: "default",
-            commission_percentage: commissionPercentage,
-            updated_at: new Date().toISOString()
+            commission_percentage: commissionPercentage ?? 0.05,
+            daily_owner_commission_percentage:
+              dailyOwnerCommissionPercentage ?? 0.1,
+            updated_at: updatePayload.updated_at,
           })
           .select()
           .single();
-          
+
         if (insertError) {
           console.error("Error updating commission percentage:", insertError);
-          results.errors.push({ type: "config", id: "default", error: insertError.message });
+          results.errors.push({
+            type: "config",
+            id: "default",
+            error: insertError.message,
+          });
         } else {
           results.commissionPercentage = insertData.commission_percentage;
+          results.dailyOwnerCommissionPercentage =
+            insertData.daily_owner_commission_percentage;
         }
       } else {
         results.commissionPercentage = data.commission_percentage;
+        results.dailyOwnerCommissionPercentage =
+          data.daily_owner_commission_percentage;
       }
     }
 
@@ -236,7 +275,7 @@ export async function PUT(request: NextRequest) {
     console.error("API error:", error);
     return NextResponse.json(
       { error: "Internal server error" },
-      { status: 500 }
+      { status: 500 },
     );
   }
 }

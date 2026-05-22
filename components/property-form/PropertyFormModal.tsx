@@ -17,7 +17,6 @@ import {
 } from "@phosphor-icons/react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
-import { useSearchParams } from "next/navigation";
 import {
   listingBaseSchema,
   listingSchema,
@@ -39,7 +38,7 @@ import {
 } from "@/lib/mockData";
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 
-const DAILY_LISTING_PUBLICATION_FEE = 5000;
+const DAILY_LISTING_PUBLICATION_FEE = 0;
 
 interface PropertyFormModalProps {
   userType: string;
@@ -390,7 +389,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   onSuccess,
 }) => {
   const { getToken } = useAuth();
-  const searchParams = useSearchParams();
   const { collapse } = useExpandableScreen();
   const normalizedUserType = userType?.trim().toLowerCase();
   const isStaffOrFounder = ["staff", "founder"].includes(
@@ -843,7 +841,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     const token = await getToken();
     if (!token) throw new Error("No token found");
 
-    const depositId = searchParams.get("depositId") || undefined;
     const response = await fetch("/api/properties", {
       method: "POST",
       headers: {
@@ -851,7 +848,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        listingData: buildListingData(depositId, addOns),
+        listingData: buildListingData(undefined, addOns),
       }),
     });
 
@@ -1026,6 +1023,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     setSelectedAddOns(addOns);
     setIsSubmitting(true);
     try {
+      if (isDailyListing && addOns.length === 0) {
+        await createListingDirectly(addOns);
+        return;
+      }
       await startHostedPayment(addOns);
     } catch (error) {
       console.error("Error starting payment:", error);
@@ -1365,13 +1366,15 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   value={formData.cautionValeur}
                   onChange={(e) => {
                     const raw = Number(e.target.value || 0);
-                    const cap = formData.cautionType === "pourcentage" ? 50 : 50000;
+                    const cap =
+                      formData.cautionType === "pourcentage" ? 50 : 50000;
                     updateField("cautionValeur", String(Math.min(raw, cap)));
                   }}
                 />
               )}
               <p className="text-xs font-semibold text-neutral-500">
-                La caution journalière est plafonnée à 50% du séjour, maximum 50,000 FCFA.
+                La caution journalière est plafonnée à 50% du séjour, maximum
+                50,000 FCFA.
               </p>
             </div>
             <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
@@ -1716,7 +1719,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   Publication journalière
                 </p>
                 <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
-                  Prix unique pour soumettre une location journalière. Les
+                  Publication gratuite pour une location journalière. Les
                   options photo, vidéo et visibilité restent disponibles à
                   l&apos;étape suivante.
                 </p>

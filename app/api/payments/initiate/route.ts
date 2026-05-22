@@ -247,11 +247,38 @@ export async function POST(req: Request) {
             );
           }
 
+          const { data: listingConfig, error: listingConfigError } =
+            await supabase
+              .from("listing_config")
+              .select("daily_owner_commission_percentage")
+              .eq("id", "default")
+              .single();
+
+          const dailyOwnerCommissionPercentage = Number(
+            listingConfig?.daily_owner_commission_percentage,
+          );
+
+          if (
+            listingConfigError ||
+            !Number.isFinite(dailyOwnerCommissionPercentage)
+          ) {
+            console.error(
+              "Daily owner commission config missing:",
+              listingConfigError,
+            );
+            return errorResponse(
+              "Daily owner commission is not configured",
+              500,
+              req,
+            );
+          }
+
           const breakdown = computeJournalierPricing({
             nightlyRate: propertyRecord.price,
             nights,
             cautionType: propertyRecord.caution_type as CautionType,
             cautionValeur: propertyRecord.caution_valeur,
+            ownerCommissionPercentage: dailyOwnerCommissionPercentage,
           });
 
           const payoutPhoneRaw =
@@ -319,7 +346,7 @@ export async function POST(req: Request) {
           return total;
         }, 0);
 
-        resolvedAmount = JOURNALIER_LISTING_PUBLICATION_FEE + addOnsTotal;
+        resolvedAmount = addOnsTotal;
         resolvedMetadata = {
           ...resolvedMetadata,
           originalClientAmount: amount,

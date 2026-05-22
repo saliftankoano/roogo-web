@@ -11,7 +11,6 @@ import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
-import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 
 // Schema for Payment Page request
 const paymentPageSchema = z.object({
@@ -161,8 +160,7 @@ export async function POST(req: Request) {
       transactionType === "listing_submission" &&
       resolvedMetadata.frequence === "journalier";
     const resolvedAmount = isDailyListing
-      ? JOURNALIER_LISTING_PUBLICATION_FEE +
-        (Array.isArray(resolvedMetadata.add_on_details)
+      ? (Array.isArray(resolvedMetadata.add_on_details)
           ? resolvedMetadata.add_on_details.reduce((sum, item) => {
               if (item && typeof item === "object" && "price" in item) {
                 return sum + Number(item.price || 0);

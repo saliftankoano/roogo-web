@@ -33,22 +33,28 @@ export async function GET() {
       return NextResponse.json({ tiers, addons: [] });
     }
 
-    // Fetch commission percentage (required)
+    // Fetch commission percentages (required)
     const { data: configData, error: configError } = await supabaseAdmin
       .from("listing_config")
-      .select("commission_percentage")
+      .select("commission_percentage, daily_owner_commission_percentage")
       .eq("id", "default")
       .single();
 
-    if (configError || typeof configData?.commission_percentage !== "number") {
+    if (
+      configError ||
+      typeof configData?.commission_percentage !== "number" ||
+      typeof configData?.daily_owner_commission_percentage !== "number"
+    ) {
       console.error("Error fetching listing config:", configError);
       return NextResponse.json(
-        { error: "Commission percentage is not configured" },
+        { error: "Commission percentages are not configured" },
         { status: 500 },
       );
     }
 
     let commissionPercentage = configData.commission_percentage;
+    const dailyOwnerCommissionPercentage =
+      configData.daily_owner_commission_percentage;
 
     // Apply dev pricing overrides if configured (for local testing)
     if (process.env.DEV_PRICING_OVERRIDE === "true") {
@@ -78,7 +84,12 @@ export async function GET() {
       });
     }
 
-    return NextResponse.json({ tiers, addons, commissionPercentage });
+    return NextResponse.json({
+      tiers,
+      addons,
+      commissionPercentage,
+      dailyOwnerCommissionPercentage,
+    });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(
