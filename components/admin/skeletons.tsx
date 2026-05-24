@@ -129,7 +129,7 @@ export function ApplicationListSkeleton({ count = 8 }: { count?: number }) {
   );
 }
 
-// ─── Analytiques ──────────────────────────────────────────────────────────────
+// ─── Finances ─────────────────────────────────────────────────────────────────
 
 function StatTileSkeleton() {
   return (
@@ -141,52 +141,6 @@ function StatTileSkeleton() {
   );
 }
 
-function ListRowSkeleton({ wide }: { wide?: boolean }) {
-  return (
-    <div className="flex items-center gap-4 p-4">
-      {wide && <Skeleton className="w-16 h-16 rounded-xl shrink-0" />}
-      {!wide && <Skeleton className="w-8 h-8 rounded-full shrink-0" />}
-      <div className="flex-1 flex flex-col gap-1.5">
-        <Skeleton className="h-4 w-40 rounded-md" />
-        <Skeleton className="h-3 w-24 rounded-md" />
-      </div>
-      <Skeleton className="h-4 w-16 rounded-md shrink-0" />
-    </div>
-  );
-}
-
-export function AnalyticsSkeleton() {
-  return (
-    <div className="space-y-8">
-      {/* 3 stat tiles */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-        {Array.from({ length: 3 }).map((_, i) => <StatTileSkeleton key={i} />)}
-      </div>
-      {/* Trending + cities */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-white p-8 rounded-[40px] border border-neutral-100">
-          <Skeleton className="h-4 w-32 rounded-md mb-6" />
-          {Array.from({ length: 5 }).map((_, i) => <ListRowSkeleton key={i} wide />)}
-        </div>
-        <div className="bg-white p-8 rounded-[40px] border border-neutral-100">
-          <Skeleton className="h-4 w-32 rounded-md mb-6" />
-          {Array.from({ length: 5 }).map((_, i) => <ListRowSkeleton key={i} />)}
-        </div>
-      </div>
-      {/* Platform tiles */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        {Array.from({ length: 4 }).map((_, i) => (
-          <div key={i} className="bg-white p-6 rounded-2xl border border-neutral-100 flex flex-col gap-2">
-            <Skeleton className="h-8 w-16 rounded-md" />
-            <Skeleton className="h-3 w-20 rounded-md" />
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
-// ─── Finances ─────────────────────────────────────────────────────────────────
 
 function TransactionCardSkeleton() {
   return (

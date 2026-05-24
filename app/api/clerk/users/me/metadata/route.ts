@@ -1,6 +1,10 @@
 import { createClerkClient, verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
-import { createUserInSupabase, type ClerkUserData } from "../../../../../../lib/user-sync";
+import {
+  createUserInSupabase,
+  fetchClerkSignupGeo,
+  type ClerkUserData,
+} from "../../../../../../lib/user-sync";
 import { captureServerEvent, identifyServerUser } from "@/lib/posthog-server";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
@@ -282,7 +286,13 @@ export async function POST(req: Request) {
         private_metadata: updatedUser.privateMetadata as ClerkUserData["private_metadata"],
         unsafe_metadata: updatedUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
       };
-      await createUserInSupabase(userData);
+      // Snapshot signup geo from Clerk's session geoIP. Best-effort —
+      // a Clerk API hiccup must not block the onboarding flow.
+      const signupGeo = await fetchClerkSignupGeo(userId).catch(() => null);
+      await createUserInSupabase(
+        userData,
+        signupGeo ? { signupGeo } : undefined,
+      );
     } catch (syncError) {
       console.error("Supabase sync after metadata update failed:", syncError);
     }

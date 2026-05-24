@@ -30,10 +30,10 @@ export const staffOnboardingSteps: DriveStep[] = [
     },
   },
   {
-    element: '[data-id="admin-nav-analytiques"]',
+    element: '[data-id="admin-nav-analyses"]',
     popover: {
       description:
-        "Suivez les performances globales de la plateforme : vues, clics et engagement.",
+        "Suivez l'activité de la plateforme : utilisateurs, provenance géographique et engagement.",
       side: "bottom",
       align: "center",
     },

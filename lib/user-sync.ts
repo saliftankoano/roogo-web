@@ -1,4 +1,5 @@
 import { createClient } from "@supabase/supabase-js";
+import { createClerkClient } from "@clerk/backend";
 import { redis } from "@/lib/rate-limit";
 
 // Initialize Supabase client with environment variables
@@ -23,6 +24,38 @@ const supabase =
     : null;
 
 type OnboardingData = Record<string, unknown>;
+
+export type SignupGeo = {
+  city?: string | null;
+  country?: string | null;
+  ipAddress?: string | null;
+};
+
+/**
+ * Fetch the user's earliest Clerk session and return its geoIP snapshot.
+ * Returns null if the user has no sessions yet (very fresh signup) or if
+ * the activity payload lacks a city.
+ */
+export async function fetchClerkSignupGeo(
+  clerkUserId: string,
+): Promise<SignupGeo | null> {
+  if (!process.env.CLERK_SECRET_KEY) return null;
+  const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
+  const sessions = await clerk.sessions.getSessionList({
+    userId: clerkUserId,
+  });
+  if (!sessions.data?.length) return null;
+  const earliest = [...sessions.data].sort(
+    (a, b) => a.createdAt - b.createdAt,
+  )[0];
+  const activity = earliest?.latestActivity;
+  if (!activity?.city && !activity?.country) return null;
+  return {
+    city: activity.city ?? null,
+    country: activity.country ?? null,
+    ipAddress: activity.ipAddress ?? null,
+  };
+}
 
 export interface ClerkUserData {
   id: string;
@@ -68,9 +101,14 @@ export interface ClerkUserData {
 }
 
 /**
- * Create or sync a user in Supabase from Clerk data
+ * Create or sync a user in Supabase from Clerk data.
+ * Pass `opts.signupGeo` to populate signup_* columns on first creation
+ * (or on subsequent syncs when signup_city is still null). Write-once.
  */
-export async function createUserInSupabase(data: ClerkUserData) {
+export async function createUserInSupabase(
+  data: ClerkUserData,
+  opts?: { signupGeo?: SignupGeo | null },
+) {
   try {
     if (!supabase) {
       throw new Error("Supabase client not initialized.");
@@ -141,7 +179,7 @@ export async function createUserInSupabase(data: ClerkUserData) {
     // 1. Try to find by clerk_id
     let { data: existingUser } = await supabase
       .from("users")
-      .select("id, clerk_id, email")
+      .select("id, clerk_id, email, signup_city")
       .eq("clerk_id", clerkId)
       .maybeSingle();
 
@@ -149,16 +187,16 @@ export async function createUserInSupabase(data: ClerkUserData) {
     if (!existingUser) {
       const { data: userByEmail } = await supabase
         .from("users")
-        .select("id, clerk_id, email")
+        .select("id, clerk_id, email, signup_city")
         .eq("email", email)
         .maybeSingle();
-      
+
       if (userByEmail) {
         existingUser = userByEmail;
       }
     }
 
-    const userData = {
+    const userData: Record<string, unknown> = {
       clerk_id: clerkId,
       email,
       full_name: fullName,
@@ -175,6 +213,17 @@ export async function createUserInSupabase(data: ClerkUserData) {
       referral_source: referralSource,
       preferences: onboardingData, // Store everything in JSONB as well
     };
+
+    // Write-once: only persist signup geo on insert, or on update if not yet set
+    const shouldWriteSignupGeo =
+      !!opts?.signupGeo?.city &&
+      (!existingUser || !existingUser.signup_city);
+    if (shouldWriteSignupGeo && opts?.signupGeo) {
+      userData.signup_city = opts.signupGeo.city ?? null;
+      userData.signup_country = opts.signupGeo.country ?? null;
+      userData.signup_ip = opts.signupGeo.ipAddress ?? null;
+      userData.signup_captured_at = new Date().toISOString();
+    }
 
     let result;
     if (existingUser) {
@@ -299,8 +348,11 @@ export function getSupabaseClient() {
  * Update an existing user in Supabase from Clerk data.
  * Delegates to createUserInSupabase which handles upsert logic.
  */
-export async function updateUserInSupabase(data: ClerkUserData) {
-  return createUserInSupabase(data);
+export async function updateUserInSupabase(
+  data: ClerkUserData,
+  opts?: { signupGeo?: SignupGeo | null },
+) {
+  return createUserInSupabase(data, opts);
 }
 
 /**

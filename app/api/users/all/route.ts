@@ -59,6 +59,11 @@ export interface FullUser {
   referral_source: string | null;
   preferences: Record<string, unknown> | null;
   created_at: string;
+  // Signup geo (write-once, sourced from Clerk session geoIP)
+  signup_city: string | null;
+  signup_country: string | null;
+  signup_ip: string | null;
+  signup_captured_at: string | null;
   // Activity counts
   properties_count: number;
   applications_count: number;
@@ -125,7 +130,11 @@ export async function GET() {
         portfolio_size,
         referral_source,
         preferences,
-        created_at
+        created_at,
+        signup_city,
+        signup_country,
+        signup_ip,
+        signup_captured_at
       `,
       )
       .order("created_at", { ascending: false });
@@ -240,6 +249,10 @@ export async function GET() {
         referral_source: row.referral_source,
         preferences: row.preferences,
         created_at: row.created_at,
+        signup_city: row.signup_city ?? null,
+        signup_country: row.signup_country ?? null,
+        signup_ip: row.signup_ip ?? null,
+        signup_captured_at: row.signup_captured_at ?? null,
         properties_count: propertiesCountMap[row.id] ?? 0,
         applications_count: applicationsCountMap[row.id] ?? 0,
         agreements_renter_count: agreementsRenterMap[row.id] ?? 0,

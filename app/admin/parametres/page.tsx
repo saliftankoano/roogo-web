@@ -273,7 +273,7 @@ export default function AdminSettingsPage() {
 
       <Tabs defaultValue="pricing" className="space-y-8">
         {/* Visual Formula Header */}
-        <div className="bg-blue-600 rounded-[2rem] p-8 text-white shadow-xl shadow-blue-200/50 relative overflow-hidden group">
+        <div className="bg-blue-600 rounded-4xl p-8 text-white shadow-xl shadow-blue-200/50 relative overflow-hidden group">
           <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
             <CalculatorIcon size={120} weight="fill" />
           </div>
@@ -712,7 +712,7 @@ export default function AdminSettingsPage() {
                           </div>
                         </div>
 
-                        <div className="space-y-4 flex-grow">
+                        <div className="space-y-4 grow">
                           <div className="flex justify-between items-center text-sm">
                             <span className="text-neutral-500 font-medium">
                               Frais fixes
@@ -789,7 +789,7 @@ export default function AdminSettingsPage() {
 
       {/* Info Modal */}
       {showInfoModal && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-neutral-950/40 backdrop-blur-md animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-neutral-950/40 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-300 border border-neutral-200">
             <div className="p-8 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
               <div className="flex items-center gap-3">
@@ -809,7 +809,7 @@ export default function AdminSettingsPage() {
             </div>
             <div className="p-8 space-y-6">
               <div className="space-y-4">
-                <div className="flex items-start gap-4 p-5 bg-amber-50/50 border border-amber-100 rounded-[1.5rem]">
+                <div className="flex items-start gap-4 p-5 bg-amber-50/50 border border-amber-100 rounded-3xl">
                   <div className="p-2 bg-amber-100 text-amber-600 rounded-xl shrink-0">
                     <WarningCircleIcon className="w-5 h-5" weight="fill" />
                   </div>
@@ -824,7 +824,7 @@ export default function AdminSettingsPage() {
                   </div>
                 </div>
 
-                <div className="flex items-start gap-4 p-5 bg-orange-50/50 border border-orange-100 rounded-[1.5rem]">
+                <div className="flex items-start gap-4 p-5 bg-orange-50/50 border border-orange-100 rounded-3xl">
                   <div className="p-2 bg-orange-100 text-orange-600 rounded-xl shrink-0">
                     <CheckCircleIcon className="w-5 h-5" weight="fill" />
                   </div>
@@ -840,7 +840,7 @@ export default function AdminSettingsPage() {
                 </div>
               </div>
 
-              <div className="p-5 bg-neutral-50 rounded-[1.5rem] border border-neutral-100">
+              <div className="p-5 bg-neutral-50 rounded-3xl border border-neutral-100">
                 <p className="text-neutral-600 text-sm leading-relaxed">
                   Pour une compatibilité maximale, nous recommandons de fixer
                   tous les prix à <strong>100 XOF ou plus</strong>.

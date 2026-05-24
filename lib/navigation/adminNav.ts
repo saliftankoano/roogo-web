@@ -1,5 +1,4 @@
 import {
-  UsersIcon,
   BuildingsIcon,
   ReceiptIcon,
   ChartLineUpIcon,
@@ -11,15 +10,15 @@ export type AdminNavItem = {
   label: string;
   href: string;
   id: string;
-  icon: typeof UsersIcon;
+  icon: typeof BuildingsIcon;
 };
 
 const baseAdminNavItems: AdminNavItem[] = [
   {
-    label: "Utilisateurs",
+    label: "Analyses",
     href: "/admin/utilisateurs",
-    id: "admin-nav-utilisateurs",
-    icon: UsersIcon,
+    id: "admin-nav-analyses",
+    icon: ChartLineUpIcon,
   },
   {
     label: "Annonces",
@@ -32,12 +31,6 @@ const baseAdminNavItems: AdminNavItem[] = [
     href: "/admin/candidatures",
     id: "admin-nav-candidatures",
     icon: ClipboardTextIcon,
-  },
-  {
-    label: "Analytics",
-    href: "/admin/analytiques",
-    id: "admin-nav-analytiques",
-    icon: ChartLineUpIcon,
   },
 ];
 

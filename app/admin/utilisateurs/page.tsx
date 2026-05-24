@@ -2,6 +2,7 @@
 
 import { useState, useMemo, useEffect } from "react";
 import { UserGridSkeleton } from "@/components/admin/skeletons";
+import { UserSignupMap } from "@/components/admin/UserSignupMap";
 import {
   UserIcon,
   PhoneIcon,
@@ -67,6 +68,11 @@ interface UserProfile {
   referral_source: string | null;
   preferences: Record<string, unknown>;
   created_at: string;
+  // Signup geo (write-once, sourced from Clerk session geoIP)
+  signup_city: string | null;
+  signup_country: string | null;
+  signup_ip: string | null;
+  signup_captured_at: string | null;
   // Activity counts
   properties_count: number;
   applications_count: number;
@@ -163,6 +169,24 @@ function getIntentStyle(userType: string) {
       leftBorder: "border-neutral-200",
     }
   );
+}
+
+const REGION_NAMES_FR = new Intl.DisplayNames(["fr"], { type: "region" });
+
+function formatSignupLocation(u: {
+  signup_city: string | null;
+  signup_country: string | null;
+}): string | null {
+  if (!u.signup_city && !u.signup_country) return null;
+  let country: string | null = null;
+  if (u.signup_country) {
+    try {
+      country = REGION_NAMES_FR.of(u.signup_country) ?? u.signup_country;
+    } catch {
+      country = u.signup_country;
+    }
+  }
+  return [u.signup_city, country].filter(Boolean).join(", ");
 }
 
 function getEngagementStatus(user: UserProfile): EngagementStatus {
@@ -617,10 +641,10 @@ export default function AdminUsersPage() {
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div>
           <h1 className="text-4xl font-black text-neutral-900 tracking-tight">
-            Gestion des Utilisateurs
+            Analyses
           </h1>
           <p className="text-neutral-500 font-medium mt-2">
-            Qui sont vos utilisateurs, pourquoi sont-ils là, et que faire maintenant.
+            Qui sont vos utilisateurs, d&apos;où viennent-ils, et que faire maintenant.
           </p>
         </div>
         <div className="relative w-full md:w-96">
@@ -829,6 +853,9 @@ export default function AdminUsersPage() {
           </div>
         )}
       </div>
+
+      {/* Signup geography map */}
+      <UserSignupMap users={users} />
 
       {/* Filters & Stats */}
       <div className="space-y-4">
@@ -1137,9 +1164,18 @@ export default function AdminUsersPage() {
                   </div>
                 </div>
 
-                {/* Meta chips: city + acquisition source */}
-                {(user.preferred_city || user.onboarding_location || user.onboarding_property_city || user.referral_source) && (
+                {/* Meta chips: signup geo + city + acquisition source */}
+                {(formatSignupLocation(user) || user.preferred_city || user.onboarding_location || user.onboarding_property_city || user.referral_source) && (
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {formatSignupLocation(user) && (
+                      <span
+                        title="Lieu de connexion lors de l'inscription"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-700"
+                      >
+                        <GlobeIcon size={9} weight="bold" className="text-amber-500" />
+                        {formatSignupLocation(user)}
+                      </span>
+                    )}
                     {(user.preferred_city || user.onboarding_location || user.onboarding_property_city) && (
                       <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-bold text-neutral-600">
                         <MapPinIcon size={9} weight="bold" className="text-neutral-400" />
@@ -1616,6 +1652,24 @@ export default function AdminUsersPage() {
                                 selectedUser.onboarding_property_city ||
                                 "Non renseigné"}
                             </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
+                            <GlobeIcon size={20} weight="bold" />
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
+                              Inscrit depuis
+                            </p>
+                            <p className="font-bold text-neutral-900 text-sm">
+                              {formatSignupLocation(selectedUser) || "Non capturé"}
+                            </p>
+                            {selectedUser.signup_ip && (
+                              <p className="text-[10px] font-medium text-neutral-400 mt-0.5 font-mono">
+                                {selectedUser.signup_ip}
+                              </p>
+                            )}
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
