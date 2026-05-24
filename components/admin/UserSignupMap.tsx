@@ -1,6 +1,12 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import {
+  ComposableMap,
+  Geographies,
+  Geography,
+  Marker,
+} from "react-simple-maps";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   GlobeIcon,
@@ -16,8 +22,12 @@ import { Calendar } from "@/components/ui/calendar";
 import {
   ALPHA2_TO_FR,
   BF_CITY_COORDS,
+  NUMERIC_TO_ALPHA2,
   normalizeCountry,
 } from "@/lib/countries";
+
+const TOPO_URL =
+  "https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json";
 
 type MapUser = {
   signup_country: string | null;
@@ -44,71 +54,6 @@ const PRESETS: { id: DateRangePreset; label: string }[] = [
   { id: "all", label: "Tout" },
   { id: "custom", label: "Personnalisé" },
 ];
-
-const COUNTRY_COORDS: Record<string, [number, number]> = {
-  BF: [-1.56, 12.24],
-  CI: [-5.55, 7.54],
-  ML: [-3.99, 17.57],
-  NE: [9.08, 17.61],
-  GH: [-1.02, 7.95],
-  TG: [0.82, 8.62],
-  BJ: [2.31, 9.31],
-  SN: [-14.45, 14.5],
-  GN: [-10.94, 10.44],
-  NG: [8.68, 9.08],
-  US: [-98.58, 39.83],
-  CA: [-106.35, 56.13],
-  BR: [-51.93, -14.24],
-  FR: [2.21, 46.23],
-  BE: [4.47, 50.5],
-  CH: [8.23, 46.82],
-  DE: [10.45, 51.17],
-  IT: [12.57, 41.87],
-  ES: [-3.75, 40.46],
-  GB: [-3.44, 55.38],
-  NL: [5.29, 52.13],
-  SE: [18.64, 60.13],
-  NO: [8.47, 60.47],
-  PT: [-8.22, 39.4],
-  MA: [-7.09, 31.79],
-  TN: [9.54, 33.89],
-  DZ: [1.66, 28.03],
-  CM: [12.35, 7.37],
-  GA: [11.61, -0.8],
-  CG: [15.83, -0.23],
-  CD: [21.76, -4.04],
-  AE: [53.85, 23.42],
-  SA: [45.08, 23.89],
-  CN: [104.2, 35.86],
-  JP: [138.25, 36.2],
-  IN: [78.96, 20.59],
-  AU: [133.78, -25.27],
-};
-
-const WORLD_REGIONS = [
-  "M150 180 C105 155 62 190 72 242 C82 304 140 315 184 285 C232 253 218 202 150 180Z",
-  "M206 326 C184 360 204 410 246 424 C280 436 312 406 304 362 C296 320 234 290 206 326Z",
-  "M374 146 C318 154 285 196 302 236 C318 274 382 270 424 252 C470 232 462 158 374 146Z",
-  "M420 250 C382 286 386 348 424 386 C456 418 492 394 494 346 C496 294 464 248 420 250Z",
-  "M508 162 C464 184 472 228 518 246 C574 268 646 248 684 210 C644 166 566 132 508 162Z",
-  "M612 286 C570 304 570 354 618 372 C664 390 712 356 704 314 C696 278 652 268 612 286Z",
-  "M658 382 C626 394 620 426 648 440 C682 458 736 440 748 410 C724 382 690 370 658 382Z",
-];
-
-function projectWorld([lng, lat]: [number, number]): [number, number] {
-  return [((lng + 180) / 360) * 800, ((85 - lat) / 170) * 450];
-}
-
-function projectBurkina([lng, lat]: [number, number]): [number, number] {
-  const minLng = -5.7;
-  const maxLng = 2.6;
-  const minLat = 9.2;
-  const maxLat = 15.4;
-  return [
-    ((lng - minLng) / (maxLng - minLng)) * 620 + 90,
-    ((maxLat - lat) / (maxLat - minLat)) * 300 + 78,
-  ];
-}
 
 function withinRange(
   createdAt: string,
@@ -149,13 +94,6 @@ function colorForCount(count: number, max: number): string {
   const g = Math.round(start[1] + (end[1] - start[1]) * t);
   const b = Math.round(start[2] + (end[2] - start[2]) * t);
   return `rgb(${r}, ${g}, ${b})`;
-}
-
-function formatCityName(cityKey: string): string {
-  return cityKey
-    .split(" ")
-    .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-    .join(" ");
 }
 
 export function UserSignupMap({ users }: Props) {
@@ -221,24 +159,6 @@ export function UserSignupMap({ users }: Props) {
       }))
       .sort((a, b) => b.count - a.count)
       .slice(0, 6);
-  }, [countByAlpha2]);
-
-  const countryBubbles = useMemo(() => {
-    return Object.entries(countByAlpha2)
-      .map(([alpha2, count]) => ({
-        alpha2,
-        count,
-        coords: COUNTRY_COORDS[alpha2],
-        name: ALPHA2_TO_FR[alpha2] ?? alpha2,
-      }))
-      .filter(
-        (entry): entry is {
-          alpha2: string;
-          count: number;
-          coords: [number, number];
-          name: string;
-        } => Boolean(entry.coords),
-      );
   }, [countByAlpha2]);
 
   const totalFiltered = filtered.length;
@@ -348,121 +268,128 @@ export function UserSignupMap({ users }: Props) {
             transition={{ duration: 0.2 }}
             className="absolute inset-0"
           >
-            <svg
-              viewBox="0 0 800 450"
-              role="img"
-              aria-label={
+            <ComposableMap
+              projectionConfig={
                 view === "world"
-                  ? "Carte des inscriptions par pays"
-                  : "Carte des inscriptions au Burkina Faso par ville"
+                  ? { scale: 145, center: [10, 20] }
+                  : { scale: 1800, center: [-1.5, 12.3] }
               }
-              className="h-full w-full"
+              width={800}
+              height={450}
+              style={{ width: "100%", height: "100%" }}
+              projection="geoMercator"
             >
-              <rect width="800" height="450" fill="#FBFAF8" />
-              {view === "world" ? (
-                <>
-                  {WORLD_REGIONS.map((path, index) => (
-                    <path
-                      key={index}
-                      d={path}
-                      fill="#EFE8E0"
-                      stroke="#FFFFFF"
-                      strokeWidth="2"
-                    />
-                  ))}
-                  {countryBubbles.map(({ alpha2, count, coords, name }) => {
-                    const [x, y] = projectWorld(coords);
-                    const t =
-                      maxCountryCount > 0 ? count / maxCountryCount : 0;
-                    const radius = 6 + Math.sqrt(t) * 22;
-                    return (
-                      <g key={alpha2}>
-                        <circle
-                          cx={x}
-                          cy={y}
-                          r={radius}
-                          fill={colorForCount(count, maxCountryCount)}
-                          fillOpacity="0.88"
+                <Geographies geography={TOPO_URL}>
+                  {({ geographies }) =>
+                    geographies.map((geo) => {
+                      const id = String(geo.id ?? "").padStart(3, "0");
+                      const alpha2 = NUMERIC_TO_ALPHA2[id];
+                      const count = alpha2 ? (countByAlpha2[alpha2] ?? 0) : 0;
+                      const isBurkina = alpha2 === "BF";
+                      const fill =
+                        view === "burkina"
+                          ? isBurkina
+                            ? "#FBE8DE"
+                            : "#F7F5F2"
+                          : colorForCount(count, maxCountryCount);
+                      return (
+                        <Geography
+                          key={geo.rsmKey}
+                          geography={geo}
+                          fill={fill}
                           stroke="#FFFFFF"
-                          strokeWidth="2"
-                          className="cursor-pointer transition-opacity hover:opacity-80"
-                          onMouseEnter={(e) =>
+                          strokeWidth={0.5}
+                          onMouseEnter={(e) => {
+                            if (view !== "world") return;
+                            const name = alpha2
+                              ? (ALPHA2_TO_FR[alpha2] ?? alpha2)
+                              : ((geo.properties as { name?: string })?.name ??
+                                "Inconnu");
                             setTooltip({
                               x: e.clientX,
                               y: e.clientY,
                               title: name,
                               value: count,
-                            })
-                          }
+                            });
+                          }}
                           onMouseMove={(e) =>
                             setTooltip((t) =>
                               t ? { ...t, x: e.clientX, y: e.clientY } : t,
                             )
                           }
                           onMouseLeave={() => setTooltip(null)}
+                          style={{
+                            default: {
+                              outline: "none",
+                              transition: "fill 0.2s",
+                            },
+                            hover: {
+                              outline: "none",
+                              fill:
+                                view === "world" && count > 0
+                                  ? "#B45531"
+                                  : isBurkina
+                                    ? "#F7D2BD"
+                                    : "#EDE9E4",
+                              cursor:
+                                view === "world" && count > 0
+                                  ? "pointer"
+                                  : "default",
+                            },
+                            pressed: { outline: "none" },
+                          }}
                           onClick={() => {
-                            if (alpha2 === "BF") setView("burkina");
+                            if (view === "world" && isBurkina) {
+                              setView("burkina");
+                            }
                           }}
                         />
-                        {count > 0 && (
-                          <text
-                            x={x}
-                            y={y + 3}
-                            textAnchor="middle"
-                            className="pointer-events-none fill-neutral-900 text-[10px] font-black"
-                          >
-                            {alpha2}
-                          </text>
-                        )}
-                      </g>
-                    );
-                  })}
-                </>
-              ) : (
-                <>
-                  <path
-                    d="M135 132 C205 70 322 82 405 118 C492 154 638 124 684 202 C732 286 638 358 516 372 C388 388 302 366 202 326 C112 290 78 196 135 132Z"
-                    fill="#FBE8DE"
-                    stroke="#F4B28E"
-                    strokeWidth="3"
-                  />
-                  {Object.entries(bfCityCounts).map(([cityKey, count]) => {
+                      );
+                    })
+                  }
+                </Geographies>
+
+                {/* Burkina city pins, only when zoomed in */}
+                {view === "burkina" &&
+                  Object.entries(bfCityCounts).map(([cityKey, count]) => {
                     const coords = BF_CITY_COORDS[cityKey];
                     if (!coords) return null;
-                    const [x, y] = projectBurkina(coords);
                     const t = maxCityCount > 0 ? count / maxCityCount : 0;
-                    const radius = 5 + Math.sqrt(t) * 16;
+                    const radius = 4 + t * 14;
                     return (
-                      <circle
-                        key={cityKey}
-                        cx={x}
-                        cy={y}
-                        r={radius}
-                        fill="#D86F45"
-                        fillOpacity="0.85"
-                        stroke="#FFFFFF"
-                        strokeWidth="2"
-                        className="cursor-pointer transition-opacity hover:opacity-80"
-                        onMouseEnter={(e) =>
-                          setTooltip({
-                            x: e.clientX,
-                            y: e.clientY,
-                            title: formatCityName(cityKey),
-                            value: count,
-                          })
-                        }
-                        onMouseMove={(e) =>
-                          setTooltip((tt) =>
-                            tt ? { ...tt, x: e.clientX, y: e.clientY } : tt,
-                          )
-                        }
-                        onMouseLeave={() => setTooltip(null)}
-                      />
+                      <Marker key={cityKey} coordinates={coords}>
+                        <circle
+                          r={radius}
+                          fill="#D86F45"
+                          fillOpacity={0.85}
+                          stroke="#FFFFFF"
+                          strokeWidth={1.5}
+                          style={{ cursor: "pointer" }}
+                          onMouseEnter={(e) =>
+                            setTooltip({
+                              x: e.clientX,
+                              y: e.clientY,
+                              title: cityKey
+                                .split(" ")
+                                .map(
+                                  (w) =>
+                                    w.charAt(0).toUpperCase() + w.slice(1),
+                                )
+                                .join(" "),
+                              value: count,
+                            })
+                          }
+                          onMouseMove={(e) =>
+                            setTooltip((tt) =>
+                              tt ? { ...tt, x: e.clientX, y: e.clientY } : tt,
+                            )
+                          }
+                          onMouseLeave={() => setTooltip(null)}
+                        />
+                      </Marker>
                     );
                   })}
-                </>
-              )}
-            </svg>
+            </ComposableMap>
           </motion.div>
         </AnimatePresence>
 
