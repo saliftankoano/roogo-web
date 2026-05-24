@@ -28,7 +28,7 @@ export const metadata: Metadata = {
   },
   description:
     "La référence de la location immobilière au Burkina Faso. Trouvez votre appartement, maison ou local commercial à Ouagadougou.",
-  metadataBase: new URL("https://roogo.bf"),
+  metadataBase: new URL("https://www.roogobf.com"),
   keywords: [
     "immobilier burkina faso",
     "location appartement ouagadougou",
@@ -46,7 +46,7 @@ export const metadata: Metadata = {
   openGraph: {
     type: "website",
     locale: "fr_BF",
-    url: "https://roogo.bf",
+    url: "https://www.roogobf.com",
     siteName: "Roogo",
     title: "Roogo | Immobilier au Burkina Faso",
     description:

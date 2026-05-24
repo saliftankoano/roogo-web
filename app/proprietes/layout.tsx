@@ -14,7 +14,7 @@ export const metadata: Metadata = {
   openGraph: {
     title: "Location Appartement et Maison Ouagadougou | Roogo",
     description: "Parcourez les meilleures offres de location à Ouagadougou. Photos professionnelles et prix transparents.",
-    url: "https://roogo.bf/location",
+    url: "https://www.roogobf.com/proprietes",
   },
 };
 

@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
         disallow: ["/admin/", "/api/", "/personnel/", "/connexion", "/inscription"],
       },
     ],
-    sitemap: "https://roogo.bf/sitemap.xml",
+    sitemap: "https://www.roogobf.com/sitemap.xml",
   };
 }

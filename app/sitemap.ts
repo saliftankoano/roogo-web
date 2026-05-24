@@ -2,7 +2,7 @@ import { MetadataRoute } from "next";
 import { fetchProperties } from "../lib/data";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
-  const baseUrl = "https://roogo.bf";
+  const baseUrl = "https://www.roogobf.com";
 
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [

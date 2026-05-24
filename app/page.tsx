@@ -16,7 +16,7 @@ export const metadata: Metadata = {
     "villa a louer burkina"
   ],
   alternates: {
-    canonical: "https://roogo.bf",
+    canonical: "https://www.roogobf.com",
   },
 };
 

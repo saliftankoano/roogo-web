@@ -4,7 +4,7 @@ const IOS_APP_STORE_URL =
   "https://apps.apple.com/us/app/roogo-burkina/id6761714300";
 const ANDROID_PLAY_STORE_URL =
   "https://play.google.com/store/apps/details?id=com.kazedra.roogo";
-const WEB_FALLBACK_URL = "https://roogobf.com/";
+const WEB_FALLBACK_URL = "https://www.roogobf.com/";
 
 type Platform = "ios" | "android" | "other";
 

@@ -6,8 +6,8 @@ export function getOrganizationSchema() {
     "@type": "RealEstateAgent",
     name: "Roogo",
     description: "La référence de la location immobilière au Burkina Faso",
-    url: "https://roogo.bf",
-    logo: "https://roogo.bf/logo.png?v=2",
+    url: "https://www.roogobf.com",
+    logo: "https://www.roogobf.com/logo.png?v=2",
     sameAs: [
       "https://facebook.com/roogobf",
       "https://instagram.com/roogo_bf",
@@ -33,10 +33,10 @@ export function getWebSiteSchema() {
     "@context": "https://schema.org",
     "@type": "WebSite",
     name: "Roogo",
-    url: "https://roogo.bf",
+    url: "https://www.roogobf.com",
     potentialAction: {
       "@type": "SearchAction",
-      target: "https://roogo.bf/location?q={search_term_string}",
+      target: "https://www.roogobf.com/proprietes?q={search_term_string}",
       "query-input": "required name=search_term_string",
     },
   };
@@ -61,7 +61,7 @@ export function getRealEstateListingSchema(property: Property) {
     "@type": "RealEstateListing",
     name: `Propriété à ${property.location || property.quartier}`,
     description: property.description,
-    url: `https://roogo.bf/location?id=${property.id}`,
+    url: `https://www.roogobf.com/proprietes?id=${property.id}`,
     image: property.images || [property.image],
     address: {
       "@type": "PostalAddress",
