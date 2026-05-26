@@ -1,6 +1,13 @@
 "use client";
 
-import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  FormEvent,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { SignInButton, useAuth } from "@clerk/nextjs";
 import { CopyIcon, CheckCircleIcon } from "@phosphor-icons/react";
 import { formatPrice } from "@/lib/utils";
@@ -69,13 +76,16 @@ export default function ParrainagePage() {
   const [data, setData] = useState<ReferralMeResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [applicationFormReady, setApplicationFormReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const applicationFormRef = useRef<HTMLFormElement>(null);
 
   const profile = data?.profile ?? null;
   const redemptions = data?.redemptions ?? [];
   const commissions = data?.commissions ?? [];
   const totals = data?.totals ?? { pending: 0, paid: 0 };
+  const canApply = !profile || profile.status === "rejected";
 
   const shareUrl = useMemo(() => {
     if (!profile?.code || typeof window === "undefined") return "";
@@ -109,14 +119,32 @@ export default function ParrainagePage() {
     if (isLoaded) void loadProfile();
   }, [isLoaded, loadProfile]);
 
+  const updateApplicationFormReady = useCallback(() => {
+    setApplicationFormReady(
+      Boolean(applicationFormRef.current?.checkValidity()),
+    );
+  }, []);
+
+  useEffect(() => {
+    if (canApply) updateApplicationFormReady();
+  }, [canApply, updateApplicationFormReady]);
+
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    setSubmitting(true);
+    const formElement = event.currentTarget;
+
+    if (!formElement.checkValidity()) {
+      formElement.reportValidity();
+      setApplicationFormReady(false);
+      return;
+    }
+
+    const form = new FormData(formElement);
     setError(null);
+    setSubmitting(true);
 
     try {
       const token = await getToken();
-      const form = new FormData(event.currentTarget);
       const response = await fetch("/api/referrals/apply", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
@@ -168,8 +196,6 @@ export default function ParrainagePage() {
       </main>
     );
   }
-
-  const canApply = !profile || profile.status === "rejected";
 
   return (
     <main className="min-h-screen bg-neutral-50 px-6 pb-12 pt-40">
@@ -243,10 +269,14 @@ export default function ParrainagePage() {
             </div>
 
             <form
+              ref={applicationFormRef}
               onSubmit={handleSubmit}
+              onInput={updateApplicationFormReady}
+              onChange={updateApplicationFormReady}
+              onInvalid={() => setApplicationFormReady(false)}
               className="rounded-2xl border border-neutral-200 bg-white p-6"
             >
-              <div className="mb-6 flex flex-col gap-3 border-b border-neutral-100 pb-5 md:flex-row md:items-start md:justify-between">
+              <div className="mb-6 border-b border-neutral-100 pb-5">
                 <div>
                   <h2 className="text-xl font-bold text-neutral-950">
                     Envoyer ma demande
@@ -256,12 +286,6 @@ export default function ParrainagePage() {
                     et préparer les paiements manuels.
                   </p>
                 </div>
-                <button
-                  disabled={submitting}
-                  className="shrink-0 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
-                >
-                  {submitting ? "Envoi..." : "Soumettre"}
-                </button>
               </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
@@ -334,10 +358,14 @@ export default function ParrainagePage() {
                 </label>
               </div>
               <button
-                disabled={submitting}
-                className="mt-6 w-full rounded-xl bg-primary px-5 py-4 font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={submitting || !applicationFormReady}
+                className="mt-6 w-full rounded-xl bg-primary px-5 py-4 font-bold text-white shadow-sm transition disabled:cursor-not-allowed disabled:bg-neutral-300 disabled:text-neutral-500 disabled:shadow-none"
               >
-                {submitting ? "Envoi de la demande..." : "Soumettre ma demande"}
+                {submitting
+                  ? "Envoi de la demande..."
+                  : applicationFormReady
+                    ? "Soumettre ma demande"
+                    : "Complétez le formulaire"}
               </button>
             </form>
           </section>
