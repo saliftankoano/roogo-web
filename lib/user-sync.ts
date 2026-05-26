@@ -31,6 +31,15 @@ export type SignupGeo = {
   ipAddress?: string | null;
 };
 
+function readNullableStringField(
+  data: Record<string, unknown>,
+  key: string,
+): string | null | undefined {
+  if (!Object.prototype.hasOwnProperty.call(data, key)) return undefined;
+  const value = data[key];
+  return typeof value === "string" && value.trim() ? value : null;
+}
+
 /**
  * Fetch the user's earliest Clerk session and return its geoIP snapshot.
  * Returns null if the user has no sessions yet (very fresh signup) or if
@@ -165,11 +174,19 @@ export async function createUserInSupabase(
       ...(private_metadata?.mobileOnboardingData ?? {}),
       ...(private_metadata?.webOnboardingData ?? {}),
     } as OnboardingData;
-    const onboardingPhone = onboardingData.phone || private_metadata?.phone;
-    const finalPhone = phone || onboardingPhone;
+    const onboardingPhone = readNullableStringField(onboardingData, "phone");
+    const finalPhone =
+      onboardingPhone ||
+      phone ||
+      private_metadata?.phone ||
+      null;
 
     // Extract type-specific fields for columns
-    const whatsapp = onboardingData.whatsapp || private_metadata?.whatsappNumber;
+    const onboardingWhatsapp = readNullableStringField(onboardingData, "whatsapp");
+    const whatsapp =
+      onboardingWhatsapp !== undefined
+        ? onboardingWhatsapp
+        : private_metadata?.whatsappNumber || null;
     const preferredCity = onboardingData.location || onboardingData.propertyCity;
     const budgetMax = onboardingData.budget;
     const serviceAreas = onboardingData.serviceAreas;

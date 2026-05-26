@@ -19,6 +19,39 @@ function addCorsHeaders(res: NextResponse) {
   return res;
 }
 
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
+
+function normalizeBurkinaPhone(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const digits = value.replace(/\D/g, "");
+
+  if (digits.length === 8) return `+226${digits}`;
+  if (digits.length === 11 && digits.startsWith("226")) return `+${digits}`;
+  if (digits.length === 9 && digits.startsWith("0")) {
+    return `+226${digits.slice(1)}`;
+  }
+
+  return null;
+}
+
+function hasValidPrimaryPhone({
+  clerkPhoneNumbers,
+  mobileOnboardingData,
+  privatePhone,
+}: {
+  clerkPhoneNumbers: Array<{ phoneNumber: string }>;
+  mobileOnboardingData: Record<string, unknown>;
+  privatePhone: unknown;
+}) {
+  return Boolean(
+    clerkPhoneNumbers.some((phone) => normalizeBurkinaPhone(phone.phoneNumber)) ||
+      normalizeBurkinaPhone(mobileOnboardingData.phone) ||
+      normalizeBurkinaPhone(privatePhone),
+  );
+}
+
 export async function OPTIONS() {
   return addCorsHeaders(new NextResponse(null, { status: 204 }));
 }
@@ -55,14 +88,12 @@ export async function POST(req: Request) {
     const body = await req.json().catch(() => ({}) as unknown);
 
     const currentUser = await clerk.users.getUser(userId);
-    const currentPublicMetadata =
-      typeof currentUser.publicMetadata === "object" && currentUser.publicMetadata !== null
-        ? (currentUser.publicMetadata as Record<string, unknown>)
-        : {};
-    const currentPrivateMetadata =
-      typeof currentUser.privateMetadata === "object" && currentUser.privateMetadata !== null
-        ? (currentUser.privateMetadata as Record<string, unknown>)
-        : {};
+    const currentPublicMetadata = isRecord(currentUser.publicMetadata)
+      ? currentUser.publicMetadata
+      : {};
+    const currentPrivateMetadata = isRecord(currentUser.privateMetadata)
+      ? currentUser.privateMetadata
+      : {};
     const previousUserType =
       typeof currentPublicMetadata.userType === "string"
         ? currentPublicMetadata.userType
@@ -183,7 +214,15 @@ export async function POST(req: Request) {
 
     // mobileOnboardingData (onboardingData is the legacy alias)
     const resolvedMobileData = mobileOnboardingData ?? onboardingData;
-    if (resolvedMobileData) privateMetadata.mobileOnboardingData = resolvedMobileData;
+    if (isRecord(resolvedMobileData)) {
+      const existingMobileData = isRecord(currentPrivateMetadata.mobileOnboardingData)
+        ? currentPrivateMetadata.mobileOnboardingData
+        : {};
+      privateMetadata.mobileOnboardingData = {
+        ...existingMobileData,
+        ...resolvedMobileData,
+      };
+    }
 
     // webOnboardingData — deep-merged so incremental step saves accumulate
     if (webOnboardingData) {
@@ -194,6 +233,27 @@ export async function POST(req: Request) {
       };
     }
 
+    const selectedUserType =
+      typeof userType === "string" ? userType : previousUserType;
+    const mergedMobileOnboardingData = isRecord(privateMetadata.mobileOnboardingData)
+      ? privateMetadata.mobileOnboardingData
+      : {};
+    if (
+      (selectedUserType === "owner" || selectedUserType === "agent") &&
+      publicMetadata.hasCompletedMobileOnboarding === true &&
+      !hasValidPrimaryPhone({
+        clerkPhoneNumbers: currentUser.phoneNumbers.map((p) => ({
+          phoneNumber: p.phoneNumber,
+        })),
+        mobileOnboardingData: mergedMobileOnboardingData,
+        privatePhone: privateMetadata.phone,
+      })
+    ) {
+      return addCorsHeaders(
+        NextResponse.json({ error: "Missing required phone" }, { status: 400 }),
+      );
+    }
+
     await clerk.users.updateUser(userId, {
       ...(trimmedFirstName ? { firstName: trimmedFirstName } : {}),
       ...(trimmedLastName ? { lastName: trimmedLastName } : {}),
@@ -201,8 +261,6 @@ export async function POST(req: Request) {
       privateMetadata,
     });
 
-    const selectedUserType =
-      typeof userType === "string" ? userType : previousUserType;
     const primaryEmail = currentUser.emailAddresses[0]?.emailAddress ?? null;
 
     await identifyServerUser(userId, {
