@@ -1,7 +1,7 @@
 "use client";
 
 import Image from "next/image";
-import { BedIcon, BathtubIcon, RulerIcon, LightningIcon } from "@phosphor-icons/react";
+import { BedIcon, BathtubIcon, RulerIcon, LightningIcon, SealCheckIcon } from "@phosphor-icons/react";
 import { Property } from "@/lib/data";
 import { cn } from "@/lib/utils";
 
@@ -95,6 +95,15 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
               />
               <span className="text-primary text-[10px] font-black tracking-tighter uppercase ml-1">
                 À LA UNE
+              </span>
+            </div>
+          )}
+
+          {property.agent?.identity_verified && (
+            <div className="absolute bottom-4 left-4 flex items-center bg-white/95 px-3 py-1.5 rounded-full shadow-md border border-green-200 z-10">
+              <SealCheckIcon size={14} weight="fill" className="text-green-600" />
+              <span className="text-green-700 text-[10px] font-black tracking-tighter uppercase ml-1">
+                Identité vérifiée
               </span>
             </div>
           )}

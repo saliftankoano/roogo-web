@@ -42,6 +42,8 @@ export type Property = {
     user_type?: string;
     company_name?: string;
     facebook_url?: string;
+    identity_verification_status?: string;
+    identity_verified?: boolean;
   };
 };
 
@@ -77,6 +79,8 @@ interface DBProperty {
   agent_type: string | null;
   agent_company_name: string | null;
   agent_facebook_url: string | null;
+  agent_identity_verification_status: string | null;
+  agent_identity_verified: boolean | null;
   deposit: number | null;
   caution_mois?: number | null;
   loyer_avance_mois?: number | null;
@@ -133,6 +137,9 @@ function mapProperty(p: DBProperty): Property {
       user_type: p.agent_type || undefined,
       company_name: p.agent_company_name || undefined,
       facebook_url: p.agent_facebook_url || undefined,
+      identity_verification_status:
+        p.agent_identity_verification_status || undefined,
+      identity_verified: p.agent_identity_verified === true,
     },
   };
 }

@@ -607,6 +607,14 @@ export default function OwnerPropertyDetailPage() {
                     <p className="text-xs text-neutral-400 font-medium uppercase tracking-wider mt-1">
                       {listing.agent.user_type || "Particulier"}
                     </p>
+                    {listing.agent.identity_verified && (
+                      <div className="mt-2 inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-700">
+                        <CheckCircleIcon size={12} weight="fill" />
+                        {listing.agent.user_type === "agent"
+                          ? "Agent vérifié"
+                          : "Propriétaire vérifié"}
+                      </div>
+                    )}
                   </div>
                 </div>
 

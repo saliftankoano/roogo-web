@@ -381,6 +381,14 @@ export default function PropertyDetailsModal({
                               Agent Immobilier
                             </div>
                           )}
+                          {property.agent.identity_verified && (
+                            <div className="inline-flex items-center gap-1.5 rounded-full border border-green-200 bg-green-50 px-2.5 py-1 text-[10px] font-black uppercase tracking-wider text-green-700 mb-2">
+                              <CheckCircleIcon size={12} weight="fill" />
+                              {property.agent.user_type === "agent"
+                                ? "Agent vérifié"
+                                : "Propriétaire vérifié"}
+                            </div>
+                          )}
                           {property.agent.company_name && (
                             <div className="flex items-center text-neutral-600 text-sm mb-2">
                               <BuildingsIcon size={16} className="mr-2" />
