@@ -18,6 +18,7 @@ import {
   ChatCircleIcon,
   BuildingsIcon,
   HouseIcon,
+  HandshakeIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
@@ -71,6 +72,28 @@ export function Navbar() {
     },
   ];
 
+  const renterNavItems = [
+    { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
+    {
+      name: "Propriétés",
+      href: "/proprietes",
+      icon: BuildingsIcon,
+      id: "nav-proprietes",
+    },
+    {
+      name: "Parrainage",
+      href: "/parrainage",
+      icon: HandshakeIcon,
+      id: "nav-parrainage",
+    },
+    {
+      name: "Contact",
+      href: "/nous-contacter",
+      icon: ChatCircleIcon,
+      id: "nav-contact",
+    },
+  ];
+
   const staffNavItems = getAdminNavItems(isFounder).flatMap((item) => {
     if (item.type === "group") {
       return item.children.map((child) => ({
@@ -106,6 +129,12 @@ export function Navbar() {
       id: "nav-proprietes",
     },
     {
+      name: "Parrainage",
+      href: "/parrainage",
+      icon: HandshakeIcon,
+      id: "nav-parrainage",
+    },
+    {
       name: "Contact",
       href: "/nous-contacter",
       icon: ChatCircleIcon,
@@ -118,6 +147,8 @@ export function Navbar() {
     ? staffNavItems
     : isAgentOrOwner
       ? agentOwnerNavItems
+      : isSignedIn
+        ? renterNavItems
       : publicNavItems;
 
   return (
