@@ -141,7 +141,7 @@ export default function ParrainagePage() {
 
   if (!isLoaded || loading) {
     return (
-      <main className="min-h-screen bg-neutral-50 px-6 py-12">
+      <main className="min-h-screen bg-neutral-50 px-6 pb-12 pt-40">
         <div className="mx-auto max-w-5xl text-neutral-500">Chargement...</div>
       </main>
     );
@@ -149,9 +149,9 @@ export default function ParrainagePage() {
 
   if (!isSignedIn) {
     return (
-      <main className="min-h-screen bg-neutral-50 px-6 py-12">
+      <main className="min-h-screen bg-neutral-50 px-6 pb-12 pt-40">
         <section className="mx-auto max-w-3xl rounded-2xl border border-neutral-200 bg-white p-8">
-          <p className="text-sm font-semibold uppercase tracking-wide text-roogo-primary-600">
+          <p className="text-sm font-semibold uppercase tracking-wide text-primary">
             Roogo Pro Agent
           </p>
           <h1 className="mt-3 text-3xl font-bold text-neutral-950">
@@ -159,7 +159,7 @@ export default function ParrainagePage() {
           </h1>
           <div className="mt-6">
             <SignInButton mode="modal">
-              <button className="rounded-xl bg-roogo-primary-600 px-5 py-3 font-semibold text-white">
+              <button className="rounded-xl bg-primary px-5 py-3 font-semibold text-white">
                 Se connecter
               </button>
             </SignInButton>
@@ -172,16 +172,20 @@ export default function ParrainagePage() {
   const canApply = !profile || profile.status === "rejected";
 
   return (
-    <main className="min-h-screen bg-neutral-50 px-6 py-10">
+    <main className="min-h-screen bg-neutral-50 px-6 pb-12 pt-40">
       <div className="mx-auto max-w-6xl space-y-8">
         <header className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
           <div>
-            <p className="text-sm font-semibold uppercase tracking-wide text-roogo-primary-600">
+            <p className="text-sm font-semibold uppercase tracking-wide text-primary">
               Roogo Pro Agent
             </p>
             <h1 className="mt-2 text-3xl font-bold text-neutral-950">
-              Parrainage
+              Devenir parrain Roogo
             </h1>
+            <p className="mt-2 max-w-2xl text-sm font-medium leading-6 text-neutral-600">
+              Recommandez Roogo à des propriétaires ou agents. Après validation,
+              vous recevez un code unique à partager.
+            </p>
           </div>
           {profile && (
             <span className="w-fit rounded-full border border-neutral-200 bg-white px-4 py-2 text-sm font-semibold text-neutral-700">
@@ -200,30 +204,37 @@ export default function ParrainagePage() {
           <section className="grid gap-6 lg:grid-cols-[0.9fr_1.1fr]">
             <div className="rounded-2xl border border-neutral-200 bg-white p-6">
               <h2 className="text-xl font-bold text-neutral-950">
-                Demande de verification
+                Comment ça marche
               </h2>
-              <dl className="mt-6 space-y-4 text-sm">
-                <div>
-                  <dt className="font-semibold text-neutral-500">Remise filleul</dt>
-                  <dd className="mt-1 text-lg font-bold text-neutral-950">5%</dd>
+              <div className="mt-5 space-y-4">
+                <div className="rounded-2xl bg-neutral-50 p-4">
+                  <p className="text-sm font-bold text-neutral-950">
+                    1. Demandez votre code
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-neutral-600">
+                    Remplissez ce formulaire. L’équipe Roogo vérifie votre
+                    identité avant d’activer votre code.
+                  </p>
                 </div>
-                <div>
-                  <dt className="font-semibold text-neutral-500">
-                    Commission Pro Agent
-                  </dt>
-                  <dd className="mt-1 text-lg font-bold text-neutral-950">
-                    5% du montant paye apres remise
-                  </dd>
+                <div className="rounded-2xl bg-neutral-50 p-4">
+                  <p className="text-sm font-bold text-neutral-950">
+                    2. Partagez votre code
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-neutral-600">
+                    Un propriétaire ou agent utilise votre code au paiement de
+                    sa première annonce payante et reçoit 5% de réduction.
+                  </p>
                 </div>
-                <div>
-                  <dt className="font-semibold text-neutral-500">
-                    Qualification
-                  </dt>
-                  <dd className="mt-1 text-neutral-700">
-                    Paiement termine et annonce creee.
-                  </dd>
+                <div className="rounded-2xl bg-neutral-50 p-4">
+                  <p className="text-sm font-bold text-neutral-950">
+                    3. Touchez votre commission
+                  </p>
+                  <p className="mt-1 text-sm leading-6 text-neutral-600">
+                    Quand le paiement est confirmé et l’annonce créée, votre
+                    commission passe en attente de paiement.
+                  </p>
                 </div>
-              </dl>
+              </div>
               {profile?.status === "rejected" && (
                 <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-700">
                   {profile.rejection_reason || "Demande refusee."}
@@ -235,6 +246,23 @@ export default function ParrainagePage() {
               onSubmit={handleSubmit}
               className="rounded-2xl border border-neutral-200 bg-white p-6"
             >
+              <div className="mb-6 flex flex-col gap-3 border-b border-neutral-100 pb-5 md:flex-row md:items-start md:justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-neutral-950">
+                    Envoyer ma demande
+                  </h2>
+                  <p className="mt-1 text-sm leading-6 text-neutral-600">
+                    Ces informations servent uniquement à vérifier votre profil
+                    et préparer les paiements manuels.
+                  </p>
+                </div>
+                <button
+                  disabled={submitting}
+                  className="shrink-0 rounded-xl bg-primary px-5 py-3 text-sm font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? "Envoi..." : "Soumettre"}
+                </button>
+              </div>
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-semibold text-neutral-700">
@@ -243,7 +271,7 @@ export default function ParrainagePage() {
                   <input
                     name="legalName"
                     required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 outline-none focus:border-roogo-primary-500"
+                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 outline-none focus:border-primary"
                   />
                 </label>
                 <label className="space-y-2">
@@ -253,7 +281,7 @@ export default function ParrainagePage() {
                   <input
                     name="cityZone"
                     required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 outline-none focus:border-roogo-primary-500"
+                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 outline-none focus:border-primary"
                   />
                 </label>
                 <label className="space-y-2">
@@ -264,7 +292,7 @@ export default function ParrainagePage() {
                     name="payoutPhone"
                     required
                     inputMode="tel"
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 outline-none focus:border-roogo-primary-500"
+                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 outline-none focus:border-primary"
                   />
                 </label>
                 <label className="space-y-2">
@@ -274,7 +302,7 @@ export default function ParrainagePage() {
                   <select
                     name="payoutProvider"
                     required
-                    className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 outline-none focus:border-roogo-primary-500"
+                    className="w-full rounded-xl border border-neutral-200 bg-white px-4 py-3 outline-none focus:border-primary"
                   >
                     <option value="ORANGE_MONEY">Orange Money</option>
                     <option value="MOOV_MONEY">Moov Money</option>
@@ -289,7 +317,7 @@ export default function ParrainagePage() {
                     type="file"
                     accept="image/*"
                     required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm"
+                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
                   />
                 </label>
                 <label className="space-y-2">
@@ -301,15 +329,15 @@ export default function ParrainagePage() {
                     type="file"
                     accept="image/*"
                     required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm"
+                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
                   />
                 </label>
               </div>
               <button
                 disabled={submitting}
-                className="mt-6 rounded-xl bg-roogo-primary-600 px-5 py-3 font-semibold text-white disabled:cursor-not-allowed disabled:opacity-60"
+                className="mt-6 w-full rounded-xl bg-primary px-5 py-4 font-bold text-white shadow-sm disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {submitting ? "Envoi..." : "Soumettre la demande"}
+                {submitting ? "Envoi de la demande..." : "Soumettre ma demande"}
               </button>
             </form>
           </section>
