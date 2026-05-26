@@ -101,6 +101,7 @@ const isPublicRoute = createRouteMatcher([
   "/supprimer-compte",
   "/app",
   "/personnel/rejoindre",
+  "/parrainage(.*)",
   "/louer/residentiel",
   "/louer/commercial",
   "/publier-bien",
@@ -112,6 +113,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/clerk/users/me/metadata", // Mobile app uses JWT auth, not session
   "/api/favorites", // Mobile app authenticates this route with Bearer JWT
   "/api/applications/me", // Mobile app authenticates this route with Bearer JWT
+  "/api/identity-verifications/(.*)", // Mobile app authenticates these routes with Bearer JWT
   "/api/cron/(.*)",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates

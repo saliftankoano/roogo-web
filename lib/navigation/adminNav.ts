@@ -4,6 +4,8 @@ import {
   ChartLineUpIcon,
   GearIcon,
   ClipboardTextIcon,
+  HandshakeIcon,
+  IdentificationCardIcon,
 } from "@phosphor-icons/react";
 
 export type AdminNavItem = {
@@ -31,6 +33,18 @@ const baseAdminNavItems: AdminNavItem[] = [
     href: "/admin/candidatures",
     id: "admin-nav-candidatures",
     icon: ClipboardTextIcon,
+  },
+  {
+    label: "Vérifications",
+    href: "/admin/verifications",
+    id: "admin-nav-verifications",
+    icon: IdentificationCardIcon,
+  },
+  {
+    label: "Parrainage",
+    href: "/admin/parrainage",
+    id: "admin-nav-parrainage",
+    icon: HandshakeIcon,
   },
 ];
 

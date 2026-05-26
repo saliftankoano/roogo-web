@@ -6,6 +6,7 @@ import { notifyUser } from "@/lib/push-notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import { creditOwnerEarningForSchedule } from "@/lib/owner-wallet";
+import { voidPendingReferralForTransaction } from "@/lib/referrals";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -342,6 +343,10 @@ export async function POST(req: Request) {
 
       if (updateError) {
         log("db-update-failed", { depositId, error: String(updateError) });
+      }
+
+      if (dbStatus === "failed") {
+        await voidPendingReferralForTransaction(supabase, transaction.id);
       }
 
       // Handle post-payment logic if it just became completed

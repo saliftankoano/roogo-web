@@ -69,6 +69,14 @@ interface PricingTier {
   base_fee: number;
 }
 
+type ReferralQuote = {
+  code: string;
+  referrerName: string | null;
+  originalAmount: number;
+  discountAmount: number;
+  paidAmount: number;
+};
+
 type RentalFrequency = "mensuel" | "journalier";
 type CautionType = "aucune" | "pourcentage" | "fixe";
 type CityId = "ouaga" | "bobo";
@@ -411,6 +419,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [commissionConfigError, setCommissionConfigError] = useState<
     string | null
   >(null);
+  const [referralCode, setReferralCode] = useState("");
+  const [referralQuote, setReferralQuote] = useState<ReferralQuote | null>(
+    null,
+  );
+  const [referralError, setReferralError] = useState<string | null>(null);
+  const [validatingReferral, setValidatingReferral] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<PropertyFormData>(DEFAULT_FORM_DATA);
   const [photos, setPhotos] = useState<File[]>([]);
@@ -461,6 +475,20 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           return sum + (addon?.price || 0);
         }, 0);
   const totalAmount = baseFeeAmount + commissionAmount + addOnsAmount;
+  const referralDiscountAmount =
+    paymentChoice === "pay" ? (referralQuote?.discountAmount ?? 0) : 0;
+  const payableAmount = Math.max(0, totalAmount - referralDiscountAmount);
+
+  useEffect(() => {
+    setReferralQuote(null);
+    setReferralError(null);
+  }, [
+    selectedTier,
+    selectedAddOns,
+    formData.frequence,
+    formData.prixMensuel,
+    paymentChoice,
+  ]);
 
   const cityLabel = useMemo(
     () => CITY_OPTIONS.find((city) => city.id === formData.ville)?.label || "",
@@ -885,6 +913,65 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     collapse();
   };
 
+  const validateReferralCode = async (addOns = selectedAddOns) => {
+    const code = referralCode.trim();
+    if (!code) {
+      setReferralError("Entrez un code de parrainage.");
+      setReferralQuote(null);
+      return null;
+    }
+    if (!selectedTier) {
+      setReferralError("Choisissez un pack avant d'appliquer le code.");
+      return null;
+    }
+
+    setValidatingReferral(true);
+    setReferralError(null);
+    try {
+      const token = await getToken();
+      if (!token) throw new Error("No token found");
+
+      const response = await fetch("/api/referrals/validate", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          code,
+          tierId: selectedTier,
+          addOns,
+          frequence: formData.frequence,
+          monthlyRent: rentAmount,
+        }),
+      });
+      const data = await response.json();
+
+      if (!response.ok || !data.valid || !data.referral) {
+        throw new Error(data.error || "Code invalide");
+      }
+
+      const nextQuote: ReferralQuote = {
+        code: data.referral.code,
+        referrerName: data.referral.referrerName || null,
+        originalAmount: Number(data.referral.originalAmount || 0),
+        discountAmount: Number(data.referral.discountAmount || 0),
+        paidAmount: Number(data.referral.paidAmount || 0),
+      };
+      setReferralQuote(nextQuote);
+      setReferralCode(nextQuote.code);
+      return nextQuote;
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "Code de parrainage invalide";
+      setReferralError(message);
+      setReferralQuote(null);
+      return null;
+    } finally {
+      setValidatingReferral(false);
+    }
+  };
+
   const startHostedPayment = async (addOns: string[]) => {
     const token = await getToken();
     if (!token) throw new Error("No token found");
@@ -906,6 +993,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       (isDailyListing ? DAILY_LISTING_PUBLICATION_FEE : tier.base_fee) +
       commission +
       addonsTotal;
+    const activeReferral =
+      referralCode.trim() && amount > 0
+        ? await validateReferralCode(addOns)
+        : null;
+    if (referralCode.trim() && amount > 0 && !activeReferral) {
+      throw new Error("Code de parrainage invalide.");
+    }
+    const payable = activeReferral?.paidAmount ?? amount;
     const paymentDescription = isDailyListing
       ? `Publication journalière${addOns.length > 0 ? " avec Options" : ""}`
       : `Pack ${selectedTier}${addOns.length > 0 ? " avec Options" : ""}`;
@@ -917,16 +1012,19 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        amount,
+        amount: payable,
         description: paymentDescription,
         transactionType: "listing_submission",
         tier_id: selectedTier,
         add_ons: addOns,
+        referralCode: activeReferral?.code,
         metadata: {
           tier_id: selectedTier,
           add_ons: addOns,
           commission,
+          monthlyRent: rentAmount,
           frequence: formData.frequence,
+          referralCode: activeReferral?.code,
           add_on_details: addOns.map((id) => {
             const addon = addonsList.find((item) => item.id === id);
             return { id, price: addon?.price || 0 };
@@ -980,6 +1078,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           onBehalfOfClient,
           selectedOwnerId,
           isTestListing,
+          referralCode: activeReferral?.code ?? null,
         }),
       );
     }
@@ -1826,12 +1925,61 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               {formatAmount(addOnsAmount)}
             </span>
           </div>
+          {!isStaffOrFounder && paymentChoice === "pay" && selectedTier && (
+            <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
+              <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
+                Code de parrainage
+              </label>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input
+                  value={referralCode}
+                  onChange={(event) => {
+                    setReferralCode(event.target.value.toUpperCase());
+                    setReferralQuote(null);
+                    setReferralError(null);
+                  }}
+                  placeholder="ROOGO-NOM-123"
+                  className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-bold uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                />
+                <button
+                  type="button"
+                  onClick={() => validateReferralCode()}
+                  disabled={validatingReferral || !referralCode.trim()}
+                  className="rounded-xl bg-neutral-900 px-4 py-3 text-sm font-extrabold text-white disabled:opacity-50"
+                >
+                  {validatingReferral ? "Validation..." : "Appliquer"}
+                </button>
+              </div>
+              {referralQuote && (
+                <p className="text-xs font-semibold text-green-700">
+                  Code appliqué
+                  {referralQuote.referrerName
+                    ? ` (${referralQuote.referrerName})`
+                    : ""}{" "}
+                  : -{formatAmount(referralQuote.discountAmount)}
+                </p>
+              )}
+              {referralError && (
+                <p className="text-xs font-semibold text-red-600">
+                  {referralError}
+                </p>
+              )}
+            </div>
+          )}
+          {referralDiscountAmount > 0 && (
+            <div className="flex justify-between text-green-700">
+              <span>Remise parrainage</span>
+              <span className="font-extrabold">
+                -{formatAmount(referralDiscountAmount)}
+              </span>
+            </div>
+          )}
           <div className="flex justify-between border-t border-neutral-200 pt-3 text-base">
             <span className="font-extrabold text-neutral-950">
               Total à payer
             </span>
             <span className="text-xl font-black text-primary">
-              {formatAmount(totalAmount)}
+              {formatAmount(payableAmount)}
             </span>
           </div>
         </div>

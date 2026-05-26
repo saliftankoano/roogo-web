@@ -14,6 +14,7 @@ import { captureServerEvent } from "@/lib/posthog-server";
 import { listingBaseSchema } from "@/lib/validations";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
+import { qualifyReferralForTransaction } from "@/lib/referrals";
 import validator from "validator";
 
 export async function OPTIONS(req: Request) {
@@ -517,6 +518,15 @@ export async function POST(req: Request) {
           .from("properties")
           .update({ transaction_id: updatedTransaction.id })
           .eq("id", propertyId);
+
+        try {
+          await qualifyReferralForTransaction(supabase, {
+            depositId: parsedListingData.payment_id,
+            propertyId,
+          });
+        } catch (referralError) {
+          console.error("Error qualifying referral:", referralError);
+        }
       }
     }
 

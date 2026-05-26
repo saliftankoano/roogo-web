@@ -11,6 +11,16 @@ import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { z } from "zod";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
+import {
+  applyReferralToQuote,
+  buildReferralMetadata,
+  computeListingSubmissionQuote,
+  createPendingReferralRedemption,
+  normalizeReferralCode,
+  ReferralValidationError,
+  validateReferralForUser,
+  voidPendingReferralForTransaction,
+} from "@/lib/referrals";
 
 // Schema for Payment Page request
 const paymentPageSchema = z.object({
@@ -20,6 +30,7 @@ const paymentPageSchema = z.object({
   propertyId: z.string().optional(),
   tier_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
+  referralCode: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -153,22 +164,48 @@ export async function POST(req: Request) {
       propertyId,
       tier_id,
       add_ons,
+      referralCode,
       metadata,
     } = validatedData;
-    const resolvedMetadata = metadata || {};
-    const isDailyListing =
-      transactionType === "listing_submission" &&
-      resolvedMetadata.frequence === "journalier";
-    const resolvedAmount = isDailyListing
-      ? (Array.isArray(resolvedMetadata.add_on_details)
-          ? resolvedMetadata.add_on_details.reduce((sum, item) => {
-              if (item && typeof item === "object" && "price" in item) {
-                return sum + Number(item.price || 0);
-              }
-              return sum;
-            }, 0)
-          : 0)
-      : amount;
+    const resolvedMetadata: Record<string, unknown> = metadata || {};
+    const supabase = getSupabaseClient();
+    const normalizedReferralCode = normalizeReferralCode(
+      referralCode || resolvedMetadata.referralCode,
+    );
+
+    let resolvedAmount = amount;
+    let appliedReferral = null as ReturnType<typeof applyReferralToQuote> | null;
+    let listingQuote = null as Awaited<
+      ReturnType<typeof computeListingSubmissionQuote>
+    > | null;
+
+    if (transactionType === "listing_submission") {
+      listingQuote = await computeListingSubmissionQuote(supabase, {
+        tierId: tier_id || (resolvedMetadata.tier_id as string | undefined),
+        addOns: add_ons || (resolvedMetadata.add_ons as string[] | undefined),
+        frequence:
+          typeof resolvedMetadata.frequence === "string"
+            ? resolvedMetadata.frequence
+            : "mensuel",
+        monthlyRent:
+          typeof resolvedMetadata.monthlyRent === "number"
+            ? resolvedMetadata.monthlyRent
+            : typeof resolvedMetadata.rentAmount === "number"
+              ? resolvedMetadata.rentAmount
+              : null,
+      });
+      resolvedAmount = listingQuote.originalAmount;
+
+      if (normalizedReferralCode && listingQuote.originalAmount > 0) {
+        const profile = await validateReferralForUser(supabase, {
+          code: normalizedReferralCode,
+          referredUserId: user.id,
+          referredUserType: user.user_type,
+        });
+        appliedReferral = applyReferralToQuote(listingQuote, profile);
+        resolvedAmount = appliedReferral.paidAmount;
+      }
+    }
 
     log("request-validated", { 
       amount: resolvedAmount, 
@@ -180,29 +217,36 @@ export async function POST(req: Request) {
     // 5. Create Transaction Record in Supabase (Pending)
     const depositId = crypto.randomUUID();
     const currency = "XOF";
-    const supabase = getSupabaseClient();
 
     // Payment Page provider is selected on pawaPay UI; store web source now, then enrich to web_orange/web_moov later
     const provider = "web_pending"; 
+    const transactionMetadata = {
+      ...resolvedMetadata,
+      ...buildReferralMetadata(appliedReferral),
+      originalClientAmount: amount,
+      serverOriginalAmount: listingQuote?.originalAmount ?? resolvedAmount,
+      serverPaidAmount: resolvedAmount,
+      tier_id,
+      add_ons,
+      description,
+      source: "payment_page",
+    };
 
-    const { error: dbError } = await supabase.from("transactions").insert({
-      deposit_id: depositId,
-      amount: resolvedAmount,
-      currency: currency,
-      status: "pending",
-      type: transactionType,
-      provider: provider,
-      user_id: user.id,
-      property_id: propertyId || null,
-      metadata: {
-        ...resolvedMetadata,
-        originalClientAmount: amount,
-        tier_id,
-        add_ons,
-        description,
-        source: "payment_page"
-      },
-    });
+    const { data: transactionRecord, error: dbError } = await supabase
+      .from("transactions")
+      .insert({
+        deposit_id: depositId,
+        amount: resolvedAmount,
+        currency: currency,
+        status: "pending",
+        type: transactionType,
+        provider: provider,
+        user_id: user.id,
+        property_id: propertyId || null,
+        metadata: transactionMetadata,
+      })
+      .select("id")
+      .single();
 
     if (dbError) {
       log("db-insert-failed", { 
@@ -211,6 +255,14 @@ export async function POST(req: Request) {
         userId: user.id
       });
       return errorResponse("Failed to initialize transaction", 500, req);
+    }
+
+    if (transactionRecord?.id) {
+      await createPendingReferralRedemption(supabase, {
+        referral: appliedReferral,
+        referredUserId: user.id,
+        transactionId: transactionRecord.id,
+      });
     }
 
     log("transaction-created", { depositId, amount: resolvedAmount });
@@ -319,9 +371,13 @@ export async function POST(req: Request) {
         .update({
           status: "failed",
           failure_reason: failureMessage,
-          metadata: { ...(metadata || {}), ...result },
+          metadata: { ...transactionMetadata, pawapay: result },
         })
         .eq("deposit_id", depositId);
+
+      if (transactionRecord?.id) {
+        await voidPendingReferralForTransaction(supabase, transactionRecord.id);
+      }
 
       await captureServerEvent(user.id, "payment_failed", {
         deposit_id: depositId,
@@ -354,6 +410,9 @@ export async function POST(req: Request) {
     );
   } catch (error: unknown) {
     log("unhandled-error", { error: String(error), stack: error instanceof Error ? error.stack : undefined });
+    if (error instanceof ReferralValidationError) {
+      return errorResponse(error.message, error.status, req);
+    }
     return errorResponse(
       safeError(error, "Payment initiation failed"),
       500,
