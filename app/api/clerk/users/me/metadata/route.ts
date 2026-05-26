@@ -117,7 +117,6 @@ export async function POST(req: Request) {
       hasCompletedMobileOnboarding,
       hasCompletedOnboarding, // legacy alias for hasCompletedMobileOnboarding
       hasCompletedWebOnboarding,
-      hasCompletedWebTour,
       webOnboardingStep,
       mobileOnboardingData,
       webOnboardingData,
@@ -191,8 +190,6 @@ export async function POST(req: Request) {
       publicMetadata.hasCompletedMobileOnboarding = resolvedMobileCompleted;
     if (hasCompletedWebOnboarding !== undefined)
       publicMetadata.hasCompletedWebOnboarding = hasCompletedWebOnboarding;
-    if (hasCompletedWebTour !== undefined)
-      publicMetadata.hasCompletedWebTour = hasCompletedWebTour;
     if (webOnboardingStep === null) {
       delete publicMetadata.webOnboardingStep;
     } else if (webOnboardingStep !== undefined) {

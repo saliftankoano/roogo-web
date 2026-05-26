@@ -79,7 +79,6 @@ export interface ClerkUserData {
     hasCompletedMobileOnboarding?: boolean;
     hasCompletedOnboarding?: boolean; // legacy — same as hasCompletedMobileOnboarding
     hasCompletedWebOnboarding?: boolean;
-    hasCompletedWebTour?: boolean;
     webOnboardingStep?: number;
     signupPlatform?: "web" | "mobile";
     companyName?: string;

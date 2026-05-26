@@ -6,7 +6,6 @@ import "./globals.css";
 import { NavHandler } from "../components/NavHandler";
 import JsonLd from "../components/JsonLd";
 import { getOrganizationSchema } from "../lib/schemas";
-import { WebOnboardingTour } from "../components/onboarding/WebOnboardingTour";
 import { TrustpilotScript } from "../components/TrustpilotScript";
 
 const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
@@ -112,7 +111,6 @@ export default function RootLayout({
           )}
           <JsonLd schema={getOrganizationSchema()} />
           <NavHandler />
-          <WebOnboardingTour />
           {children}
         </body>
       </html>
