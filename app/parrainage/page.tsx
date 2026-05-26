@@ -45,9 +45,9 @@ type ReferralMeResponse = {
 };
 
 const statusLabels: Record<ReferrerProfile["status"], string> = {
-  pending: "En verification",
-  approved: "Approuve",
-  rejected: "Refuse",
+  pending: "En vérification",
+  approved: "Approuvé",
+  rejected: "Refusé",
   suspended: "Suspendu",
 };
 
@@ -345,7 +345,12 @@ export default function ParrainagePage() {
           <section className="space-y-6">
             {profile?.status === "pending" && (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-6 text-amber-900">
-                Votre demande est en verification.
+                <p className="text-lg font-bold">Demande en cours de validation</p>
+                <p className="mt-2 text-sm leading-6">
+                  L’équipe Roogo vérifie vos informations. La validation prend
+                  généralement entre 24 et 72 heures. Votre code apparaîtra ici
+                  dès que votre profil sera approuvé.
+                </p>
               </div>
             )}
 
