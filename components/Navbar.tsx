@@ -71,12 +71,25 @@ export function Navbar() {
     },
   ];
 
-  const staffNavItems = getAdminNavItems(isFounder).map((item) => ({
-    name: item.label,
-    href: item.href,
-    icon: item.icon,
-    id: item.id,
-  }));
+  const staffNavItems = getAdminNavItems(isFounder).flatMap((item) => {
+    if (item.type === "group") {
+      return item.children.map((child) => ({
+        name: child.label,
+        href: child.href,
+        icon: child.icon,
+        id: child.id,
+      }));
+    }
+
+    return [
+      {
+        name: item.label,
+        href: item.href,
+        icon: item.icon,
+        id: item.id,
+      },
+    ];
+  });
 
   const agentOwnerNavItems = [
     { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },

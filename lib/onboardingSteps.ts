@@ -21,10 +21,10 @@ export const staffOnboardingSteps: DriveStep[] = [
     },
   },
   {
-    element: '[data-id="admin-nav-agents"]',
+    element: '[data-id="admin-nav-demandes"]',
     popover: {
       description:
-        "Gérez les comptes des agents immobiliers et vérifiez leurs informations professionnelles.",
+        "Traitez les demandes staff : candidatures, vérifications et parrainage.",
       side: "bottom",
       align: "center",
     },
@@ -61,7 +61,7 @@ export const founderOnboardingSteps: DriveStep[] = [
     },
   },
   {
-    element: '[data-id="admin-nav-paramètres"]',
+    element: '[data-id="admin-nav-parametres"]',
     popover: {
       description:
         "Configurez les tarifs, les durées de boost et les paramètres globaux de Roogo.",
