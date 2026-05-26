@@ -28,6 +28,21 @@ export async function GET(req: Request) {
       return cors(NextResponse.json({ profile: null }), req);
     }
 
+    const profileForClient =
+      profile.status === "approved" ? profile : { ...profile, code: null };
+
+    if (profile.status !== "approved") {
+      return cors(
+        NextResponse.json({
+          profile: profileForClient,
+          redemptions: [],
+          commissions: [],
+          totals: { pending: 0, paid: 0 },
+        }),
+        req,
+      );
+    }
+
     const [{ data: redemptions }, { data: commissions }] = await Promise.all([
       supabase
         .from("referral_redemptions")
@@ -58,7 +73,7 @@ export async function GET(req: Request) {
 
     return cors(
       NextResponse.json({
-        profile,
+        profile: profileForClient,
         redemptions: redemptions || [],
         commissions: commissionRows,
         totals,

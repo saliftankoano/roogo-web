@@ -14,7 +14,7 @@ import { formatPrice } from "@/lib/utils";
 
 type ReferrerProfile = {
   id: string;
-  code: string;
+  code: string | null;
   status: "pending" | "approved" | "rejected" | "suspended";
   legal_name: string;
   city_zone: string;
@@ -53,9 +53,22 @@ type ReferralMeResponse = {
 
 const statusLabels: Record<ReferrerProfile["status"], string> = {
   pending: "En vérification",
-  approved: "Approuvé",
+  approved: "Accepté",
   rejected: "Refusé",
   suspended: "Suspendu",
+};
+
+const redemptionStatusLabels: Record<Redemption["status"], string> = {
+  pending_payment: "Paiement en attente",
+  qualified: "Qualifiée",
+  void: "Annulée",
+};
+
+const commissionStatusLabels: Record<Commission["status"], string> = {
+  pending: "En attente",
+  approved: "Validée",
+  paid: "Payée",
+  cancelled: "Annulée",
 };
 
 function money(amount: number | undefined) {
@@ -79,6 +92,7 @@ export default function ParrainagePage() {
   const [applicationFormReady, setApplicationFormReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [fileNames, setFileNames] = useState({ idFront: "", idBack: "" });
   const applicationFormRef = useRef<HTMLFormElement>(null);
 
   const profile = data?.profile ?? null;
@@ -86,6 +100,7 @@ export default function ParrainagePage() {
   const commissions = data?.commissions ?? [];
   const totals = data?.totals ?? { pending: 0, paid: 0 };
   const canApply = !profile || profile.status === "rejected";
+  const isApproved = profile?.status === "approved";
 
   const shareUrl = useMemo(() => {
     if (!profile?.code || typeof window === "undefined") return "";
@@ -124,6 +139,13 @@ export default function ParrainagePage() {
       Boolean(applicationFormRef.current?.checkValidity()),
     );
   }, []);
+
+  const updateFileName = useCallback(
+    (name: "idFront" | "idBack", value: string) => {
+      setFileNames((current) => ({ ...current, [name]: value }));
+    },
+    [],
+  );
 
   useEffect(() => {
     if (canApply) updateApplicationFormReady();
@@ -263,7 +285,7 @@ export default function ParrainagePage() {
               </div>
               {profile?.status === "rejected" && (
                 <div className="mt-6 rounded-xl bg-red-50 p-4 text-sm text-red-700">
-                  {profile.rejection_reason || "Demande refusee."}
+                  {profile.rejection_reason || "Demande refusée."}
                 </div>
               )}
             </div>
@@ -290,7 +312,7 @@ export default function ParrainagePage() {
               <div className="grid gap-4 md:grid-cols-2">
                 <label className="space-y-2">
                   <span className="text-sm font-semibold text-neutral-700">
-                    Nom legal
+                    Nom légal
                   </span>
                   <input
                     name="legalName"
@@ -310,7 +332,7 @@ export default function ParrainagePage() {
                 </label>
                 <label className="space-y-2">
                   <span className="text-sm font-semibold text-neutral-700">
-                    Telephone de paiement
+                    Téléphone de paiement
                   </span>
                   <input
                     name="payoutPhone"
@@ -321,7 +343,7 @@ export default function ParrainagePage() {
                 </label>
                 <label className="space-y-2">
                   <span className="text-sm font-semibold text-neutral-700">
-                    Operateur
+                    Opérateur
                   </span>
                   <select
                     name="payoutProvider"
@@ -332,30 +354,18 @@ export default function ParrainagePage() {
                     <option value="MOOV_MONEY">Moov Money</option>
                   </select>
                 </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-semibold text-neutral-700">
-                    Piece ID recto
-                  </span>
-                  <input
-                    name="idFront"
-                    type="file"
-                    accept="image/*"
-                    required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
-                  />
-                </label>
-                <label className="space-y-2">
-                  <span className="text-sm font-semibold text-neutral-700">
-                    Piece ID verso
-                  </span>
-                  <input
-                    name="idBack"
-                    type="file"
-                    accept="image/*"
-                    required
-                    className="w-full rounded-xl border border-neutral-200 px-4 py-3 text-sm file:mr-4 file:rounded-lg file:border-0 file:bg-neutral-100 file:px-3 file:py-2 file:text-sm file:font-semibold"
-                  />
-                </label>
+                <FileInputField
+                  label="Pièce d'identité recto"
+                  name="idFront"
+                  fileName={fileNames.idFront}
+                  onFileNameChange={(value) => updateFileName("idFront", value)}
+                />
+                <FileInputField
+                  label="Pièce d'identité verso"
+                  name="idBack"
+                  fileName={fileNames.idBack}
+                  onFileNameChange={(value) => updateFileName("idBack", value)}
+                />
               </div>
               <button
                 disabled={submitting || !applicationFormReady}
@@ -377,7 +387,7 @@ export default function ParrainagePage() {
                 <p className="mt-2 text-sm leading-6">
                   L’équipe Roogo vérifie vos informations. La validation prend
                   généralement entre 24 et 72 heures. Votre code apparaîtra ici
-                  dès que votre profil sera approuvé.
+                  dès que votre profil sera accepté.
                 </p>
               </div>
             )}
@@ -388,120 +398,172 @@ export default function ParrainagePage() {
               </div>
             )}
 
-            {profile && (
-              <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
-                <div className="rounded-2xl border border-neutral-200 bg-white p-6">
-                  <p className="text-sm font-semibold text-neutral-500">
-                    Code unique
-                  </p>
-                  <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center">
-                    <code className="rounded-xl bg-neutral-950 px-4 py-3 text-xl font-bold tracking-wide text-white">
-                      {profile.code}
-                    </code>
-                    <button
-                      onClick={copyCode}
-                      className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 px-4 py-3 font-semibold text-neutral-800"
-                    >
-                      {copied ? (
-                        <CheckCircleIcon size={18} weight="bold" />
-                      ) : (
-                        <CopyIcon size={18} weight="bold" />
-                      )}
-                      {copied ? "Copie" : "Copier"}
-                    </button>
-                  </div>
-                  {shareUrl && (
-                    <p className="mt-3 break-all text-sm text-neutral-500">
-                      {shareUrl}
-                    </p>
-                  )}
-                </div>
-
-                <div className="grid gap-3 sm:grid-cols-2">
-                  <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+            {isApproved && profile && (
+              <>
+                <div className="grid gap-6 lg:grid-cols-[1.1fr_0.9fr]">
+                  <div className="rounded-2xl border border-neutral-200 bg-white p-6">
                     <p className="text-sm font-semibold text-neutral-500">
-                      Commission en attente
+                      Code unique
                     </p>
-                    <p className="mt-2 text-2xl font-bold text-neutral-950">
-                      {money(totals.pending)}
-                    </p>
+                    {profile.code ? (
+                      <>
+                        <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center">
+                          <code className="rounded-xl bg-neutral-950 px-4 py-3 text-xl font-bold tracking-wide text-white">
+                            {profile.code}
+                          </code>
+                          <button
+                            onClick={copyCode}
+                            className="inline-flex items-center justify-center gap-2 rounded-xl border border-neutral-200 px-4 py-3 font-semibold text-neutral-800"
+                          >
+                            {copied ? (
+                              <CheckCircleIcon size={18} weight="bold" />
+                            ) : (
+                              <CopyIcon size={18} weight="bold" />
+                            )}
+                            {copied ? "Copié" : "Copier"}
+                          </button>
+                        </div>
+                        {shareUrl && (
+                          <p className="mt-3 break-all text-sm text-neutral-500">
+                            {shareUrl}
+                          </p>
+                        )}
+                      </>
+                    ) : (
+                      <p className="mt-3 text-sm text-neutral-500">
+                        Code indisponible. Contactez l’équipe Roogo.
+                      </p>
+                    )}
                   </div>
-                  <div className="rounded-2xl border border-neutral-200 bg-white p-5">
-                    <p className="text-sm font-semibold text-neutral-500">
-                      Commission payee
-                    </p>
-                    <p className="mt-2 text-2xl font-bold text-neutral-950">
-                      {money(totals.paid)}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
 
-            <div className="grid gap-6 lg:grid-cols-2">
-              <section className="rounded-2xl border border-neutral-200 bg-white p-6">
-                <h2 className="text-lg font-bold text-neutral-950">
-                  Annonces qualifiees
-                </h2>
-                <div className="mt-4 space-y-3">
-                  {redemptions.length === 0 && (
-                    <p className="text-sm text-neutral-500">Aucune annonce.</p>
-                  )}
-                  {redemptions.map((row) => (
-                    <div
-                      key={row.id}
-                      className="rounded-xl border border-neutral-100 p-4 text-sm"
-                    >
-                      <div className="flex items-center justify-between gap-3">
-                        <span className="font-semibold text-neutral-900">
-                          {row.properties?.quartier ||
-                            row.properties?.address ||
-                            "Annonce"}
-                        </span>
-                        <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-600">
-                          {row.status}
-                        </span>
-                      </div>
-                      <div className="mt-2 grid grid-cols-3 gap-2 text-neutral-500">
-                        <span>{money(row.original_amount)}</span>
-                        <span>-{money(row.discount_amount)}</span>
-                        <span>{money(row.paid_amount)}</span>
-                      </div>
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+                      <p className="text-sm font-semibold text-neutral-500">
+                        Commission en attente
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-neutral-950">
+                        {money(totals.pending)}
+                      </p>
                     </div>
-                  ))}
+                    <div className="rounded-2xl border border-neutral-200 bg-white p-5">
+                      <p className="text-sm font-semibold text-neutral-500">
+                        Commission payée
+                      </p>
+                      <p className="mt-2 text-2xl font-bold text-neutral-950">
+                        {money(totals.paid)}
+                      </p>
+                    </div>
+                  </div>
                 </div>
-              </section>
 
-              <section className="rounded-2xl border border-neutral-200 bg-white p-6">
-                <h2 className="text-lg font-bold text-neutral-950">
-                  Commissions
-                </h2>
-                <div className="mt-4 space-y-3">
-                  {commissions.length === 0 && (
-                    <p className="text-sm text-neutral-500">Aucune commission.</p>
-                  )}
-                  {commissions.map((row) => (
-                    <div
-                      key={row.id}
-                      className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 p-4 text-sm"
-                    >
-                      <div>
-                        <p className="font-bold text-neutral-950">
-                          {money(row.amount)}
+                <div className="grid gap-6 lg:grid-cols-2">
+                  <section className="rounded-2xl border border-neutral-200 bg-white p-6">
+                    <h2 className="text-lg font-bold text-neutral-950">
+                      Annonces qualifiées
+                    </h2>
+                    <div className="mt-4 space-y-3">
+                      {redemptions.length === 0 && (
+                        <p className="text-sm text-neutral-500">
+                          Aucune annonce.
                         </p>
-                        <p className="text-neutral-500">{dateLabel(row.created_at)}</p>
-                      </div>
-                      <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-600">
-                        {row.status}
-                      </span>
+                      )}
+                      {redemptions.map((row) => (
+                        <div
+                          key={row.id}
+                          className="rounded-xl border border-neutral-100 p-4 text-sm"
+                        >
+                          <div className="flex items-center justify-between gap-3">
+                            <span className="font-semibold text-neutral-900">
+                              {row.properties?.quartier ||
+                                row.properties?.address ||
+                                "Annonce"}
+                            </span>
+                            <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-600">
+                              {redemptionStatusLabels[row.status]}
+                            </span>
+                          </div>
+                          <div className="mt-2 grid grid-cols-3 gap-2 text-neutral-500">
+                            <span>{money(row.original_amount)}</span>
+                            <span>-{money(row.discount_amount)}</span>
+                            <span>{money(row.paid_amount)}</span>
+                          </div>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  </section>
+
+                  <section className="rounded-2xl border border-neutral-200 bg-white p-6">
+                    <h2 className="text-lg font-bold text-neutral-950">
+                      Commissions
+                    </h2>
+                    <div className="mt-4 space-y-3">
+                      {commissions.length === 0 && (
+                        <p className="text-sm text-neutral-500">
+                          Aucune commission.
+                        </p>
+                      )}
+                      {commissions.map((row) => (
+                        <div
+                          key={row.id}
+                          className="flex items-center justify-between gap-3 rounded-xl border border-neutral-100 p-4 text-sm"
+                        >
+                          <div>
+                            <p className="font-bold text-neutral-950">
+                              {money(row.amount)}
+                            </p>
+                            <p className="text-neutral-500">
+                              {dateLabel(row.created_at)}
+                            </p>
+                          </div>
+                          <span className="rounded-full bg-neutral-100 px-2 py-1 text-xs font-semibold text-neutral-600">
+                            {commissionStatusLabels[row.status]}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </section>
                 </div>
-              </section>
-            </div>
+              </>
+            )}
           </section>
         )}
       </div>
     </main>
+  );
+}
+
+function FileInputField({
+  label,
+  name,
+  fileName,
+  onFileNameChange,
+}: {
+  label: string;
+  name: "idFront" | "idBack";
+  fileName: string;
+  onFileNameChange: (value: string) => void;
+}) {
+  return (
+    <label className="space-y-2">
+      <span className="text-sm font-semibold text-neutral-700">{label}</span>
+      <span className="flex min-h-[50px] cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 px-4 py-3 text-sm">
+        <span className="rounded-lg bg-neutral-100 px-3 py-2 font-semibold text-neutral-800">
+          Choisir un fichier
+        </span>
+        <span className="min-w-0 flex-1 truncate text-neutral-600">
+          {fileName || "Aucun fichier sélectionné"}
+        </span>
+      </span>
+      <input
+        name={name}
+        type="file"
+        accept="image/*"
+        required
+        className="sr-only"
+        onChange={(event) =>
+          onFileNameChange(event.currentTarget.files?.[0]?.name || "")
+        }
+      />
+    </label>
   );
 }

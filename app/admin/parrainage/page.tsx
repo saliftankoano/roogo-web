@@ -71,11 +71,41 @@ type AdminReferralResponse = {
 type Tab = "queue" | "approved" | "commissions" | "paid";
 
 const tabs: Array<{ id: Tab; label: string }> = [
-  { id: "queue", label: "Verification" },
-  { id: "approved", label: "Referrers" },
+  { id: "queue", label: "Vérification" },
+  { id: "approved", label: "Parrains acceptés" },
   { id: "commissions", label: "Commissions" },
-  { id: "paid", label: "Historique paye" },
+  { id: "paid", label: "Historique payé" },
 ];
+
+const profileStatusLabels: Record<ReferrerProfile["status"], string> = {
+  pending: "En vérification",
+  approved: "Accepté",
+  rejected: "Refusé",
+  suspended: "Suspendu",
+};
+
+const commissionStatusLabels: Record<Commission["status"], string> = {
+  pending: "En attente",
+  approved: "Validée",
+  paid: "Payée",
+  cancelled: "Annulée",
+};
+
+const providerLabels: Record<string, string> = {
+  ORANGE_MONEY: "Orange Money",
+  ORANGE_BFA: "Orange Money",
+  MOOV_MONEY: "Moov Money",
+  MOOV_BFA: "Moov Money",
+};
+
+const userTypeLabels: Record<string, string> = {
+  renter: "Locataire",
+  owner: "Propriétaire",
+  agent: "Agent",
+  staff: "Staff",
+  admin: "Admin",
+  founder: "Fondateur",
+};
 
 function money(amount: number | undefined | null) {
   return `${formatPrice(Math.round(Number(amount || 0)))} FCFA`;
@@ -93,6 +123,16 @@ function dateLabel(value: string | null | undefined) {
 function one<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
   return value ?? null;
+}
+
+function providerLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  return providerLabels[value] || value;
+}
+
+function userTypeLabel(value: string | null | undefined) {
+  if (!value) return "-";
+  return userTypeLabels[value] || value;
 }
 
 export default function AdminParrainagePage() {
@@ -160,7 +200,7 @@ export default function AdminParrainagePage() {
       const token = await getToken();
       const rejectionReason =
         status === "rejected"
-          ? window.prompt("Motif du refus") || "Verification refusee"
+          ? window.prompt("Motif du refus") || "Vérification refusée"
           : undefined;
       const response = await fetch(`/api/admin/referrals/${id}`, {
         method: "PATCH",
@@ -171,10 +211,10 @@ export default function AdminParrainagePage() {
         body: JSON.stringify({ status, rejectionReason }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Mise a jour impossible");
+      if (!response.ok) throw new Error(payload.error || "Mise à jour impossible");
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Mise a jour impossible");
+      setError(err instanceof Error ? err.message : "Mise à jour impossible");
     } finally {
       setBusyId(null);
     }
@@ -189,7 +229,7 @@ export default function AdminParrainagePage() {
     try {
       const token = await getToken();
       const payoutReference =
-        status === "paid" ? window.prompt("Reference de paiement") || "" : "";
+        status === "paid" ? window.prompt("Référence de paiement") || "" : "";
       const notes = status === "cancelled" ? window.prompt("Note") || "" : "";
       const response = await fetch(`/api/admin/referrals/commissions/${id}`, {
         method: "PATCH",
@@ -200,10 +240,10 @@ export default function AdminParrainagePage() {
         body: JSON.stringify({ status, payoutReference, notes }),
       });
       const payload = await response.json();
-      if (!response.ok) throw new Error(payload.error || "Mise a jour impossible");
+      if (!response.ok) throw new Error(payload.error || "Mise à jour impossible");
       await loadData();
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Mise a jour impossible");
+      setError(err instanceof Error ? err.message : "Mise à jour impossible");
     } finally {
       setBusyId(null);
     }
@@ -230,10 +270,10 @@ export default function AdminParrainagePage() {
         </header>
 
         <div className="grid gap-3 md:grid-cols-4">
-          <Metric label="En verification" value={queue.length.toString()} />
-          <Metric label="Approuves" value={approvedProfiles.length.toString()} />
-          <Metric label="A payer" value={money(total(openCommissions))} />
-          <Metric label="Paye" value={money(total(paidCommissions))} />
+          <Metric label="En vérification" value={queue.length.toString()} />
+          <Metric label="Acceptés" value={approvedProfiles.length.toString()} />
+          <Metric label="À payer" value={money(total(openCommissions))} />
+          <Metric label="Payé" value={money(total(paidCommissions))} />
         </div>
 
         {error && (
@@ -283,7 +323,7 @@ export default function AdminParrainagePage() {
             {tab === "approved" && (
               <section className="rounded-2xl border border-neutral-200 bg-white">
                 <ProfileTable
-                  profiles={data.profiles}
+                  profiles={approvedProfiles}
                   busyId={busyId}
                   onApprove={(id) => updateProfile(id, "approved")}
                   onSuspend={(id) => updateProfile(id, "suspended")}
@@ -366,7 +406,7 @@ function ProfileReviewCard({
                 {profile.legal_name}
               </h2>
               <p className="text-sm text-neutral-500">
-                {user?.email || "Email inconnu"} · {user?.user_type || "-"}
+                {user?.email || "Email inconnu"} · {userTypeLabel(user?.user_type)}
               </p>
             </div>
             <code className="w-fit rounded-lg bg-neutral-950 px-3 py-2 text-sm font-bold text-white">
@@ -375,14 +415,14 @@ function ProfileReviewCard({
           </div>
           <dl className="mt-5 grid gap-3 text-sm md:grid-cols-3">
             <Field label="Zone" value={profile.city_zone} />
-            <Field label="Telephone" value={profile.payout_phone} />
-            <Field label="Operateur" value={profile.payout_provider} />
+            <Field label="Téléphone" value={profile.payout_phone} />
+            <Field label="Opérateur" value={providerLabel(profile.payout_provider)} />
             <Field label="Soumis le" value={dateLabel(profile.submitted_at)} />
-            <Field label="Nom compte" value={user?.full_name || "-"} />
-            <Field label="Statut" value={profile.status} />
+            <Field label="Nom du compte" value={user?.full_name || "-"} />
+            <Field label="Statut" value={profileStatusLabels[profile.status]} />
           </dl>
           <div className="mt-5 flex flex-wrap gap-2">
-            <Action disabled={busy} onClick={onApprove} label="Approuver" />
+            <Action disabled={busy} onClick={onApprove} label="Accepter" />
             <Action disabled={busy} onClick={onReject} label="Refuser" tone="danger" />
             <Action
               disabled={busy}
@@ -444,7 +484,7 @@ function ProfileTable({
   onApprove: (id: string) => void;
   onSuspend: (id: string) => void;
 }) {
-  if (profiles.length === 0) return <Empty label="Aucun referrer." />;
+  if (profiles.length === 0) return <Empty label="Aucun parrain accepté." />;
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[860px] text-left text-sm">
@@ -467,9 +507,9 @@ function ProfileTable({
                   {profile.code}
                 </code>
               </Td>
-              <Td>{profile.status}</Td>
+              <Td>{profileStatusLabels[profile.status]}</Td>
               <Td>
-                {profile.payout_provider} · {profile.payout_phone}
+                {providerLabel(profile.payout_provider)} · {profile.payout_phone}
               </Td>
               <Td>{dateLabel(profile.submitted_at)}</Td>
               <Td>
@@ -478,7 +518,7 @@ function ProfileTable({
                     <Action
                       disabled={busyId === profile.id}
                       onClick={() => onApprove(profile.id)}
-                      label="Approuver"
+                      label="Accepter"
                     />
                   )}
                   {profile.status !== "suspended" && (
@@ -518,9 +558,9 @@ function CommissionTable({
       <table className="w-full min-w-[900px] text-left text-sm">
         <thead className="border-b border-neutral-200 text-neutral-500">
           <tr>
-            <Th>Referrer</Th>
+            <Th>Parrain</Th>
             <Th>Code</Th>
-            <Th>Montant paye annonce</Th>
+            <Th>Montant payé par annonce</Th>
             <Th>Commission</Th>
             <Th>Statut</Th>
             <Th>Date</Th>
@@ -540,7 +580,7 @@ function CommissionTable({
               </Td>
               <Td>{money(commission.referral_redemptions?.paid_amount)}</Td>
               <Td>{money(commission.amount)}</Td>
-              <Td>{commission.status}</Td>
+              <Td>{commissionStatusLabels[commission.status]}</Td>
               <Td>{dateLabel(commission.paid_at || commission.created_at)}</Td>
               <Td>
                 <div className="flex gap-2">
@@ -557,7 +597,7 @@ function CommissionTable({
                       <Action
                         disabled={busyId === commission.id}
                         onClick={() => onPaid(commission.id)}
-                        label="Marquer paye"
+                        label="Marquer payé"
                       />
                     )}
                   {commission.status !== "cancelled" &&
@@ -603,16 +643,16 @@ function Action({
       ? "border-red-200 bg-red-50 text-red-700"
       : tone === "neutral"
         ? "border-neutral-200 bg-white text-neutral-700"
-        : "border-roogo-primary-600 bg-roogo-primary-600 text-white";
+        : "border-neutral-950 bg-neutral-950 text-white hover:bg-neutral-800";
 
   return (
     <button
       type="button"
       onClick={onClick}
       disabled={disabled}
-      className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
+      className={`inline-flex min-w-[92px] items-center justify-center rounded-lg border px-3 py-2 text-xs font-bold disabled:cursor-not-allowed disabled:opacity-50 ${className}`}
     >
-      {disabled ? "..." : label}
+      {disabled ? "Patientez" : label}
     </button>
   );
 }
