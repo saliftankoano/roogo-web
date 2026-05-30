@@ -8,14 +8,17 @@ business rules, data model, rollout notes, and test coverage.
 
 Use this list as the quick completion view for major features.
 
-- [x] Referral / Roogo Pro Agent Pilot - developed, pending database migration
-  and production QA
+- [x] Referral / Roogo Pro Agent Pilot - developed; referral UI, admin review,
+  checkout pricing, commission creation, and approval-state handling are in
+  place; pending database migration and production QA
+- [ ] CINET card payments for diaspora renters - enable card payments through
+  CINET so users abroad can reserve and rent homes before arriving
 - [ ] Owner-side rent-received push notification - send a push to the owner
   when their tenant pays rent (today only the renter is notified)
 
 ## [x] Referral / Roogo Pro Agent Pilot
 
-Status: implemented, pending database migration and production QA
+Status: implemented; pending database migration and production QA
 
 Public name: Roogo Pro Agent  
 Internal naming: referrer / referral
@@ -24,16 +27,104 @@ Internal naming: referrer / referral
 
 Create a referral capability on top of existing Roogo accounts. A user applies
 to become a referrer, submits identity verification, gets staff approval, and
-receives a unique referral code. Owners and agents can apply that code during
-their first paid listing checkout.
+receives a unique referral code. Owners, agents, and internal staff/founder
+accounts can apply that code during paid listing checkout.
 
 The pilot is optimized for qualified supply growth: a referral only becomes
 commissionable after the referred user pays for a listing and the property is
 created.
 
+### Completion Notes
+
+Implemented behavior:
+
+- Existing Roogo users can apply to become referrers from `/parrainage`.
+- Renters, owners, and agents can apply as referrers; this is an account
+  capability, not a new `user_type`.
+- Referral code visibility is approval-gated. Pending, rejected, and suspended
+  users do not receive the code in the public profile API response.
+- Staff can review, accept, reject, and suspend referrers from
+  `/admin/parrainage`.
+- Approved referrers can see their code, share URL, qualified listings, pending
+  commissions, and paid commissions.
+- Owners, agents, staff, founders, and admins can apply a valid referral code
+  during paid listing checkout.
+- Referral discount and commission amounts are computed by the backend.
+- Referral redemption and commission finalization are tied to successful
+  payment plus property creation, not merely code entry.
+- Admin UI copy and public `/parrainage` copy are localized in French.
+
+Remaining completion work:
+
+- Apply the referral database migration in production.
+- Create/verify the private `referrer-verification` storage bucket in
+  production.
+- Run production end-to-end QA with a real staff approval and paid listing
+  flow.
+
+### Functional Flow
+
+```mermaid
+flowchart TD
+  A["Existing Roogo user"] --> B["Opens /parrainage"]
+  B --> C["Submits referrer application"]
+  C --> D["Uploads ID front/back + payout details"]
+  D --> E["Profile status: pending"]
+
+  E --> F["Staff reviews in Admin > Demandes > Parrainage"]
+
+  F -->|Reject| G["Status: rejected"]
+  G --> H["User sees rejection reason and can reapply"]
+
+  F -->|Suspend| I["Status: suspended"]
+  I --> J["Code cannot be used"]
+
+  F -->|Accept| K["Status: approved"]
+  K --> L["Unique referral code becomes visible"]
+  L --> M["Referrer shares code or link"]
+
+  M --> N["Owner or agent starts paid listing checkout"]
+  N --> O["Owner/agent enters referral code"]
+
+  O --> P["Backend validates code"]
+  P -->|Invalid| Q["No discount applied"]
+  P -->|Valid| R["Backend recomputes listing total"]
+
+  R --> S["Apply 5% discount to referred user"]
+  S --> T["Create pending payment metadata"]
+  T --> U["User pays discounted listing amount"]
+
+  U -->|Payment fails or expires| V["Referral redemption voided"]
+  U -->|Payment succeeds| W["Property/listing is created"]
+
+  W --> X["Referral redemption becomes qualified"]
+  X --> Y["Commission created idempotently"]
+  Y --> Z["Referrer sees pending commission"]
+
+  Z --> AA["Founder handles manual payout"]
+  AA --> AB["Commission marked paid"]
+```
+
+Functional explanation:
+
+- A referrer is any existing Roogo account with an approved
+  `referrer_profiles` record.
+- Renters can become referrers, but renter actions do not qualify for referral
+  redemption. The referred user who uses the code must be an owner, agent,
+  staff, founder, or admin.
+- Staff approval controls when the referral code becomes visible and usable.
+- Entering a referral code only reserves referral context for the payment. It
+  does not create a payable commission by itself.
+- The referred paid-listing user receives a 5% discount on the paid listing
+  checkout.
+- The referrer receives 5% of the discounted paid listing amount after payment
+  completes and the property is created.
+- Payouts remain manual in v1. Founder/admin marks commissions paid after the
+  payout is handled outside the automated payment flow.
+
 ### Pilot Economics
 
-- Referred owner/agent discount: 5% of the original paid listing amount.
+- Referred paid-listing user discount: 5% of the original paid listing amount.
 - Referrer commission: 5% of the discounted paid listing amount.
 - Commission is manual payout only in v1.
 - Commission becomes payable only after payment is completed and the property
@@ -71,7 +162,8 @@ processor fees.
 - Only approved referrer profiles can be used.
 - Suspended, rejected, pending, or missing profiles cannot redeem.
 - Self-referrals are rejected.
-- Only `owner` and `agent` users can redeem a referral code.
+- `owner`, `agent`, `staff`, `founder`, and `admin` users can redeem a
+  referral code during paid listing checkout.
 - A referred user can qualify only one paid listing referral.
 - Referral only applies to `listing_submission` transactions with a positive
   amount.
@@ -177,7 +269,7 @@ Mobile:
 - Run one manual end-to-end QA flow:
   - existing renter/owner/agent applies at `/parrainage`
   - staff approves profile
-  - owner or agent uses the code during listing checkout
+  - eligible paid-listing user uses the code during listing checkout
   - hosted payment completes
   - property is created
   - redemption becomes qualified
@@ -223,6 +315,136 @@ Current verification run:
 - Whether referral share links should prefill checkout code from `?ref=...`.
 - Whether rejected referrers should be allowed to reapply indefinitely or after
   staff unlock.
+
+## [ ] CINET Card Payments For Diaspora Renters
+
+Status: not started, added 2026-05-27
+
+Public name: card payment / diaspora payment  
+Provider naming: CINET
+
+### Goal
+
+Add CINET as a card-payment provider so customers outside Burkina Faso and the
+West African mobile-money corridor can pay with a bank card. This is especially
+important for diaspora users who want to secure housing before traveling: they
+should be able to pay the required Roogo amount remotely, complete the rental
+flow, and arrive with access already arranged.
+
+This expands Roogo payment coverage beyond local Mobile Money and makes the
+product usable for customers abroad who do not have Orange Money or Moov Money.
+
+### Product Scope
+
+- Add a card-payment option to checkout flows where a user needs to pay Roogo:
+  - listing submission payments
+  - property lock / reservation payments
+  - rent payments, if supported by the provider economics
+- Keep existing Mobile Money options unchanged.
+- Show CINET/card payment as a distinct payment method, not as a replacement
+  for PawaPay.
+- Support diaspora users paying from outside Burkina Faso.
+- Preserve payment status handling through hosted redirects, callbacks, and
+  polling so the user can safely return to Roogo after payment.
+- Use existing confirmation behavior after successful payment:
+  - listing payment creates/finalizes the property
+  - reservation payment locks the property
+  - rent payment credits the owner wallet
+
+### Business Rules
+
+- Backend remains the source of truth for all payable amounts.
+- Client-sent totals are display-only.
+- Payment metadata must include enough audit data to reconcile provider
+  callbacks with Roogo records:
+  - transaction id
+  - user id
+  - payment purpose
+  - property id when applicable
+  - original amount
+  - fees, if known
+  - currency
+  - provider reference
+- Payment completion should be idempotent. Repeated callbacks, refreshes, or
+  polling must not create duplicate properties, locks, rent credits, or
+  commissions.
+- Failed, abandoned, or expired CINET payments must leave the related checkout
+  flow recoverable.
+- If CINET settles in a different currency or charges card-processing fees,
+  Roogo must record the display currency, settlement currency, and fee basis
+  clearly before launch.
+
+### Integration Notes
+
+- Confirm the exact provider product/API name, merchant account requirements,
+  supported countries, supported card networks, settlement currency, and fee
+  schedule before implementation.
+- Add shared provider abstractions instead of branching payment logic directly
+  inside every route.
+- Reuse the current payment transaction table where possible; add provider
+  fields only if the existing schema cannot safely represent CINET references.
+- Hosted payment redirects must preserve the same pending listing/payment
+  metadata currently used by PawaPay flows.
+- Refund, chargeback, and failed authorization behavior needs an explicit admin
+  operations path before enabling high-value rent payments.
+
+### Product Surfaces
+
+Web:
+
+- Listing checkout payment summary includes a card payment option.
+- Reservation/property lock checkout includes a card payment option.
+- Payment callback page handles CINET return states in French.
+- Admin finance views show provider as CINET/card and expose provider
+  reference for reconciliation.
+
+Mobile:
+
+- Mobile checkout sends the selected payment provider and receives an
+  authoritative hosted payment URL or payment session from the backend.
+- Mobile should not calculate final payable totals locally.
+- Return/deep-link handling should bring the user back to the relevant listing,
+  reservation, or rent-payment status screen.
+
+### Rollout Checklist
+
+- Confirm CINET merchant onboarding and production credentials.
+- Confirm supported currencies and whether XOF card payments settle in XOF.
+- Confirm processor fees and decide whether fees are absorbed by Roogo or
+  passed to the payer.
+- Implement sandbox payment initiation, callback verification, and status
+  polling.
+- Add production webhook/callback URLs.
+- Run manual QA from outside the local Mobile Money path:
+  - diaspora user starts a card payment
+  - hosted payment completes
+  - Roogo receives callback
+  - checkout finalizes exactly once
+  - admin finance page shows provider reference
+  - failed/abandoned card payment can be retried
+
+### Test Coverage Target
+
+- API tests for CINET payment initiation and callback signature validation.
+- Payment status mapping tests for success, pending, failed, expired, and
+  cancelled states.
+- Idempotency tests for repeated CINET callbacks and repeated polling.
+- Web checkout tests for selecting card payment and preserving pending metadata
+  through redirect.
+- Mobile contract tests for provider selection and returned hosted payment URL.
+- Admin finance tests for CINET provider labels, references, and reconciliation
+  data.
+
+### Open Questions
+
+- Is the intended provider name exactly CINET, or should public/internal naming
+  use CinetPay if that is the actual vendor?
+- Which flows should launch first: listing payments, reservations, rent, or all
+  payment purposes at once?
+- Should Roogo absorb card-processing fees for diaspora conversion, or pass
+  them through transparently at checkout?
+- What should happen for card chargebacks after a property is already locked or
+  a rent payment already credited to an owner wallet?
 
 ## [ ] Owner-side rent-received push notification
 
