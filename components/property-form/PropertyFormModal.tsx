@@ -1925,7 +1925,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               {formatAmount(addOnsAmount)}
             </span>
           </div>
-          {!isStaffOrFounder && paymentChoice === "pay" && selectedTier && (
+          {paymentChoice === "pay" && selectedTier && (
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
               <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
                 Code de parrainage

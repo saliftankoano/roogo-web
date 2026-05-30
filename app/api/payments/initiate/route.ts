@@ -348,6 +348,8 @@ export async function POST(req: Request) {
               : null,
         addOns: Array.isArray(meta.add_ons)
           ? meta.add_ons.filter((item): item is string => typeof item === "string")
+          : Array.isArray(meta.addOns)
+            ? meta.addOns.filter((item): item is string => typeof item === "string")
           : undefined,
         frequence: typeof meta.frequence === "string" ? meta.frequence : "mensuel",
         monthlyRent:

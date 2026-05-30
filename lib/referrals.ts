@@ -224,10 +224,14 @@ export async function validateReferralForUser(
     );
   }
 
-  if (!["owner", "agent"].includes(params.referredUserType || "")) {
+  if (
+    !["owner", "agent", "staff", "founder", "admin"].includes(
+      params.referredUserType || "",
+    )
+  ) {
     throw new ReferralValidationError(
       "invalid_user_type",
-      "Le code est reserve aux proprietaires et agents.",
+      "Le code est réservé aux propriétaires, agents, staff et fondateurs.",
       403,
     );
   }
