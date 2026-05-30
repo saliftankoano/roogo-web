@@ -51,6 +51,9 @@ type ReferralMeResponse = {
   totals?: { pending: number; paid: number };
 };
 
+const MAX_REFERRAL_IMAGE_BYTES = 1_250_000;
+const MAX_REFERRAL_IMAGE_DIMENSION = 1600;
+
 const statusLabels: Record<ReferrerProfile["status"], string> = {
   pending: "En vérification",
   approved: "Accepté",
@@ -82,6 +85,85 @@ function dateLabel(value: string | null | undefined) {
     month: "short",
     year: "numeric",
   }).format(new Date(value));
+}
+
+async function readResponsePayload(response: Response) {
+  const contentType = response.headers.get("content-type") || "";
+  if (contentType.includes("application/json")) {
+    return response.json();
+  }
+
+  const text = await response.text();
+  return { error: text || response.statusText };
+}
+
+function loadImage(file: File) {
+  return new Promise<HTMLImageElement>((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const image = new Image();
+    image.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve(image);
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Image illisible."));
+    };
+    image.src = url;
+  });
+}
+
+function canvasToBlob(
+  canvas: HTMLCanvasElement,
+  type: string,
+  quality: number,
+) {
+  return new Promise<Blob>((resolve, reject) => {
+    canvas.toBlob(
+      (blob) => {
+        if (blob) resolve(blob);
+        else reject(new Error("Compression impossible."));
+      },
+      type,
+      quality,
+    );
+  });
+}
+
+async function compressReferralImage(file: File, fallbackName: string) {
+  if (!file.type.startsWith("image/")) {
+    throw new Error("Les pièces d'identité doivent être des images.");
+  }
+
+  const image = await loadImage(file);
+  const scale = Math.min(
+    1,
+    MAX_REFERRAL_IMAGE_DIMENSION / Math.max(image.width, image.height),
+  );
+  const width = Math.max(1, Math.round(image.width * scale));
+  const height = Math.max(1, Math.round(image.height * scale));
+
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const context = canvas.getContext("2d");
+  if (!context) throw new Error("Compression impossible.");
+
+  context.drawImage(image, 0, 0, width, height);
+
+  for (const quality of [0.82, 0.72, 0.62, 0.52]) {
+    const blob = await canvasToBlob(canvas, "image/jpeg", quality);
+    if (blob.size <= MAX_REFERRAL_IMAGE_BYTES || quality === 0.52) {
+      if (blob.size > MAX_REFERRAL_IMAGE_BYTES) {
+        throw new Error(
+          "Image trop volumineuse. Envoyez une photo plus légère ou recadrez la pièce.",
+        );
+      }
+      return new File([blob], `${fallbackName}.jpg`, { type: "image/jpeg" });
+    }
+  }
+
+  throw new Error("Compression impossible.");
 }
 
 export default function ParrainagePage() {
@@ -161,18 +243,32 @@ export default function ParrainagePage() {
       return;
     }
 
-    const form = new FormData(formElement);
     setError(null);
     setSubmitting(true);
 
     try {
+      const form = new FormData(formElement);
+      const idFront = form.get("idFront");
+      const idBack = form.get("idBack");
+
+      if (!(idFront instanceof File) || !(idBack instanceof File)) {
+        throw new Error("Ajoutez les deux photos de votre pièce d'identité.");
+      }
+
+      const [compressedFront, compressedBack] = await Promise.all([
+        compressReferralImage(idFront, "piece-identite-recto"),
+        compressReferralImage(idBack, "piece-identite-verso"),
+      ]);
+      form.set("idFront", compressedFront);
+      form.set("idBack", compressedBack);
+
       const token = await getToken();
       const response = await fetch("/api/referrals/apply", {
         method: "POST",
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
         body: form,
       });
-      const payload = await response.json();
+      const payload = await readResponsePayload(response);
       if (!response.ok) throw new Error(payload.error || "Envoi impossible");
       await loadProfile();
     } catch (err) {
