@@ -1,11 +1,13 @@
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import type { NotificationCopyKey } from "@/lib/notification-copy";
 import { captureServerEvent } from "@/lib/posthog-server";
 import {
   creditOwnerEarningForSchedule,
   updateOwnerPayoutFromPawaPayStatus,
 } from "@/lib/owner-wallet";
+import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import { updateDepositRefundFromPawaPayStatus } from "@/lib/pawapay-payouts";
 
 // PawaPay IPs to whitelist
@@ -267,8 +269,9 @@ export async function POST(req: Request) {
         );
       }
 
-      let notificationTitle = "Paiement confirmé";
-      let notificationBody = "Votre paiement a été traité avec succès";
+      let notificationCopyKey: NotificationCopyKey =
+        "payments.genericCompleted";
+      let notificationParams: Record<string, string | number> = {};
       const getPropertyLabel = async (propertyId: string) => {
         const { data: property } = await supabase
           .from("properties")
@@ -315,14 +318,11 @@ export async function POST(req: Request) {
           }
 
           if (propertyLabel) {
-            notificationTitle =
+            notificationCopyKey =
               propertyRecord?.period === "day"
-                ? "Séjour réservé avec succès"
-                : "Bien réservé avec succès";
-            notificationBody =
-              propertyRecord?.period === "day"
-                ? `Votre réservation de séjour pour "${propertyLabel}" est confirmée`
-                : `Votre réservation pour "${propertyLabel}" est confirmée`;
+                ? "payments.stayReserved"
+                : "payments.propertyReserved";
+            notificationParams = { propertyLabel };
           }
         }
       } else if (transaction.type === "boost") {
@@ -357,8 +357,8 @@ export async function POST(req: Request) {
           }
 
           if (propertyLabel) {
-            notificationTitle = "Boost activé";
-            notificationBody = `"${propertyLabel}" est maintenant en avant pour 7 jours`;
+            notificationCopyKey = "payments.boostActivated";
+            notificationParams = { propertyLabel };
           }
         }
       } else if (transaction.type === "rent_payment" && transaction.metadata) {
@@ -387,14 +387,13 @@ export async function POST(req: Request) {
               scheduleId,
             });
             await creditOwnerEarningForSchedule(scheduleId);
+            await notifyOwnerRentReceivedForSchedule(scheduleId);
           }
         }
 
-        notificationTitle = "Loyer payé";
-        notificationBody = "Votre paiement de loyer a été confirmé";
+        notificationCopyKey = "payments.renterRentPaid";
       } else if (transaction.type === "listing") {
-        notificationTitle = "Annonce publiée";
-        notificationBody = "Votre annonce est maintenant en ligne";
+        notificationCopyKey = "payments.listingPublished";
       }
 
       // Send payment confirmation notification
@@ -405,11 +404,11 @@ export async function POST(req: Request) {
           type: transaction.type,
         });
 
-        await notifyUser(
+        await notifyUserWithTemplate(
           transaction.user_id,
           "payments",
-          notificationTitle,
-          notificationBody,
+          notificationCopyKey,
+          notificationParams,
           {
             type: "payment_completed",
             transactionId: transaction.id,

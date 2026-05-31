@@ -15,6 +15,7 @@ import { listingBaseSchema } from "@/lib/validations";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 import { qualifyReferralForTransaction } from "@/lib/referrals";
+import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import validator from "validator";
 
 export async function OPTIONS(req: Request) {
@@ -572,6 +573,12 @@ export async function POST(req: Request) {
       slot_limit: slotLimit || 0,
       open_house_limit: openHouseLimit || 0,
     });
+
+    if (propertyStatus === "en_ligne") {
+      await notifyRentersOfNewMatchingProperty(propertyId).catch((error) => {
+        console.error("New matching property notification failed:", error);
+      });
+    }
 
     // 12. Return success response
     return cors(

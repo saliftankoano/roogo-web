@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 // Reminds owners before the 72h auto-release deadline. Runs hourly; each
 // hold is only nudged once per bucket thanks to metadata bookkeeping.
@@ -57,21 +57,20 @@ export async function GET(request: Request) {
         if (reminders[bucket.key]) continue; // already nudged
 
         const hoursLeft = bucket.hoursBefore;
-        const title =
-          hoursLeft >= 24
-            ? "Caution: 24h pour décider"
-            : "Caution: 6h avant remboursement auto";
-        const body =
-          hoursLeft >= 24
-            ? "Confirmez que tout va bien ou déclarez un dommage avant l'échéance."
-            : "Sans action de votre part, la caution sera rendue au locataire.";
-
         try {
-          await notifyUser(hold.owner_id, "payments", title, body, {
-            holdId: hold.id,
-            type: "deposit_deadline_reminder",
-            bucket: bucket.key,
-          });
+          await notifyUserWithTemplate(
+            hold.owner_id,
+            "payments",
+            hoursLeft >= 24
+              ? "deposits.deadlineReminder24h"
+              : "deposits.deadlineReminder6h",
+            undefined,
+            {
+              holdId: hold.id,
+              type: "deposit_deadline_reminder",
+              bucket: bucket.key,
+            },
+          );
         } catch (err) {
           console.error("Deadline notify failed:", hold.id, err);
           continue;

@@ -3,7 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -101,11 +101,13 @@ export async function POST(
 
       // Notify rejected applicants
       for (const app of otherApps) {
-        await notifyUser(
+        await notifyUserWithTemplate(
           (app as { id: string; user_id: string }).user_id,
           "viewingRequests",
-          "Demande de visite refusée",
-          `Un autre locataire a été sélectionné pour le bien au ${property.quartier || property.address || "votre bien"}.`,
+          "applications.rejectedOtherSelected",
+          {
+            location: property.quartier || property.address || "votre bien",
+          },
           {
             type: "application_rejected",
             applicationId: (app as { id: string }).id,
@@ -121,11 +123,13 @@ export async function POST(
       .eq("id", application.property_id);
 
     // Notify the attributed tenant
-    await notifyUser(
+    await notifyUserWithTemplate(
       application.user_id,
       "viewingRequests",
-      "Félicitations ! Vous avez été sélectionné",
-      `Vous avez été sélectionné pour le bien au ${property.quartier || property.address || "votre bien"}. Le propriétaire va vous envoyer le contrat.`,
+      "applications.tenantAttributed",
+      {
+        location: property.quartier || property.address || "votre bien",
+      },
       { type: "tenant_attributed", applicationId },
     );
 

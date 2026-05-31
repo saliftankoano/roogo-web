@@ -17,6 +17,7 @@ import {
   creditOwnerEarningForSchedule,
   normalizePawaPayProvider,
 } from "@/lib/owner-wallet";
+import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import {
   computeJournalierPricing,
   nightsBetween,
@@ -642,6 +643,7 @@ export async function POST(req: Request) {
             .eq("id", scheduleId);
 
           await creditOwnerEarningForSchedule(scheduleId);
+          await notifyOwnerRentReceivedForSchedule(scheduleId);
         }
       }
     }

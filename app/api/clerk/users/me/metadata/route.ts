@@ -122,6 +122,7 @@ export async function POST(req: Request) {
       webOnboardingData,
       onboardingData, // legacy alias for mobileOnboardingData
       signupPlatform,
+      preferredLocale,
     } = input;
 
     const trimmedFirstName =
@@ -167,6 +168,16 @@ export async function POST(req: Request) {
     }
 
     if (
+      preferredLocale !== undefined &&
+      preferredLocale !== null &&
+      !["fr", "en"].includes(preferredLocale as string)
+    ) {
+      return addCorsHeaders(
+        NextResponse.json({ error: "Invalid preferredLocale" }, { status: 400 }),
+      );
+    }
+
+    if (
       webOnboardingStep !== undefined &&
       webOnboardingStep !== null &&
       (!Number.isInteger(webOnboardingStep) ||
@@ -208,6 +219,7 @@ export async function POST(req: Request) {
     if (location) privateMetadata.location = location;
     if (sex) privateMetadata.sex = sex;
     if (dateOfBirth) privateMetadata.dateOfBirth = dateOfBirth;
+    if (preferredLocale) privateMetadata.preferredLocale = preferredLocale;
 
     // mobileOnboardingData (onboardingData is the legacy alias)
     const resolvedMobileData = mobileOnboardingData ?? onboardingData;

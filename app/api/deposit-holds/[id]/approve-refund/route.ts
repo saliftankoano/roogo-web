@@ -8,7 +8,7 @@ import {
   normalizePawaPayProvider,
 } from "@/lib/owner-wallet";
 import { initiatePawaPayPayout } from "@/lib/pawapay-payouts";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -185,11 +185,11 @@ export async function POST(
     }
 
     try {
-      await notifyUser(
+      await notifyUserWithTemplate(
         hold.renter_id,
         "payments",
-        "Caution remboursée",
-        "Le propriétaire a validé votre séjour. Votre caution est en route vers Mobile Money.",
+        "deposits.refundApproved",
+        undefined,
         { holdId, type: "deposit_refund_approved" },
       );
     } catch (err) {

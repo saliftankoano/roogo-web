@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { auth } from "@clerk/nextjs/server";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -95,6 +96,12 @@ export async function PATCH(
     if (error) {
       console.error("Error updating property status:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (status === "en_ligne") {
+      await notifyRentersOfNewMatchingProperty(propertyId).catch((notifyError) => {
+        console.error("New matching property notification failed:", notifyError);
+      });
     }
 
     return NextResponse.json({ success: true });

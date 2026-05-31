@@ -3,7 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 const MAX_PHOTOS_PER_CLAIM = 6;
 
@@ -165,11 +165,11 @@ export async function POST(
     }
 
     try {
-      await notifyUser(
+      await notifyUserWithTemplate(
         hold.renter_id,
         "payments",
-        "Litige sur votre caution",
-        "Le propriétaire a déposé une réclamation. Roogo examine les preuves et vous notifiera de la décision.",
+        "deposits.claimFiled",
+        undefined,
         { holdId, claimId: claim.id, type: "deposit_claim_filed" },
       );
     } catch (err) {

@@ -3,7 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -79,20 +79,22 @@ export async function PATCH(
       return errorResponse("Failed to update application", 500, req);
     }
 
-    // Notify the applicant
-    const notifTitle = action === "approve"
-      ? "Demande de visite acceptée"
-      : "Demande de visite refusée";
     const propLocation = property.quartier || property.address || "votre bien";
-    const notifBody = action === "approve"
-      ? `Votre demande pour le bien au ${propLocation} a été acceptée.`
-      : `Votre demande pour le bien au ${propLocation} a été refusée.${reason ? ` Raison: ${reason}` : ""}`;
 
-    await notifyUser(application.user_id, "viewingRequests", notifTitle, notifBody, {
-      type: "application_reviewed",
-      applicationId,
-      action,
-    });
+    await notifyUserWithTemplate(
+      application.user_id,
+      "viewingRequests",
+      action === "approve" ? "applications.approved" : "applications.rejected",
+      {
+        location: propLocation,
+        reason: reason ? `Raison: ${reason}` : "",
+      },
+      {
+        type: "application_reviewed",
+        applicationId,
+        action,
+      },
+    );
 
     return cors(NextResponse.json({ success: true, status: newStatus }), req);
   } catch (error) {

@@ -3,7 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 interface AgreementPropertyLocation {
   quartier: string | null;
@@ -77,11 +77,11 @@ export async function POST(
       property?.quartier || property?.address || "votre bien";
 
     try {
-      await notifyUser(
+      await notifyUserWithTemplate(
         agreement.owner_id,
         "payments",
-        "Contrat décliné",
-        `Le locataire a décliné le contrat pour le bien au ${propertyLocation}. Contactez-le pour résoudre le problème.`,
+        "agreements.declined",
+        { location: propertyLocation },
         { agreementId, action: "agreement_declined" },
       );
     } catch (e) {

@@ -8,7 +8,7 @@ import {
   mapPawaPayPayoutStatus,
   normalizePawaPayProvider,
 } from "@/lib/owner-wallet";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 const BATCH_LIMIT = 25;
 
@@ -105,11 +105,11 @@ async function releaseOne(hold: EligibleHold): Promise<{
   const refundStatus = mapPawaPayPayoutStatus(result.pawaPayStatus);
 
   try {
-    await notifyUser(
+    await notifyUserWithTemplate(
       hold.renter_id,
       "payments",
-      "Caution remboursée",
-      "Aucune réclamation n'a été déposée. Votre caution a été renvoyée sur Mobile Money.",
+      "deposits.autoRefunded",
+      undefined,
       { holdId: hold.id, type: "deposit_auto_refunded" },
     );
   } catch (err) {

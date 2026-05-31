@@ -1,5 +1,9 @@
 import { getSupabaseClient } from "./user-sync";
 import { clerkClient } from "@clerk/nextjs/server";
+import {
+  renderNotificationCopy,
+  type NotificationCopyKey,
+} from "@/lib/notification-copy";
 
 export interface PushNotificationPayload {
   to: string | string[];
@@ -11,11 +15,22 @@ export interface PushNotificationPayload {
   badge?: number;
 }
 
-export type NotificationType = "viewingRequests" | "messages" | "payments";
+export type NotificationType =
+  | "viewingRequests"
+  | "messages"
+  | "payments"
+  | "newListings";
 
 interface OnboardingData {
   notifications?: Partial<Record<NotificationType, boolean>>;
+  locale?: string;
+  preferredLocale?: string;
 }
+
+type UserNotificationSettings = {
+  enabled: boolean;
+  locale: string;
+};
 
 /**
  * Sends a push notification to specific Expo push tokens
@@ -54,34 +69,88 @@ export async function sendExpoPushNotifications(
 /**
  * Checks if user has enabled notifications for a specific type
  */
-async function checkNotificationPreference(
+function getLocaleFromMetadata({
+  onboardingData,
+  privateMetadata,
+  publicMetadata,
+}: {
+  onboardingData?: OnboardingData;
+  privateMetadata: Record<string, unknown>;
+  publicMetadata: Record<string, unknown>;
+}) {
+  const candidates = [
+    privateMetadata.preferredLocale,
+    privateMetadata.locale,
+    publicMetadata.preferredLocale,
+    publicMetadata.locale,
+    onboardingData?.preferredLocale,
+    onboardingData?.locale,
+  ];
+
+  const match = candidates.find(
+    (value): value is string =>
+      typeof value === "string" && (value === "fr" || value === "en"),
+  );
+
+  return match ?? "fr";
+}
+
+async function getUserNotificationSettings(
   clerkId: string,
   notificationType: NotificationType,
-): Promise<boolean> {
+): Promise<UserNotificationSettings> {
   try {
     const client = await clerkClient();
     const user = await client.users.getUser(clerkId);
+    const privateMetadata = user.privateMetadata as Record<string, unknown>;
+    const publicMetadata = user.publicMetadata as Record<string, unknown>;
 
     const onboardingData = (
-      (user.privateMetadata?.mobileOnboardingData as OnboardingData | undefined) ??
-      (user.privateMetadata?.webOnboardingData as OnboardingData | undefined) ??
-      (user.publicMetadata?.onboardingData as OnboardingData | undefined)
+      (privateMetadata.mobileOnboardingData as OnboardingData | undefined) ??
+      (privateMetadata.webOnboardingData as OnboardingData | undefined) ??
+      (privateMetadata.onboardingData as OnboardingData | undefined) ??
+      (publicMetadata.onboardingData as OnboardingData | undefined)
     );
     const preferences = onboardingData?.notifications;
+    const locale = getLocaleFromMetadata({
+      onboardingData,
+      privateMetadata,
+      publicMetadata,
+    });
 
     // If no preferences set, default to enabled (opt-out model)
     if (!preferences || typeof preferences !== "object") {
-      return true;
+      return { enabled: true, locale };
     }
 
     // Check specific notification type preference
     const isEnabled = preferences[notificationType];
-    return isEnabled !== false; // Default to true if not explicitly set to false
+    return {
+      enabled: isEnabled !== false, // Default to true if not explicitly set to false
+      locale,
+    };
   } catch (error) {
     console.error("Error checking notification preference:", error);
     // On error, default to sending notification (fail-open)
-    return true;
+    return { enabled: true, locale: "fr" };
   }
+}
+
+async function getUserRecord(userId: string) {
+  const supabase = getSupabaseClient();
+
+  const { data: userRecord, error: userError } = await supabase
+    .from("users")
+    .select("clerk_id")
+    .eq("id", userId)
+    .single();
+
+  if (userError || !userRecord?.clerk_id) {
+    console.error("Error fetching user clerk_id:", userError);
+    return null;
+  }
+
+  return userRecord;
 }
 
 /**
@@ -98,24 +167,18 @@ export async function notifyUser(
   const supabase = getSupabaseClient();
 
   // 1. Get user's Clerk ID from Supabase
-  const { data: userRecord, error: userError } = await supabase
-    .from("users")
-    .select("clerk_id")
-    .eq("id", userId)
-    .single();
-
-  if (userError || !userRecord?.clerk_id) {
-    console.error("Error fetching user clerk_id:", userError);
+  const userRecord = await getUserRecord(userId);
+  if (!userRecord) {
     return false;
   }
 
   // 2. Check notification preferences
-  const isEnabled = await checkNotificationPreference(
+  const settings = await getUserNotificationSettings(
     userRecord.clerk_id,
     notificationType,
   );
 
-  if (!isEnabled) {
+  if (!settings.enabled) {
     console.log(
       `Notification skipped for user ${userId}: ${notificationType} disabled in preferences`,
     );
@@ -147,4 +210,53 @@ export async function notifyUser(
 
   // 5. Send
   return sendExpoPushNotifications(payload);
+}
+
+export async function notifyUserWithTemplate(
+  userId: string,
+  notificationType: NotificationType,
+  copyKey: NotificationCopyKey,
+  params?: Record<string, string | number | null | undefined>,
+  data?: Record<string, unknown>,
+) {
+  const supabase = getSupabaseClient();
+  const userRecord = await getUserRecord(userId);
+
+  if (!userRecord) return false;
+
+  const settings = await getUserNotificationSettings(
+    userRecord.clerk_id,
+    notificationType,
+  );
+
+  if (!settings.enabled) {
+    console.log(
+      `Notification skipped for user ${userId}: ${notificationType} disabled in preferences`,
+    );
+    return false;
+  }
+
+  const { data: tokens, error } = await supabase
+    .from("user_push_tokens")
+    .select("expo_push_token")
+    .eq("user_id", userId);
+
+  if (error || !tokens || tokens.length === 0) {
+    if (error) console.error("Error fetching user tokens:", error);
+    return false;
+  }
+
+  const renderedCopy = renderNotificationCopy(
+    copyKey,
+    settings.locale,
+    params,
+  );
+
+  return sendExpoPushNotifications({
+    to: tokens.map((t) => t.expo_push_token),
+    title: renderedCopy.title,
+    body: renderedCopy.body,
+    data,
+    sound: "default",
+  });
 }

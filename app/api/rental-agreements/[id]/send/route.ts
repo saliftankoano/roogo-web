@@ -3,7 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 interface AgreementPropertyLocation {
   quartier: string | null;
@@ -75,11 +75,11 @@ export async function POST(
       property?.quartier || property?.address || "votre bien";
 
     try {
-      await notifyUser(
+      await notifyUserWithTemplate(
         agreement.renter_id,
         "payments",
-        "Votre contrat de bail est prêt",
-        `Le propriétaire a préparé le contrat pour le bien au ${propertyLocation}. Consultez-le et signez.`,
+        "agreements.readyToSign",
+        { location: propertyLocation },
         { agreementId, action: "review_agreement" },
       );
     } catch (e) {

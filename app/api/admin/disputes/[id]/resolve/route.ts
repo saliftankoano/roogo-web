@@ -10,7 +10,7 @@ import {
   normalizePawaPayProvider,
 } from "@/lib/owner-wallet";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 
 export async function POST(
   req: Request,
@@ -216,22 +216,22 @@ export async function POST(
 
     try {
       await Promise.all([
-        notifyUser(
+        notifyUserWithTemplate(
           hold.renter_id,
           "payments",
-          "Décision sur votre caution",
           renterAmount > 0
-            ? `Roogo vous rembourse ${formatXof(renterAmount)} sur Mobile Money.`
-            : "Roogo a attribué la totalité de la caution au propriétaire.",
+            ? "deposits.resolvedRenterRefunded"
+            : "deposits.resolvedRenterOwnerKept",
+          { amount: formatXof(renterAmount) },
           { holdId, type: "deposit_resolved", finalStatus },
         ),
-        notifyUser(
+        notifyUserWithTemplate(
           hold.owner_id,
           "payments",
-          "Litige résolu",
           ownerAmount > 0
-            ? `Roogo vous a crédité ${formatXof(ownerAmount)} sur votre portefeuille.`
-            : "Roogo a remboursé la totalité de la caution au locataire.",
+            ? "deposits.resolvedOwnerCredited"
+            : "deposits.resolvedOwnerRenterRefunded",
+          { amount: formatXof(ownerAmount) },
           { holdId, type: "deposit_resolved", finalStatus },
         ),
       ]);

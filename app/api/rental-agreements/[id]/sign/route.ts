@@ -3,7 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { addMonths, differenceInMonths, format } from "date-fns";
 
 interface PropertyLocation {
@@ -158,19 +158,19 @@ export async function POST(
         propertyLocationData?.address ||
         "votre bien";
 
-      await notifyUser(
+      await notifyUserWithTemplate(
         agreement.renter_id,
         "payments",
-        "Contrat de location activé",
-        `Votre contrat pour le bien au ${propertyLocation} est maintenant actif. Vos paiements mensuels sont programmés.`,
+        "agreements.activeRenter",
+        { location: propertyLocation },
         { type: "agreement_active", agreementId },
       );
 
-      await notifyUser(
+      await notifyUserWithTemplate(
         agreement.owner_id,
         "payments",
-        "Contrat de location activé",
-        `Le contrat pour le bien au ${propertyLocation} est signé par les deux parties et maintenant actif.`,
+        "agreements.activeOwner",
+        { location: propertyLocation },
         { type: "agreement_active", agreementId },
       );
     } else {
@@ -188,11 +188,11 @@ export async function POST(
         "votre bien";
 
       if (role === "renter") {
-        await notifyUser(
+        await notifyUserWithTemplate(
           agreement.owner_id,
           "viewingRequests",
-          "Le locataire a signé",
-          `Le locataire a signé le contrat pour le bien au ${propertyLocation2}. À vous de signer pour l'activer.`,
+          "agreements.renterSigned",
+          { location: propertyLocation2 },
           { type: "agreement_renter_signed", agreementId },
         );
       }

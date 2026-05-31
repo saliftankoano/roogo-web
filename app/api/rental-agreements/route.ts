@@ -3,7 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { addMonths, format } from "date-fns";
 import { creditOwnerEarningsForSchedules } from "@/lib/owner-wallet";
 
@@ -382,13 +382,13 @@ export async function POST(req: Request) {
 
       // Notify owner; daily stays are already auto-signed, monthly stays still need prep.
       try {
-        await notifyUser(
+        await notifyUserWithTemplate(
           ownerId,
           "payments",
-          isDailyRenterFlow ? "Séjour confirmé !" : "Propriété sécurisée !",
           isDailyRenterFlow
-            ? `Le séjour réservé pour ${property.quartier || property.address} est confirmé et le contrat est déjà signé.`
-            : `Un locataire a sécurisé votre bien au ${property.quartier || property.address}. Préparez le contrat de bail.`,
+            ? "agreements.ownerStayConfirmed"
+            : "agreements.ownerPropertySecured",
+          { location: property.quartier || property.address || "votre bien" },
           {
             agreementId: agreement.id,
             propertyId,
@@ -401,11 +401,11 @@ export async function POST(req: Request) {
     } else {
       // Owner flow: notify renter that a draft agreement was created
       try {
-        await notifyUser(
+        await notifyUserWithTemplate(
           renterId,
           "payments",
-          "Nouveau contrat de bail",
-          `Un contrat de bail a été créé pour votre bien au ${property.quartier || property.address}. Veuillez le consulter et signer.`,
+          "agreements.renterDraftCreated",
+          { location: property.quartier || property.address || "votre bien" },
           { agreementId: agreement.id, propertyId },
         );
       } catch (e) {

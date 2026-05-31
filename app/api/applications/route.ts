@@ -1,7 +1,7 @@
 import { auth } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { notifyUser } from "@/lib/push-notifications";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
 
 const supabaseAdmin = createClient(
@@ -107,11 +107,14 @@ export async function POST(req: Request) {
     // Send notification to property owner
     if (property.agent_id) {
       const applicantName = applicant?.full_name || "Un utilisateur";
-      await notifyUser(
+      await notifyUserWithTemplate(
         property.agent_id,
         "viewingRequests",
-        "Nouvelle demande de visite",
-        `${applicantName} souhaite visiter votre bien au ${property.quartier || property.address}`,
+        "applications.newViewingRequest",
+        {
+          applicantName,
+          location: property.quartier || property.address || "votre bien",
+        },
         {
           type: "viewing_request",
           propertyId,

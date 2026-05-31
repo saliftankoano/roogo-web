@@ -81,6 +81,7 @@ export interface ClerkUserData {
     hasCompletedWebOnboarding?: boolean;
     webOnboardingStep?: number;
     signupPlatform?: "web" | "mobile";
+    preferredLocale?: "fr" | "en";
     companyName?: string;
     facebookUrl?: string;
     professionalLink?: string;
@@ -94,6 +95,7 @@ export interface ClerkUserData {
     professionalLink?: string;
     phone?: string;
     whatsappNumber?: string;
+    preferredLocale?: "fr" | "en";
     serviceAreas?: string[];
     portfolioSize?: number;
     mobileOnboardingData?: OnboardingData;
@@ -168,10 +170,13 @@ export async function createUserInSupabase(
       unsafe_metadata?.facebookUrl;
     
     // Merge onboarding data: webOnboardingData overrides mobileOnboardingData, legacy onboardingData as fallback
+    const preferredLocale =
+      private_metadata?.preferredLocale || public_metadata?.preferredLocale || null;
     const onboardingData = {
       ...(private_metadata?.onboardingData ?? {}),
       ...(private_metadata?.mobileOnboardingData ?? {}),
       ...(private_metadata?.webOnboardingData ?? {}),
+      ...(preferredLocale ? { preferredLocale } : {}),
     } as OnboardingData;
     const onboardingPhone = readNullableStringField(onboardingData, "phone");
     const finalPhone =
