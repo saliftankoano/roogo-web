@@ -7,6 +7,11 @@ import {
   CloudArrowUpIcon,
   TrashIcon,
   StarIcon,
+  ArrowsOutSimpleIcon,
+  DownloadSimpleIcon,
+  XIcon,
+  CaretLeftIcon,
+  CaretRightIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import Image from "next/image";
@@ -24,6 +29,33 @@ interface PhotoManagerProps {
 const sanitizePhotoUrls = (urls: string[]) =>
   urls.filter((url) => typeof url === "string" && url.trim().length > 0);
 
+const extensionFromContentType = (contentType: string | null) => {
+  if (!contentType) return null;
+  if (contentType.includes("png")) return "png";
+  if (contentType.includes("webp")) return "webp";
+  if (contentType.includes("gif")) return "gif";
+  if (contentType.includes("heic")) return "heic";
+  if (contentType.includes("heif")) return "heif";
+  if (contentType.includes("jpeg") || contentType.includes("jpg")) return "jpg";
+  return null;
+};
+
+const extensionFromUrl = (url: string) => {
+  try {
+    const pathname = new URL(url, window.location.origin).pathname;
+    const fileName = pathname.split("/").pop() || "";
+    const extension = fileName.split(".").pop()?.toLowerCase();
+    if (extension && /^[a-z0-9]+$/.test(extension) && extension.length <= 5) {
+      return extension === "jpeg" ? "jpg" : extension;
+    }
+  } catch {
+    return null;
+  }
+  return null;
+};
+
+const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
 export default function PhotoManager({
   propertyId,
   initialPhotos = [],
@@ -37,7 +69,11 @@ export default function PhotoManager({
   );
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
+  const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
+  const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
+  const [isDownloadingAll, setIsDownloadingAll] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const isFullscreenOpen = fullscreenIndex !== null && !!photos[fullscreenIndex];
 
   // Find the index of the primary image
   const primaryIndex = primaryImageUrl
@@ -53,6 +89,39 @@ export default function PhotoManager({
     const sanitized = sanitizePhotoUrls(initialPhotos);
     setPhotos(sanitized);
   }, [initialPhotos, propertyId]);
+
+  useEffect(() => {
+    if (fullscreenIndex !== null && fullscreenIndex >= photos.length) {
+      setFullscreenIndex(photos.length > 0 ? photos.length - 1 : null);
+    }
+  }, [fullscreenIndex, photos.length]);
+
+  useEffect(() => {
+    if (!isFullscreenOpen) return;
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setFullscreenIndex(null);
+      }
+
+      if (event.key === "ArrowRight" && photos.length > 1) {
+        setFullscreenIndex((current) =>
+          current === null ? current : (current + 1) % photos.length,
+        );
+      }
+
+      if (event.key === "ArrowLeft" && photos.length > 1) {
+        setFullscreenIndex((current) =>
+          current === null
+            ? current
+            : (current - 1 + photos.length) % photos.length,
+        );
+      }
+    };
+
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [isFullscreenOpen, photos.length]);
 
   const handleUploadClick = () => {
     fileInputRef.current?.click();
@@ -111,6 +180,77 @@ export default function PhotoManager({
     const newVal = !professional;
     setProfessional(newVal);
     onPhotosUpdated(newVal);
+  };
+
+  const getPhotoFilename = (
+    url: string,
+    index: number,
+    contentType?: string | null,
+  ) => {
+    const extension =
+      extensionFromContentType(contentType || null) ||
+      extensionFromUrl(url) ||
+      "jpg";
+    return `roogo-listing-${propertyId}-photo-${index + 1}.${extension}`;
+  };
+
+  const downloadPhoto = async (url: string, index: number) => {
+    setDownloadingIndex(index);
+
+    try {
+      const response = await fetch(url);
+      if (!response.ok) {
+        throw new Error(`Unable to download image: ${response.status}`);
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+
+      link.href = objectUrl;
+      link.download = getPhotoFilename(
+        url,
+        index,
+        response.headers.get("content-type"),
+      );
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error("Download error:", error);
+      window.open(url, "_blank", "noopener,noreferrer");
+    } finally {
+      setDownloadingIndex(null);
+    }
+  };
+
+  const downloadAllPhotos = async () => {
+    if (photos.length === 0) return;
+
+    setIsDownloadingAll(true);
+    try {
+      for (let index = 0; index < photos.length; index += 1) {
+        await downloadPhoto(photos[index], index);
+        await wait(150);
+      }
+    } finally {
+      setIsDownloadingAll(false);
+    }
+  };
+
+  const showPreviousPhoto = () => {
+    if (photos.length <= 1) return;
+    setFullscreenIndex((current) =>
+      current === null ? current : (current - 1 + photos.length) % photos.length,
+    );
+  };
+
+  const showNextPhoto = () => {
+    if (photos.length <= 1) return;
+    setFullscreenIndex((current) =>
+      current === null ? current : (current + 1) % photos.length,
+    );
   };
 
   const setPrimary = async (index: number) => {
@@ -173,6 +313,7 @@ export default function PhotoManager({
   };
 
   return (
+    <>
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold flex items-center gap-2">
@@ -180,6 +321,17 @@ export default function PhotoManager({
           Photos du Bien
         </h2>
         <div className="flex items-center gap-2">
+          {photos.length > 0 && (
+            <button
+              type="button"
+              onClick={downloadAllPhotos}
+              disabled={isDownloadingAll}
+              className="inline-flex items-center gap-1.5 rounded-full border border-neutral-200 bg-white px-3 py-1.5 text-[10px] font-bold uppercase tracking-wider text-neutral-700 transition-colors hover:border-primary/30 hover:bg-primary/5 hover:text-primary disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              <DownloadSimpleIcon size={14} weight="bold" />
+              {isDownloadingAll ? "Téléchargement..." : "Télécharger tout"}
+            </button>
+          )}
           <span
             className={`text-[10px] uppercase font-bold px-2 py-1 rounded-full ${
               professional
@@ -198,16 +350,53 @@ export default function PhotoManager({
             key={i}
             className="aspect-video relative rounded-xl overflow-hidden border border-neutral-100 group"
           >
-            <Image
-              src={url}
-              alt={`Photo ${i}`}
-              fill
-              sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-              className="object-cover"
-            />
-            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+            <button
+              type="button"
+              onClick={() => setFullscreenIndex(i)}
+              className="absolute inset-0"
+              title={`Agrandir la photo ${i + 1}`}
+            >
+              <Image
+                src={url}
+                alt={`Photo ${i + 1}`}
+                fill
+                sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                className="object-cover transition-transform group-hover:scale-105"
+              />
+            </button>
+            <div
+              onClick={() => setFullscreenIndex(i)}
+              className="absolute inset-0 bg-black/25 opacity-100 transition-opacity sm:bg-black/40 sm:opacity-0 sm:group-hover:opacity-100 sm:group-focus-within:opacity-100 flex items-center justify-center gap-2"
+            >
               <button
-                onClick={() => setPrimary(i)}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setFullscreenIndex(i);
+                }}
+                className="p-2 bg-white/20 hover:bg-white/30 rounded-full text-white transition-colors backdrop-blur-sm"
+                title="Agrandir"
+              >
+                <ArrowsOutSimpleIcon size={18} weight="bold" />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  downloadPhoto(url, i);
+                }}
+                disabled={downloadingIndex === i || isDownloadingAll}
+                className="p-2 bg-white/20 hover:bg-primary rounded-full text-white transition-colors backdrop-blur-sm disabled:cursor-not-allowed disabled:opacity-60"
+                title="Télécharger"
+              >
+                <DownloadSimpleIcon size={18} weight="bold" />
+              </button>
+              <button
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  setPrimary(i);
+                }}
                 className={`p-2 rounded-full transition-colors ${i === primaryIndex ? "bg-yellow-400 text-white" : "bg-white/20 hover:bg-yellow-400 text-white"}`}
                 title={
                   i === primaryIndex
@@ -221,13 +410,18 @@ export default function PhotoManager({
                 />
               </button>
               <button
-                onClick={() => removePhoto(i)}
+                type="button"
+                onClick={(event) => {
+                  event.stopPropagation();
+                  removePhoto(i);
+                }}
                 className="p-2 bg-white/20 hover:bg-red-500 rounded-full text-white transition-colors"
+                title="Supprimer"
               >
                 <TrashIcon size={18} />
               </button>
             </div>
-            {i === 0 && (
+            {i === primaryIndex && (
               <div className="absolute top-2 left-2 bg-yellow-400 text-white text-[10px] font-bold px-2 py-1 rounded-full uppercase tracking-wider shadow-sm">
                 Principale
               </div>
@@ -278,5 +472,64 @@ export default function PhotoManager({
         </div>
       )}
     </div>
+    {isFullscreenOpen && fullscreenIndex !== null && (
+      <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4">
+        <button
+          type="button"
+          onClick={() => setFullscreenIndex(null)}
+          className="absolute top-4 right-4 z-10 rounded-full bg-white/10 p-3 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+          title="Fermer"
+        >
+          <XIcon size={28} weight="bold" />
+        </button>
+
+        <div className="absolute top-4 left-4 z-10 rounded-full bg-white/10 px-4 py-2 text-sm font-bold text-white backdrop-blur-sm">
+          {fullscreenIndex + 1} / {photos.length}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => downloadPhoto(photos[fullscreenIndex], fullscreenIndex)}
+          disabled={downloadingIndex === fullscreenIndex || isDownloadingAll}
+          className="absolute bottom-4 left-1/2 z-10 inline-flex -translate-x-1/2 items-center gap-2 rounded-full bg-white px-5 py-3 text-xs font-bold uppercase tracking-wider text-neutral-900 shadow-lg transition-colors hover:bg-neutral-100 disabled:cursor-not-allowed disabled:opacity-60"
+        >
+          <DownloadSimpleIcon size={18} weight="bold" />
+          Télécharger
+        </button>
+
+        {photos.length > 1 && (
+          <>
+            <button
+              type="button"
+              onClick={showPreviousPhoto}
+              className="absolute left-4 z-10 rounded-full bg-white/10 p-3 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              title="Photo précédente"
+            >
+              <CaretLeftIcon size={30} weight="bold" />
+            </button>
+            <button
+              type="button"
+              onClick={showNextPhoto}
+              className="absolute right-4 z-10 rounded-full bg-white/10 p-3 text-white backdrop-blur-sm transition-colors hover:bg-white/20"
+              title="Photo suivante"
+            >
+              <CaretRightIcon size={30} weight="bold" />
+            </button>
+          </>
+        )}
+
+        <div className="relative h-[85vh] w-[92vw] max-w-7xl">
+          <Image
+            src={photos[fullscreenIndex]}
+            alt={`Photo ${fullscreenIndex + 1}`}
+            fill
+            sizes="92vw"
+            className="object-contain"
+            priority
+          />
+        </div>
+      </div>
+    )}
+    </>
   );
 }
