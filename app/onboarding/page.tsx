@@ -3,6 +3,7 @@
 import React, { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { UserIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { OnboardingShell } from "@/components/onboarding/OnboardingShell";
 import { WelcomeStep } from "@/components/onboarding/steps/1-WelcomeStep";
 import { UserTypeStep } from "@/components/onboarding/steps/2-UserTypeStep";
@@ -14,8 +15,11 @@ import { OwnerReadyStep } from "@/components/onboarding/steps/owner/4-OwnerReady
 import { AgentInfoStep } from "@/components/onboarding/steps/agent/3-AgentInfoStep";
 import { AgentDetailsStep } from "@/components/onboarding/steps/agent/4-AgentDetailsStep";
 import { AgentReadyStep } from "@/components/onboarding/steps/agent/5-AgentReadyStep";
+import { Button } from "@/components/ui/Button";
+import { Input } from "@/components/ui/input";
 
 type RoogoUserType = "renter" | "owner" | "agent" | "staff" | "founder" | "regular";
+type NameErrors = { firstName?: string; lastName?: string; form?: string };
 
 function hasCompletedOnboarding(metadata: Record<string, unknown>) {
   return (
@@ -51,6 +55,159 @@ function clampStep(step: unknown, userType?: RoogoUserType) {
   return Math.min(Math.max(Math.trunc(parsedStep), 1), getTotalSteps(userType));
 }
 
+function hasRequiredName(user?: { firstName?: string | null; lastName?: string | null } | null) {
+  return Boolean(user?.firstName?.trim() && user?.lastName?.trim());
+}
+
+function FieldError({ message }: { message?: string }) {
+  if (!message) return null;
+
+  return (
+    <p className="mt-1.5 flex items-center gap-1.5 text-xs font-medium text-red-400">
+      <WarningCircleIcon size={13} weight="fill" />
+      {message}
+    </p>
+  );
+}
+
+function RequiredNameGate({
+  initialFirstName,
+  initialLastName,
+  isSubmitting,
+  onSave,
+}: {
+  initialFirstName?: string | null;
+  initialLastName?: string | null;
+  isSubmitting: boolean;
+  onSave: (name: { firstName: string; lastName: string }) => Promise<void>;
+}) {
+  const [firstName, setFirstName] = useState(initialFirstName?.trim() ?? "");
+  const [lastName, setLastName] = useState(initialLastName?.trim() ?? "");
+  const [errors, setErrors] = useState<NameErrors>({});
+
+  useEffect(() => {
+    setFirstName(initialFirstName?.trim() ?? "");
+    setLastName(initialLastName?.trim() ?? "");
+  }, [initialFirstName, initialLastName]);
+
+  const handleSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const trimmedFirstName = firstName.trim();
+    const trimmedLastName = lastName.trim();
+    const nextErrors: NameErrors = {};
+
+    if (!trimmedFirstName) {
+      nextErrors.firstName = "Entrez votre prénom pour continuer.";
+    }
+
+    if (!trimmedLastName) {
+      nextErrors.lastName = "Entrez votre nom pour continuer.";
+    }
+
+    if (nextErrors.firstName || nextErrors.lastName) {
+      setErrors(nextErrors);
+      return;
+    }
+
+    setErrors({});
+
+    try {
+      await onSave({ firstName: trimmedFirstName, lastName: trimmedLastName });
+    } catch (error) {
+      console.error("Error saving required name:", error);
+      setErrors({
+        form: "Impossible d'enregistrer votre nom. Veuillez réessayer.",
+      });
+    }
+  };
+
+  return (
+    <div className="w-full max-w-md space-y-8">
+      <div className="mx-auto flex h-20 w-20 items-center justify-center rounded-2xl border border-primary/20 bg-primary/10 shadow-xl">
+        <UserIcon size={40} weight="fill" className="text-primary" />
+      </div>
+
+      <div className="space-y-3 text-center">
+        <h2 className="text-3xl font-bold tracking-tight text-white">
+          Complétez votre profil
+        </h2>
+        <p className="leading-relaxed text-neutral-400">
+          Ajoutez votre prénom et votre nom pour continuer à utiliser Roogo.
+        </p>
+      </div>
+
+      <form onSubmit={handleSubmit} className="space-y-5 text-left">
+        <div className="space-y-2">
+          <label
+            htmlFor="required-first-name"
+            className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-400"
+          >
+            <UserIcon size={14} weight="bold" className="text-primary" />
+            Prénom *
+          </label>
+          <Input
+            id="required-first-name"
+            autoComplete="given-name"
+            value={firstName}
+            onChange={(event) => {
+              setFirstName(event.target.value);
+              setErrors((current) => ({ ...current, firstName: undefined, form: undefined }));
+            }}
+            disabled={isSubmitting}
+            className={`h-14 rounded-xl bg-[#1C1510] text-base font-bold text-white ${
+              errors.firstName
+                ? "border-red-500/70 focus-visible:ring-red-500"
+                : "border-[#3D3027] focus-visible:ring-primary"
+            }`}
+            placeholder="Votre prénom"
+          />
+          <FieldError message={errors.firstName} />
+        </div>
+
+        <div className="space-y-2">
+          <label
+            htmlFor="required-last-name"
+            className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-400"
+          >
+            <UserIcon size={14} weight="bold" className="text-primary" />
+            Nom *
+          </label>
+          <Input
+            id="required-last-name"
+            autoComplete="family-name"
+            value={lastName}
+            onChange={(event) => {
+              setLastName(event.target.value);
+              setErrors((current) => ({ ...current, lastName: undefined, form: undefined }));
+            }}
+            disabled={isSubmitting}
+            className={`h-14 rounded-xl bg-[#1C1510] text-base font-bold text-white ${
+              errors.lastName
+                ? "border-red-500/70 focus-visible:ring-red-500"
+                : "border-[#3D3027] focus-visible:ring-primary"
+            }`}
+            placeholder="Votre nom"
+          />
+          <FieldError message={errors.lastName} />
+        </div>
+
+        <FieldError message={errors.form} />
+
+        <Button
+          type="submit"
+          disabled={isSubmitting}
+          variant="primary"
+          size="lg"
+          className="h-14 w-full rounded-xl text-lg font-bold shadow-lg"
+        >
+          {isSubmitting ? "Enregistrement..." : "Enregistrer"}
+        </Button>
+      </form>
+    </div>
+  );
+}
+
 export default function OnboardingPage() {
   const { user, isLoaded } = useUser();
   const { getToken } = useAuth();
@@ -76,6 +233,7 @@ export default function OnboardingPage() {
 
   const effectiveUserType = selectedUserType ?? userType;
   const totalSteps = getTotalSteps(effectiveUserType);
+  const requiresName = isLoaded && user ? !hasRequiredName(user) : false;
 
   const updateMetadata = async (payload: Record<string, unknown>) => {
     const token = await getToken();
@@ -240,8 +398,24 @@ export default function OnboardingPage() {
     }
   };
 
+  const handleRequiredNameSave = async (name: { firstName: string; lastName: string }) => {
+    if (!user) return;
+
+    setIsSubmitting(true);
+    try {
+      await updateMetadata(name);
+      await user.reload();
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const handleFinish = async () => {
     if (!effectiveUserType) return;
+    if (!hasRequiredName(user)) {
+      alert("Ajoutez votre prénom et votre nom pour continuer.");
+      return;
+    }
 
     setIsSubmitting(true);
     try {
@@ -267,6 +441,19 @@ export default function OnboardingPage() {
       <div className="fixed inset-0 bg-[#2B241D] flex items-center justify-center">
         <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin" />
       </div>
+    );
+  }
+
+  if (requiresName) {
+    return (
+      <OnboardingShell currentStep={1} totalSteps={totalSteps}>
+        <RequiredNameGate
+          initialFirstName={user?.firstName}
+          initialLastName={user?.lastName}
+          isSubmitting={isSubmitting}
+          onSave={handleRequiredNameSave}
+        />
+      </OnboardingShell>
     );
   }
 
