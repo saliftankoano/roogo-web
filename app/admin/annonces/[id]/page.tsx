@@ -46,6 +46,13 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
+import {
+  formatXofAmount,
+  getDailyConditionRows,
+  getPricePeriodLabel,
+  getPriceTitle,
+  isDailyRental,
+} from "@/lib/rental-period";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -415,6 +422,9 @@ export default function ListingDetailPage() {
         </Button>
       </div>
     );
+
+  const isDailyListing = isDailyRental(listing);
+  const dailyConditionRows = getDailyConditionRows(listing);
 
   return (
     <div className="max-w-7xl mx-auto p-6 lg:p-10 space-y-10 relative">
@@ -1006,7 +1016,7 @@ export default function ListingDetailPage() {
                 <CurrencyCircleDollarIcon size={24} weight="bold" />
               </div>
               <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                Prix du loyer
+                {getPriceTitle(listing)}
               </p>
             </div>
             {isEditing ? (
@@ -1018,30 +1028,44 @@ export default function ListingDetailPage() {
                   className="text-3xl font-black text-neutral-900 tracking-tight bg-neutral-50 border border-neutral-200 rounded-lg px-2 py-1 w-40"
                 />
                 <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider">
-                  FCFA / mois
+                  {getPricePeriodLabel(listing)}
                 </span>
               </div>
             ) : (
               <p className="text-3xl font-black text-neutral-900 tracking-tight">
-                {listing.price.toLocaleString()}{" "}
+                {formatXofAmount(listing.price)}{" "}
                 <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">
-                  FCFA / mois
+                  {getPricePeriodLabel(listing)}
                 </span>
               </p>
             )}
             <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4 text-xs font-bold text-neutral-500">
-              <div className="flex items-center justify-between">
-                <span>Caution remboursable</span>
-                <span className="text-neutral-900">
-                  {listing.deposit ?? 0} mois
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span>Loyer d&apos;avance</span>
-                <span className="text-neutral-900">
-                  {listing.loyerAvanceMois ?? 1} mois
-                </span>
-              </div>
+              {isDailyListing ? (
+                dailyConditionRows.map((row) => (
+                  <div
+                    key={row.label}
+                    className="flex items-center justify-between"
+                  >
+                    <span>{row.label}</span>
+                    <span className="text-neutral-900">{row.value}</span>
+                  </div>
+                ))
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <span>Caution remboursable</span>
+                    <span className="text-neutral-900">
+                      {listing.deposit ?? 0} mois
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span>Loyer d&apos;avance</span>
+                    <span className="text-neutral-900">
+                      {listing.loyerAvanceMois ?? 1} mois
+                    </span>
+                  </div>
+                </>
+              )}
             </div>
           </section>
 

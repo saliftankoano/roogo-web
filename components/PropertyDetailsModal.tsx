@@ -24,6 +24,10 @@ import {
 } from "@phosphor-icons/react";
 import Image from "next/image";
 import { Property } from "@/lib/data";
+import {
+  formatXofAmount,
+  getPricePeriodLabel,
+} from "@/lib/rental-period";
 import { useState, useEffect, useRef } from "react";
 import { usePropertyEngagement } from "@/hooks/usePropertyEngagement";
 import { KuulaEmbed } from "@/components/virtual-tour/KuulaEmbed";
@@ -62,10 +66,6 @@ export default function PropertyDetailsModal({
     });
 
   // if (!property) return null;
-
-  const formatPrice = (price: string) => {
-    return parseInt(price).toLocaleString("fr-FR");
-  };
 
   const getAmenityIcon = (amenity: string) => {
     const lower = amenity.toLowerCase();
@@ -243,13 +243,11 @@ export default function PropertyDetailsModal({
                     </div>
                     <div className="text-right">
                       <div className="text-3xl font-bold text-primary">
-                        {formatPrice(property.price)} F
+                        {formatXofAmount(property.price)}
                       </div>
-                      {property.period && (
-                        <div className="text-sm text-neutral-500 font-medium mt-1">
-                          par {property.period}
-                        </div>
-                      )}
+                      <div className="text-sm text-neutral-500 font-medium mt-1">
+                        {getPricePeriodLabel(property)}
+                      </div>
                     </div>
                   </div>
 

@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { BedIcon, BathtubIcon, RulerIcon, LightningIcon, SealCheckIcon } from "@phosphor-icons/react";
 import { Property } from "@/lib/data";
+import { formatXofAmount, getPricePeriodLabel } from "@/lib/rental-period";
 import { cn } from "@/lib/utils";
 
 interface PropertyCardProps {
@@ -128,7 +129,10 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
       <div className="px-6 pb-6 pt-2 flex flex-col grow">
         <div className="flex items-center gap-2 mb-2">
           <span className="text-2xl font-bold text-neutral-900">
-            {parseInt(property.price).toLocaleString()} F
+            {formatXofAmount(property.price)}
+          </span>
+          <span className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+            {getPricePeriodLabel(property)}
           </span>
           <span className="text-xs text-neutral-400 font-medium">
             • {timePosted}

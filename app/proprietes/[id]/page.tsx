@@ -40,6 +40,13 @@ import PropertyPaymentModal from "@/components/payment/PropertyPaymentModal";
 import { cn } from "@/lib/utils";
 import { VIEW_TRACKED_PROPERTIES_SESSION_KEY } from "@/lib/view-tracking";
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
+import {
+  formatXofAmount,
+  getDailyConditionRows,
+  getPricePeriodLabel,
+  getPriceTitle,
+  isDailyRental,
+} from "@/lib/rental-period";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -301,6 +308,8 @@ export default function PropertyDetailPage() {
   }
 
   const rentAmount = Number(listing.price);
+  const isDailyListing = isDailyRental(listing);
+  const dailyConditionRows = getDailyConditionRows(listing);
   const depositMonths = Number(listing.deposit ?? 0);
   const advanceRentMonths = Number(listing.loyerAvanceMois ?? 1);
   const moveInBreakdown = getMoveInPaymentBreakdown({
@@ -308,25 +317,29 @@ export default function PropertyDetailPage() {
     cautionMois: depositMonths,
     loyerAvanceMois: advanceRentMonths,
   });
-  const canApply = isRenter && listing.status === "en_ligne" && !hasApplied;
-  const canPay = isRenter && listing.status === "en_ligne" && rentAmount > 0;
+  const canApply =
+    !isDailyListing && isRenter && listing.status === "en_ligne" && !hasApplied;
+  const canPay =
+    !isDailyListing && isRenter && listing.status === "en_ligne" && rentAmount > 0;
 
   return (
     <>
-      <PropertyPaymentModal
-        isOpen={showPaymentModal}
-        onClose={() => setShowPaymentModal(false)}
-        onSuccess={handlePaymentSuccess}
-        propertyId={id}
-        propertyLabel={`Propriété au ${listing.location}`}
-        rentAmount={rentAmount}
-        depositMonths={depositMonths}
-        advanceRentMonths={advanceRentMonths}
-      />
+      {!isDailyListing && (
+        <PropertyPaymentModal
+          isOpen={showPaymentModal}
+          onClose={() => setShowPaymentModal(false)}
+          onSuccess={handlePaymentSuccess}
+          propertyId={id}
+          propertyLabel={`Propriété au ${listing.location}`}
+          rentAmount={rentAmount}
+          depositMonths={depositMonths}
+          advanceRentMonths={advanceRentMonths}
+        />
+      )}
 
       <Portal>
         <AnimatePresence>
-          {showLockConfirm && (
+          {!isDailyListing && showLockConfirm && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLockConfirm(false)} />
@@ -548,23 +561,47 @@ export default function PropertyDetailPage() {
                   <div className="w-10 h-10 rounded-xl bg-primary/5 flex items-center justify-center text-primary">
                     <CurrencyCircleDollarIcon size={24} weight="bold" />
                   </div>
-                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Prix du loyer</p>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    {getPriceTitle(listing)}
+                  </p>
                 </div>
                 <p className="text-3xl font-black text-neutral-900 tracking-tight">
-                  {parseInt(listing.price).toLocaleString("fr-FR")}{" "}
-                  <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">FCFA / mois</span>
+                  {formatXofAmount(listing.price)}{" "}
+                  <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">
+                    {getPricePeriodLabel(listing)}
+                  </span>
                 </p>
-                {listing.deposit && (
-                  <p className="text-xs text-neutral-400 mt-2 font-medium">
-                    Caution: {listing.deposit} mois ({moveInBreakdown.cautionAmount.toLocaleString("fr-FR")} FCFA)
-                  </p>
+                {isDailyListing ? (
+                  <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4 text-xs font-bold text-neutral-500">
+                    {dailyConditionRows.map((row) => (
+                      <div
+                        key={row.label}
+                        className="flex items-center justify-between"
+                      >
+                        <span>{row.label}</span>
+                        <span className="text-neutral-900">{row.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <>
+                    {listing.deposit && (
+                      <p className="text-xs text-neutral-400 mt-2 font-medium">
+                        Caution: {listing.deposit} mois (
+                        {moveInBreakdown.cautionAmount.toLocaleString("fr-FR")}{" "}
+                        FCFA)
+                      </p>
+                    )}
+                    <p className="text-xs text-neutral-400 mt-1 font-medium">
+                      Loyer d&apos;avance: {moveInBreakdown.loyerAvanceMois} mois (
+                      {moveInBreakdown.advanceRentAmount.toLocaleString("fr-FR")}{" "}
+                      FCFA)
+                    </p>
+                  </>
                 )}
-                <p className="text-xs text-neutral-400 mt-1 font-medium">
-                  Loyer d&apos;avance: {moveInBreakdown.loyerAvanceMois} mois ({moveInBreakdown.advanceRentAmount.toLocaleString("fr-FR")} FCFA)
-                </p>
               </section>
 
-              {isRenter && listing.status === "en_ligne" && (
+              {isRenter && listing.status === "en_ligne" && !isDailyListing && (
                 <section className="bg-white p-6 rounded-[32px] border border-neutral-100 shadow-sm space-y-3">
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Actions</p>
                   {hasApplied && applicationStatus && (() => {

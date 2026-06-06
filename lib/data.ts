@@ -1,4 +1,9 @@
 import { supabase } from "./supabase";
+import {
+  getRentalFrequency,
+  normalizeRentalPeriod,
+  type RentalFrequency,
+} from "./rental-period";
 
 export type Property = {
   id: string;
@@ -11,6 +16,7 @@ export type Property = {
   area: string;
   parking: number;
   period?: string;
+  frequence?: RentalFrequency;
   image: string;
   images: string[];
   category: "Residential" | "Business";
@@ -30,6 +36,10 @@ export type Property = {
   created_at?: string;
   deposit?: number;
   loyerAvanceMois?: number;
+  cautionType?: string;
+  cautionValeur?: number | null;
+  sejourMinimum?: number | null;
+  capaciteMax?: number | null;
   payment_id?: string;
   transaction_id?: string;
   is_test?: boolean;
@@ -59,6 +69,7 @@ interface DBProperty {
   area: number | null;
   parking_spaces: number | null;
   period: string;
+  frequence?: string | null;
   images: string[] | null;
   property_type: string;
   is_boosted: boolean | null;
@@ -84,6 +95,10 @@ interface DBProperty {
   deposit: number | null;
   caution_mois?: number | null;
   loyer_avance_mois?: number | null;
+  caution_type?: string | null;
+  caution_valeur?: number | null;
+  sejour_minimum?: number | null;
+  capacite_max?: number | null;
   payment_id: string | null;
   transaction_id: string | null;
   primary_image: string | null;
@@ -93,6 +108,12 @@ interface DBProperty {
 
 // Helper function to map DB properties to frontend format
 function mapProperty(p: DBProperty): Property {
+  const period = normalizeRentalPeriod({
+    period: p.period,
+    frequence: p.frequence,
+  });
+  const frequence = getRentalFrequency({ period, frequence: p.frequence });
+
   return {
     id: p.id,
     owner_id: p.owner_id || undefined,
@@ -103,7 +124,8 @@ function mapProperty(p: DBProperty): Property {
     bathrooms: p.bathrooms || 0,
     area: p.area?.toString() || "0",
     parking: p.parking_spaces || 0,
-    period: p.period === "month" ? "Mois" : p.period,
+    period,
+    frequence,
     image: p.primary_image || p.images?.[0] || "/hero-bg.jpg",
     images: p.images || [],
     category: (p.property_type === "commercial"
@@ -125,6 +147,10 @@ function mapProperty(p: DBProperty): Property {
     created_at: p.created_at,
     deposit: p.caution_mois ?? p.deposit ?? undefined,
     loyerAvanceMois: p.loyer_avance_mois ?? 1,
+    cautionType: p.caution_type || undefined,
+    cautionValeur: p.caution_valeur ?? null,
+    sejourMinimum: p.sejour_minimum ?? null,
+    capaciteMax: p.capacite_max ?? null,
     payment_id: p.payment_id || undefined,
     transaction_id: p.transaction_id || undefined,
     is_test: p.is_test || false,
