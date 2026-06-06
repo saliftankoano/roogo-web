@@ -27,10 +27,12 @@ export type NotificationCopyKey =
   | "payments.renterRentPaid"
   | "payments.ownerRentReceived"
   | "payments.boostActivated"
+  | "payments.listingSubmitted"
   | "payments.listingPublished"
   | "payments.propertyReserved"
   | "payments.stayReserved"
-  | "properties.newMatch";
+  | "properties.newMatch"
+  | "properties.submittedForReview";
 
 type NotificationCopyTemplate = {
   title: string;
@@ -303,6 +305,16 @@ const notificationCopy: Record<
       body: "{propertyLabel} is now promoted for 7 days",
     },
   },
+  "payments.listingSubmitted": {
+    fr: {
+      title: "Annonce soumise",
+      body: "Votre paiement est confirmé. L'annonce est en cours de vérification.",
+    },
+    en: {
+      title: "Listing submitted",
+      body: "Your payment is confirmed. Your listing is under review.",
+    },
+  },
   "payments.listingPublished": {
     fr: {
       title: "Annonce publiée",
@@ -341,6 +353,16 @@ const notificationCopy: Record<
     en: {
       title: "New property available",
       body: "{type} in {location} matches your search.",
+    },
+  },
+  "properties.submittedForReview": {
+    fr: {
+      title: "Nouvelle annonce à vérifier",
+      body: "{propertyLabel} attend une validation.",
+    },
+    en: {
+      title: "New listing to review",
+      body: "{propertyLabel} is waiting for approval.",
     },
   },
 };

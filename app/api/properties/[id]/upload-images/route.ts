@@ -1,8 +1,8 @@
 import { cors, corsOptions } from "@/lib/api-helpers";
-import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
 
 // Increase body size limit for image uploads (Next.js App Router)
 export const maxDuration = 60; // 60 seconds
@@ -30,28 +30,9 @@ export async function POST(
     const { id: propertyId } = await params;
     console.log("Property ID:", propertyId);
 
-    // 1. Verify Clerk token
-    const auth = req.headers.get("authorization") ?? "";
-    const token = auth.replace("Bearer ", "");
-    if (!token) {
-      console.error("Missing authorization token");
-      return cors(json({ error: "Missing token" }, 401));
-    }
-
-    let clerkUserId: string | undefined;
-    try {
-      console.log("Verifying Clerk token...");
-      const { sub } = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY!,
-      });
-      clerkUserId = sub as string | undefined;
-      console.log("Clerk token verified for user:", clerkUserId);
-    } catch (error) {
-      console.error("Token verification failed:", error);
-      return cors(json({ error: "Invalid token" }, 401));
-    }
-
-    if (!clerkUserId) {
+    // 1. Verify user
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
       return cors(json({ error: "Unauthorized" }, 401));
     }
 
@@ -78,7 +59,7 @@ export async function POST(
     // 4. Verify the property exists
     const { data: property, error: propertyError } = await supabase
       .from("properties")
-      .select("id")
+      .select("id, agent_id")
       .eq("id", propertyId)
       .single();
 
@@ -87,6 +68,10 @@ export async function POST(
       return cors(
         json({ error: "Property not found or you don't have permission" }, 404)
       );
+    }
+
+    if (!isStaffOrFounder(user) && property.agent_id !== user.id) {
+      return cors(json({ error: "Forbidden" }, 403));
     }
 
     const { data: existingPrimaryRows } = await supabase
@@ -184,7 +169,7 @@ export async function POST(
         .eq("id", propertyId);
     }
 
-    await captureServerEvent(clerkUserId, "property_images_uploaded", {
+    await captureServerEvent(user.clerk_id || user.id, "property_images_uploaded", {
       property_id: propertyId,
       image_count: uploadedImages.length,
       images_linked: imageRecords.length,
@@ -220,4 +205,3 @@ export async function POST(
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status });
 }
-

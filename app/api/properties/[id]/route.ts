@@ -1,12 +1,15 @@
 import { NextRequest, NextResponse } from "next/server";
-import { auth, currentUser } from "@clerk/nextjs/server";
 import {
   processPropertyStorageCleanupQueue,
   purgePropertyListingAssets,
 } from "@/lib/property-storage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
-import { createUserInSupabase, ClerkUserData } from "../../../../lib/user-sync";
+import {
+  getAuthenticatedUser,
+  isOwnerAgentStaffOrFounder,
+  isStaffOrFounder,
+} from "@/lib/api-auth";
 
 interface PropertyPatchUpdates {
   description?: string;
@@ -34,69 +37,16 @@ export async function DELETE(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id: propertyId } = await params;
 
-    // Try to find user in Supabase
-    const { data: users } = await supabaseAdmin
-      .from("users")
-      .select("id, user_type, clerk_id")
-      .eq("clerk_id", userId)
-      .limit(1);
+    const isAdmin = isStaffOrFounder(user);
 
-    let user = users?.[0];
-
-    // Auto-sync user from Clerk if not found in Supabase
-    if (!user) {
-      try {
-        const clerkUser = await currentUser();
-        if (clerkUser) {
-          // Transform Clerk data format to match user-sync expectations
-          const transformedData = {
-            id: clerkUser.id,
-            email_addresses: clerkUser.emailAddresses?.map((e) => ({
-              email_address: e.emailAddress,
-            })),
-            first_name: clerkUser.firstName,
-            last_name: clerkUser.lastName,
-            image_url: clerkUser.imageUrl,
-            phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
-              phone_number: p.phoneNumber,
-            })),
-            public_metadata: clerkUser.publicMetadata,
-            private_metadata: clerkUser.privateMetadata,
-            unsafe_metadata: clerkUser.unsafeMetadata,
-          };
-
-          await createUserInSupabase(transformedData as ClerkUserData);
-
-          // Re-fetch user after sync
-          const { data: syncedUsers } = await supabaseAdmin
-            .from("users")
-            .select("id, user_type, clerk_id")
-            .eq("clerk_id", userId)
-            .limit(1);
-
-          user = syncedUsers?.[0];
-        }
-      } catch (syncError) {
-        console.error("Failed to auto-sync user:", syncError);
-      }
-    }
-
-    if (!user) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
-
-    const isAdmin = ["staff", "founder"].includes(user.user_type);
-    const isOwnerOrAgent = ["owner", "agent"].includes(user.user_type);
-
-    if (!isAdmin && !isOwnerOrAgent) {
+    if (!isOwnerAgentStaffOrFounder(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
@@ -179,62 +129,16 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const { userId } = await auth();
-
-    if (!userId) {
+    const user = await getAuthenticatedUser(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id: propertyId } = await params;
     const updates = (await request.json()) as PropertyPatchUpdates;
 
-    // Try to find user in Supabase
-    const { data: users } = await supabaseAdmin
-      .from("users")
-      .select("user_type, clerk_id")
-      .eq("clerk_id", userId)
-      .limit(1);
-
-    let user = users?.[0];
-
-    // Auto-sync user from Clerk if not found in Supabase
-    if (!user) {
-      try {
-        const clerkUser = await currentUser();
-        if (clerkUser) {
-          const transformedData = {
-            id: clerkUser.id,
-            email_addresses: clerkUser.emailAddresses?.map((e) => ({
-              email_address: e.emailAddress,
-            })),
-            first_name: clerkUser.firstName,
-            last_name: clerkUser.lastName,
-            image_url: clerkUser.imageUrl,
-            phone_numbers: clerkUser.phoneNumbers?.map((p) => ({
-              phone_number: p.phoneNumber,
-            })),
-            public_metadata: clerkUser.publicMetadata,
-            private_metadata: clerkUser.privateMetadata,
-            unsafe_metadata: clerkUser.unsafeMetadata,
-          };
-
-          await createUserInSupabase(transformedData as ClerkUserData);
-
-          const { data: syncedUsers } = await supabaseAdmin
-            .from("users")
-            .select("user_type, clerk_id")
-            .eq("clerk_id", userId)
-            .limit(1);
-
-          user = syncedUsers?.[0];
-        }
-      } catch (syncError) {
-        console.error("Failed to auto-sync user:", syncError);
-      }
-    }
-
     // Verify user has required privileges
-    if (!user || !["staff", "founder"].includes(user.user_type)) {
+    if (!isStaffOrFounder(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 

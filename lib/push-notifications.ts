@@ -19,7 +19,8 @@ export type NotificationType =
   | "viewingRequests"
   | "messages"
   | "payments"
-  | "newListings";
+  | "newListings"
+  | "propertyReviews";
 
 interface OnboardingData {
   notifications?: Partial<Record<NotificationType, boolean>>;

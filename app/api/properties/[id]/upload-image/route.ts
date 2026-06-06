@@ -1,7 +1,7 @@
 import { cors, corsOptions } from "@/lib/api-helpers";
-import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
+import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
 
 // Increase timeout for image uploads
 export const maxDuration = 60; // 60 seconds
@@ -27,25 +27,9 @@ export async function POST(
   try {
     const { id: propertyId } = await params;
 
-    // 1. Verify Clerk token
-    const auth = req.headers.get("authorization") ?? "";
-    const token = auth.replace("Bearer ", "");
-    if (!token) {
-      return cors(json({ error: "Missing token" }, 401));
-    }
-
-    let clerkUserId: string | undefined;
-    try {
-      const { sub } = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY!,
-      });
-      clerkUserId = sub as string | undefined;
-    } catch (error) {
-      console.error("Token verification failed:", error);
-      return cors(json({ error: "Invalid token" }, 401));
-    }
-
-    if (!clerkUserId) {
+    // 1. Verify user
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
       return cors(json({ error: "Unauthorized" }, 401));
     }
 
@@ -70,7 +54,7 @@ export async function POST(
     // 4. Verify the property exists
     const { data: property, error: propertyError } = await supabase
       .from("properties")
-      .select("id")
+      .select("id, agent_id")
       .eq("id", propertyId)
       .single();
 
@@ -79,6 +63,10 @@ export async function POST(
       return cors(
         json({ error: "Property not found or you don't have permission" }, 404)
       );
+    }
+
+    if (!isStaffOrFounder(user) && property.agent_id !== user.id) {
+      return cors(json({ error: "Forbidden" }, 403));
     }
 
     // 5. Convert base64 to buffer
@@ -161,4 +149,3 @@ export async function POST(
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status });
 }
-

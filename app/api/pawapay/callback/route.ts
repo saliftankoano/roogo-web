@@ -392,8 +392,11 @@ export async function POST(req: Request) {
         }
 
         notificationCopyKey = "payments.renterRentPaid";
-      } else if (transaction.type === "listing") {
-        notificationCopyKey = "payments.listingPublished";
+      } else if (
+        transaction.type === "listing" ||
+        transaction.type === "listing_submission"
+      ) {
+        notificationCopyKey = "payments.listingSubmitted";
       }
 
       // Send payment confirmation notification

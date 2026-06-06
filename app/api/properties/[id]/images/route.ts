@@ -1,7 +1,7 @@
 import { cors, corsOptions } from "@/lib/api-helpers";
-import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
+import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
 
 /**
  * @description Handle OPTIONS request for CORS
@@ -23,25 +23,9 @@ export async function POST(
   try {
     const { id: propertyId } = await params;
 
-    // 1. Verify Clerk token
-    const auth = req.headers.get("authorization") ?? "";
-    const token = auth.replace("Bearer ", "");
-    if (!token) {
-      return cors(json({ error: "Missing token" }, 401));
-    }
-
-    let clerkUserId: string | undefined;
-    try {
-      const { sub } = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY!,
-      });
-      clerkUserId = sub as string | undefined;
-    } catch (error) {
-      console.error("Token verification failed:", error);
-      return cors(json({ error: "Invalid token" }, 401));
-    }
-
-    if (!clerkUserId) {
+    // 1. Verify user
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
       return cors(json({ error: "Unauthorized" }, 401));
     }
 
@@ -71,6 +55,10 @@ export async function POST(
           404
         )
       );
+    }
+
+    if (!isStaffOrFounder(user) && property.agent_id !== user.id) {
+      return cors(json({ error: "Forbidden" }, 403));
     }
 
     // 5. Create image records
@@ -134,25 +122,9 @@ export async function DELETE(
   try {
     const { id: propertyId } = await params;
 
-    // 1. Verify Clerk token
-    const auth = req.headers.get("authorization") ?? "";
-    const token = auth.replace("Bearer ", "");
-    if (!token) {
-      return cors(json({ error: "Missing token" }, 401));
-    }
-
-    let clerkUserId: string | undefined;
-    try {
-      const { sub } = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY!,
-      });
-      clerkUserId = sub as string | undefined;
-    } catch (error) {
-      console.error("Token verification failed:", error);
-      return cors(json({ error: "Invalid token" }, 401));
-    }
-
-    if (!clerkUserId) {
+    // 1. Verify user
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
       return cors(json({ error: "Unauthorized" }, 401));
     }
 
@@ -166,6 +138,20 @@ export async function DELETE(
 
     // 3. Get Supabase client (service role)
     const supabase = getSupabaseClient();
+
+    const { data: property, error: propertyError } = await supabase
+      .from("properties")
+      .select("id, agent_id")
+      .eq("id", propertyId)
+      .single();
+
+    if (propertyError || !property) {
+      return cors(json({ error: "Property not found" }, 404));
+    }
+
+    if (!isStaffOrFounder(user) && property.agent_id !== user.id) {
+      return cors(json({ error: "Forbidden" }, 403));
+    }
 
     // 4. Delete from database
     const { error: dbError } = await supabase
@@ -224,25 +210,9 @@ export async function PATCH(
   try {
     const { id: propertyId } = await params;
 
-    // 1. Verify Clerk token
-    const auth = req.headers.get("authorization") ?? "";
-    const token = auth.replace("Bearer ", "");
-    if (!token) {
-      return cors(json({ error: "Missing token" }, 401));
-    }
-
-    let clerkUserId: string | undefined;
-    try {
-      const { sub } = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY!,
-      });
-      clerkUserId = sub as string | undefined;
-    } catch (error) {
-      console.error("Token verification failed:", error);
-      return cors(json({ error: "Invalid token" }, 401));
-    }
-
-    if (!clerkUserId) {
+    // 1. Verify user
+    const user = await getAuthenticatedUser(req);
+    if (!user) {
       return cors(json({ error: "Unauthorized" }, 401));
     }
 
@@ -256,6 +226,20 @@ export async function PATCH(
 
     // 3. Get Supabase client (service role)
     const supabase = getSupabaseClient();
+
+    const { data: property, error: propertyError } = await supabase
+      .from("properties")
+      .select("id, agent_id")
+      .eq("id", propertyId)
+      .single();
+
+    if (propertyError || !property) {
+      return cors(json({ error: "Property not found" }, 404));
+    }
+
+    if (!isStaffOrFounder(user) && property.agent_id !== user.id) {
+      return cors(json({ error: "Forbidden" }, 403));
+    }
 
     // 4. Update database: Set all to false, then target to true
     // First, set all images for this property to is_primary = false
@@ -301,4 +285,3 @@ export async function PATCH(
 function json(body: unknown, status = 200) {
   return NextResponse.json(body, { status });
 }
-

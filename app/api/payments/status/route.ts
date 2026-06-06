@@ -432,7 +432,7 @@ export async function POST(req: Request) {
             })
             .eq("id", transaction.property_id);
 
-          notificationCopyKey = "payments.listingPublished";
+          notificationCopyKey = "payments.listingSubmitted";
         } else if (
           transaction.type === "rent_payment" &&
           transaction.metadata

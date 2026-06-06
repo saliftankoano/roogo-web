@@ -1,53 +1,21 @@
 import { NextRequest, NextResponse } from "next/server";
-import { createClient } from "@supabase/supabase-js";
-import { auth } from "@clerk/nextjs/server";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
-
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getStaffOrFounder } from "@/lib/api-auth";
 
 export async function PATCH(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { userId } = await auth();
-    if (!userId) {
+    const user = await getStaffOrFounder(request);
+    if (!user) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
     const { id: propertyId } = await params;
-
-    // Verify user is staff
-    // Use maybeSingle() instead of single() to handle 0 rows gracefully
-    const { data: user, error: userError } = await supabaseAdmin
-      .from("users")
-      .select("user_type")
-      .eq("clerk_id", userId)
-      .maybeSingle();
-
-    if (userError) {
-      console.error("Error fetching user:", userError);
-      return NextResponse.json({ error: "User fetch failed" }, { status: 500 });
-    }
-
-    if (!user) {
-      console.error("User not found for clerk_id:", userId);
-      // If user is not found in Supabase but has a valid Clerk token,
-      // it might be a sync issue. We can try to sync or just return 403.
-      // For now, let's return 403 Forbidden as they are not authorized staff/founder.
-      return NextResponse.json({ error: "User not found in database" }, { status: 403 });
-    }
-
-    console.log("User updating status:", userId, "Type:", user.user_type);
-
-    if (!["staff", "founder"].includes(user.user_type)) {
-      console.error("Forbidden access for user type:", user.user_type);
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
-    }
 
     const body = await request.json();
     const { status } = body;
@@ -61,35 +29,53 @@ export async function PATCH(
 
     const updateData: Record<string, string | boolean | null> = { status };
 
+    const { data: existingProperty, error: propertyError } = await supabaseAdmin
+      .from("properties")
+      .select("agent_id, is_boosted, status")
+      .eq("id", propertyId)
+      .maybeSingle();
+
+    if (propertyError) {
+      console.error("Error fetching property before status update:", propertyError);
+      return NextResponse.json({ error: "Property fetch failed" }, { status: 500 });
+    }
+
+    if (!existingProperty) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+    }
+
+    const isGoingLive = status === "en_ligne";
+    const wasAlreadyLive = existingProperty?.status === "en_ligne";
+
     // Post-approval logic: set published_at and refresh boost expiration
     if (status === "en_ligne") {
       updateData.published_at = new Date().toISOString();
 
-      // Check if property is boosted to refresh its expiration date
-      const { data: property } = await supabaseAdmin
-        .from("properties")
-        .select("is_boosted")
-        .eq("id", propertyId)
-        .single();
-
-      if (property?.is_boosted) {
+      if (existingProperty?.is_boosted) {
         const boostExpiresAt = new Date();
         boostExpiresAt.setDate(boostExpiresAt.getDate() + 7);
         updateData.boost_expires_at = boostExpiresAt.toISOString();
       }
     }
 
-    const { error } = await supabaseAdmin
+    let updateQuery = supabaseAdmin
       .from("properties")
       .update(updateData)
       .eq("id", propertyId);
 
-    if (!error) {
-      await captureServerEvent(userId, "property_listing_published", {
+    if (isGoingLive) {
+      updateQuery = updateQuery.neq("status", "en_ligne");
+    }
+
+    const { data: updatedRows, error } = await updateQuery.select("id");
+    const didTransition = !error && (!isGoingLive || Boolean(updatedRows?.length));
+
+    if (!error && didTransition) {
+      await captureServerEvent(user.clerk_id || user.id, "property_listing_published", {
         property_id: propertyId,
         status_change: `to_${status}`,
         actor_type: user.user_type,
-        is_boost_refresh: status === "en_ligne",
+        is_boost_refresh: isGoingLive,
       });
     }
 
@@ -98,7 +84,22 @@ export async function PATCH(
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    if (status === "en_ligne") {
+    if (isGoingLive && !wasAlreadyLive && didTransition && existingProperty?.agent_id) {
+      await notifyUserWithTemplate(
+        existingProperty.agent_id,
+        "payments",
+        "payments.listingPublished",
+        undefined,
+        {
+          type: "listing_published",
+          propertyId,
+        },
+      ).catch((notifyError) => {
+        console.error("Owner listing published notification failed:", notifyError);
+      });
+    }
+
+    if (isGoingLive && !wasAlreadyLive && didTransition) {
       await notifyRentersOfNewMatchingProperty(propertyId).catch((notifyError) => {
         console.error("New matching property notification failed:", notifyError);
       });
