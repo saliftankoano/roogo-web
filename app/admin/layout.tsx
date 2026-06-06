@@ -3,6 +3,10 @@ import { AdminNavbar } from "../../components/admin/AdminNavbar";
 import { Footer } from "../../components/Footer";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { redirect } from "next/navigation";
+import {
+  getUserTypeFromMetadata,
+  isStaffLikeUserType,
+} from "@/lib/user-types";
 
 export const metadata: Metadata = {
   title: "Administration | Roogo",
@@ -22,11 +26,9 @@ export default async function AdminLayout({
 
   // Double check user metadata for staff role
   const user = await currentUser();
-  const userType = user?.publicMetadata?.userType;
+  const userType = getUserTypeFromMetadata(user?.publicMetadata);
 
-  // Only allow staff, admin, and founder user types to access admin
-  const allowedTypes = ["staff", "admin", "founder"];
-  if (!userType || !allowedTypes.includes(userType as string)) {
+  if (!isStaffLikeUserType(userType)) {
     redirect("/");
   }
 

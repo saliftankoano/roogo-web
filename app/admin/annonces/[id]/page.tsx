@@ -46,6 +46,7 @@ import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
+import { isStaffLikeMetadata } from "@/lib/user-types";
 import {
   formatXofAmount,
   getDailyConditionRows,
@@ -142,9 +143,7 @@ export default function ListingDetailPage() {
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
 
-  const isStaffOrFounder = ["staff", "founder"].includes(
-    clerkUser?.publicMetadata?.userType as string,
-  );
+  const isStaffOrFounder = isStaffLikeMetadata(clerkUser?.publicMetadata);
 
   const startEditing = () => {
     if (!listing) return;
@@ -199,7 +198,7 @@ export default function ListingDetailPage() {
     return String(value);
   };
 
-  const getChangedFields = () => {
+  const getChangedFields = (candidate: Partial<Property> = editForm) => {
     if (!listing) return [];
     const changes: {
       field: string;
@@ -224,11 +223,11 @@ export default function ListingDetailPage() {
     ];
 
     fields.forEach(({ key, label }) => {
-      if (editForm[key] !== undefined && editForm[key] !== listing[key]) {
+      if (candidate[key] !== undefined && candidate[key] !== listing[key]) {
         changes.push({
           field: key,
           old: listing[key],
-          new: editForm[key],
+          new: candidate[key],
           label,
         });
       }
@@ -236,13 +235,13 @@ export default function ListingDetailPage() {
 
     // Check amenities separately
     if (
-      editForm.amenities &&
-      JSON.stringify(editForm.amenities) !== JSON.stringify(listing.amenities)
+      candidate.amenities &&
+      JSON.stringify(candidate.amenities) !== JSON.stringify(listing.amenities)
     ) {
       changes.push({
         field: "amenities",
         old: listing.amenities.join(", "),
-        new: editForm.amenities.join(", "),
+        new: candidate.amenities.join(", "),
         label: "Commodités",
       });
     }
@@ -251,9 +250,17 @@ export default function ListingDetailPage() {
   };
 
   const handleSaveClick = () => {
+    let nextEditForm = editForm;
     if (typeof editForm.virtualTourUrl === "string") {
       try {
-        normalizeKuulaVirtualTourUrl(editForm.virtualTourUrl);
+        const normalizedVirtualTourUrl = normalizeKuulaVirtualTourUrl(
+          editForm.virtualTourUrl,
+        );
+        nextEditForm = {
+          ...editForm,
+          virtualTourUrl: normalizedVirtualTourUrl ?? undefined,
+        };
+        setEditForm(nextEditForm);
       } catch (error) {
         setEditError(
           error instanceof Error
@@ -264,7 +271,7 @@ export default function ListingDetailPage() {
       }
     }
 
-    if (getChangedFields().length === 0) {
+    if (getChangedFields(nextEditForm).length === 0) {
       setIsEditing(false);
       return;
     }
@@ -274,15 +281,20 @@ export default function ListingDetailPage() {
   const confirmSave = async () => {
     if (!listing) return;
     setIsSaving(true);
-    const success = await updateProperty(listing.id, editForm);
+    const result = await updateProperty(listing.id, editForm);
     setIsSaving(false);
-    if (success) {
-      setListing({ ...listing, ...editForm } as Property);
+    if (result.success) {
+      setListing({
+        ...listing,
+        ...editForm,
+        virtualTourUrl:
+          result.property?.virtualTourUrl ?? editForm.virtualTourUrl,
+      } as Property);
       setIsEditing(false);
       setConfirmEditModalOpen(false);
       setEditForm({});
     } else {
-      alert("Erreur lors de la mise à jour du bien");
+      alert(result.error || "Erreur lors de la mise à jour du bien");
     }
   };
   const [statusModalOpen, setStatusModalOpen] = useState(false);

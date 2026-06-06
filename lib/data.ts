@@ -456,7 +456,11 @@ export async function deleteProperty(id: string): Promise<boolean> {
 export async function updateProperty(
   id: string,
   updates: Partial<Property>,
-): Promise<boolean> {
+): Promise<{
+  success: boolean;
+  error?: string;
+  property?: Partial<Property>;
+}> {
   try {
     const response = await fetch(`/api/properties/${id}`, {
       method: "PATCH",
@@ -467,12 +471,25 @@ export async function updateProperty(
     });
 
     if (!response.ok) {
-      console.error("Error updating property:", await response.text());
-      return false;
+      const text = await response.text();
+      console.error("Error updating property:", text);
+      try {
+        const payload = JSON.parse(text);
+        return { success: false, error: payload.error };
+      } catch {
+        return { success: false, error: text };
+      }
     }
-    return true;
+    const payload = await response.json();
+    return {
+      success: true,
+      property: payload.property,
+    };
   } catch (error) {
     console.error("Error updating property:", error);
-    return false;
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : String(error),
+    };
   }
 }

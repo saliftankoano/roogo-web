@@ -36,6 +36,11 @@ interface AmenityRow {
   name: string;
 }
 
+interface PropertyUpdateRow {
+  id: string;
+  virtual_tour_url: string | null;
+}
+
 interface PropertySourceTextRow {
   description: string | null;
   dos_and_donts: string[] | null;
@@ -229,14 +234,36 @@ export async function PATCH(
       }
     }
 
-    const { error } = await supabaseAdmin
-      .from("properties")
-      .update(dbUpdates)
-      .eq("id", propertyId);
+    let updatedProperty: PropertyUpdateRow | null = null;
+    if (Object.keys(dbUpdates).length > 0) {
+      const { data, error } = await supabaseAdmin
+        .from("properties")
+        .update(dbUpdates)
+        .eq("id", propertyId)
+        .select("id, virtual_tour_url")
+        .maybeSingle();
 
-    if (error) {
-      console.error("Error updating property:", error);
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      if (error) {
+        console.error("Error updating property:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      updatedProperty = data;
+    } else {
+      const { data, error } = await supabaseAdmin
+        .from("properties")
+        .select("id, virtual_tour_url")
+        .eq("id", propertyId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error fetching property before update:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+      updatedProperty = data;
+    }
+
+    if (!updatedProperty) {
+      return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
     // Handle amenities separately if provided
@@ -269,7 +296,13 @@ export async function PATCH(
       }
     }
 
-    return NextResponse.json({ success: true });
+    return NextResponse.json({
+      success: true,
+      property: {
+        id: updatedProperty.id,
+        virtualTourUrl: updatedProperty.virtual_tour_url || undefined,
+      },
+    });
   } catch (error) {
     console.error("API error:", error);
     return NextResponse.json(

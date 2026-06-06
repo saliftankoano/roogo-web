@@ -1,4 +1,5 @@
 const KUULA_HOSTS = new Set(["kuula.co", "www.kuula.co"]);
+const MAX_KUULA_URL_LENGTH = 2048;
 
 const KUULA_DEFAULT_PARAMS = {
   logo: "1",
@@ -12,6 +13,7 @@ const KUULA_DEFAULT_PARAMS = {
 export function isKuulaShareUrl(url: URL): boolean {
   return (
     KUULA_HOSTS.has(url.hostname.toLowerCase()) &&
+    url.protocol === "https:" &&
     url.pathname.startsWith("/share/")
   );
 }
@@ -23,6 +25,10 @@ export function normalizeKuulaVirtualTourUrl(
 
   const trimmed = input.trim();
   if (!trimmed) return null;
+
+  if (trimmed.length > MAX_KUULA_URL_LENGTH) {
+    throw new Error("Le lien Kuula est trop long.");
+  }
 
   if (/[<>]/.test(trimmed) || /<(script|iframe)\b/i.test(trimmed)) {
     throw new Error(
@@ -38,7 +44,7 @@ export function normalizeKuulaVirtualTourUrl(
   }
 
   if (!isKuulaShareUrl(parsed)) {
-    throw new Error("Le lien doit être un lien de partage Kuula valide.");
+    throw new Error("Le lien doit être un lien de partage Kuula HTTPS valide.");
   }
 
   parsed.hash = "";
