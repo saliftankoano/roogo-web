@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import { PhoneIcon, BellIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { z } from "zod";
@@ -21,6 +21,10 @@ type FieldErrors = { phone?: string };
 
 interface RenterContactStepProps {
   onNext: (info: { phone: string; notifications: { newListings: boolean } }) => void;
+  initialValues?: {
+    phone?: string | null;
+    notifications?: { newListings?: boolean } | null;
+  };
 }
 
 function FieldError({ msg }: { msg?: string }) {
@@ -33,12 +37,28 @@ function FieldError({ msg }: { msg?: string }) {
   );
 }
 
-export function RenterContactStep({ onNext }: RenterContactStepProps) {
+function getLocalPhoneDigits(value?: string | null) {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("226")) return digits.slice(3);
+  if (digits.length === 9 && digits.startsWith("0")) return digits.slice(1);
+  return digits.slice(0, BF_DIGITS);
+}
+
+export function RenterContactStep({
+  onNext,
+  initialValues,
+}: RenterContactStepProps) {
   const [phone, setPhone] = useState("");
   const [newListings, setNewListings] = useState(true);
   const [errors, setErrors] = useState<FieldErrors>({});
   const [shakeKey, setShakeKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  useEffect(() => {
+    setPhone(getLocalPhoneDigits(initialValues?.phone));
+    setNewListings(initialValues?.notifications?.newListings ?? true);
+    setErrors({});
+  }, [initialValues]);
 
   const handleChange = (raw: string) => {
     const digits = raw.replace(/\D/g, "").slice(0, BF_DIGITS);

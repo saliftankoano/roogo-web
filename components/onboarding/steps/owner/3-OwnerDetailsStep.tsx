@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   PhoneIcon,
@@ -41,8 +41,14 @@ const ownerDetailsSchema = z
     }),
   })
   .superRefine((data, ctx) => {
-    if (!data.isSameAsPhone && data.whatsapp !== undefined && data.whatsapp !== "") {
-      if (data.whatsapp.length < BF_DIGITS) {
+    if (!data.isSameAsPhone) {
+      if (!data.whatsapp) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["whatsapp"],
+          message: "Entrez votre numéro WhatsApp",
+        });
+      } else if (data.whatsapp.length !== BF_DIGITS) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["whatsapp"],
@@ -76,6 +82,13 @@ interface OwnerDetailsStepProps {
     propertyAvailable: string;
     notifications: OwnerNotifications;
   }) => void;
+  initialValues?: {
+    phone?: string | null;
+    whatsapp?: string | null;
+    propertyCity?: string | null;
+    propertyAvailable?: string | null;
+    notifications?: Partial<OwnerNotifications> | null;
+  };
 }
 
 const CITIES = ["Ouagadougou", "Bobo-Dioulasso"] as const;
@@ -139,10 +152,20 @@ function PhoneInput({
   );
 }
 
-export function OwnerDetailsStep({ onNext }: OwnerDetailsStepProps) {
+function getLocalPhoneDigits(value?: string | null) {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("226")) return digits.slice(3);
+  if (digits.length === 9 && digits.startsWith("0")) return digits.slice(1);
+  return digits.slice(0, BF_DIGITS);
+}
+
+export function OwnerDetailsStep({
+  onNext,
+  initialValues,
+}: OwnerDetailsStepProps) {
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [isSameAsPhone, setIsSameAsPhone] = useState(false);
+  const [isSameAsPhone, setIsSameAsPhone] = useState(true);
   const [propertyCity, setPropertyCity] = useState("");
   const [propertyAvailable, setPropertyAvailable] = useState("");
   const [notifications, setNotifications] = useState<OwnerNotifications>({
@@ -156,6 +179,29 @@ export function OwnerDetailsStep({ onNext }: OwnerDetailsStepProps) {
 
   const clearError = (field: keyof FieldErrors) =>
     setErrors((e) => ({ ...e, [field]: undefined }));
+
+  useEffect(() => {
+    const initialPhone = getLocalPhoneDigits(initialValues?.phone);
+    const initialWhatsapp = getLocalPhoneDigits(initialValues?.whatsapp);
+    const sameAsPhone =
+      !initialWhatsapp || (initialPhone && initialPhone === initialWhatsapp);
+
+    setPhone(initialPhone);
+    setWhatsapp(sameAsPhone ? initialPhone : initialWhatsapp);
+    setIsSameAsPhone(Boolean(sameAsPhone));
+    setPropertyCity(initialValues?.propertyCity ?? "");
+    setPropertyAvailable(initialValues?.propertyAvailable ?? "");
+    setNotifications({
+      viewingRequests: initialValues?.notifications?.viewingRequests ?? true,
+      messages: initialValues?.notifications?.messages ?? true,
+      payments: initialValues?.notifications?.payments ?? true,
+    });
+    setErrors({});
+  }, [initialValues]);
+
+  useEffect(() => {
+    if (isSameAsPhone) setWhatsapp(phone);
+  }, [isSameAsPhone, phone]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();

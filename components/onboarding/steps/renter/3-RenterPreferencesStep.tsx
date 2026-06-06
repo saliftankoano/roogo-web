@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   MapPinIcon,
@@ -42,6 +42,7 @@ type FieldErrors = Partial<Record<keyof PreferencesOutput, string>>;
 
 interface RenterPreferencesStepProps {
   onNext: (prefs: PreferencesOutput) => void;
+  initialValues?: Partial<PreferencesOutput>;
 }
 
 const CITIES = ["Ouagadougou", "Bobo-Dioulasso"] as const;
@@ -70,7 +71,10 @@ function FieldError({ msg }: { msg?: string }) {
   );
 }
 
-export function RenterPreferencesStep({ onNext }: RenterPreferencesStepProps) {
+export function RenterPreferencesStep({
+  onNext,
+  initialValues,
+}: RenterPreferencesStepProps) {
   const [location, setLocation] = useState<string>("");
   const [propertyTypes, setPropertyTypes] = useState<string[]>([]);
   const [rooms, setRooms] = useState<string>("");
@@ -79,6 +83,20 @@ export function RenterPreferencesStep({ onNext }: RenterPreferencesStepProps) {
   const [moveInUrgency, setMoveInUrgency] = useState<string>("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [shakeKey, setShakeKey] = useState(0);
+
+  useEffect(() => {
+    setLocation(initialValues?.location ?? "");
+    setPropertyTypes(initialValues?.propertyTypes ?? []);
+    setRooms(initialValues?.rooms ?? "");
+    setFurnished(initialValues?.furnished ?? "");
+    setBudgetRaw(
+      typeof initialValues?.budget === "number"
+        ? String(initialValues.budget)
+        : "",
+    );
+    setMoveInUrgency(initialValues?.moveInUrgency ?? "");
+    setErrors({});
+  }, [initialValues]);
 
   const togglePropertyType = (type: string) => {
     setPropertyTypes((prev) =>

@@ -20,6 +20,18 @@ import { Input } from "@/components/ui/input";
 
 type RoogoUserType = "renter" | "owner" | "agent" | "staff" | "founder" | "regular";
 type NameErrors = { firstName?: string; lastName?: string; form?: string };
+type OnboardingResume = {
+  userType: RoogoUserType | null;
+  signupPlatform: string | null;
+  hasCompletedMobileOnboarding: boolean;
+  hasCompletedWebOnboarding: boolean;
+  webOnboardingStep: number | null;
+  webOnboardingData: Record<string, unknown>;
+};
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
+}
 
 function hasCompletedOnboarding(metadata: Record<string, unknown>) {
   return (
@@ -217,23 +229,52 @@ export default function OnboardingPage() {
     (user?.publicMetadata as Record<string, unknown> | undefined) ?? {};
   const userType = (publicMetadata.userType ||
     publicMetadata.user_type) as RoogoUserType | undefined;
-  const isCompleted = hasCompletedOnboarding(publicMetadata);
+  const publicIsCompleted = hasCompletedOnboarding(publicMetadata);
 
   const [step, setStep] = useState<number>(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [resumeData, setResumeData] = useState<OnboardingResume | null>(null);
   const [selectedUserType, setSelectedUserType] = useState<RoogoUserType | undefined>(
     userType,
   );
 
+  const isCompleted =
+    publicIsCompleted ||
+    resumeData?.hasCompletedWebOnboarding === true ||
+    resumeData?.hasCompletedMobileOnboarding === true;
+
   useEffect(() => {
     if (userType) {
       setSelectedUserType(userType);
+    } else if (resumeData?.userType) {
+      setSelectedUserType(resumeData.userType);
     }
-  }, [userType]);
+  }, [resumeData?.userType, userType]);
 
-  const effectiveUserType = selectedUserType ?? userType;
+  const effectiveUserType = selectedUserType ?? userType ?? resumeData?.userType ?? undefined;
   const totalSteps = getTotalSteps(effectiveUserType);
   const requiresName = isLoaded && user ? !hasRequiredName(user) : false;
+  const webOnboardingData = resumeData?.webOnboardingData ?? {};
+  const renterPreferencesInitial =
+    webOnboardingData as React.ComponentProps<
+      typeof RenterPreferencesStep
+    >["initialValues"];
+  const renterContactInitial =
+    webOnboardingData as React.ComponentProps<
+      typeof RenterContactStep
+    >["initialValues"];
+  const ownerDetailsInitial =
+    webOnboardingData as React.ComponentProps<
+      typeof OwnerDetailsStep
+    >["initialValues"];
+  const agentInfoInitial =
+    webOnboardingData as React.ComponentProps<
+      typeof AgentInfoStep
+    >["initialValues"];
+  const agentDetailsInitial =
+    webOnboardingData as React.ComponentProps<
+      typeof AgentDetailsStep
+    >["initialValues"];
 
   const updateMetadata = async (payload: Record<string, unknown>) => {
     const token = await getToken();
@@ -255,8 +296,86 @@ export default function OnboardingPage() {
       throw new Error(raw || "Echec de mise a jour du profil");
     }
 
+    setResumeData((current) => {
+      const currentData = current?.webOnboardingData ?? {};
+      const nextWebData = isRecord(payload.webOnboardingData)
+        ? { ...currentData, ...payload.webOnboardingData }
+        : currentData;
+      return {
+        userType:
+          typeof payload.userType === "string"
+            ? (payload.userType as RoogoUserType)
+            : current?.userType ?? null,
+        signupPlatform:
+          typeof payload.signupPlatform === "string"
+            ? payload.signupPlatform
+            : current?.signupPlatform ?? null,
+        hasCompletedMobileOnboarding:
+          typeof payload.hasCompletedMobileOnboarding === "boolean"
+            ? payload.hasCompletedMobileOnboarding
+            : current?.hasCompletedMobileOnboarding ?? false,
+        hasCompletedWebOnboarding:
+          typeof payload.hasCompletedWebOnboarding === "boolean"
+            ? payload.hasCompletedWebOnboarding
+            : current?.hasCompletedWebOnboarding ?? false,
+        webOnboardingStep:
+          payload.webOnboardingStep === null
+            ? null
+            : typeof payload.webOnboardingStep === "number"
+              ? payload.webOnboardingStep
+              : current?.webOnboardingStep ?? null,
+        webOnboardingData: nextWebData,
+      };
+    });
+
     return response;
   };
+
+  useEffect(() => {
+    if (!isLoaded || !user?.id || publicIsCompleted) return;
+
+    let isCancelled = false;
+
+    async function loadResumeData() {
+      try {
+        const token = await getToken();
+        if (!token) return;
+
+        const response = await fetch("/api/clerk/users/me/metadata", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        if (!response.ok) return;
+
+        const data = (await response.json()) as OnboardingResume;
+        if (isCancelled) return;
+
+        setResumeData({
+          userType: data.userType,
+          signupPlatform: data.signupPlatform,
+          hasCompletedMobileOnboarding:
+            data.hasCompletedMobileOnboarding === true,
+          hasCompletedWebOnboarding: data.hasCompletedWebOnboarding === true,
+          webOnboardingStep: data.webOnboardingStep,
+          webOnboardingData: isRecord(data.webOnboardingData)
+            ? data.webOnboardingData
+            : {},
+        });
+
+        if (data.userType) {
+          setSelectedUserType(data.userType);
+        }
+        setStep(clampStep(data.webOnboardingStep, data.userType ?? userType));
+      } catch (error) {
+        console.error("Error loading onboarding resume data:", error);
+      }
+    }
+
+    loadResumeData();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [getToken, isLoaded, publicIsCompleted, user?.id, userType]);
 
   useEffect(() => {
     if (!isLoaded) return;
@@ -266,12 +385,18 @@ export default function OnboardingPage() {
       return;
     }
 
-    setStep(clampStep(publicMetadata.webOnboardingStep, effectiveUserType));
+    setStep(
+      clampStep(
+        resumeData?.webOnboardingStep ?? publicMetadata.webOnboardingStep,
+        effectiveUserType,
+      ),
+    );
   }, [
     effectiveUserType,
     isCompleted,
     isLoaded,
     publicMetadata.webOnboardingStep,
+    resumeData?.webOnboardingStep,
     router,
   ]);
 
@@ -284,7 +409,7 @@ export default function OnboardingPage() {
 
     setIsSubmitting(true);
     try {
-      await updateMetadata({ webOnboardingStep: 2 });
+      await updateMetadata({ webOnboardingStep: 2, signupPlatform: "web" });
       setStep(2);
       await user.reload();
     } catch (error) {
@@ -300,7 +425,11 @@ export default function OnboardingPage() {
 
     setIsSubmitting(true);
     try {
-      await updateMetadata({ userType: type, webOnboardingStep: 3 });
+      await updateMetadata({
+        userType: type,
+        webOnboardingStep: 3,
+        signupPlatform: "web",
+      });
       setSelectedUserType(type as RoogoUserType);
       setStep(3);
       await user.reload();
@@ -462,14 +591,24 @@ export default function OnboardingPage() {
       {step === 1 && <WelcomeStep onNext={handleWelcomeNext} />}
 
       {step === 2 && (
-        <UserTypeStep onNext={handleUserTypeSelect} initialType={userType} />
+        <UserTypeStep onNext={handleUserTypeSelect} initialType={effectiveUserType} />
       )}
 
       {/* Renter Flow */}
       {effectiveUserType === "renter" && (
         <>
-          {step === 3 && <RenterPreferencesStep onNext={handleRenterPreferences} />}
-          {step === 4 && <RenterContactStep onNext={handleRenterContact} />}
+          {step === 3 && (
+            <RenterPreferencesStep
+              onNext={handleRenterPreferences}
+              initialValues={renterPreferencesInitial}
+            />
+          )}
+          {step === 4 && (
+            <RenterContactStep
+              onNext={handleRenterContact}
+              initialValues={renterContactInitial}
+            />
+          )}
           {step === 5 && <RenterReadyStep onFinish={handleFinish} />}
         </>
       )}
@@ -477,7 +616,12 @@ export default function OnboardingPage() {
       {/* Owner Flow */}
       {effectiveUserType === "owner" && (
         <>
-          {step === 3 && <OwnerDetailsStep onNext={handleOwnerDetails} />}
+          {step === 3 && (
+            <OwnerDetailsStep
+              onNext={handleOwnerDetails}
+              initialValues={ownerDetailsInitial}
+            />
+          )}
           {step === 4 && <OwnerReadyStep onFinish={handleFinish} />}
         </>
       )}
@@ -485,8 +629,18 @@ export default function OnboardingPage() {
       {/* Agent Flow */}
       {effectiveUserType === "agent" && (
         <>
-          {step === 3 && <AgentInfoStep onNext={handleAgentInfo} />}
-          {step === 4 && <AgentDetailsStep onNext={handleAgentDetails} />}
+          {step === 3 && (
+            <AgentInfoStep
+              onNext={handleAgentInfo}
+              initialValues={agentInfoInitial}
+            />
+          )}
+          {step === 4 && (
+            <AgentDetailsStep
+              onNext={handleAgentDetails}
+              initialValues={agentDetailsInitial}
+            />
+          )}
           {step === 5 && <AgentReadyStep onFinish={handleFinish} />}
         </>
       )}

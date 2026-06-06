@@ -31,6 +31,20 @@ export type SignupGeo = {
   ipAddress?: string | null;
 };
 
+export type SignupSnapshot = SignupGeo & {
+  deviceType?: string | null;
+  deviceIsMobile?: boolean | null;
+  browserName?: string | null;
+  browserVersion?: string | null;
+};
+
+const CLERK_SESSION_PAGE_SIZE = 100;
+
+type ClerkBackendClient = ReturnType<typeof createClerkClient>;
+type ClerkSession = Awaited<
+  ReturnType<ClerkBackendClient["sessions"]["getSessionList"]>
+>["data"][number];
+
 function readNullableStringField(
   data: Record<string, unknown>,
   key: string,
@@ -40,29 +54,77 @@ function readNullableStringField(
   return typeof value === "string" && value.trim() ? value : null;
 }
 
-/**
- * Fetch the user's earliest Clerk session and return its geoIP snapshot.
- * Returns null if the user has no sessions yet (very fresh signup) or if
- * the activity payload lacks a city.
- */
-export async function fetchClerkSignupGeo(
+async function fetchAllClerkSessionsForUser(
+  clerk: ClerkBackendClient,
   clerkUserId: string,
-): Promise<SignupGeo | null> {
+) {
+  const sessions: ClerkSession[] = [];
+  let offset = 0;
+
+  for (;;) {
+    const page = await clerk.sessions.getSessionList({
+      userId: clerkUserId,
+      limit: CLERK_SESSION_PAGE_SIZE,
+      offset,
+    });
+
+    sessions.push(...page.data);
+
+    offset += CLERK_SESSION_PAGE_SIZE;
+    if (
+      page.data.length < CLERK_SESSION_PAGE_SIZE ||
+      offset >= page.totalCount
+    ) {
+      break;
+    }
+  }
+
+  return sessions;
+}
+
+/**
+ * Fetch the user's earliest Clerk session and return its geo/device snapshot.
+ * Returns null if the user has no sessions yet or the session lacks activity.
+ */
+export async function fetchClerkSignupSnapshot(
+  clerkUserId: string,
+): Promise<SignupSnapshot | null> {
   if (!process.env.CLERK_SECRET_KEY) return null;
   const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY });
-  const sessions = await clerk.sessions.getSessionList({
-    userId: clerkUserId,
-  });
-  if (!sessions.data?.length) return null;
-  const earliest = [...sessions.data].sort(
+  const sessions = await fetchAllClerkSessionsForUser(clerk, clerkUserId);
+  if (!sessions.length) return null;
+  const earliest = sessions.sort(
     (a, b) => a.createdAt - b.createdAt,
   )[0];
   const activity = earliest?.latestActivity;
-  if (!activity?.city && !activity?.country) return null;
+  if (!activity) return null;
+  const activitySnapshot = activity as typeof activity & {
+    deviceType?: string | null;
+    isMobile?: boolean | null;
+    browserName?: string | null;
+    browserVersion?: string | null;
+  };
   return {
     city: activity.city ?? null,
     country: activity.country ?? null,
     ipAddress: activity.ipAddress ?? null,
+    deviceType: activitySnapshot.deviceType ?? null,
+    deviceIsMobile:
+      typeof activitySnapshot.isMobile === "boolean" ? activitySnapshot.isMobile : null,
+    browserName: activitySnapshot.browserName ?? null,
+    browserVersion: activitySnapshot.browserVersion ?? null,
+  };
+}
+
+export async function fetchClerkSignupGeo(
+  clerkUserId: string,
+): Promise<SignupGeo | null> {
+  const snapshot = await fetchClerkSignupSnapshot(clerkUserId);
+  if (!snapshot) return null;
+  return {
+    city: snapshot.city ?? null,
+    country: snapshot.country ?? null,
+    ipAddress: snapshot.ipAddress ?? null,
   };
 }
 
@@ -117,7 +179,7 @@ export interface ClerkUserData {
  */
 export async function createUserInSupabase(
   data: ClerkUserData,
-  opts?: { signupGeo?: SignupGeo | null },
+  opts?: { signupGeo?: SignupGeo | null; signupSnapshot?: SignupSnapshot | null },
 ) {
   try {
     if (!supabase) {
@@ -200,7 +262,9 @@ export async function createUserInSupabase(
     // 1. Try to find by clerk_id
     let { data: existingUser } = await supabase
       .from("users")
-      .select("id, clerk_id, email, signup_city")
+      .select(
+        "id, clerk_id, email, signup_city, signup_device_type, signup_device_is_mobile, signup_browser_name, signup_browser_version",
+      )
       .eq("clerk_id", clerkId)
       .maybeSingle();
 
@@ -208,7 +272,9 @@ export async function createUserInSupabase(
     if (!existingUser) {
       const { data: userByEmail } = await supabase
         .from("users")
-        .select("id, clerk_id, email, signup_city")
+        .select(
+          "id, clerk_id, email, signup_city, signup_device_type, signup_device_is_mobile, signup_browser_name, signup_browser_version",
+        )
         .eq("email", email)
         .maybeSingle();
 
@@ -235,14 +301,63 @@ export async function createUserInSupabase(
       preferences: onboardingData, // Store everything in JSONB as well
     };
 
-    // Write-once: only persist signup geo on insert, or on update if not yet set
-    const shouldWriteSignupGeo =
-      !!opts?.signupGeo?.city &&
-      (!existingUser || !existingUser.signup_city);
-    if (shouldWriteSignupGeo && opts?.signupGeo) {
-      userData.signup_city = opts.signupGeo.city ?? null;
-      userData.signup_country = opts.signupGeo.country ?? null;
-      userData.signup_ip = opts.signupGeo.ipAddress ?? null;
+    const signupSnapshot = opts?.signupSnapshot ?? opts?.signupGeo ?? null;
+    let wroteSignupSnapshot = false;
+
+    // Write-once: only persist signup snapshot values on insert, or on update
+    // when the specific value has not yet been captured.
+    if (signupSnapshot) {
+      if (!existingUser || !existingUser.signup_city) {
+        if (signupSnapshot.city) {
+          userData.signup_city = signupSnapshot.city;
+          userData.signup_country = signupSnapshot.country ?? null;
+          userData.signup_ip = signupSnapshot.ipAddress ?? null;
+          wroteSignupSnapshot = true;
+        }
+      }
+
+      if (
+        "deviceType" in signupSnapshot &&
+        (!existingUser || !existingUser.signup_device_type)
+      ) {
+        if (signupSnapshot.deviceType) {
+          userData.signup_device_type = signupSnapshot.deviceType;
+          wroteSignupSnapshot = true;
+        }
+      }
+
+      if (
+        "deviceIsMobile" in signupSnapshot &&
+        (!existingUser || existingUser.signup_device_is_mobile === null)
+      ) {
+        if (typeof signupSnapshot.deviceIsMobile === "boolean") {
+          userData.signup_device_is_mobile = signupSnapshot.deviceIsMobile;
+          wroteSignupSnapshot = true;
+        }
+      }
+
+      if (
+        "browserName" in signupSnapshot &&
+        (!existingUser || !existingUser.signup_browser_name)
+      ) {
+        if (signupSnapshot.browserName) {
+          userData.signup_browser_name = signupSnapshot.browserName;
+          wroteSignupSnapshot = true;
+        }
+      }
+
+      if (
+        "browserVersion" in signupSnapshot &&
+        (!existingUser || !existingUser.signup_browser_version)
+      ) {
+        if (signupSnapshot.browserVersion) {
+          userData.signup_browser_version = signupSnapshot.browserVersion;
+          wroteSignupSnapshot = true;
+        }
+      }
+    }
+
+    if (wroteSignupSnapshot) {
       userData.signup_captured_at = new Date().toISOString();
     }
 

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   PhoneIcon,
@@ -36,8 +36,14 @@ const agentDetailsSchema = z
     ),
   })
   .superRefine((data, ctx) => {
-    if (!data.isSameAsPhone && data.whatsapp !== undefined && data.whatsapp !== "") {
-      if (data.whatsapp.length < BF_DIGITS) {
+    if (!data.isSameAsPhone) {
+      if (!data.whatsapp) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          path: ["whatsapp"],
+          message: "Entrez votre numéro WhatsApp",
+        });
+      } else if (data.whatsapp.length !== BF_DIGITS) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           path: ["whatsapp"],
@@ -64,6 +70,12 @@ interface AgentDetailsStepProps {
     serviceAreas: string[];
     referralSource: string;
   }) => void;
+  initialValues?: {
+    phone?: string | null;
+    whatsapp?: string | null;
+    serviceAreas?: string[] | null;
+    referralSource?: string | null;
+  };
 }
 
 const SERVICE_AREAS = ["Ouagadougou", "Bobo-Dioulasso"] as const;
@@ -127,10 +139,20 @@ function PhoneInput({
   );
 }
 
-export function AgentDetailsStep({ onNext }: AgentDetailsStepProps) {
+function getLocalPhoneDigits(value?: string | null) {
+  const digits = (value ?? "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("226")) return digits.slice(3);
+  if (digits.length === 9 && digits.startsWith("0")) return digits.slice(1);
+  return digits.slice(0, BF_DIGITS);
+}
+
+export function AgentDetailsStep({
+  onNext,
+  initialValues,
+}: AgentDetailsStepProps) {
   const [phone, setPhone] = useState("");
   const [whatsapp, setWhatsapp] = useState("");
-  const [isSameAsPhone, setIsSameAsPhone] = useState(false);
+  const [isSameAsPhone, setIsSameAsPhone] = useState(true);
   const [serviceAreas, setServiceAreas] = useState<string[]>([]);
   const [referralSource, setReferralSource] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
@@ -139,6 +161,24 @@ export function AgentDetailsStep({ onNext }: AgentDetailsStepProps) {
 
   const clearError = (field: keyof FieldErrors) =>
     setErrors((e) => ({ ...e, [field]: undefined }));
+
+  useEffect(() => {
+    const initialPhone = getLocalPhoneDigits(initialValues?.phone);
+    const initialWhatsapp = getLocalPhoneDigits(initialValues?.whatsapp);
+    const sameAsPhone =
+      !initialWhatsapp || (initialPhone && initialPhone === initialWhatsapp);
+
+    setPhone(initialPhone);
+    setWhatsapp(sameAsPhone ? initialPhone : initialWhatsapp);
+    setIsSameAsPhone(Boolean(sameAsPhone));
+    setServiceAreas(initialValues?.serviceAreas ?? []);
+    setReferralSource(initialValues?.referralSource ?? "");
+    setErrors({});
+  }, [initialValues]);
+
+  useEffect(() => {
+    if (isSameAsPhone) setWhatsapp(phone);
+  }, [isSameAsPhone, phone]);
 
   const toggleArea = (area: string) => {
     setServiceAreas((prev) =>

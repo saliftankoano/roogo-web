@@ -33,6 +33,7 @@ import {
   ChairIcon,
   ArrowRightIcon,
   SortAscendingIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
@@ -73,6 +74,10 @@ interface UserProfile {
   signup_country: string | null;
   signup_ip: string | null;
   signup_captured_at: string | null;
+  signup_device_type: string | null;
+  signup_device_is_mobile: boolean | null;
+  signup_browser_name: string | null;
+  signup_browser_version: string | null;
   // Activity counts
   properties_count: number;
   applications_count: number;
@@ -81,7 +86,13 @@ interface UserProfile {
   favorites_count: number;
   // Clerk metadata
   signup_platform: string | null;
+  signup_device_label: string;
+  has_completed_mobile_onboarding: boolean;
+  has_completed_web_onboarding: boolean;
   has_completed_onboarding: boolean;
+  web_onboarding_step: number | null;
+  onboarding_source: string | null;
+  owner_followup_reasons: string[];
   // Renter onboarding
   onboarding_rooms: string | null;
   onboarding_budget: number | null;
@@ -378,6 +389,7 @@ export default function AdminUsersPage() {
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
   const [statusFilter, setStatusFilter] = useState<string>("all");
   const [sortOrder, setSortOrder] = useState<"recent" | "urgent" | "inactive">("recent");
+  const [ownerFollowupOnly, setOwnerFollowupOnly] = useState(false);
   // Advanced filter states
   const [filtersOpen, setFiltersOpen] = useState(false);
   const [cityFilter, setCityFilter] = useState<string>("all");
@@ -455,6 +467,8 @@ export default function AdminUsersPage() {
         (user.phone?.includes(searchQuery) ?? false);
 
       const matchesType = userTypeFilter === "all" || user.user_type === userTypeFilter;
+      const matchesOwnerFollowup =
+        !ownerFollowupOnly || user.owner_followup_reasons.length > 0;
 
       const matchesStatus =
         statusFilter === "all" || getEngagementStatus(user) === statusFilter;
@@ -499,6 +513,7 @@ export default function AdminUsersPage() {
       return (
         matchesSearch &&
         matchesType &&
+        matchesOwnerFollowup &&
         matchesStatus &&
         matchesDay &&
         matchesCity &&
@@ -515,6 +530,7 @@ export default function AdminUsersPage() {
     users,
     searchQuery,
     userTypeFilter,
+    ownerFollowupOnly,
     statusFilter,
     selectedDay,
     cityFilter,
@@ -557,6 +573,9 @@ export default function AdminUsersPage() {
     const renters = users.filter((u) => u.user_type === "renter").length;
     const owners = users.filter((u) => u.user_type === "owner").length;
     const agents = users.filter((u) => u.user_type === "agent").length;
+    const ownerFollowups = users.filter(
+      (u) => u.owner_followup_reasons.length > 0
+    ).length;
     const active = users.filter((u) => {
       const s = getEngagementStatus(u);
       return s === "actif" || s === "accord";
@@ -564,7 +583,7 @@ export default function AdminUsersPage() {
     const oneWeekAgo = new Date();
     oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
     const newThisWeek = users.filter((u) => new Date(u.created_at) >= oneWeekAgo).length;
-    return { total, renters, owners, agents, active, newThisWeek };
+    return { total, renters, owners, agents, ownerFollowups, active, newThisWeek };
   }, [users]);
 
   // Calendar logic
@@ -617,6 +636,7 @@ export default function AdminUsersPage() {
     setSearchQuery("");
     setUserTypeFilter("all");
     setStatusFilter("all");
+    setOwnerFollowupOnly(false);
     setSortOrder("recent");
     setSelectedDay(null);
     setCityFilter("all");
@@ -664,7 +684,7 @@ export default function AdminUsersPage() {
       </div>
 
       {/* KPI Strip */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4">
         {/* Total */}
         <div className="bg-white rounded-2xl p-5 border border-neutral-100 shadow-sm">
           <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest mb-2">
@@ -743,6 +763,30 @@ export default function AdminUsersPage() {
             </span>
           </div>
         </div>
+
+        {/* Owner follow-up */}
+        <button
+          type="button"
+          onClick={() => {
+            setOwnerFollowupOnly((value) => !value);
+            setUserTypeFilter("all");
+          }}
+          className={`text-left rounded-2xl p-5 border shadow-sm transition-all ${
+            ownerFollowupOnly
+              ? "bg-orange-50 border-orange-200 ring-2 ring-orange-200"
+              : "bg-white border-neutral-100 hover:border-orange-200"
+          }`}
+        >
+          <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-2">
+            Propriétaires à relancer
+          </p>
+          <p className="text-3xl font-black text-orange-600 tracking-tight leading-none">
+            {kpiStats.ownerFollowups}
+          </p>
+          <p className="text-xs font-bold text-neutral-400 mt-1.5">
+            onboarding ou contact incomplet
+          </p>
+        </button>
 
         {/* New this week */}
         <div className="bg-white rounded-2xl p-5 border border-neutral-100 shadow-sm">
@@ -900,6 +944,18 @@ export default function AdminUsersPage() {
               {s === "all" ? "Tous les statuts" : STATUS_CONFIG[s].label}
             </button>
           ))}
+          <button
+            type="button"
+            onClick={() => setOwnerFollowupOnly((value) => !value)}
+            className={`px-5 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border flex items-center gap-1.5 ${
+              ownerFollowupOnly
+                ? "bg-orange-50 text-orange-700 border-orange-200 ring-2 ring-orange-100"
+                : "bg-white text-neutral-400 border-neutral-100 hover:border-orange-200 hover:text-orange-600"
+            }`}
+          >
+            <WarningCircleIcon size={13} weight="fill" />
+            Propriétaires à relancer
+          </button>
         </div>
 
         {/* Sort + advanced filter toggle + counts */}
@@ -1165,8 +1221,21 @@ export default function AdminUsersPage() {
                 </div>
 
                 {/* Meta chips: signup geo + city + acquisition source */}
-                {(formatSignupLocation(user) || user.preferred_city || user.onboarding_location || user.onboarding_property_city || user.referral_source) && (
+                {(formatSignupLocation(user) || user.signup_device_label || user.preferred_city || user.onboarding_location || user.onboarding_property_city || user.referral_source) && (
                   <div className="flex items-center gap-1.5 flex-wrap">
+                    {user.signup_device_label && (
+                      <span
+                        title="Appareil utilisé lors de l'inscription"
+                        className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-bold text-neutral-600"
+                      >
+                        {user.signup_device_label.includes("Mobile") ? (
+                          <DeviceMobileIcon size={9} weight="bold" className="text-neutral-400" />
+                        ) : (
+                          <MonitorIcon size={9} weight="bold" className="text-neutral-400" />
+                        )}
+                        {user.signup_device_label}
+                      </span>
+                    )}
                     {formatSignupLocation(user) && (
                       <span
                         title="Lieu de connexion lors de l'inscription"
@@ -1226,6 +1295,25 @@ export default function AdminUsersPage() {
                       <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-100 text-[10px] font-black text-purple-500">
                         <HandshakeIcon size={10} weight="bold" />
                         {user.agreements_renter_count + user.agreements_owner_count}
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {user.owner_followup_reasons.length > 0 && (
+                  <div className="flex items-center gap-1.5 flex-wrap">
+                    {user.owner_followup_reasons.slice(0, 2).map((reason) => (
+                      <span
+                        key={reason}
+                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-100 text-[10px] font-black text-orange-600"
+                      >
+                        <WarningCircleIcon size={10} weight="fill" />
+                        {reason}
+                      </span>
+                    ))}
+                    {user.owner_followup_reasons.length > 2 && (
+                      <span className="px-2 py-0.5 rounded-md bg-orange-50 border border-orange-100 text-[10px] font-black text-orange-600">
+                        +{user.owner_followup_reasons.length - 2}
                       </span>
                     )}
                   </div>
@@ -1362,14 +1450,20 @@ export default function AdminUsersPage() {
                         >
                           {statusConf.label}
                         </span>
-                        {selectedUser.signup_platform && (
+                        {selectedUser.owner_followup_reasons.length > 0 && (
+                          <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-orange-50 border border-orange-100 text-[10px] font-black text-orange-600 uppercase tracking-widest">
+                            <WarningCircleIcon size={11} weight="fill" />
+                            À relancer
+                          </span>
+                        )}
+                        {selectedUser.signup_device_label && (
                           <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-neutral-100 text-[10px] font-black text-neutral-500 uppercase tracking-widest">
-                            {selectedUser.signup_platform === "mobile" ? (
+                            {selectedUser.signup_device_label.includes("Mobile") ? (
                               <DeviceMobileIcon size={11} weight="bold" />
                             ) : (
                               <MonitorIcon size={11} weight="bold" />
                             )}
-                            {selectedUser.signup_platform === "mobile" ? "Mobile" : "Web"}
+                            {selectedUser.signup_device_label}
                           </span>
                         )}
                       </div>
@@ -1615,6 +1709,25 @@ export default function AdminUsersPage() {
                         {action.text}
                       </p>
                     </div>
+
+                    {selectedUser.owner_followup_reasons.length > 0 && (
+                      <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50 p-4">
+                        <p className="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-orange-600">
+                          <WarningCircleIcon size={12} weight="fill" />
+                          Raisons de relance
+                        </p>
+                        <div className="flex flex-wrap gap-2">
+                          {selectedUser.owner_followup_reasons.map((reason) => (
+                            <span
+                              key={reason}
+                              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-orange-700 border border-orange-100"
+                            >
+                              {reason}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </section>
 
                   {/* 2-col grid: Contact + Professional */}
@@ -1668,6 +1781,31 @@ export default function AdminUsersPage() {
                             {selectedUser.signup_ip && (
                               <p className="text-[10px] font-medium text-neutral-400 mt-0.5 font-mono">
                                 {selectedUser.signup_ip}
+                              </p>
+                            )}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-4">
+                          <div className="w-10 h-10 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-500 border border-neutral-100 shrink-0">
+                            {selectedUser.signup_device_label.includes("Mobile") ? (
+                              <DeviceMobileIcon size={20} weight="bold" />
+                            ) : (
+                              <MonitorIcon size={20} weight="bold" />
+                            )}
+                          </div>
+                          <div>
+                            <p className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
+                              Appareil d&apos;inscription
+                            </p>
+                            <p className="font-bold text-neutral-900 text-sm">
+                              {selectedUser.signup_device_label}
+                            </p>
+                            {(selectedUser.signup_browser_name ||
+                              selectedUser.signup_browser_version) && (
+                              <p className="text-[10px] font-medium text-neutral-400 mt-0.5">
+                                {[selectedUser.signup_browser_name, selectedUser.signup_browser_version]
+                                  .filter(Boolean)
+                                  .join(" ")}
                               </p>
                             )}
                           </div>
@@ -1856,6 +1994,33 @@ export default function AdminUsersPage() {
                           {selectedUser.has_completed_onboarding ? "Oui" : "Non"}
                         </span>
                       </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
+                          Source onboarding
+                        </span>
+                        <span className="text-xs font-bold text-neutral-600 uppercase">
+                          {selectedUser.onboarding_source || "Inconnue"}
+                        </span>
+                      </div>
+                      <div className="flex justify-between items-center">
+                        <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
+                          Web / mobile
+                        </span>
+                        <span className="text-xs font-bold text-neutral-600">
+                          {selectedUser.has_completed_web_onboarding ? "Web oui" : "Web non"} ·{" "}
+                          {selectedUser.has_completed_mobile_onboarding ? "Mobile oui" : "Mobile non"}
+                        </span>
+                      </div>
+                      {selectedUser.web_onboarding_step !== null && (
+                        <div className="flex justify-between items-center">
+                          <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
+                            Étape web sauvegardée
+                          </span>
+                          <span className="text-xs font-bold text-neutral-600">
+                            {selectedUser.web_onboarding_step}
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </section>
                 </div>

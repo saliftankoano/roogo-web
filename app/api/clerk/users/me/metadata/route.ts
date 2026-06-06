@@ -2,7 +2,7 @@ import { createClerkClient, verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import {
   createUserInSupabase,
-  fetchClerkSignupGeo,
+  fetchClerkSignupSnapshot,
   type ClerkUserData,
 } from "../../../../../../lib/user-sync";
 import { captureServerEvent, identifyServerUser } from "@/lib/posthog-server";
@@ -36,19 +36,50 @@ function normalizeBurkinaPhone(value: unknown): string | null {
   return null;
 }
 
+async function authenticateBearerUser(req: Request) {
+  const auth = req.headers.get("authorization") ?? "";
+  const token = auth.replace("Bearer ", "");
+  if (!token) {
+    return { userId: null, error: "Missing token" };
+  }
+
+  try {
+    const { sub } = await verifyToken(token, {
+      secretKey: process.env.CLERK_SECRET_KEY!,
+    });
+    return { userId: (sub as string | undefined) ?? null, error: null };
+  } catch (e) {
+    console.error("Token verification failed:", e);
+    return { userId: null, error: "Invalid token" };
+  }
+}
+
 function hasValidPrimaryPhone({
   clerkPhoneNumbers,
-  mobileOnboardingData,
+  onboardingData,
   privatePhone,
 }: {
   clerkPhoneNumbers: Array<{ phoneNumber: string }>;
-  mobileOnboardingData: Record<string, unknown>;
+  onboardingData: Record<string, unknown>;
   privatePhone: unknown;
 }) {
   return Boolean(
     clerkPhoneNumbers.some((phone) => normalizeBurkinaPhone(phone.phoneNumber)) ||
-      normalizeBurkinaPhone(mobileOnboardingData.phone) ||
+      normalizeBurkinaPhone(onboardingData.phone) ||
       normalizeBurkinaPhone(privatePhone),
+  );
+}
+
+function hasValidWhatsapp({
+  onboardingData,
+  privateWhatsapp,
+}: {
+  onboardingData: Record<string, unknown>;
+  privateWhatsapp: unknown;
+}) {
+  return Boolean(
+    normalizeBurkinaPhone(onboardingData.whatsapp) ||
+      normalizeBurkinaPhone(privateWhatsapp),
   );
 }
 
@@ -56,28 +87,75 @@ export async function OPTIONS() {
   return addCorsHeaders(new NextResponse(null, { status: 204 }));
 }
 
-export async function POST(req: Request) {
+export async function GET(req: Request) {
   try {
-    const auth = req.headers.get("authorization") ?? "";
-    const token = auth.replace("Bearer ", "");
-    if (!token) {
+    const authResult = await authenticateBearerUser(req);
+    if (authResult.error) {
       return addCorsHeaders(
-        NextResponse.json({ error: "Missing token" }, { status: 401 }),
+        NextResponse.json({ error: authResult.error }, { status: 401 }),
       );
     }
 
-    let userId: string | undefined;
-    try {
-      const { sub } = await verifyToken(token, {
-        secretKey: process.env.CLERK_SECRET_KEY!,
-      });
-      userId = sub as string | undefined;
-    } catch (e) {
-      console.error("Token verification failed:", e);
+    if (!authResult.userId) {
       return addCorsHeaders(
-        NextResponse.json({ error: "Invalid token" }, { status: 401 }),
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
       );
     }
+
+    const currentUser = await clerk.users.getUser(authResult.userId);
+    const publicMetadata = isRecord(currentUser.publicMetadata)
+      ? currentUser.publicMetadata
+      : {};
+    const privateMetadata = isRecord(currentUser.privateMetadata)
+      ? currentUser.privateMetadata
+      : {};
+    const webOnboardingData = isRecord(privateMetadata.webOnboardingData)
+      ? privateMetadata.webOnboardingData
+      : {};
+
+    return addCorsHeaders(
+      NextResponse.json({
+        userType:
+          typeof publicMetadata.userType === "string"
+            ? publicMetadata.userType
+            : null,
+        signupPlatform:
+          typeof publicMetadata.signupPlatform === "string"
+            ? publicMetadata.signupPlatform
+            : null,
+        hasCompletedMobileOnboarding:
+          publicMetadata.hasCompletedMobileOnboarding === true ||
+          publicMetadata.hasCompletedOnboarding === true,
+        hasCompletedWebOnboarding:
+          publicMetadata.hasCompletedWebOnboarding === true,
+        webOnboardingStep:
+          typeof publicMetadata.webOnboardingStep === "number"
+            ? publicMetadata.webOnboardingStep
+            : null,
+        webOnboardingData,
+      }),
+    );
+  } catch (error) {
+    console.error("Metadata read error:", error);
+    return addCorsHeaders(
+      NextResponse.json(
+        { error: "Failed to load metadata" },
+        { status: 500 },
+      ),
+    );
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const authResult = await authenticateBearerUser(req);
+    if (authResult.error) {
+      return addCorsHeaders(
+        NextResponse.json({ error: authResult.error }, { status: 401 }),
+      );
+    }
+
+    const userId = authResult.userId ?? undefined;
 
     if (!userId) {
       return addCorsHeaders(
@@ -247,19 +325,44 @@ export async function POST(req: Request) {
     const mergedMobileOnboardingData = isRecord(privateMetadata.mobileOnboardingData)
       ? privateMetadata.mobileOnboardingData
       : {};
+    const mergedWebOnboardingData = isRecord(privateMetadata.webOnboardingData)
+      ? privateMetadata.webOnboardingData
+      : {};
+    const mergedOnboardingData = {
+      ...mergedMobileOnboardingData,
+      ...mergedWebOnboardingData,
+    };
     if (
       (selectedUserType === "owner" || selectedUserType === "agent") &&
-      publicMetadata.hasCompletedMobileOnboarding === true &&
+      (publicMetadata.hasCompletedMobileOnboarding === true ||
+        publicMetadata.hasCompletedWebOnboarding === true) &&
       !hasValidPrimaryPhone({
         clerkPhoneNumbers: currentUser.phoneNumbers.map((p) => ({
           phoneNumber: p.phoneNumber,
         })),
-        mobileOnboardingData: mergedMobileOnboardingData,
+        onboardingData: mergedOnboardingData,
         privatePhone: privateMetadata.phone,
       })
     ) {
       return addCorsHeaders(
         NextResponse.json({ error: "Missing required phone" }, { status: 400 }),
+      );
+    }
+
+    if (
+      (selectedUserType === "owner" || selectedUserType === "agent") &&
+      (publicMetadata.hasCompletedMobileOnboarding === true ||
+        publicMetadata.hasCompletedWebOnboarding === true) &&
+      !hasValidWhatsapp({
+        onboardingData: mergedOnboardingData,
+        privateWhatsapp: privateMetadata.whatsappNumber,
+      })
+    ) {
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: "Missing required WhatsApp" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -355,10 +458,12 @@ export async function POST(req: Request) {
       };
       // Snapshot signup geo from Clerk's session geoIP. Best-effort —
       // a Clerk API hiccup must not block the onboarding flow.
-      const signupGeo = await fetchClerkSignupGeo(userId).catch(() => null);
+      const signupSnapshot = await fetchClerkSignupSnapshot(userId).catch(
+        () => null,
+      );
       await createUserInSupabase(
         userData,
-        signupGeo ? { signupGeo } : undefined,
+        signupSnapshot ? { signupSnapshot } : undefined,
       );
     } catch (syncError) {
       console.error("Supabase sync after metadata update failed:", syncError);

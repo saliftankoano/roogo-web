@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
   BuildingsIcon,
@@ -33,6 +33,7 @@ type FieldErrors = Partial<Record<keyof AgentInfoOutput, string>>;
 
 interface AgentInfoStepProps {
   onNext: (info: AgentInfoOutput) => void;
+  initialValues?: Partial<AgentInfoOutput>;
 }
 
 const PORTFOLIO_OPTIONS = ["1-5", "6-20", "21-50", "50+"] as const;
@@ -53,7 +54,7 @@ function FieldError({ msg }: { msg?: string }) {
   );
 }
 
-export function AgentInfoStep({ onNext }: AgentInfoStepProps) {
+export function AgentInfoStep({ onNext, initialValues }: AgentInfoStepProps) {
   const [companyName, setCompanyName] = useState("");
   const [facebookUrl, setFacebookUrl] = useState("");
   const [portfolioSize, setPortfolioSize] = useState("");
@@ -63,6 +64,13 @@ export function AgentInfoStep({ onNext }: AgentInfoStepProps) {
 
   const clearError = (field: keyof FieldErrors) =>
     setErrors((e) => ({ ...e, [field]: undefined }));
+
+  useEffect(() => {
+    setCompanyName(initialValues?.companyName ?? "");
+    setFacebookUrl(initialValues?.facebookUrl ?? "");
+    setPortfolioSize(initialValues?.portfolioSize ?? "");
+    setErrors({});
+  }, [initialValues]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
