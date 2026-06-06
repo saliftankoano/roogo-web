@@ -10,6 +10,10 @@ import {
   isOwnerAgentStaffOrFounder,
   isStaffOrFounder,
 } from "@/lib/api-auth";
+import {
+  buildStalePropertyTranslationUpdate,
+  getPropertyTranslationSourceHash,
+} from "@/lib/property-translations";
 
 interface PropertyPatchUpdates {
   description?: string;
@@ -30,6 +34,12 @@ interface PropertyPatchUpdates {
 interface AmenityRow {
   id: string;
   name: string;
+}
+
+interface PropertySourceTextRow {
+  description: string | null;
+  dos_and_donts: string[] | null;
+  translation_source_locale: string | null;
 }
 
 export async function DELETE(
@@ -142,8 +152,28 @@ export async function PATCH(
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
+    let existingSourceText: PropertySourceTextRow | null = null;
+    if (updates.description !== undefined) {
+      const { data, error } = await supabaseAdmin
+        .from("properties")
+        .select("description, dos_and_donts, translation_source_locale")
+        .eq("id", propertyId)
+        .maybeSingle();
+
+      if (error) {
+        console.error("Error fetching property before edit:", error);
+        return NextResponse.json({ error: error.message }, { status: 500 });
+      }
+
+      if (!data) {
+        return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      }
+
+      existingSourceText = data as PropertySourceTextRow;
+    }
+
     // Map frontend fields to database columns if necessary
-    const dbUpdates: Record<string, string | number | null> = {};
+    const dbUpdates: Record<string, unknown> = {};
     if (updates.description !== undefined)
       dbUpdates.description = updates.description;
     if (updates.price !== undefined) dbUpdates.price = Number(updates.price);
@@ -175,6 +205,27 @@ export async function PATCH(
           },
           { status: 400 },
         );
+      }
+    }
+
+    if (existingSourceText && updates.description !== undefined) {
+      const previousSourceHash = getPropertyTranslationSourceHash({
+        sourceLocale: existingSourceText.translation_source_locale,
+        description: existingSourceText.description,
+        dosAndDonts: Array.isArray(existingSourceText.dos_and_donts)
+          ? existingSourceText.dos_and_donts
+          : [],
+      });
+      const nextSourceHash = getPropertyTranslationSourceHash({
+        sourceLocale: existingSourceText.translation_source_locale,
+        description: updates.description,
+        dosAndDonts: Array.isArray(existingSourceText.dos_and_donts)
+          ? existingSourceText.dos_and_donts
+          : [],
+      });
+
+      if (previousSourceHash !== nextSourceHash) {
+        Object.assign(dbUpdates, buildStalePropertyTranslationUpdate());
       }
     }
 

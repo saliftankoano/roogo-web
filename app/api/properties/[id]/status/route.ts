@@ -4,6 +4,7 @@ import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-noti
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getStaffOrFounder } from "@/lib/api-auth";
+import { translatePropertyIfNeeded } from "@/lib/property-translations";
 
 export async function PATCH(
   request: NextRequest,
@@ -31,7 +32,7 @@ export async function PATCH(
 
     const { data: existingProperty, error: propertyError } = await supabaseAdmin
       .from("properties")
-      .select("agent_id, is_boosted, status")
+      .select("agent_id, is_boosted, status, is_test")
       .eq("id", propertyId)
       .maybeSingle();
 
@@ -82,6 +83,17 @@ export async function PATCH(
     if (error) {
       console.error("Error updating property status:", error);
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (
+      isGoingLive &&
+      !wasAlreadyLive &&
+      didTransition &&
+      existingProperty.is_test !== true
+    ) {
+      await translatePropertyIfNeeded(propertyId).catch((translationError) => {
+        console.error("Property translation on approval failed:", translationError);
+      });
     }
 
     if (isGoingLive && !wasAlreadyLive && didTransition && existingProperty?.agent_id) {

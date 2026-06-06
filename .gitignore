@@ -57,3 +57,4 @@ next-env.d.ts
 # Prevent accidental secret commits
 apply_migration*
 *.mjs
+!scripts/backfill-property-translations.mjs

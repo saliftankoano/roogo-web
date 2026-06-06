@@ -16,6 +16,7 @@ import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 import { qualifyReferralForTransaction } from "@/lib/referrals";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
+import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import validator from "validator";
 
 export async function OPTIONS(req: Request) {
@@ -423,6 +424,11 @@ export async function POST(req: Request) {
       // Boost information
       is_boosted: isBoosted,
       boost_expires_at: boostExpiresAt,
+      translation_source_locale: parsedListingData.source_locale ?? "fr",
+      translation_status: "not_requested",
+      translations: {},
+      translated_at: null,
+      translation_error: null,
       // Set published_at for staff listings since they go live immediately
       published_at: isStaffOrFounder ? new Date().toISOString() : null,
       // Only staff/founder may mark a listing as test (hidden from public)
@@ -459,6 +465,12 @@ export async function POST(req: Request) {
       propertyId,
       isStaffOrFounder ? "(Verified)" : "(Pending)",
     );
+
+    if (propertyStatus === "en_ligne" && propertyData.is_test === false) {
+      await translatePropertyIfNeeded(propertyId).catch((error) => {
+        console.error("Property translation on auto-live create failed:", error);
+      });
+    }
 
     // 10. Create transaction record
     if (isFreeStaffListing && staffDepositId) {

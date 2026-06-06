@@ -19,6 +19,12 @@ function asStringArray(value: unknown) {
     : [];
 }
 
+function asRecord(value: unknown) {
+  return value && typeof value === "object" && !Array.isArray(value)
+    ? (value as Record<string, unknown>)
+    : {};
+}
+
 function mapAdminProperty(row: PropertyDetailsRow) {
   const quartier = asString(row.quartier);
   const city = asString(row.city);
@@ -41,6 +47,11 @@ function mapAdminProperty(row: PropertyDetailsRow) {
     status: asString(row.status),
     propertyType: asString(row.property_type),
     description: asString(row.description),
+    translationSourceLocale: asString(row.translation_source_locale),
+    translationStatus: asString(row.translation_status),
+    translations: asRecord(row.translations),
+    translatedAt: asString(row.translated_at),
+    translationError: asString(row.translation_error),
     amenities: asStringArray(row.amenities),
     views: asNumber(row.views_count),
     favorites: asNumber(row.favorites_count),

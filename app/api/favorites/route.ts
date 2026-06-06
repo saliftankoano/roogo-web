@@ -22,6 +22,7 @@ interface PropertyImage {
 
 interface PropertyData {
   id: string;
+  description?: string | null;
   quartier?: string;
   city?: string;
   address?: string;
@@ -36,6 +37,11 @@ interface PropertyData {
   is_boosted?: boolean;
   status?: string;
   virtual_tour_url?: string | null;
+  translation_source_locale?: string | null;
+  translation_status?: string | null;
+  translations?: Record<string, unknown> | null;
+  translated_at?: string | null;
+  translation_error?: string | null;
 }
 
 interface FavoriteItem {
@@ -154,7 +160,13 @@ export async function GET(req: Request) {
           isSponsored: !!prop.is_boosted,
           status: prop.status || "en_attente",
           propertyType: prop.property_type,
+          description: prop.description || "",
           virtualTourUrl: prop.virtual_tour_url || undefined,
+          translationSourceLocale: prop.translation_source_locale || undefined,
+          translationStatus: prop.translation_status || undefined,
+          translations: prop.translations || undefined,
+          translatedAt: prop.translated_at || undefined,
+          translationError: prop.translation_error || undefined,
         };
       });
 

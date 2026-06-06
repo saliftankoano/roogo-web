@@ -26,6 +26,10 @@ SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
 
 # CORS Configuration
 CORS_ORIGIN=http://localhost:19006
+
+# Property translations
+OPENAI_API_KEY=sk_xxx
+PROPERTY_TRANSLATION_MODEL=gpt-5-mini
 ```
 
 ### Development

@@ -59,6 +59,7 @@ export const listingBaseSchema = z.object({
     .optional(),
   virtualTourUrl: z.string().optional(),
   frequence: z.enum(["mensuel", "journalier"]),
+  source_locale: z.enum(["fr", "en"]).optional(),
 
   // Step 3
   tier_id: z.enum(["essentiel", "standard", "premium"]),
