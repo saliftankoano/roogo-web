@@ -303,6 +303,15 @@ export default function ListingDetailPage() {
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
+  // Pending edit state (admin banner)
+  type AdminPendingEdit = {
+    id: string;
+    payload: Record<string, unknown>;
+    created_at: string;
+  };
+  const [adminPendingEdit, setAdminPendingEdit] =
+    useState<AdminPendingEdit | null>(null);
+
   useEffect(() => {
     async function loadData() {
       if (!id) return;
@@ -311,6 +320,15 @@ export default function ListingDetailPage() {
         // Fetch property
         const propertyData = await fetchPropertyById(id);
         setListing(propertyData);
+
+        // Fetch pending edit for banner
+        const pendingRes = await fetch(`/api/properties/${id}/pending-edits`);
+        if (pendingRes.ok) {
+          const pendingJson = (await pendingRes.json()) as {
+            pendingEdit: AdminPendingEdit | null;
+          };
+          setAdminPendingEdit(pendingJson.pendingEdit ?? null);
+        }
 
         // Fetch transactions SECURELY via Server Action
         const transactionsData = await getSecureTransactions(
@@ -688,6 +706,56 @@ export default function ListingDetailPage() {
           )}
         </AnimatePresence>
       </Portal>
+
+      {/* Pending edit banner (staff view) */}
+      {adminPendingEdit && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[24px] p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-start gap-3 flex-1">
+            <ClockIcon
+              size={20}
+              weight="fill"
+              className="text-amber-500 mt-0.5 shrink-0"
+            />
+            <div>
+              <p className="font-black text-amber-800 text-sm">
+                Des modifications sont en attente de validation
+              </p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Champs modifiés :{" "}
+                <span className="font-semibold">
+                  {Object.keys(adminPendingEdit.payload)
+                    .map(
+                      (k) =>
+                        ({
+                          price: "Prix",
+                          caution_mois: "Caution",
+                          loyer_avance_mois: "Loyer avance",
+                          city: "Ville",
+                          quartier: "Quartier",
+                          property_type: "Type",
+                          bedrooms: "Chambres",
+                          bathrooms: "SDB",
+                          area: "Superficie",
+                          parking_spaces: "Parking",
+                          description: "Description",
+                          amenities: "Équipements",
+                          dos_and_donts: "Règles",
+                          interdictions: "Interdictions",
+                        })[k] ?? k,
+                    )
+                    .join(", ")}
+                </span>
+              </p>
+            </div>
+          </div>
+          <a
+            href="/admin/modifications"
+            className="shrink-0 text-xs font-black text-amber-700 bg-amber-100 hover:bg-amber-200 px-4 py-2 rounded-xl transition-colors"
+          >
+            Voir dans Modifications
+          </a>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
