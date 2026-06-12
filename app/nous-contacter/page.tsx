@@ -5,12 +5,17 @@ import { motion } from "framer-motion";
 import { Button } from "../../components/ui/Button";
 import {
   EnvelopeSimpleIcon,
-  PhoneIcon,
   MapPinIcon,
-  WhatsappLogoIcon,
   PaperPlaneTiltIcon,
+  PhoneIcon,
+  WhatsappLogoIcon,
 } from "@phosphor-icons/react";
-import { useState } from "react";
+import { type FormEvent, useState } from "react";
+import {
+  MarketingImage,
+  SectionHeader,
+} from "../../components/marketing/MarketingPrimitives";
+import { marketingAssets } from "../../components/marketing/assets";
 
 export default function ContactPage() {
   const [formState, setFormState] = useState({
@@ -20,9 +25,8 @@ export default function ContactPage() {
     message: "",
   });
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    // Logic to handle form submission would go here
     console.log("Form submitted:", formState);
     alert("Merci pour votre message ! Notre équipe vous contactera bientôt.");
     setFormState({ name: "", email: "", subject: "", message: "" });
@@ -31,27 +35,21 @@ export default function ContactPage() {
   const contactInfo = [
     {
       icon: PhoneIcon,
-      label: "Téléphone (Moov)",
+      label: "Téléphone Moov",
       value: "+226 53 11 11 19",
       subValue: "Lun - Ven, 8h - 18h",
     },
     {
       icon: PhoneIcon,
-      label: "Téléphone (Orange)",
+      label: "Téléphone Orange",
       value: "+226 67 00 61 16",
       subValue: "Lun - Ven, 8h - 18h",
     },
     {
       icon: EnvelopeSimpleIcon,
       label: "Email",
-      value: "contact@roogo.bf",
+      value: "bonjour@roogobf.com",
       subValue: "Réponse sous 24h",
-    },
-    {
-      icon: MapPinIcon,
-      label: "Adresse",
-      value: "Karpala, 3ème boutique après le groupe l'académie",
-      subValue: "Ouagadougou, Burkina Faso",
     },
     {
       icon: WhatsappLogoIcon,
@@ -62,143 +60,186 @@ export default function ContactPage() {
   ];
 
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <main className="grow pt-40 pb-16">
-        <div className="container mx-auto px-4 max-w-7xl">
-          {/* Header */}
-          <motion.div
-            className="text-center max-w-2xl mx-auto mb-16"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h1 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-6">
-              Contactez-nous
-            </h1>
-            <p className="text-lg text-neutral-600">
-              Vous avez des questions ou besoin d&apos;assistance ? Notre équipe
-              est là pour vous accompagner dans tous vos projets immobiliers.
-            </p>
-          </motion.div>
+    <div className="min-h-screen bg-[#f5efe6]">
+      <main>
+        <section className="relative overflow-hidden bg-[#17120f] px-3 pb-3 pt-28 sm:px-6 lg:pt-32">
+          <div className="relative mx-auto min-h-[620px] max-w-[1500px] overflow-hidden rounded-[30px] border border-white/10 bg-neutral-950">
+            <MarketingImage
+              src={marketingAssets.agentOffice.src}
+              fallbackSrc={marketingAssets.agentOffice.fallback}
+              alt="Assistance Roogo au téléphone"
+              fill
+              sizes="100vw"
+              className="object-cover"
+            />
+            <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,9,7,0.92),rgba(12,9,7,0.58)_55%,rgba(12,9,7,0.18)),linear-gradient(180deg,rgba(12,9,7,0.1),rgba(12,9,7,0.7))]" />
+            <div className="relative flex min-h-[620px] max-w-3xl flex-col justify-end px-6 py-10 sm:px-10 lg:px-14">
+              <div className="mb-5 inline-flex w-fit rounded-full border border-white/15 bg-white/10 px-4 py-2 text-xs font-black uppercase tracking-[0.16em] text-white/70">
+                Contact
+              </div>
+              <h1 className="text-5xl font-black leading-[0.98] tracking-tight text-white md:text-7xl">
+                Parlons de votre prochain logement.
+              </h1>
+              <p className="mt-7 max-w-2xl text-base font-medium leading-8 text-white/70 md:text-lg">
+                Une question sur une annonce, une visite, un bien à publier ou
+                un paiement ? L&apos;équipe Roogo vous oriente vers la prochaine
+                étape utile.
+              </p>
+            </div>
+          </div>
+        </section>
 
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-12">
-            {/* Contact Info Grid */}
-            <div className="lg:col-span-1 space-y-6">
-              {contactInfo.map((info, index) => (
-                <motion.div
-                  key={index}
-                  className="bg-neutral-50 p-6 rounded-3xl border border-neutral-100 flex items-start gap-5 hover:bg-white hover:shadow-md transition-all duration-300"
-                  initial={{ opacity: 0, x: -20 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  transition={{ delay: index * 0.1 }}
-                >
-                  <div className="bg-primary/10 p-3 rounded-2xl text-primary">
-                    <info.icon size={28} weight="duotone" />
+        <section className="py-24 md:py-32">
+          <div className="mx-auto grid max-w-7xl gap-10 px-6 lg:grid-cols-[0.85fr_1.15fr]">
+            <div>
+              <SectionHeader
+                kicker="Coordonnées"
+                title="Un point d'entrée clair pour chaque demande."
+                description="Choisissez le canal le plus pratique. Pour une annonce précise, ajoutez le quartier ou le lien du bien dans votre message."
+              />
+
+              <div className="mt-10 grid gap-4">
+                {contactInfo.map((info, index) => (
+                  <motion.div
+                    key={info.label}
+                    className="rounded-[26px] border border-[#e7dacb] bg-white/75 p-6 shadow-sm"
+                    initial={{ opacity: 0, x: -18 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    transition={{ delay: index * 0.08 }}
+                  >
+                    <div className="flex items-start gap-4">
+                      <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                        <info.icon size={26} weight="duotone" />
+                      </div>
+                      <div>
+                        <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+                          {info.label}
+                        </p>
+                        <p className="mt-1 text-lg font-black text-neutral-950">
+                          {info.value}
+                        </p>
+                        <p className="text-sm font-semibold text-neutral-500">
+                          {info.subValue}
+                        </p>
+                      </div>
+                    </div>
+                  </motion.div>
+                ))}
+
+                <div className="rounded-[26px] border border-[#e7dacb] bg-white/75 p-6 shadow-sm">
+                  <div className="flex items-start gap-4">
+                    <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <MapPinIcon size={26} weight="duotone" />
+                    </div>
+                    <div>
+                      <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
+                        Adresse
+                      </p>
+                      <p className="mt-1 text-lg font-black text-neutral-950">
+                        Karpala, Ouagadougou
+                      </p>
+                      <p className="text-sm font-semibold leading-6 text-neutral-500">
+                        3ème boutique après le groupe l&apos;académie
+                      </p>
+                    </div>
                   </div>
-                  <div>
-                    <p className="text-sm font-bold text-neutral-400 uppercase tracking-wider mb-1">
-                      {info.label}
-                    </p>
-                    <p className="text-lg font-bold text-neutral-900 mb-1">
-                      {info.value}
-                    </p>
-                    <p className="text-sm text-neutral-500 font-medium">
-                      {info.subValue}
-                    </p>
-                  </div>
-                </motion.div>
-              ))}
+                </div>
+              </div>
             </div>
 
-            {/* Contact Form Card */}
             <motion.div
-              className="lg:col-span-2 bg-white p-8 md:p-12 rounded-[40px] border border-neutral-100 shadow-xl shadow-black/5"
-              initial={{ opacity: 0, y: 20 }}
+              className="rounded-[34px] border border-neutral-200 bg-white p-6 shadow-2xl shadow-[#5a321a]/10 sm:p-8 lg:p-10"
+              initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.3 }}
+              transition={{ delay: 0.2 }}
             >
-              <h2 className="text-2xl font-bold text-neutral-900 mb-8">
+              <h2 className="text-3xl font-black text-neutral-950">
                 Envoyez-nous un message
               </h2>
-              <form onSubmit={handleSubmit} className="space-y-6">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-neutral-900 ml-4">
+              <p className="mt-3 text-sm font-medium leading-7 text-neutral-600">
+                Donnez-nous le contexte. Notre équipe pourra vous répondre avec
+                une orientation plus précise.
+              </p>
+
+              <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+                <div className="grid gap-5 md:grid-cols-2">
+                  <label className="space-y-2">
+                    <span className="ml-3 text-sm font-black text-neutral-950">
                       Nom complet
-                    </label>
+                    </span>
                     <input
                       required
                       type="text"
                       placeholder="Jean Dupont"
-                      className="w-full px-6 py-4 bg-neutral-50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-medium"
+                      className="w-full rounded-full border border-neutral-200 bg-[#f8f5ef] px-5 py-4 text-sm font-semibold outline-none transition-all focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                       value={formState.name}
                       onChange={(e) =>
                         setFormState({ ...formState, name: e.target.value })
                       }
                     />
-                  </div>
-                  <div className="space-y-2">
-                    <label className="text-sm font-bold text-neutral-900 ml-4">
+                  </label>
+                  <label className="space-y-2">
+                    <span className="ml-3 text-sm font-black text-neutral-950">
                       Email
-                    </label>
+                    </span>
                     <input
                       required
                       type="email"
                       placeholder="jean@example.com"
-                      className="w-full px-6 py-4 bg-neutral-50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-medium"
+                      className="w-full rounded-full border border-neutral-200 bg-[#f8f5ef] px-5 py-4 text-sm font-semibold outline-none transition-all focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                       value={formState.email}
                       onChange={(e) =>
                         setFormState({ ...formState, email: e.target.value })
                       }
                     />
-                  </div>
+                  </label>
                 </div>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-neutral-900 ml-4">
+                <label className="block space-y-2">
+                  <span className="ml-3 text-sm font-black text-neutral-950">
                     Sujet
-                  </label>
+                  </span>
                   <input
                     required
                     type="text"
-                    placeholder="Comment pouvons-nous vous aider ?"
-                    className="w-full px-6 py-4 bg-neutral-50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-medium"
+                    placeholder="Annonce, visite, publication..."
+                    className="w-full rounded-full border border-neutral-200 bg-[#f8f5ef] px-5 py-4 text-sm font-semibold outline-none transition-all focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                     value={formState.subject}
                     onChange={(e) =>
                       setFormState({ ...formState, subject: e.target.value })
                     }
                   />
-                </div>
+                </label>
 
-                <div className="space-y-2">
-                  <label className="text-sm font-bold text-neutral-900 ml-4">
+                <label className="block space-y-2">
+                  <span className="ml-3 text-sm font-black text-neutral-950">
                     Message
-                  </label>
+                  </span>
                   <textarea
                     required
-                    rows={5}
+                    rows={6}
                     placeholder="Écrivez votre message ici..."
-                    className="w-full px-6 py-5 bg-neutral-50 rounded-[32px] border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-medium resize-none"
+                    className="w-full resize-none rounded-[26px] border border-neutral-200 bg-[#f8f5ef] px-5 py-4 text-sm font-semibold outline-none transition-all focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/10"
                     value={formState.message}
                     onChange={(e) =>
                       setFormState({ ...formState, message: e.target.value })
                     }
                   />
-                </div>
+                </label>
 
                 <Button
                   variant="primary"
                   size="lg"
                   fullWidth
-                  className="rounded-full py-4 font-bold text-base shadow-lg shadow-primary/20 flex items-center justify-center gap-2"
+                  className="rounded-full py-4 text-base font-black"
                 >
-                  <PaperPlaneTiltIcon size={22} weight="bold" />
+                  <PaperPlaneTiltIcon size={22} weight="bold" className="mr-2" />
                   Envoyer le message
                 </Button>
               </form>
             </motion.div>
           </div>
-        </div>
+        </section>
       </main>
 
       <Footer />

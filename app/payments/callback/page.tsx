@@ -84,10 +84,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
     }
 
     if (!isSignedIn) {
-      setStatus("failed");
-      setMessage(
-        "Veuillez vous reconnecter pour vérifier le statut du paiement.",
-      );
+      // Mobile users have no Clerk session — handled in the render below.
       return;
     }
 
@@ -307,7 +304,10 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
               photos: pendingPhotos,
             });
           } catch (photoUploadError) {
-            console.error("Error uploading pending listing photos:", photoUploadError);
+            console.error(
+              "Error uploading pending listing photos:",
+              photoUploadError,
+            );
             photoUploadFailed = true;
           } finally {
             if (depositId) await removePendingPhotos(depositId);
@@ -378,6 +378,46 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
       ? transactionLabels[paymentContext.transactionType] ||
         paymentContext.transactionType
       : null;
+
+  // Mobile app users come from PawaPay redirect — Safari has no Clerk session.
+  // Show a branded "return to app" page instead of a login wall.
+  if (isLoaded && !isSignedIn) {
+    const appDeepLink = depositId
+      ? `roogo://my-properties?payment_status=completed&depositId=${depositId}`
+      : `roogo://my-properties`;
+
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
+        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-md w-full text-center">
+          <div className="flex justify-center mb-6">
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center"
+              style={{ backgroundColor: "#FBF0E8" }}
+            >
+              <CheckCircle2 className="w-8 h-8" style={{ color: "#C96A2E" }} />
+            </div>
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
+            Paiement terminé
+          </h1>
+          <p className="text-gray-500 mb-6">
+            Retournez dans l&apos;application Roogo pour suivre votre annonce.
+          </p>
+          <a
+            href={appDeepLink}
+            style={{ backgroundColor: "#C96A2E" }}
+            className="block w-full text-center text-white font-semibold py-3 px-4 rounded-xl hover:opacity-90 transition-opacity mb-3"
+          >
+            Retourner sur l&apos;application Roogo
+          </a>
+          <p className="text-xs text-gray-400">
+            Si l&apos;application ne s&apos;ouvre pas automatiquement, ouvrez
+            Roogo manuellement.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">

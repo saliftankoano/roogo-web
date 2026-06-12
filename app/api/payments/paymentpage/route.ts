@@ -24,19 +24,26 @@ import {
 
 // Valid PawaPay 3-letter country codes for payment page
 const VALID_PAYMENT_PAGE_COUNTRIES = ["BFA", "CIV", "SEN"] as const;
-type PaymentPageCountry = typeof VALID_PAYMENT_PAGE_COUNTRIES[number];
+type PaymentPageCountry = (typeof VALID_PAYMENT_PAGE_COUNTRIES)[number];
 
 // Schema for Payment Page request
 const paymentPageSchema = z.object({
   amount: z.number().positive(),
   description: z.string().min(1),
-  transactionType: z.enum(["listing_submission", "property_lock", "boost", "photography"]),
+  transactionType: z.enum([
+    "listing_submission",
+    "property_lock",
+    "boost",
+    "photography",
+  ]),
   propertyId: z.string().optional(),
   tier_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
   referralCode: z.string().optional(),
   /** ISO 3-letter country code for PawaPay payment page; defaults to "BFA" */
   country: z.enum(VALID_PAYMENT_PAGE_COUNTRIES).optional(),
+  /** App locale; used for the PawaPay payment page language ("fr" → "FR", "en" → "EN") */
+  locale: z.string().optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -47,13 +54,15 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const requestId = crypto.randomUUID().slice(0, 8);
   const log = (step: string, data: Record<string, unknown> = {}) => {
-    console.log(JSON.stringify({ 
-      route: "POST /api/payments/paymentpage", 
-      requestId, 
-      step, 
-      ...data, 
-      timestamp: new Date().toISOString() 
-    }));
+    console.log(
+      JSON.stringify({
+        route: "POST /api/payments/paymentpage",
+        requestId,
+        step,
+        ...data,
+        timestamp: new Date().toISOString(),
+      }),
+    );
   };
 
   try {
@@ -85,14 +94,16 @@ export async function POST(req: Request) {
     }
 
     // 2. Rate limiting
-    const { success: rateLimitOk, headers: rateLimitHeaders } = await checkRateLimit(
-      paymentLimiter,
-      clerkUserId
-    );
+    const { success: rateLimitOk, headers: rateLimitHeaders } =
+      await checkRateLimit(paymentLimiter, clerkUserId);
 
     if (!rateLimitOk) {
       log("rate-limited", { clerkUserId });
-      const response = errorResponse("Too many payment requests. Please try again later.", 429, req);
+      const response = errorResponse(
+        "Too many payment requests. Please try again later.",
+        429,
+        req,
+      );
       rateLimitHeaders.forEach((value, key) => {
         response.headers.set(key, value);
       });
@@ -122,8 +133,10 @@ export async function POST(req: Request) {
           phone_numbers: clerkUser.phoneNumbers.map((p) => ({
             phone_number: p.phoneNumber,
           })),
-          public_metadata: clerkUser.publicMetadata as ClerkUserData["public_metadata"],
-          private_metadata: clerkUser.privateMetadata as ClerkUserData["private_metadata"],
+          public_metadata:
+            clerkUser.publicMetadata as ClerkUserData["public_metadata"],
+          private_metadata:
+            clerkUser.privateMetadata as ClerkUserData["private_metadata"],
         };
 
         user = await createUserInSupabase(userData);
@@ -133,7 +146,7 @@ export async function POST(req: Request) {
         return errorResponse(
           "User not found. Please try signing in again.",
           404,
-          req
+          req,
         );
       }
     }
@@ -154,7 +167,7 @@ export async function POST(req: Request) {
 
     // 4. Parse and validate body
     const body = await req.json();
-    
+
     let validatedData;
     try {
       validatedData = paymentPageSchema.parse(body);
@@ -172,6 +185,7 @@ export async function POST(req: Request) {
       add_ons,
       referralCode,
       country: requestedCountry,
+      locale: requestedLocale,
       metadata,
     } = validatedData;
 
@@ -183,7 +197,9 @@ export async function POST(req: Request) {
     );
 
     let resolvedAmount = amount;
-    let appliedReferral = null as ReturnType<typeof applyReferralToQuote> | null;
+    let appliedReferral = null as ReturnType<
+      typeof applyReferralToQuote
+    > | null;
     let listingQuote = null as Awaited<
       ReturnType<typeof computeListingSubmissionQuote>
     > | null;
@@ -216,11 +232,11 @@ export async function POST(req: Request) {
       }
     }
 
-    log("request-validated", { 
-      amount: resolvedAmount, 
-      transactionType, 
+    log("request-validated", {
+      amount: resolvedAmount,
+      transactionType,
       propertyId,
-      tier_id 
+      tier_id,
     });
 
     // 5. Create Transaction Record in Supabase (Pending)
@@ -228,7 +244,7 @@ export async function POST(req: Request) {
     const currency = "XOF";
 
     // Payment Page provider is selected on pawaPay UI; store web source now, then enrich to web_orange/web_moov later
-    const provider = "web_pending"; 
+    const provider = "web_pending";
     const transactionMetadata = {
       ...resolvedMetadata,
       ...buildReferralMetadata(appliedReferral),
@@ -258,10 +274,10 @@ export async function POST(req: Request) {
       .single();
 
     if (dbError) {
-      log("db-insert-failed", { 
-        error: String(dbError), 
+      log("db-insert-failed", {
+        error: String(dbError),
         depositId,
-        userId: user.id
+        userId: user.id,
       });
       return errorResponse("Failed to initialize transaction", 500, req);
     }
@@ -291,14 +307,16 @@ export async function POST(req: Request) {
     const pawaPayConfig = resolvePawaPayConfig();
     const pawaUrl = pawaPayConfig.url;
     const pawaToken = pawaPayConfig.token;
-    
+
     log("pawapay-config", {
       environment: pawaPayConfig.environment,
       url: pawaUrl,
     });
 
-    const explicitReturnUrl = process.env.PAWAPAY_PAYMENTPAGE_RETURN_URL?.trim();
-    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://www.roogobf.com";
+    const explicitReturnUrl =
+      process.env.PAWAPAY_PAYMENTPAGE_RETURN_URL?.trim();
+    const baseUrl =
+      process.env.NEXT_PUBLIC_APP_URL || "https://www.roogobf.com";
     const fallbackReturnUrl = `${baseUrl.replace(/\/+$/, "")}/payments/callback`;
 
     let validatedExplicitReturnUrl: string | null = null;
@@ -308,7 +326,8 @@ export async function POST(req: Request) {
         const isHttps = parsed.protocol === "https:";
         const host = parsed.hostname.toLowerCase();
         const isLocalHost = host === "localhost" || host === "127.0.0.1";
-        validatedExplicitReturnUrl = isHttps && !isLocalHost ? explicitReturnUrl : null;
+        validatedExplicitReturnUrl =
+          isHttps && !isLocalHost ? explicitReturnUrl : null;
       } catch {
         validatedExplicitReturnUrl = null;
       }
@@ -324,8 +343,10 @@ export async function POST(req: Request) {
         currency,
       },
       country: pawaPayCountry,
-      language: "FR",
-      reason: (description || "Roogo Payment").slice(0, 50).replace(/[^a-zA-Z0-9\s]/g, ""),
+      language: requestedLocale?.toUpperCase() === "EN" ? "EN" : "FR",
+      reason: (description || "Roogo Payment")
+        .slice(0, 50)
+        .replace(/[^a-zA-Z0-9\s]/g, ""),
     };
 
     log("pawapay-request", {
@@ -354,18 +375,18 @@ export async function POST(req: Request) {
       result = { message: responseText };
     }
 
-    log("pawapay-response", { 
+    log("pawapay-response", {
       httpStatus: response.status,
       ok: response.ok,
       depositId,
-      result: JSON.stringify(result).slice(0, 500)
+      result: JSON.stringify(result).slice(0, 500),
     });
 
     if (!response.ok) {
-      log("pawapay-error", { 
-        depositId, 
-        httpStatus: response.status, 
-        result 
+      log("pawapay-error", {
+        depositId,
+        httpStatus: response.status,
+        result,
       });
 
       const failureMessage =
@@ -402,9 +423,9 @@ export async function POST(req: Request) {
       return cors(
         NextResponse.json(
           { error: failureMessage, details: result },
-          { status: response.status }
+          { status: response.status },
         ),
-        req
+        req,
       );
     }
 
@@ -415,17 +436,20 @@ export async function POST(req: Request) {
         redirectUrl: result.redirectUrl,
         depositId: depositId,
       }),
-      req
+      req,
     );
   } catch (error: unknown) {
-    log("unhandled-error", { error: String(error), stack: error instanceof Error ? error.stack : undefined });
+    log("unhandled-error", {
+      error: String(error),
+      stack: error instanceof Error ? error.stack : undefined,
+    });
     if (error instanceof ReferralValidationError) {
       return errorResponse(error.message, error.status, req);
     }
     return errorResponse(
       safeError(error, "Payment initiation failed"),
       500,
-      req
+      req,
     );
   }
 }

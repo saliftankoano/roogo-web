@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { PropertyCard } from "./PropertyCard";
+import { Footer } from "./Footer";
 import { Property } from "../lib/data";
 import { motion, AnimatePresence } from "framer-motion";
 import posthog from "posthog-js";
@@ -23,6 +24,8 @@ import {
   ExpandableScreenContent,
   ExpandableScreenTrigger,
 } from "./ui/expandable-screen";
+import { MarketingImage } from "./marketing/MarketingPrimitives";
+import { marketingAssets } from "./marketing/assets";
 import { cn } from "../lib/utils";
 
 function PropertiesPageContent({
@@ -274,85 +277,126 @@ function PropertiesPageContent({
   };
 
   return (
-    <div className="min-h-screen bg-neutral-50/30">
+    <div className="min-h-screen bg-[#f5efe6]">
       {/* User Type Selection Modal */}
       <UserTypeSelectionModal
         isOpen={showUserTypeModal}
         onSelectUserType={handleUserTypeSelect}
       />
 
-      <main className="max-w-7xl mx-auto px-6 pt-40 pb-20 space-y-8">
+      <main className="mx-auto max-w-7xl space-y-8 px-6 pb-20 pt-32 md:pt-40">
         {/* Results Header */}
-        <div className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-          <div>
-            <h1 className="text-3xl font-bold text-neutral-900">
-              Location immobilière
-            </h1>
-            <p className="text-neutral-500 font-medium mt-1">
-              Découvrez nos {filteredProperties.length} biens disponibles à
-              Ouagadougou
-            </p>
-          </div>
+        <section className="relative overflow-hidden rounded-[2rem] bg-[#17120f] p-6 text-white shadow-2xl shadow-black/10 md:p-10">
+          <MarketingImage
+            src={marketingAssets.searchConsole.src}
+            fallbackSrc={marketingAssets.searchConsole.fallback}
+            alt="Recherche de propriétés Roogo"
+            fill
+            priority
+            sizes="(max-width: 768px) 100vw, 1280px"
+            className="object-cover opacity-30"
+          />
+          <div className="absolute inset-0 bg-[#17120f]/75" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(201,106,46,0.32),transparent_34%),linear-gradient(135deg,rgba(255,255,255,0.09),transparent_45%)]" />
+          <div className="relative flex flex-col gap-8 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-3xl">
+              <div className="inline-flex rounded-full border border-white/15 bg-white/10 px-3 py-1 text-[11px] font-black uppercase tracking-[0.18em] text-white/70">
+                Console de recherche
+              </div>
+              <h1 className="mt-5 text-4xl font-black leading-tight tracking-tight md:text-6xl">
+                Trouvez un bien fiable, visible et prêt à visiter.
+              </h1>
+              <p className="mt-5 max-w-2xl text-base leading-8 text-white/70 md:text-lg">
+                Filtrez les logements, studios, villas et espaces commerciaux
+                disponibles à Ouagadougou sans perdre le fil de votre recherche.
+              </p>
+              <div className="mt-7 grid gap-3 sm:grid-cols-3">
+                {[
+                  ["Biens", `${filteredProperties.length}`],
+                  ["Ville", "Ouagadougou"],
+                  ["Tri", sortBy],
+                ].map(([label, value]) => (
+                  <div
+                    key={label}
+                    className="rounded-2xl border border-white/10 bg-white/10 p-4"
+                  >
+                    <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/50">
+                      {label}
+                    </p>
+                    <p className="mt-1 truncate text-lg font-black text-white">
+                      {value}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
 
-          <div className="relative" ref={sortRef}>
-            <button
-              onClick={() => setIsSortOpen(!isSortOpen)}
-              className="flex items-center gap-2 bg-white px-5 py-2.5 rounded-full border border-neutral-100 shadow-sm self-start md:self-auto hover:border-primary/20 transition-all group"
-            >
-              <span className="text-xs font-bold text-neutral-400 uppercase tracking-wider">
-                Trier par:
-              </span>
-              <span className="text-sm font-bold text-neutral-900 group-hover:text-primary transition-colors">
-                {sortBy}
-              </span>
-              <CaretDownIcon
-                size={14}
-                weight="bold"
-                className={`text-neutral-300 transition-transform duration-300 ${
-                  isSortOpen ? "rotate-180 text-primary" : ""
-                }`}
-              />
-            </button>
+            <div className="relative" ref={sortRef}>
+              <button
+                onClick={() => setIsSortOpen(!isSortOpen)}
+                className="flex items-center gap-2 self-start rounded-full border border-white/15 bg-white px-5 py-3 text-neutral-950 shadow-xl shadow-black/15 transition-all hover:bg-white/90 md:self-auto"
+              >
+                <span className="text-xs font-black uppercase tracking-wider text-neutral-400">
+                  Trier par
+                </span>
+                <span className="text-sm font-black text-neutral-950">
+                  {sortBy}
+                </span>
+                <CaretDownIcon
+                  size={14}
+                  weight="bold"
+                  className={`text-neutral-400 transition-transform duration-300 ${
+                    isSortOpen ? "rotate-180 text-primary" : ""
+                  }`}
+                />
+              </button>
 
-            <AnimatePresence>
-              {isSortOpen && (
-                <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
-                  animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                  className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl p-2 shadow-2xl border border-neutral-100 z-50"
-                >
-                  {sortOptions.map((option) => (
-                    <button
-                      key={option}
-                      onClick={() => {
-                        setSortBy(option);
-                        setIsSortOpen(false);
-                      }}
-                      className={`w-full flex items-center justify-between px-4 py-2.5 rounded-xl text-sm font-bold transition-all ${
-                        sortBy === option
-                          ? "bg-primary/10 text-primary"
-                          : "text-neutral-600 hover:bg-neutral-50"
-                      }`}
-                    >
-                      {option}
-                      {sortBy === option && (
-                        <CheckIcon size={14} weight="bold" />
-                      )}
-                    </button>
-                  ))}
-                </motion.div>
-              )}
-            </AnimatePresence>
+              <AnimatePresence>
+                {isSortOpen && (
+                  <motion.div
+                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    animate={{ opacity: 1, y: 0, scale: 1 }}
+                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    className="absolute right-0 top-full z-50 mt-2 w-56 rounded-2xl border border-neutral-100 bg-white p-2 text-neutral-950 shadow-2xl"
+                  >
+                    {sortOptions.map((option) => (
+                      <button
+                        key={option}
+                        onClick={() => {
+                          setSortBy(option);
+                          setIsSortOpen(false);
+                        }}
+                        className={`flex w-full items-center justify-between rounded-xl px-4 py-2.5 text-sm font-bold transition-all ${
+                          sortBy === option
+                            ? "bg-primary/10 text-primary"
+                            : "text-neutral-600 hover:bg-neutral-50"
+                        }`}
+                      >
+                        {option}
+                        {sortBy === option && (
+                          <CheckIcon size={14} weight="bold" />
+                        )}
+                      </button>
+                    ))}
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
           </div>
-        </div>
+        </section>
 
         {/* Custom Styled Filter Section */}
-        <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative transition-all">
-          <div className="flex items-center justify-between mb-8">
-            <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
-              Filtres de recherche
-            </h2>
+        <div className="relative rounded-[2rem] border border-black/10 bg-white p-6 shadow-sm transition-all sm:p-8 md:p-10">
+          <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
+            <div>
+              <h2 className="text-2xl font-black tracking-tight text-neutral-950">
+                Filtres de recherche
+              </h2>
+              <p className="mt-2 max-w-xl text-sm font-medium leading-6 text-neutral-500">
+                Gardez les critères importants visibles pendant que vous
+                explorez les annonces.
+              </p>
+            </div>
             <div className="flex items-center gap-3">
               {canCreateProperty && (
                 <ExpandableScreen
@@ -360,7 +404,7 @@ function PropertiesPageContent({
                   contentRadius="32px"
                 >
                   <ExpandableScreenTrigger>
-                    <div className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 cursor-pointer">
+                    <div className="flex cursor-pointer items-center gap-2 rounded-full bg-primary px-6 py-2.5 font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90 active:scale-95">
                       <PlusIcon size={20} weight="bold" />
                       <span>Nouveau Bien</span>
                     </div>
@@ -379,7 +423,7 @@ function PropertiesPageContent({
                 <button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
                   className={cn(
-                    "p-2.5 rounded-full transition-all border shadow-sm",
+                    "rounded-full border p-2.5 shadow-sm transition-all",
                     isMenuOpen
                       ? "bg-neutral-100 border-neutral-200 text-primary"
                       : "hover:bg-neutral-50 border-neutral-100 text-neutral-400",
@@ -394,12 +438,12 @@ function PropertiesPageContent({
                       initial={{ opacity: 0, y: 10, scale: 0.95 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
                       exit={{ opacity: 0, y: 10, scale: 0.95 }}
-                      className="absolute top-full right-0 mt-3 w-64 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50"
+                      className="absolute right-0 top-full z-50 mt-3 w-64 rounded-3xl border border-neutral-100 bg-white p-2 shadow-2xl"
                     >
                       {isStaffOrFounder && (
                         <Link
                           href="/admin/annonces"
-                          className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-neutral-600 hover:bg-neutral-50 hover:text-primary transition-all"
+                          className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-neutral-600 transition-all hover:bg-neutral-50 hover:text-primary"
                         >
                           <BuildingsIcon size={18} weight="bold" />
                           Gérer les annonces
@@ -414,9 +458,9 @@ function PropertiesPageContent({
                           setCategoryFilter("all");
                           setIsMenuOpen(false);
                         }}
-                        className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-bold text-neutral-600 hover:bg-neutral-50 transition-all"
+                        className="flex w-full items-center gap-3 rounded-xl px-4 py-3 text-sm font-bold text-neutral-600 transition-all hover:bg-neutral-50"
                       >
-                        <div className="w-[18px] h-[18px] border-2 border-neutral-300 rounded-md" />
+                        <div className="h-[18px] w-[18px] rounded-md border-2 border-neutral-300" />
                         Réinitialiser les filtres
                       </button>
                     </motion.div>
@@ -426,21 +470,21 @@ function PropertiesPageContent({
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
+          <div className="grid grid-cols-1 gap-5 md:grid-cols-2 lg:grid-cols-4">
             {/* Keyword Filter */}
             <div className="space-y-3">
-              <label className="text-[13px] font-bold text-neutral-900 ml-4 uppercase tracking-wider opacity-60">
+              <label className="ml-4 text-[13px] font-bold uppercase tracking-wider text-neutral-900 opacity-60">
                 Mot-clé
               </label>
               <div className="relative group">
                 <input
                   type="text"
                   placeholder="Entrez un mot-clé..."
-                  className="w-full pl-12 pr-6 py-4 bg-neutral-50/50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-[15px] placeholder:text-neutral-300 font-medium"
+                  className="w-full rounded-full border border-neutral-100 bg-neutral-50/50 py-4 pl-12 pr-6 text-[15px] font-medium transition-all placeholder:text-neutral-300 focus:border-primary/20 focus:bg-white focus:ring-4 focus:ring-primary/5"
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                 />
-                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 group-focus-within:text-primary transition-colors">
+                <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 transition-colors group-focus-within:text-primary">
                   <MagnifyingGlassIcon size={20} weight="bold" />
                 </div>
               </div>
@@ -484,7 +528,7 @@ function PropertiesPageContent({
             </p>
           </div>
         ) : filteredProperties.length > 0 ? (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-8">
+          <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3">
             {filteredProperties.map((property) => {
               const route = getPropertyRoute(property);
               const showStatus =
@@ -503,8 +547,8 @@ function PropertiesPageContent({
             })}
           </div>
         ) : (
-          <div className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-[40px] border border-neutral-100 shadow-sm">
-            <div className="w-20 h-20 bg-neutral-50 rounded-full flex items-center justify-center mb-6">
+          <div className="flex flex-col items-center justify-center rounded-[2rem] border border-black/10 bg-white py-32 text-center shadow-sm">
+            <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-neutral-50">
               <MagnifyingGlassIcon size={40} className="text-neutral-300" />
             </div>
             <h3 className="text-xl font-bold text-neutral-900 mb-2">
@@ -521,13 +565,15 @@ function PropertiesPageContent({
                 setTypeFilter("all");
                 setCategoryFilter("all");
               }}
-              className="mt-8 px-8 py-3 bg-neutral-900 text-white rounded-full font-bold text-sm hover:scale-105 transition-transform active:scale-95 shadow-lg shadow-black/10"
+              className="mt-8 rounded-full bg-neutral-900 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-black/10 transition-transform hover:scale-105 active:scale-95"
             >
               Réinitialiser les filtres
             </button>
           </div>
         )}
       </main>
+
+      <Footer />
     </div>
   );
 }
@@ -643,8 +689,8 @@ export function PropertiesClient({
   return (
     <Suspense
       fallback={
-        <div className="min-h-screen bg-neutral-50/30 flex items-center justify-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <div className="flex min-h-screen items-center justify-center bg-[#f5efe6]">
+          <div className="h-12 w-12 animate-spin rounded-full border-b-2 border-primary"></div>
         </div>
       }
     >

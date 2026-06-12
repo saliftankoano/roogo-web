@@ -3,169 +3,152 @@
 import Link from "next/link";
 import Image from "next/image";
 import {
+  EnvelopeSimple,
   FacebookLogo,
   InstagramLogo,
-  XLogo,
   LinkedinLogo,
-  EnvelopeSimple,
-  Phone,
   MapPin,
+  Phone,
+  XLogo,
 } from "@phosphor-icons/react";
 import { TrustpilotReviewCollector } from "./TrustpilotReviewCollector";
 
 export function Footer() {
   return (
-    <footer className="bg-white border-t border-neutral-200 pt-16 pb-8">
-      <div className="container mx-auto px-4">
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-12 mb-16">
-          {/* Brand Column */}
+    <footer className="border-t border-white/10 bg-[#17120f] pt-16 text-white">
+      <div className="mx-auto max-w-7xl px-6">
+        <div className="grid gap-12 border-b border-white/10 pb-14 lg:grid-cols-[1.15fr_0.8fr_0.8fr_1fr]">
           <div>
-            <div className="flex items-center gap-2 mb-6">
-              <Image
-                src="/logo.png?v=2"
-                alt="Roogo Logo"
-                width={160}
-                height={64}
-                className="object-contain h-14 w-auto"
-              />
-            </div>
-            <p className="text-neutral-500 mb-6 leading-relaxed">
-              La référence de la location immobilière au Burkina Faso.
+            <Link href="/" className="inline-flex items-center gap-3">
+              <span className="rounded-2xl bg-white p-2">
+                <Image
+                  src="/logo.png?v=2"
+                  alt="Roogo Logo"
+                  width={34}
+                  height={34}
+                  className="object-contain"
+                />
+              </span>
+              <span className="text-2xl font-black tracking-tight">Roogo</span>
+            </Link>
+            <p className="mt-6 max-w-sm text-sm font-medium leading-7 text-white/60">
+              La location immobilière au Burkina Faso, structurée autour
+              d&apos;annonces plus lisibles, de visites mieux coordonnées et
+              d&apos;un suivi plus clair.
             </p>
-            <div className="flex gap-4">
-              <a
-                href="#"
-                className="text-neutral-400 hover:text-primary transition-colors"
-              >
-                <FacebookLogo size={24} weight="fill" />
-              </a>
-              <a
-                href="#"
-                className="text-neutral-400 hover:text-primary transition-colors"
-              >
-                <InstagramLogo size={24} weight="fill" />
-              </a>
-              <a
-                href="#"
-                className="text-neutral-400 hover:text-primary transition-colors"
-              >
-                <XLogo size={24} weight="fill" />
-              </a>
-              <a
-                href="#"
-                className="text-neutral-400 hover:text-primary transition-colors"
-              >
-                <LinkedinLogo size={24} weight="fill" />
-              </a>
+            <div className="mt-7 flex gap-3">
+              {[
+                { icon: FacebookLogo, label: "Facebook" },
+                { icon: InstagramLogo, label: "Instagram" },
+                { icon: XLogo, label: "X" },
+                { icon: LinkedinLogo, label: "LinkedIn" },
+              ].map((item) => (
+                <a
+                  key={item.label}
+                  href="#"
+                  aria-label={item.label}
+                  className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-primary hover:text-white"
+                >
+                  <item.icon size={20} weight="fill" />
+                </a>
+              ))}
             </div>
           </div>
 
-          {/* Links Column 1 */}
           <div>
-            <h4 className="font-bold text-neutral-900 mb-6">Immobilier</h4>
-            <ul className="space-y-4">
+            <h4 className="text-sm font-black uppercase tracking-[0.16em] text-white/40">
+              Immobilier
+            </h4>
+            <ul className="mt-6 space-y-4 text-sm font-bold text-white/70">
               <li>
-                <Link
-                  href="/proprietes?category=Residential"
-                  className="text-neutral-500 hover:text-primary transition-colors"
-                >
+                <Link href="/proprietes?category=Residential" className="hover:text-white">
                   Louer un logement
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/proprietes?category=Business"
-                  className="text-neutral-500 hover:text-primary transition-colors"
-                >
+                <Link href="/proprietes?category=Business" className="hover:text-white">
                   Louer un local
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/proprietes"
-                  className="text-neutral-500 hover:text-primary transition-colors"
-                >
+                <Link href="/proprietes" className="hover:text-white">
                   Publier une annonce
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/nous-contacter"
-                  className="text-neutral-500 hover:text-primary transition-colors"
-                >
-                  Nous contacter
+                <Link href="/mes-proprietes" className="hover:text-white">
+                  Mes biens
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Links Column 2 */}
           <div>
-            <h4 className="font-bold text-neutral-900 mb-6">Entreprise</h4>
-            <ul className="space-y-4">
+            <h4 className="text-sm font-black uppercase tracking-[0.16em] text-white/40">
+              Roogo
+            </h4>
+            <ul className="mt-6 space-y-4 text-sm font-bold text-white/70">
               <li>
-                <Link
-                  href="/a-propos"
-                  className="text-neutral-500 hover:text-primary transition-colors"
-                >
+                <Link href="/a-propos" className="hover:text-white">
                   À propos
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/carrieres"
-                  className="text-neutral-500 hover:text-primary transition-colors"
-                >
+                <Link href="/carrieres" className="hover:text-white">
                   Carrières
                 </Link>
               </li>
               <li>
-                <Link
-                  href="/nous-contacter"
-                  className="text-neutral-500 hover:text-primary transition-colors"
-                >
+                <Link href="/nous-contacter" className="hover:text-white">
                   Contact
+                </Link>
+              </li>
+              <li>
+                <Link href="/parrainage" className="hover:text-white">
+                  Parrainage
                 </Link>
               </li>
             </ul>
           </div>
 
-          {/* Contact Column */}
           <div>
-            <h4 className="font-bold text-neutral-900 mb-6">Contact</h4>
-            <ul className="space-y-4">
-              <li className="flex items-start gap-3 text-neutral-500">
-                <MapPin size={20} className="shrink-0 mt-1" />
-                <span>Karpala, 3ème boutique après le groupe l&apos;académie, Ouagadougou</span>
+            <h4 className="text-sm font-black uppercase tracking-[0.16em] text-white/40">
+              Contact
+            </h4>
+            <ul className="mt-6 space-y-5 text-sm font-semibold leading-7 text-white/70">
+              <li className="flex items-start gap-3">
+                <MapPin size={20} className="mt-1 shrink-0 text-primary" />
+                <span>
+                  Karpala, 3ème boutique après le groupe l&apos;académie,
+                  Ouagadougou
+                </span>
               </li>
-              <li className="flex items-center gap-3 text-neutral-500">
-                <Phone size={20} />
+              <li className="flex items-center gap-3">
+                <Phone size={20} className="shrink-0 text-primary" />
                 <span>+226 53 11 11 19 / 67 00 61 16</span>
               </li>
-              <li className="flex items-center gap-3 text-neutral-500">
-                <EnvelopeSimple size={20} />
+              <li className="flex items-center gap-3">
+                <EnvelopeSimple size={20} className="shrink-0 text-primary" />
                 <span>bonjour@roogobf.com</span>
               </li>
             </ul>
           </div>
         </div>
 
-        <div className="mb-10">
+        <div className="border-b border-white/10 py-10">
           <TrustpilotReviewCollector />
         </div>
 
-        <div className="border-t border-neutral-100 pt-8 flex flex-col md:flex-row justify-between items-center gap-4">
-          <p className="text-neutral-400 text-sm">
-            © {new Date().getFullYear()} Roogo. Tous droits réservés.
-          </p>
-          <div className="flex gap-6 text-sm text-neutral-400">
-            <Link href="/confidentialite" className="hover:text-neutral-600">
+        <div className="flex flex-col gap-4 py-8 text-sm font-semibold text-white/40 md:flex-row md:items-center md:justify-between">
+          <p>© {new Date().getFullYear()} Roogo. Tous droits réservés.</p>
+          <div className="flex flex-wrap gap-5">
+            <Link href="/confidentialite" className="hover:text-white">
               Confidentialité
             </Link>
-            <Link href="/conditions-utilisation" className="hover:text-neutral-600">
+            <Link href="/conditions-utilisation" className="hover:text-white">
               Conditions
             </Link>
-            <Link href="/plan-du-site" className="hover:text-neutral-600">
+            <Link href="/plan-du-site" className="hover:text-white">
               Plan du site
             </Link>
           </div>

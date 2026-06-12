@@ -1,230 +1,322 @@
 "use client";
 
-import { Footer } from "../../components/Footer";
+import Link from "next/link";
 import { motion } from "framer-motion";
 import {
+  ArrowRightIcon,
+  CheckCircleIcon,
   EnvelopeSimpleIcon,
   LightbulbIcon,
-  UserIcon,
+  MapPinIcon,
+  ShieldCheckIcon,
   UsersThreeIcon,
 } from "@phosphor-icons/react";
-import Image from "next/image";
+import { Footer } from "../../components/Footer";
 import {
   ExpandableScreen,
   ExpandableScreenContent,
   ExpandableScreenTrigger,
 } from "@/components/ui/expandable-screen";
 import { HustleApplicationModal } from "@/components/carrieres/HustleApplicationModal";
+import {
+  Kicker,
+  MarketingImage,
+  SectionHeader,
+} from "@/components/marketing/MarketingPrimitives";
+import { marketingAssets } from "@/components/marketing/assets";
+
+const hiringSignals = [
+  "Opérations terrain et vérification des biens",
+  "Partenariats propriétaires et agences",
+  "Produit, contenu et expérience client",
+];
+
+const operatingPrinciples = [
+  {
+    icon: LightbulbIcon,
+    title: "Initiative concrète",
+    description:
+      "Nous avançons avec des personnes capables d'identifier un problème, proposer une solution et la tester rapidement.",
+  },
+  {
+    icon: ShieldCheckIcon,
+    title: "Exécution fiable",
+    description:
+      "La confiance de Roogo se gagne dans les détails: informations justes, suivi clair et engagements tenus.",
+  },
+  {
+    icon: MapPinIcon,
+    title: "Présence locale",
+    description:
+      "Notre produit doit comprendre Ouagadougou quartier par quartier, avec une équipe proche du terrain.",
+  },
+];
+
+const teamMembers = [
+  {
+    name: "Salif Tankoano",
+    role: "PDG",
+    description: "Vision produit, partenariats et qualité de l'expérience.",
+    image: "/salif.jpg",
+  },
+  {
+    name: "Ablassé Zagre",
+    role: "Directeur Marketing & Visuels",
+    description: "Identité de marque, contenu, photographie et narration.",
+  },
+  {
+    name: "Aroun Zerbo",
+    role: "Directeur commercial",
+    description: "Croissance terrain et relations avec les propriétaires.",
+  },
+];
+
 export default function CareersPage() {
-  const container = {
-    hidden: { opacity: 0 },
-    show: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.2,
-      },
-    },
-  };
-
-  const item = {
-    hidden: { opacity: 0, y: 20 },
-    show: { opacity: 1, y: 0 },
-  };
-
-  const teamMembers = [
-    {
-      name: "Salif Tankoano",
-      role: "PDG",
-      description: "Visionnaire et moteur d'innovation à Roogo.",
-      image: "/salif.jpg",
-    },
-    {
-      name: "Ablassé Zagre",
-      role: "Directeur Marketing & Visuels",
-      description:
-        "Créateur de l'identité visuelle et de la stratégie de marque.",
-    },
-    {
-      name: "Aroun Zerbo",
-      role: "Directeur commercial",
-      description: "Responsable de la croissance et des relations partenaires.",
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-white flex flex-col">
-      <main className="grow pt-40 pb-16">
-        <div className="container mx-auto px-4">
-          {/* Hero Section */}
-          <motion.div
-            className="text-center max-w-3xl mx-auto mb-20"
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6 }}
-          >
-            <h1 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-6">
-              Rejoignez l&apos;aventure Roogo
-            </h1>
-            <p className="text-xl text-neutral-600 leading-relaxed">
-              Nous construisons le futur de l&apos;immobilier au Burkina Faso.
-              Une équipe jeune, dynamique et ambitieuse.
-            </p>
-          </motion.div>
+    <div className="min-h-screen bg-[#f5efe6] text-neutral-950">
+      <main>
+        <section className="relative overflow-hidden bg-[#17120f] pt-32 text-white md:pt-36">
+          <div className="absolute inset-0">
+            <MarketingImage
+              src={marketingAssets.teamEditorial.src}
+              fallbackSrc={marketingAssets.teamEditorial.fallback}
+              alt="Equipe Roogo en session de travail"
+              fill
+              priority
+              sizes="100vw"
+              className="object-cover opacity-45"
+            />
+            <div className="absolute inset-0 bg-gradient-to-r from-[#17120f] via-[#17120f]/80 to-[#17120f]/25" />
+            <div className="absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-[#17120f] to-transparent" />
+          </div>
 
-          {/* Philosophy Section */}
-          <motion.section
-            className="mb-24"
-            variants={container}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-          >
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
-              <motion.div variants={item}>
-                <div className="bg-primary/5 p-8 rounded-3xl">
-                  <LightbulbIcon
-                    size={48}
-                    className="text-primary mb-6"
-                    weight="duotone"
-                  />
-                  <h2 className="text-3xl font-bold text-neutral-900 mb-4">
-                    Notre Philosophie
-                  </h2>
-                  <p className="text-neutral-600 text-lg leading-relaxed mb-6">
-                    Chez Roogo, nous croyons que l&apos;innovation naît de
-                    l&apos;initiative. Nous ne cherchons pas simplement des
-                    employés, mais des collaborateurs passionnés prêts à
-                    bousculer les codes.
-                  </p>
-                  <p className="text-neutral-600 text-lg leading-relaxed">
-                    Si vous avez une idée, une vision et la volonté de la
-                    concrétiser, votre place est parmi nous. Montrez-nous votre
-                    valeur, votre créativité et votre détermination.
-                  </p>
-                </div>
-              </motion.div>
-              <motion.div variants={item} className="space-y-6">
-                <div className="bg-neutral-50 p-6 rounded-2xl border border-neutral-100">
-                  <h3 className="text-xl font-bold text-neutral-900 mb-2">
-                    Initiative
-                  </h3>
-                  <p className="text-neutral-600">
-                    Nous valorisons ceux qui osent proposer et agir sans
-                    attendre.
-                  </p>
-                </div>
-                <div className="bg-neutral-50 p-6 rounded-2xl border border-neutral-100">
-                  <h3 className="text-xl font-bold text-neutral-900 mb-2">
-                    Innovation
-                  </h3>
-                  <p className="text-neutral-600">
-                    Nous cherchons constamment de nouvelles façons de simplifier
-                    la vie de nos utilisateurs.
-                  </p>
-                </div>
-                <div className="bg-neutral-50 p-6 rounded-2xl border border-neutral-100">
-                  <h3 className="text-xl font-bold text-neutral-900 mb-2">
-                    Excellence
-                  </h3>
-                  <p className="text-neutral-600">
-                    Nous visons la précision et la qualité dans tout ce que nous
-                    entreprenons.
-                  </p>
-                </div>
-              </motion.div>
+          <div className="relative mx-auto grid min-h-[720px] w-full max-w-7xl items-end gap-12 px-6 pb-16 md:grid-cols-[1.15fr_0.85fr] md:pb-24">
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6 }}
+            >
+              <Kicker className="border-white/20 bg-white/10 text-white/80">
+                Carrières Roogo
+              </Kicker>
+              <h1 className="mt-6 max-w-4xl text-5xl font-black leading-none tracking-tight md:text-7xl">
+                Construire le standard immobilier du Burkina Faso.
+              </h1>
+              <p className="mt-6 max-w-2xl text-lg leading-8 text-white/75 md:text-xl">
+                Roogo rassemble des profils terrain, produit et commerciaux pour
+                rendre la location plus fiable, plus claire et plus rapide.
+              </p>
+              <div className="mt-9 flex flex-col gap-3 sm:flex-row">
+                <ExpandableScreen
+                  layoutId="career-spontaneous-application-hero"
+                  contentRadius="32px"
+                >
+                  <ExpandableScreenTrigger>
+                    <div className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm font-black text-white shadow-2xl shadow-primary/25 transition hover:bg-primary-hover">
+                      <EnvelopeSimpleIcon size={20} weight="bold" />
+                      Candidature spontanée
+                    </div>
+                  </ExpandableScreenTrigger>
+                  <ExpandableScreenContent
+                    className="bg-neutral-50"
+                    closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
+                  >
+                    <HustleApplicationModal />
+                  </ExpandableScreenContent>
+                </ExpandableScreen>
+                <Link
+                  href="/a-propos"
+                  className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-7 py-4 text-sm font-black text-white transition hover:bg-white/15"
+                >
+                  Comprendre Roogo
+                  <ArrowRightIcon size={18} weight="bold" />
+                </Link>
+              </div>
+            </motion.div>
+
+            <motion.div
+              initial={{ opacity: 0, y: 24 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.15, duration: 0.6 }}
+              className="rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-md"
+            >
+              <p className="text-xs font-black uppercase tracking-[0.2em] text-white/50">
+                Nous recherchons surtout
+              </p>
+              <div className="mt-5 space-y-3">
+                {hiringSignals.map((signal) => (
+                  <div
+                    key={signal}
+                    className="flex items-start gap-3 rounded-2xl bg-white/10 p-4 text-sm font-bold text-white/80"
+                  >
+                    <CheckCircleIcon
+                      size={20}
+                      weight="fill"
+                      className="mt-0.5 shrink-0 text-primary"
+                    />
+                    <span>{signal}</span>
+                  </div>
+                ))}
+              </div>
+              <p className="mt-5 text-sm leading-7 text-white/60">
+                Les postes formels seront publiés progressivement. Les profils
+                solides peuvent déjà se présenter avec une proposition précise.
+              </p>
+            </motion.div>
+          </div>
+        </section>
+
+        <section className="py-24 md:py-32">
+          <div className="mx-auto w-full max-w-7xl px-6">
+            <SectionHeader
+              kicker="Culture"
+              title="Une équipe petite, directe, orientée terrain."
+              description="Le marché immobilier local a besoin d'une exécution calme et rigoureuse. Notre culture privilégie les preuves, les retours clients et les décisions qui simplifient la vie des locataires comme des propriétaires."
+            />
+
+            <div className="mt-12 grid gap-5 md:grid-cols-3">
+              {operatingPrinciples.map((principle) => {
+                const Icon = principle.icon;
+
+                return (
+                  <motion.div
+                    key={principle.title}
+                    initial={{ opacity: 0, y: 18 }}
+                    whileInView={{ opacity: 1, y: 0 }}
+                    viewport={{ once: true, margin: "-80px" }}
+                    className="rounded-[1.75rem] border border-black/10 bg-white p-7 shadow-sm"
+                  >
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                      <Icon size={25} weight="duotone" />
+                    </div>
+                    <h2 className="mt-6 text-xl font-black">
+                      {principle.title}
+                    </h2>
+                    <p className="mt-3 text-sm leading-7 text-neutral-600">
+                      {principle.description}
+                    </p>
+                  </motion.div>
+                );
+              })}
             </div>
-          </motion.section>
+          </div>
+        </section>
 
-          {/* Team Section */}
-          <motion.section
-            className="mb-24"
-            variants={container}
-            initial="hidden"
-            whileInView="show"
-            viewport={{ once: true }}
-          >
-            <div className="text-center mb-12">
-              <UsersThreeIcon
-                size={48}
-                className="text-primary mx-auto mb-4"
-                weight="duotone"
+        <section className="bg-[#17120f] py-24 text-white md:py-32">
+          <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
+            <div className="relative min-h-[520px] overflow-hidden rounded-[2rem]">
+              <MarketingImage
+                src={marketingAssets.ownerWorkflow.src}
+                fallbackSrc={marketingAssets.ownerWorkflow.fallback}
+                alt="Équipe Roogo organisant un workflow propriétaire"
+                fill
+                sizes="(min-width: 1024px) 45vw, 100vw"
+                className="object-cover"
               />
-              <h2 className="text-3xl font-bold text-neutral-900 mb-4">
-                Notre Équipe
-              </h2>
-              <p className="text-neutral-600">Les visages derrière Roogo.</p>
+              <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
+              <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
+                <p className="text-sm font-black uppercase tracking-[0.16em] text-white/50">
+                  Terrain + produit
+                </p>
+                <p className="mt-2 text-2xl font-black">
+                  Une équipe qui vérifie, documente et suit.
+                </p>
+              </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-              {teamMembers.map((member, index) => (
-                <motion.div
-                  key={index}
-                  variants={item}
-                  className="bg-white p-8 rounded-2xl shadow-sm border border-neutral-100 text-center hover:shadow-md transition-shadow"
-                >
-                  <div className="w-24 h-24 bg-neutral-100 rounded-full mx-auto mb-6 flex items-center justify-center text-2xl font-bold text-neutral-400">
-                    {member.image ? (
-                      <Image
-                        src={member.image}
-                        alt={member.name}
-                        width={96}
-                        height={96}
-                        className="rounded-full"
-                      />
-                    ) : (
-                      <UserIcon
-                        size={96}
-                        className="rounded-full"
-                        weight="duotone"
-                      />
-                    )}
-                  </div>
-                  <h3 className="text-xl font-bold text-neutral-900 mb-2">
-                    {member.name}
-                  </h3>
-                  <p className="text-primary font-medium mb-4">{member.role}</p>
-                  <p className="text-neutral-600">{member.description}</p>
-                </motion.div>
-              ))}
-            </div>
-          </motion.section>
+            <div>
+              <SectionHeader
+                dark
+                kicker="Equipe"
+                title="Les personnes derriere Roogo."
+                description="Nous construisons avec des profils complementaires: marque, commercial, operations et technologie. Chaque role doit renforcer la promesse centrale de Roogo: moins d'incertitude dans la recherche d'un logement."
+              />
 
-          {/* CTA Section */}
-          <motion.div
-            className="text-center bg-primary/5 rounded-3xl p-12"
-            initial={{ opacity: 0, scale: 0.95 }}
-            whileInView={{ opacity: 1, scale: 1 }}
-            viewport={{ once: true }}
-          >
-            <h2 className="text-3xl font-bold text-neutral-900 mb-6">
-              Prêt à faire la différence ?
-            </h2>
-            <p className="text-lg text-neutral-600 max-w-2xl mx-auto mb-8">
-              Nous n&apos;avons pas de poste ouvert pour le moment, mais nous
-              sommes toujours à l&apos;écoute des talents exceptionnels.
-              Envoyez-nous votre candidature spontanée.
-            </p>
-            <div className="flex justify-center">
-              <ExpandableScreen
-                layoutId="career-spontaneous-application"
-                contentRadius="32px"
-              >
-                <ExpandableScreenTrigger>
-                  <div className="inline-flex items-center gap-2 rounded-full bg-primary px-8 py-4 text-lg font-semibold text-white transition-colors hover:bg-primary-hover">
-                    <EnvelopeSimpleIcon size={20} weight="bold" />
-                    Candidature Spontanée
+              <div className="mt-10 grid gap-4 sm:grid-cols-3">
+                {teamMembers.map((member) => (
+                  <div
+                    key={member.name}
+                    className="rounded-[1.5rem] border border-white/10 bg-white/10 p-5"
+                  >
+                    <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white/10 text-xl font-black text-white/50">
+                      {member.image ? (
+                        <MarketingImage
+                          src={member.image}
+                          fallbackSrc={member.image}
+                          alt={member.name}
+                          width={56}
+                          height={56}
+                          className="h-14 w-14 object-cover"
+                        />
+                      ) : (
+                        <UsersThreeIcon size={27} weight="duotone" />
+                      )}
+                    </div>
+                    <h3 className="mt-5 text-base font-black">
+                      {member.name}
+                    </h3>
+                    <p className="mt-1 text-sm font-bold text-primary">
+                      {member.role}
+                    </p>
+                    <p className="mt-3 text-sm leading-6 text-white/60">
+                      {member.description}
+                    </p>
                   </div>
-                </ExpandableScreenTrigger>
-                <ExpandableScreenContent
-                  className="bg-neutral-50"
-                  closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
-                >
-                  <HustleApplicationModal />
-                </ExpandableScreenContent>
-              </ExpandableScreen>
+                ))}
+              </div>
             </div>
-          </motion.div>
-        </div>
+          </div>
+        </section>
+
+        <section className="py-24 md:py-32">
+          <div className="mx-auto w-full max-w-7xl px-6">
+            <div className="relative overflow-hidden rounded-[2rem] bg-neutral-950 p-8 text-white md:p-12">
+              <div className="absolute inset-0 opacity-30">
+                <MarketingImage
+                  src={marketingAssets.finalCta.src}
+                  fallbackSrc={marketingAssets.finalCta.fallback}
+                  alt="Cour intérieure d'une maison Roogo"
+                  fill
+                  sizes="100vw"
+                  className="object-cover"
+                />
+              </div>
+              <div className="absolute inset-0 bg-gradient-to-r from-neutral-950 via-neutral-950/80 to-neutral-950/40" />
+              <div className="relative max-w-2xl">
+                <Kicker className="border-white/20 bg-white/10 text-white/80">
+                  Candidature spontanée
+                </Kicker>
+                <h2 className="mt-5 text-3xl font-black leading-tight md:text-5xl">
+                  Présentez une contribution claire.
+                </h2>
+                <p className="mt-5 text-base leading-8 text-white/70 md:text-lg">
+                  Nous lisons les candidatures qui expliquent le probleme vise,
+                  le resultat attendu et la maniere dont vous pouvez aider
+                  Roogo à mieux servir le marché.
+                </p>
+                <div className="mt-8">
+                  <ExpandableScreen
+                    layoutId="career-spontaneous-application-final"
+                    contentRadius="32px"
+                  >
+                    <ExpandableScreenTrigger>
+                      <div className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-4 text-sm font-black text-neutral-950 transition hover:bg-white/90">
+                        <EnvelopeSimpleIcon size={20} weight="bold" />
+                        Envoyer ma candidature
+                      </div>
+                    </ExpandableScreenTrigger>
+                    <ExpandableScreenContent
+                      className="bg-neutral-50"
+                      closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
+                    >
+                      <HustleApplicationModal />
+                    </ExpandableScreenContent>
+                  </ExpandableScreen>
+                </div>
+              </div>
+            </div>
+          </div>
+        </section>
       </main>
 
       <Footer />

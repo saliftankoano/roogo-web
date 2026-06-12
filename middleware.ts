@@ -126,6 +126,8 @@ const isPublicRoute = createRouteMatcher([
   // Shared property links — must be accessible without sign-in
   "/p/(.*)",
   "/proprietes/(.*)",
+  // Payment callback — accessed from PawaPay redirect; Safari has no Clerk session
+  "/payments/callback",
 ]);
 
 // Routes that bypass the onboarding gate:

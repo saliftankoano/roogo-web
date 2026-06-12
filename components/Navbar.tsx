@@ -109,6 +109,12 @@ export function Navbar() {
       id: "nav-proprietes",
     },
     {
+      name: "À propos",
+      href: "/a-propos",
+      icon: HandshakeIcon,
+      id: "nav-a-propos",
+    },
+    {
       name: "Carrières",
       href: "/carrieres",
       icon: BriefcaseIcon,
@@ -230,17 +236,17 @@ export function Navbar() {
         }}
         animate={hidden ? "hidden" : "visible"}
         transition={{ duration: 0.35, ease: "easeInOut" }}
-        className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-7xl mx-auto z-50"
+        className="fixed left-1/2 top-4 z-50 mx-auto w-[calc(100%-2rem)] max-w-7xl -translate-x-1/2"
       >
         <div
           className={cn(
-            "flex items-center justify-between px-4 sm:px-6 py-2 rounded-full transition-all duration-300 border bg-white/80 backdrop-blur-xl shadow-lg border-white/40",
-            isScrolled ? "h-16" : "h-20",
+            "flex items-center justify-between rounded-full border border-white/50 bg-white/90 px-4 py-2 shadow-xl shadow-[#5a321a]/10 backdrop-blur-xl transition-all duration-300 sm:px-5",
+            isScrolled ? "h-16" : "h-[4.35rem]",
           )}
         >
           {/* Logo */}
           <Link href="/" className="flex items-center shrink-0 group">
-            <div className="bg-primary/10 p-2 rounded-2xl mr-3 group-hover:scale-110 transition-transform duration-300">
+            <div className="mr-3 rounded-2xl bg-primary/10 p-2 transition-transform duration-300 group-hover:scale-105">
               <Image
                 src="/logo.png?v=2"
                 alt="Roogo Logo"
@@ -249,7 +255,7 @@ export function Navbar() {
                 className="object-contain"
               />
             </div>
-            <span className="font-bold text-xl tracking-tight text-neutral-900 hidden lg:block">
+            <span className="hidden text-xl font-black tracking-tight text-neutral-950 lg:block">
               Roogo
             </span>
           </Link>
@@ -258,7 +264,7 @@ export function Navbar() {
           {isStaff ? (
             <div
               ref={staffNavRef}
-              className="hidden md:flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30"
+              className="hidden items-center rounded-full border border-neutral-200/60 bg-[#f5efe6]/80 p-1 md:flex"
             >
               {staffNavEntries.map((item) => {
                 const isActive = isAdminEntryActive(pathname, item);
@@ -354,10 +360,10 @@ export function Navbar() {
               })}
             </div>
           ) : (
-            <div className="hidden md:flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30">
+            <div className="hidden items-center rounded-full border border-neutral-200/60 bg-[#f5efe6]/80 p-1 md:flex">
               <AnimatedBackground
                 defaultValue={pathname}
-                className="bg-white rounded-full shadow-sm"
+                className="rounded-full bg-white shadow-sm"
                 transition={{
                   type: "spring",
                   stiffness: 400,
@@ -370,10 +376,10 @@ export function Navbar() {
                     href={item.href}
                     data-id={item.id}
                     className={cn(
-                      "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+                      "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black outline-none transition-colors duration-200",
                       isLinkActive(pathname, item.href)
                         ? "text-primary"
-                        : "text-neutral-500 hover:text-neutral-900",
+                        : "text-neutral-500 hover:text-neutral-950",
                     )}
                   >
                     <item.icon
@@ -417,7 +423,7 @@ export function Navbar() {
                   <Button
                     variant="ghost"
                     size="md"
-                    className="font-bold text-neutral-600"
+                    className="font-black text-neutral-600"
                   >
                     Connexion
                   </Button>
@@ -426,7 +432,7 @@ export function Navbar() {
                   <Button
                     variant="primary"
                     size="md"
-                    className="rounded-full px-6 font-bold shadow-md hover:shadow-lg hover:scale-105 transition-all"
+                    className="rounded-full px-6 font-black shadow-md transition-all hover:scale-105 hover:shadow-lg"
                   >
                     Rejoindre
                   </Button>
