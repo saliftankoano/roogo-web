@@ -17,16 +17,18 @@ import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 import { qualifyReferralForTransaction } from "@/lib/referrals";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
-import validator from "validator";
+import { sanitizeForStorage } from "@/lib/text-sanitize";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
 
-// Helper to sanitize string inputs
+// Helper to sanitize string inputs — trims and strips HTML tags only.
+// Never use validator.escape() here: HTML-encoding apostrophes etc. makes text
+// unreadable in push notifications, React Native, and PDFs.
 const sanitizeString = (str: string) => {
   if (typeof str !== "string") return str;
-  return validator.escape(validator.trim(str));
+  return sanitizeForStorage(str);
 };
 
 export async function POST(req: Request) {
@@ -468,7 +470,10 @@ export async function POST(req: Request) {
 
     if (propertyStatus === "en_ligne" && propertyData.is_test === false) {
       await translatePropertyIfNeeded(propertyId).catch((error) => {
-        console.error("Property translation on auto-live create failed:", error);
+        console.error(
+          "Property translation on auto-live create failed:",
+          error,
+        );
       });
     }
 

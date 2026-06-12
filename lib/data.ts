@@ -4,6 +4,7 @@ import {
   normalizeRentalPeriod,
   type RentalFrequency,
 } from "./rental-period";
+import { unescapeText } from "./text-sanitize";
 
 export type Property = {
   id: string;
@@ -44,6 +45,8 @@ export type Property = {
   transaction_id?: string;
   is_test?: boolean;
   virtualTourUrl?: string;
+  latitude?: number | null;
+  longitude?: number | null;
   agent?: {
     full_name: string;
     phone: string;
@@ -104,6 +107,8 @@ interface DBProperty {
   primary_image: string | null;
   is_test: boolean | null;
   virtual_tour_url?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
 // Helper function to map DB properties to frontend format
@@ -117,8 +122,8 @@ function mapProperty(p: DBProperty): Property {
   return {
     id: p.id,
     owner_id: p.owner_id || undefined,
-    location: `${p.quartier}, ${p.city}`,
-    address: p.address,
+    location: unescapeText(`${p.quartier}, ${p.city}`),
+    address: unescapeText(p.address),
     price: p.price.toString(),
     bedrooms: p.bedrooms || 0,
     bathrooms: p.bathrooms || 0,
@@ -134,7 +139,7 @@ function mapProperty(p: DBProperty): Property {
     isSponsored: p.is_boosted || false,
     status: p.status,
     propertyType: p.property_type,
-    description: p.description || "",
+    description: unescapeText(p.description || ""),
     amenities: p.amenities || [],
     views: p.views_count || 0,
     favorites: p.favorites_count || 0,
@@ -143,7 +148,7 @@ function mapProperty(p: DBProperty): Property {
     photo_limit: p.photo_limit || 0,
     video_included: p.video_included || false,
     city: p.city,
-    quartier: p.quartier,
+    quartier: unescapeText(p.quartier),
     created_at: p.created_at,
     deposit: p.caution_mois ?? p.deposit ?? undefined,
     loyerAvanceMois: p.loyer_avance_mois ?? 1,
@@ -155,6 +160,8 @@ function mapProperty(p: DBProperty): Property {
     transaction_id: p.transaction_id || undefined,
     is_test: p.is_test || false,
     virtualTourUrl: p.virtual_tour_url || undefined,
+    latitude: p.latitude ?? null,
+    longitude: p.longitude ?? null,
     agent: {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",

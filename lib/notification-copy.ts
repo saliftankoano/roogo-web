@@ -32,14 +32,19 @@ export type NotificationCopyKey =
   | "payments.propertyReserved"
   | "payments.stayReserved"
   | "properties.newMatch"
-  | "properties.submittedForReview";
+  | "properties.submittedForReview"
+  | "properties.editApproved"
+  | "properties.editRejected";
 
 type NotificationCopyTemplate = {
   title: string;
   body: string;
 };
 
-type NotificationCopyParams = Record<string, string | number | null | undefined>;
+type NotificationCopyParams = Record<
+  string,
+  string | number | null | undefined
+>;
 
 const notificationCopy: Record<
   NotificationCopyKey,
@@ -365,6 +370,26 @@ const notificationCopy: Record<
       body: "{propertyLabel} is waiting for approval.",
     },
   },
+  "properties.editApproved": {
+    fr: {
+      title: "Modifications approuvées",
+      body: "Vos modifications pour {propertyLabel} ont été approuvées.",
+    },
+    en: {
+      title: "Edits approved",
+      body: "Your edits to {propertyLabel} have been approved.",
+    },
+  },
+  "properties.editRejected": {
+    fr: {
+      title: "Modifications refusées",
+      body: "Vos modifications pour {propertyLabel} ont été refusées. {reviewNote}",
+    },
+    en: {
+      title: "Edits rejected",
+      body: "Your edits to {propertyLabel} were not approved. {reviewNote}",
+    },
+  },
 };
 
 export function normalizeNotificationLocale(
@@ -379,9 +404,7 @@ function interpolate(template: string, params?: NotificationCopyParams) {
 
   return template.replace(/\{(\w+)\}/g, (match, key: string) => {
     const value = params[key];
-    return value === undefined || value === null
-      ? match
-      : String(value);
+    return value === undefined || value === null ? match : String(value);
   });
 }
 
@@ -391,11 +414,12 @@ export function renderNotificationCopy(
   params?: NotificationCopyParams,
 ) {
   const normalizedLocale = normalizeNotificationLocale(locale);
-  const template = notificationCopy[key][normalizedLocale] ?? notificationCopy[key].fr;
+  const template =
+    notificationCopy[key][normalizedLocale] ?? notificationCopy[key].fr;
 
   return {
-    title: interpolate(template.title, params),
-    body: interpolate(template.body, params),
+    title: interpolate(template.title, params).trim(),
+    body: interpolate(template.body, params).trim(),
   };
 }
 
@@ -411,10 +435,13 @@ export function formatXofAmount(
         : NaN;
 
   if (!Number.isFinite(numericAmount)) {
-    return normalizeNotificationLocale(locale) === "en" ? "the rent" : "le loyer";
+    return normalizeNotificationLocale(locale) === "en"
+      ? "the rent"
+      : "le loyer";
   }
 
-  const languageTag = normalizeNotificationLocale(locale) === "en" ? "en-US" : "fr-BF";
+  const languageTag =
+    normalizeNotificationLocale(locale) === "en" ? "en-US" : "fr-BF";
   return `${new Intl.NumberFormat(languageTag, {
     maximumFractionDigits: 0,
   }).format(numericAmount)} FCFA`;

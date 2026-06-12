@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { captureServerEvent } from "@/lib/posthog-server";
+import { unescapeText } from "@/lib/text-sanitize";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -12,7 +13,7 @@ const supabaseAdmin = createClient(
       autoRefreshToken: false,
       persistSession: false,
     },
-  }
+  },
 );
 
 async function getSupabaseUserId(clerkId: string): Promise<string | null> {
@@ -42,7 +43,10 @@ export async function POST(req: Request) {
     const { propertyId } = await req.json();
 
     if (!propertyId) {
-      return NextResponse.json({ error: "Property ID required" }, { status: 400 });
+      return NextResponse.json(
+        { error: "Property ID required" },
+        { status: 400 },
+      );
     }
 
     // Check if application already exists
@@ -56,7 +60,7 @@ export async function POST(req: Request) {
     if (existing) {
       return NextResponse.json(
         { error: "Vous avez déjà postulé à cette annonce." },
-        { status: 409 }
+        { status: 409 },
       );
     }
 
@@ -69,7 +73,10 @@ export async function POST(req: Request) {
 
     if (propertyError || !property) {
       console.error("Error fetching property:", propertyError);
-      return NextResponse.json({ error: "Property not found" }, { status: 404 });
+      return NextResponse.json(
+        { error: "Property not found" },
+        { status: 404 },
+      );
     }
 
     // Get applicant's name
@@ -113,19 +120,26 @@ export async function POST(req: Request) {
         "applications.newViewingRequest",
         {
           applicantName,
-          location: property.quartier || property.address || "votre bien",
+          location:
+            unescapeText(property.quartier || property.address) || "votre bien",
         },
         {
           type: "viewing_request",
           propertyId,
           applicationUserId: userId,
-        }
+        },
       );
     }
 
-    return NextResponse.json({ success: true, message: "Application submitted" });
+    return NextResponse.json({
+      success: true,
+      message: "Application submitted",
+    });
   } catch (error) {
     console.error("Error in applications API:", error);
-    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+    return NextResponse.json(
+      { error: "Internal server error" },
+      { status: 500 },
+    );
   }
 }

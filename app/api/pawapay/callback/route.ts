@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import type { NotificationCopyKey } from "@/lib/notification-copy";
+import { unescapeText } from "@/lib/text-sanitize";
 import { captureServerEvent } from "@/lib/posthog-server";
 import {
   creditOwnerEarningForSchedule,
@@ -280,7 +281,8 @@ export async function POST(req: Request) {
           .single();
 
         if (!property) return null;
-        return property.quartier || property.address || null;
+        const raw = property.quartier || property.address || null;
+        return raw ? unescapeText(raw) : null;
       };
 
       if (transaction.type === "property_lock") {

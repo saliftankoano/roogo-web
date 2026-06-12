@@ -6,6 +6,7 @@ import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { addMonths, format } from "date-fns";
 import { creditOwnerEarningsForSchedules } from "@/lib/owner-wallet";
+import { unescapeText } from "@/lib/text-sanitize";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -388,7 +389,11 @@ export async function POST(req: Request) {
           isDailyRenterFlow
             ? "agreements.ownerStayConfirmed"
             : "agreements.ownerPropertySecured",
-          { location: property.quartier || property.address || "votre bien" },
+          {
+            location:
+              unescapeText(property.quartier || property.address) ||
+              "votre bien",
+          },
           {
             agreementId: agreement.id,
             propertyId,
@@ -405,7 +410,11 @@ export async function POST(req: Request) {
           renterId,
           "payments",
           "agreements.renterDraftCreated",
-          { location: property.quartier || property.address || "votre bien" },
+          {
+            location:
+              unescapeText(property.quartier || property.address) ||
+              "votre bien",
+          },
           { agreementId: agreement.id, propertyId },
         );
       } catch (e) {

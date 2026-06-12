@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { unescapeText } from "@/lib/text-sanitize";
 
 interface AgreementPropertyLocation {
   quartier: string | null;
@@ -72,7 +73,7 @@ export async function POST(
         agreement.properties as unknown as AgreementPropertyLocation[] | null
       )?.[0] ?? null;
     const propertyLocation =
-      property?.quartier || property?.address || "votre bien";
+      unescapeText(property?.quartier || property?.address) || "votre bien";
 
     try {
       await notifyUserWithTemplate(
