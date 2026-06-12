@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useRef } from "react";
 import { Camera, X, AlertCircle, Image as ImageIcon } from "lucide-react";
 import Image from "next/image";
+import { MAX_LISTING_PHOTOS, MIN_LISTING_PHOTOS } from "@/lib/validations";
 
 interface PhotoUploaderProps {
   files: File[];
@@ -14,8 +15,8 @@ interface PhotoUploaderProps {
 export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   files,
   onChange,
-  min = 3,
-  max = 15,
+  min = MIN_LISTING_PHOTOS,
+  max = MAX_LISTING_PHOTOS,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 

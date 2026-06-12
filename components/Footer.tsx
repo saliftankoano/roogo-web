@@ -66,7 +66,7 @@ export function Footer() {
             <ul className="space-y-4">
               <li>
                 <Link
-                  href="/louer/residentiel"
+                  href="/proprietes?category=Residential"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Louer un logement
@@ -74,7 +74,7 @@ export function Footer() {
               </li>
               <li>
                 <Link
-                  href="/louer/commercial"
+                  href="/proprietes?category=Business"
                   className="text-neutral-500 hover:text-primary transition-colors"
                 >
                   Louer un local

@@ -1,5 +1,7 @@
 import { Footer } from "../../components/Footer";
 import { Metadata } from "next";
+import JsonLd from "../../components/JsonLd";
+import { getAboutPageSchema } from "../../lib/schemas";
 
 export const metadata: Metadata = {
   title: "À propos de Roogo | Révolutionner l'Immobilier au Burkina Faso",
@@ -10,6 +12,7 @@ export const metadata: Metadata = {
 export default function AboutPage() {
   return (
     <div className="min-h-screen bg-white flex flex-col">
+      <JsonLd schema={getAboutPageSchema()} />
       <main className="grow pt-40 pb-16">
         <div className="container mx-auto px-4 max-w-4xl">
           <h1 className="text-4xl md:text-5xl font-bold text-neutral-900 mb-8 text-center">

@@ -27,11 +27,9 @@ import {
   DeviceMobileIcon,
   MonitorIcon,
   ClockIcon,
-  TagIcon,
   BellIcon,
   CheckCircleIcon,
   ChairIcon,
-  ArrowRightIcon,
   SortAscendingIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
@@ -50,6 +48,10 @@ import {
   isToday,
 } from "date-fns";
 import { fr } from "date-fns/locale";
+import {
+  isOtherReferralSource,
+  isSocialReferralSource,
+} from "@/lib/acquisition-source";
 
 interface UserProfile {
   id: string;
@@ -111,6 +113,8 @@ interface UserProfile {
   onboarding_service_areas: string[];
   onboarding_portfolio_size: string | null;
   onboarding_referral_source: string | null;
+  onboarding_social_platform: string | null;
+  onboarding_referral_source_detail: string | null;
   // Agent top-level Clerk private metadata
   clerk_company_name: string | null;
   clerk_professional_link: string | null;
@@ -119,6 +123,7 @@ interface UserProfile {
 // ─── Engagement status ────────────────────────────────────────────────────────
 
 type EngagementStatus = "nouveau" | "inactif" | "actif" | "accord";
+type PriorityLevel = "urgent" | "watch" | "normal";
 
 const STATUS_CONFIG: Record<
   EngagementStatus,
@@ -146,41 +151,78 @@ const STATUS_CONFIG: Record<
   },
 };
 
-const INTENT_STYLE: Record<string, { bg: string; border: string; label: string; text: string; leftBorder: string }> = {
-  renter: {
-    bg: "bg-blue-50",
-    border: "border-blue-100",
-    label: "text-blue-500",
-    text: "text-blue-900",
-    leftBorder: "border-blue-400",
+const PRIORITY_CONFIG: Record<
+  PriorityLevel,
+  {
+    label: string;
+    icon: "warning" | "clock" | "check";
+    marker: string;
+    card: string;
+    chip: string;
+    callout: string;
+    iconText: string;
+    intentBorder: string;
+  }
+> = {
+  urgent: {
+    label: "À relancer",
+    icon: "warning",
+    marker: "bg-rose-500",
+    card: "border-rose-200 hover:border-rose-300 hover:shadow-rose-100/70",
+    chip: "bg-rose-50 border-rose-100 text-rose-700",
+    callout: "bg-rose-50 border-rose-100 text-rose-700",
+    iconText: "text-rose-500",
+    intentBorder: "border-rose-200",
   },
-  owner: {
-    bg: "bg-amber-50",
-    border: "border-amber-100",
-    label: "text-amber-500",
-    text: "text-amber-900",
-    leftBorder: "border-amber-400",
+  watch: {
+    label: "À suivre",
+    icon: "clock",
+    marker: "bg-amber-400",
+    card: "border-amber-200 hover:border-amber-300 hover:shadow-amber-100/60",
+    chip: "bg-amber-50 border-amber-100 text-amber-700",
+    callout: "bg-amber-50 border-amber-100 text-amber-800",
+    iconText: "text-amber-500",
+    intentBorder: "border-amber-200",
   },
-  agent: {
-    bg: "bg-emerald-50",
-    border: "border-emerald-100",
-    label: "text-emerald-500",
-    text: "text-emerald-900",
-    leftBorder: "border-emerald-400",
+  normal: {
+    label: "Stable",
+    icon: "check",
+    marker: "bg-neutral-300",
+    card: "border-neutral-100 hover:border-neutral-200",
+    chip: "bg-neutral-50 border-neutral-100 text-neutral-600",
+    callout: "bg-neutral-50 border-neutral-100 text-neutral-600",
+    iconText: "text-neutral-400",
+    intentBorder: "border-neutral-200",
   },
 };
 
-function getIntentStyle(userType: string) {
-  return (
-    INTENT_STYLE[userType] ?? {
-      bg: "bg-neutral-50",
-      border: "border-neutral-100",
-      label: "text-neutral-400",
-      text: "text-neutral-700",
-      leftBorder: "border-neutral-200",
-    }
-  );
+const INTENT_STYLE = {
+  bg: "bg-white",
+  border: "border-neutral-200",
+  label: "text-neutral-400",
+  text: "text-neutral-900",
+  leftBorder: "border-neutral-200",
+};
+
+function getIntentStyle() {
+  return INTENT_STYLE;
 }
+
+const URGENCY_FR: Record<string, string> = {
+  "Just browsing": "Je regarde seulement",
+  "This month": "Ce mois-ci",
+  "Immediately": "Immédiatement",
+  "In 2-3 months": "Dans 2-3 mois",
+  "In 3-6 months": "Dans 3-6 mois",
+  "Next month": "Le mois prochain",
+};
+
+const FURNISHED_FR: Record<string, string> = {
+  "No preference": "Aucune préférence",
+  "Furnished": "Meublé",
+  "Unfurnished": "Non meublé",
+  "Semi-furnished": "Semi-meublé",
+};
 
 const REGION_NAMES_FR = new Intl.DisplayNames(["fr"], { type: "region" });
 
@@ -198,6 +240,21 @@ function formatSignupLocation(u: {
     }
   }
   return [u.signup_city, country].filter(Boolean).join(", ");
+}
+
+function getEffectiveReferralSource(user: UserProfile) {
+  return user.onboarding_referral_source || user.referral_source || null;
+}
+
+function getReferralSourceDisplay(user: UserProfile) {
+  const source = getEffectiveReferralSource(user);
+  if (!source) return null;
+  const detail = isSocialReferralSource(source)
+    ? user.onboarding_social_platform
+    : isOtherReferralSource(source)
+      ? user.onboarding_referral_source_detail
+      : null;
+  return detail ? `${source} · ${detail}` : source;
 }
 
 function getEngagementStatus(user: UserProfile): EngagementStatus {
@@ -307,6 +364,23 @@ function getSuggestedAction(
   return { text: "Profil à compléter", urgent: false };
 }
 
+function getUserPriority(
+  user: UserProfile,
+  status: EngagementStatus,
+  action: { text: string; urgent: boolean }
+): PriorityLevel {
+  if (action.urgent || user.owner_followup_reasons.length > 0) return "urgent";
+  if (status === "inactif" || status === "nouveau") return "watch";
+  if (
+    (user.user_type === "owner" || user.user_type === "agent") &&
+    user.properties_count === 0
+  ) {
+    return "watch";
+  }
+  if (getProfileCompleteness(user) !== "complete") return "watch";
+  return "normal";
+}
+
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const PROPERTY_TYPE_OPTIONS = ["Appartement", "Villa", "Maison", "Terrain", "Célibatorium"];
@@ -320,11 +394,11 @@ const userTypeLabels: Record<string, string> = {
 };
 
 const userTypeColors: Record<string, string> = {
-  renter: "bg-blue-50 text-blue-600 border-blue-100",
-  owner: "bg-amber-50 text-amber-600 border-amber-100",
-  agent: "bg-primary/10 text-primary border-primary/20",
-  staff: "bg-purple-50 text-purple-600 border-purple-100",
-  founder: "bg-purple-50 text-purple-600 border-purple-100",
+  renter: "bg-sky-50 text-sky-700 border-sky-200",
+  owner: "bg-orange-50 text-orange-700 border-orange-200",
+  agent: "bg-neutral-50 text-neutral-600 border-neutral-200",
+  staff: "bg-neutral-100 text-neutral-700 border-neutral-200",
+  founder: "bg-neutral-100 text-neutral-700 border-neutral-200",
 };
 
 function getProfileCompleteness(u: UserProfile): "complete" | "partial" | "none" {
@@ -377,6 +451,25 @@ function NotifDot({ on }: { on: boolean | null }) {
   );
 }
 
+function PriorityIcon({
+  level,
+  size = 12,
+  className = "",
+}: {
+  level: PriorityLevel;
+  size?: number;
+  className?: string;
+}) {
+  const config = PRIORITY_CONFIG[level];
+  if (config.icon === "warning") {
+    return <WarningCircleIcon size={size} weight="fill" className={className} />;
+  }
+  if (config.icon === "clock") {
+    return <ClockIcon size={size} weight="bold" className={className} />;
+  }
+  return <CheckCircleIcon size={size} weight="fill" className={className} />;
+}
+
 // ─── Page component ───────────────────────────────────────────────────────────
 
 export default function AdminUsersPage() {
@@ -423,7 +516,7 @@ export default function AdminUsersPage() {
 
   const referralSources = useMemo(() => {
     const sources = new Set(
-      users.map((u) => u.referral_source).filter((s): s is string => !!s)
+      users.map(getEffectiveReferralSource).filter((s): s is string => !!s)
     );
     return Array.from(sources).sort();
   }, [users]);
@@ -480,7 +573,8 @@ export default function AdminUsersPage() {
       const matchesCity = cityFilter === "all" || userCity === cityFilter;
 
       const matchesReferral =
-        referralFilter === "all" || user.referral_source === referralFilter;
+        referralFilter === "all" ||
+        getEffectiveReferralSource(user) === referralFilter;
 
       const matchesPlatform =
         platformFilter === "all" || user.signup_platform === platformFilter;
@@ -773,14 +867,14 @@ export default function AdminUsersPage() {
           }}
           className={`text-left rounded-2xl p-5 border shadow-sm transition-all ${
             ownerFollowupOnly
-              ? "bg-orange-50 border-orange-200 ring-2 ring-orange-200"
-              : "bg-white border-neutral-100 hover:border-orange-200"
+              ? "bg-rose-50 border-rose-200 ring-2 ring-rose-200"
+              : "bg-white border-neutral-100 hover:border-rose-200"
           }`}
         >
-          <p className="text-[10px] font-black text-orange-500 uppercase tracking-widest mb-2">
+          <p className="text-[10px] font-black text-rose-600 uppercase tracking-widest mb-2">
             Propriétaires à relancer
           </p>
-          <p className="text-3xl font-black text-orange-600 tracking-tight leading-none">
+          <p className="text-3xl font-black text-rose-700 tracking-tight leading-none">
             {kpiStats.ownerFollowups}
           </p>
           <p className="text-xs font-bold text-neutral-400 mt-1.5">
@@ -949,8 +1043,8 @@ export default function AdminUsersPage() {
             onClick={() => setOwnerFollowupOnly((value) => !value)}
             className={`px-5 py-2 rounded-full text-xs font-black uppercase tracking-wider transition-all border flex items-center gap-1.5 ${
               ownerFollowupOnly
-                ? "bg-orange-50 text-orange-700 border-orange-200 ring-2 ring-orange-100"
-                : "bg-white text-neutral-400 border-neutral-100 hover:border-orange-200 hover:text-orange-600"
+                ? "bg-rose-50 text-rose-700 border-rose-200 ring-2 ring-rose-100"
+                : "bg-white text-neutral-400 border-neutral-100 hover:border-rose-200 hover:text-rose-600"
             }`}
           >
             <WarningCircleIcon size={13} weight="fill" />
@@ -1163,216 +1257,324 @@ export default function AdminUsersPage() {
             const statusConf = STATUS_CONFIG[status];
             const intentSummary = getIntentSummary(user);
             const action = getSuggestedAction(user, status);
-            const intentStyle = getIntentStyle(user.user_type);
+            const priorityLevel = getUserPriority(user, status, action);
+            const priority = PRIORITY_CONFIG[priorityLevel];
+            const signupLocation = formatSignupLocation(user);
 
-            return (
-              <motion.div
-                layout
-                key={user.id}
-                initial={{ opacity: 0, y: 12 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.25, delay: Math.min(index * 0.04, 0.6) }}
-                onClick={() => setSelectedUser(user)}
-                className="bg-white p-4 rounded-2xl border border-neutral-100 shadow-sm hover:shadow-lg hover:-translate-y-0.5 transition-all group cursor-pointer flex flex-col gap-3"
-              >
-                {/* Top row: avatar + name + type pill */}
-                <div className="flex items-center gap-3">
+            const isValidMeta = (v: unknown): v is string =>
+              typeof v === "string" && v !== "Inconnu" && v !== "Unknown" && v.trim() !== "";
+            const isRenter = user.user_type === "renter";
+            const isOwner = user.user_type === "owner";
+
+            const headerGradient =
+              priorityLevel === "urgent"
+                ? "from-rose-500 to-rose-600"
+                : priorityLevel === "watch"
+                  ? "from-[#c96a2e] to-[#a85424]"
+                  : "from-slate-600 to-slate-700";
+
+            const sharedMotionProps = {
+              layout: true as const,
+              initial: { opacity: 0, y: 16 },
+              animate: { opacity: 1, y: 0 },
+              transition: { duration: 0.3, delay: Math.min(index * 0.04, 0.6), ease: [0.22, 1, 0.36, 1] as [number, number, number, number] },
+              onClick: () => setSelectedUser(user),
+            };
+
+            // ── Shared sub-components ────────────────────────────────────────
+            const cardHeader = (typeLabel: string) => (
+              <div className={`bg-gradient-to-br ${headerGradient} px-4 pt-4 pb-5`}>
+                <div className="flex items-start gap-3">
+                  {/* Avatar */}
                   <div className="relative shrink-0">
-                    <div className="w-12 h-12 rounded-full bg-neutral-50 overflow-hidden border-2 border-white shadow-sm group-hover:scale-105 transition-transform duration-500">
+                    <div className="w-11 h-11 rounded-xl overflow-hidden ring-2 ring-white/25 shadow-md group-hover:ring-white/40 transition-all shrink-0">
                       {user.avatar_url ? (
-                        <Image
-                          src={user.avatar_url}
-                          alt={user.full_name || ""}
-                          width={48}
-                          height={48}
-                          className="object-cover w-full h-full"
-                        />
+                        <Image src={user.avatar_url} alt={user.full_name || ""} width={44} height={44} className="object-cover w-full h-full" />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center text-primary bg-primary/5 font-bold text-lg">
+                        <div className="w-full h-full flex items-center justify-center bg-white/20 text-white font-bold text-base">
                           {user.full_name?.charAt(0) || user.email?.charAt(0)}
                         </div>
                       )}
                     </div>
-                    <div
-                      className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${completenessColor}`}
-                    />
+                    <div className={`absolute -bottom-0.5 -right-0.5 w-3 h-3 rounded-full border-2 border-white ${completenessColor}`} />
                   </div>
-
+                  {/* Identity */}
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
-                      <h3 className="text-sm font-bold text-neutral-900 tracking-tight group-hover:text-primary transition-colors truncate leading-tight">
+                    <div className="flex items-start justify-between gap-2">
+                      <h3 className="text-sm font-bold text-white truncate leading-tight tracking-tight">
                         {user.full_name || "Sans nom"}
                       </h3>
-                      <span
-                        className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-black uppercase tracking-widest ${userTypeColors[user.user_type] || "bg-neutral-50 text-neutral-500 border-neutral-100"}`}
-                      >
-                        {userTypeLabels[user.user_type] || user.user_type}
+                      <span className="shrink-0 px-2 py-0.5 rounded-lg bg-white/20 border border-white/20 text-white text-[10px] font-black uppercase tracking-widest">
+                        {typeLabel}
                       </span>
                     </div>
-                    <div className="flex items-center gap-1.5 mt-0.5 text-[11px] text-neutral-400 font-medium flex-wrap">
-                      {user.email && <span className="truncate max-w-[120px]">{user.email}</span>}
-                      <span>·</span>
+                    <p className="text-[11px] text-white/60 font-medium mt-0.5 truncate max-w-[175px]">
+                      {user.email || "Email non renseigné"}
+                    </p>
+                    <div className="mt-1.5 flex items-center gap-2 text-[10px] text-white/70 font-semibold flex-wrap">
                       <span className="flex items-center gap-1">
-                        <span className={`w-1.5 h-1.5 rounded-full ${statusConf.dot}`} />
+                        <span className="w-1.5 h-1.5 rounded-full bg-white/50" />
                         {statusConf.label}
                       </span>
+                      {user.signup_device_label && user.signup_device_label.trim() !== "" && (
+                        <>
+                          <span className="text-white/30">·</span>
+                          <span className="flex items-center gap-0.5">
+                            {user.signup_device_label.toLowerCase().includes("mobile")
+                              ? <DeviceMobileIcon size={9} weight="bold" />
+                              : <MonitorIcon size={9} weight="bold" />}
+                            {user.signup_device_label}
+                          </span>
+                        </>
+                      )}
+                      {isValidMeta(signupLocation) && (
+                        <>
+                          <span className="text-white/30">·</span>
+                          <span>{signupLocation}</span>
+                        </>
+                      )}
                     </div>
                   </div>
                 </div>
+              </div>
+            );
 
-                {/* Meta chips: signup geo + city + acquisition source */}
-                {(formatSignupLocation(user) || user.signup_device_label || user.preferred_city || user.onboarding_location || user.onboarding_property_city || user.referral_source) && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {user.signup_device_label && (
-                      <span
-                        title="Appareil utilisé lors de l'inscription"
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-bold text-neutral-600"
-                      >
-                        {user.signup_device_label.includes("Mobile") ? (
-                          <DeviceMobileIcon size={9} weight="bold" className="text-neutral-400" />
-                        ) : (
-                          <MonitorIcon size={9} weight="bold" className="text-neutral-400" />
-                        )}
-                        {user.signup_device_label}
-                      </span>
-                    )}
-                    {formatSignupLocation(user) && (
-                      <span
-                        title="Lieu de connexion lors de l'inscription"
-                        className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-amber-50 border border-amber-100 text-[10px] font-bold text-amber-700"
-                      >
-                        <GlobeIcon size={9} weight="bold" className="text-amber-500" />
-                        {formatSignupLocation(user)}
-                      </span>
-                    )}
-                    {(user.preferred_city || user.onboarding_location || user.onboarding_property_city) && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-bold text-neutral-600">
-                        <MapPinIcon size={9} weight="bold" className="text-neutral-400" />
-                        {user.preferred_city || user.onboarding_location || user.onboarding_property_city}
-                      </span>
-                    )}
-                    {user.referral_source && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-bold text-neutral-600">
-                        <TagIcon size={9} weight="bold" className="text-neutral-400" />
-                        {user.referral_source}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Intent strip */}
-                <div className={`border-l-[3px] pl-3 ${intentStyle.leftBorder}`}>
-                  <p className={`text-[9px] font-black uppercase tracking-widest mb-1 ${intentStyle.label}`}>
-                    Pourquoi ils sont là
-                  </p>
-                  <p className={`text-xs font-semibold leading-snug ${intentStyle.text}`}>
-                    {intentSummary}
-                  </p>
-                </div>
-
-                {/* Activity micro-stats */}
-                {(user.properties_count > 0 || user.applications_count > 0 || user.favorites_count > 0 || user.agreements_renter_count > 0 || user.agreements_owner_count > 0) && (
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {user.properties_count > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-black text-neutral-500">
-                        <BuildingsIcon size={10} weight="bold" />
-                        {user.properties_count}
-                      </span>
-                    )}
-                    {user.applications_count > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-black text-neutral-500">
-                        <ClipboardTextIcon size={10} weight="bold" />
-                        {user.applications_count}
-                      </span>
-                    )}
-                    {user.favorites_count > 0 && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-neutral-50 border border-neutral-100 text-[10px] font-black text-neutral-500">
-                        <HeartIcon size={10} weight="bold" />
-                        {user.favorites_count}
-                      </span>
-                    )}
-                    {(user.agreements_renter_count > 0 || user.agreements_owner_count > 0) && (
-                      <span className="flex items-center gap-1 px-2 py-0.5 rounded-md bg-purple-50 border border-purple-100 text-[10px] font-black text-purple-500">
-                        <HandshakeIcon size={10} weight="bold" />
-                        {user.agreements_renter_count + user.agreements_owner_count}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {user.owner_followup_reasons.length > 0 && (
-                  <div className="flex items-center gap-1.5 flex-wrap">
-                    {user.owner_followup_reasons.slice(0, 2).map((reason) => (
-                      <span
-                        key={reason}
-                        className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-orange-50 border border-orange-100 text-[10px] font-black text-orange-600"
-                      >
-                        <WarningCircleIcon size={10} weight="fill" />
-                        {reason}
-                      </span>
-                    ))}
-                    {user.owner_followup_reasons.length > 2 && (
-                      <span className="px-2 py-0.5 rounded-md bg-orange-50 border border-orange-100 text-[10px] font-black text-orange-600">
-                        +{user.owner_followup_reasons.length - 2}
-                      </span>
-                    )}
-                  </div>
-                )}
-
-                {/* Footer: action chip + buttons */}
-                <div className="border-t border-neutral-50 pt-2.5">
-                  <div
-                    className={`flex items-center gap-1.5 w-full px-3 py-2 rounded-lg mb-2.5 text-[10px] font-bold ${
-                      action.urgent
-                        ? "bg-orange-50 border border-orange-100 text-orange-600"
-                        : "bg-neutral-50 border border-neutral-100 text-neutral-500"
-                    }`}
+            const cardFooter = (
+              <div className="px-4 pb-4 pt-3 flex items-center gap-2">
+                <button
+                  onClick={(e) => { e.stopPropagation(); setSelectedUser(user); }}
+                  className="flex-1 h-9 rounded-xl bg-neutral-900 text-white text-xs font-bold hover:bg-neutral-800 active:bg-neutral-950 transition-colors"
+                >
+                  Profil
+                </button>
+                <button
+                  onClick={(e) => handleCopyPhone(e, user)}
+                  disabled={!user.phone}
+                  title={user.phone ? `Copier ${user.phone}` : "Pas de numéro"}
+                  className={`w-9 h-9 rounded-xl flex items-center justify-center transition-all ${
+                    !user.phone
+                      ? "bg-neutral-100 text-neutral-300 cursor-not-allowed"
+                      : copiedUserId === user.id
+                        ? "bg-green-500 text-white"
+                        : "bg-neutral-100 text-neutral-600 hover:bg-neutral-900 hover:text-white"
+                  }`}
+                >
+                  {copiedUserId === user.id
+                    ? <CheckCircleIcon size={14} weight="fill" />
+                    : <PhoneIcon size={14} weight="bold" />}
+                </button>
+                {user.whatsapp && (
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(`https://wa.me/${user.whatsapp?.replace(/\D/g, "")}`, "_blank");
+                    }}
+                    className="w-9 h-9 rounded-xl bg-[#25D366] text-white flex items-center justify-center hover:bg-[#1fbb57] active:bg-[#1aa04a] transition-colors"
                   >
-                    <ArrowRightIcon size={10} weight="bold" className="shrink-0" />
-                    <span className="truncate">{action.text}</span>
-                  </div>
-                  <div className="flex items-center gap-1.5">
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        setSelectedUser(user);
-                      }}
-                      className="flex-1 py-1.5 rounded-lg bg-primary text-white text-xs font-bold hover:bg-primary/90 transition-colors"
-                    >
-                      Profil
-                    </button>
-                    <button
-                      onClick={(e) => handleCopyPhone(e, user)}
-                      disabled={!user.phone}
-                      title={user.phone ? `Copier ${user.phone}` : "Pas de numéro"}
-                      className={`w-8 h-8 rounded-lg flex items-center justify-center transition-all ${
-                        !user.phone
-                          ? "bg-neutral-50 border border-neutral-100 text-neutral-300 cursor-not-allowed opacity-40"
-                          : copiedUserId === user.id
-                            ? "bg-green-500 border border-green-500 text-white"
-                            : "bg-neutral-50 border border-neutral-100 text-neutral-500 hover:bg-primary hover:text-white hover:border-primary"
-                      }`}
-                    >
-                      {copiedUserId === user.id ? (
-                        <CheckCircleIcon size={14} weight="fill" />
-                      ) : (
-                        <PhoneIcon size={14} weight="bold" />
-                      )}
-                    </button>
-                    {user.whatsapp && (
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const phone = user.whatsapp?.replace(/\D/g, "");
-                          window.open(`https://wa.me/${phone}`, "_blank");
-                        }}
-                        className="w-8 h-8 rounded-lg bg-green-50 border border-green-100 flex items-center justify-center text-green-600 hover:bg-green-500 hover:text-white hover:border-green-500 transition-all"
-                      >
-                        <WhatsappLogoIcon size={14} weight="bold" />
-                      </button>
+                    <WhatsappLogoIcon size={14} weight="bold" />
+                  </button>
+                )}
+              </div>
+            );
+
+            const calloutRow = (
+              <div className={`mx-4 flex items-center justify-between gap-2 px-3 py-2.5 rounded-xl border text-[11px] font-semibold ${priority.callout}`}>
+                <span className="flex items-center gap-1.5 truncate">
+                  <PriorityIcon level={priorityLevel} size={12} className={`${priority.iconText} shrink-0`} />
+                  <span className="truncate">{action.text}</span>
+                </span>
+                <span className={`shrink-0 text-[9px] font-black uppercase tracking-[0.1em] ${priority.iconText}`}>
+                  {priority.label}
+                </span>
+              </div>
+            );
+
+            // ── RENTER CARD ───────────────────────────────────────────────────
+            if (isRenter) {
+              return (
+                <motion.div
+                  key={user.id}
+                  {...sharedMotionProps}
+                  className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 group flex flex-col"
+                >
+                  {cardHeader("Locataire")}
+
+                  <div className="bg-white px-4 pt-4 flex flex-col gap-3 flex-1">
+                    {/* Search brief */}
+                    <div className="bg-neutral-50 rounded-xl p-3.5">
+                      <p className="text-[15px] font-extrabold text-neutral-900 leading-tight tracking-tight">
+                        {(user.onboarding_property_types?.length ?? 0) > 0
+                          ? user.onboarding_property_types.slice(0, 2).join(" · ")
+                          : "Type non renseigné"}
+                      </p>
+                      <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-[11px] font-medium text-neutral-500">
+                        {isValidMeta(user.onboarding_location || user.preferred_city) && (
+                          <span className="flex items-center gap-1 text-neutral-600 font-semibold">
+                            <MapPinIcon size={10} weight="bold" className="text-neutral-400" />
+                            {user.onboarding_location || user.preferred_city}
+                          </span>
+                        )}
+                        {(user.onboarding_budget || user.budget_max) && (
+                          <span className="font-extrabold text-neutral-800">
+                            {(user.onboarding_budget ?? user.budget_max)!.toLocaleString("fr-FR")} F/mois
+                          </span>
+                        )}
+                        {isValidMeta(user.onboarding_move_in_urgency) && (
+                          <span className={`font-semibold ${
+                            (URGENCY_FR[user.onboarding_move_in_urgency!] ?? user.onboarding_move_in_urgency!).toLowerCase().includes("immédiat") ||
+                            user.onboarding_move_in_urgency!.toLowerCase().includes("immediately") ||
+                            user.onboarding_move_in_urgency!.toLowerCase().includes("urgent")
+                              ? "text-rose-600 font-bold" : ""
+                          }`}>
+                            {URGENCY_FR[user.onboarding_move_in_urgency!] ?? user.onboarding_move_in_urgency}
+                          </span>
+                        )}
+                        {isValidMeta(user.onboarding_rooms) && <span>{user.onboarding_rooms} pièces</span>}
+                        {isValidMeta(user.onboarding_furnished) && (
+                          <span>{FURNISHED_FR[user.onboarding_furnished!] ?? user.onboarding_furnished}</span>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Activity counts */}
+                    {(user.applications_count > 0 || user.favorites_count > 0 || user.agreements_renter_count > 0) && (
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        {user.applications_count > 0 && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 text-[10px] font-bold text-neutral-600">
+                            <ClipboardTextIcon size={10} weight="bold" />
+                            {user.applications_count} candidature{user.applications_count > 1 ? "s" : ""}
+                          </span>
+                        )}
+                        {user.favorites_count > 0 && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 text-[10px] font-bold text-neutral-600">
+                            <HeartIcon size={10} weight="bold" />
+                            {user.favorites_count}
+                          </span>
+                        )}
+                        {user.agreements_renter_count > 0 && (
+                          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-neutral-100 text-[10px] font-bold text-neutral-600">
+                            <HandshakeIcon size={10} weight="bold" />
+                            {user.agreements_renter_count} accord{user.agreements_renter_count > 1 ? "s" : ""}
+                          </span>
+                        )}
+                      </div>
                     )}
+
+                    {/* Spacer so callout always sits near footer */}
+                    <div className="flex-1" />
+                    {calloutRow}
                   </div>
+
+                  {cardFooter}
+                </motion.div>
+              );
+            }
+
+            // ── OWNER CARD ────────────────────────────────────────────────────
+            if (isOwner) {
+              return (
+                <motion.div
+                  key={user.id}
+                  {...sharedMotionProps}
+                  className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 group flex flex-col"
+                >
+                  {cardHeader("Propriétaire")}
+
+                  <div className="bg-white px-4 pt-4 flex flex-col gap-3 flex-1">
+                    {/* Metric grid */}
+                    <div className="grid grid-cols-2 gap-2">
+                      <div className="bg-neutral-50 rounded-xl p-3 text-center">
+                        <div className="text-[2rem] font-black text-neutral-900 leading-none tabular-nums">
+                          {user.properties_count}
+                        </div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.12em] text-neutral-400 mt-1.5">
+                          {user.properties_count === 1 ? "Bien" : "Biens"}
+                        </div>
+                      </div>
+                      <div className="bg-neutral-50 rounded-xl p-3 text-center">
+                        <div className="text-[2rem] font-black text-neutral-900 leading-none tabular-nums">
+                          {user.applications_count}
+                        </div>
+                        <div className="text-[9px] font-black uppercase tracking-[0.12em] text-neutral-400 mt-1.5">
+                          Candidatures
+                        </div>
+                      </div>
+                      {user.agreements_owner_count > 0 && (
+                        <div className="col-span-2 bg-neutral-50 rounded-xl p-3 text-center">
+                          <div className="text-[2rem] font-black text-neutral-900 leading-none tabular-nums">
+                            {user.agreements_owner_count}
+                          </div>
+                          <div className="text-[9px] font-black uppercase tracking-[0.12em] text-neutral-400 mt-1.5">
+                            Accords
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Onboarding warning */}
+                    {!user.has_completed_onboarding && (
+                      <div className="flex items-center gap-2 px-3 py-2.5 rounded-xl bg-amber-50 border border-amber-200">
+                        <WarningCircleIcon size={14} weight="fill" className="text-amber-500 shrink-0" />
+                        <span className="text-[11px] font-bold text-amber-700">
+                          Onboarding incomplet{user.web_onboarding_step ? ` — étape ${user.web_onboarding_step}` : ""}
+                        </span>
+                      </div>
+                    )}
+
+                    {/* Follow-up reasons — all of them */}
+                    {user.owner_followup_reasons.length > 0 && (
+                      <div className="flex flex-wrap gap-1.5">
+                        {user.owner_followup_reasons.map((reason) => (
+                          <span
+                            key={reason}
+                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg border text-[10px] font-bold ${priority.chip}`}
+                          >
+                            <PriorityIcon level={priorityLevel} size={10} className={priority.iconText} />
+                            {reason}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+
+                    {/* City */}
+                    {isValidMeta(user.onboarding_property_city || user.preferred_city) && (
+                      <span className="self-start inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-neutral-100 text-[10px] font-bold text-neutral-600">
+                        <MapPinIcon size={9} weight="bold" className="text-neutral-400" />
+                        {user.onboarding_property_city || user.preferred_city}
+                      </span>
+                    )}
+
+                    <div className="flex-1" />
+                    {calloutRow}
+                  </div>
+
+                  {cardFooter}
+                </motion.div>
+              );
+            }
+
+            // ── FALLBACK: agent / staff / founder ─────────────────────────────
+            return (
+              <motion.div
+                key={user.id}
+                {...sharedMotionProps}
+                className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 group flex flex-col"
+              >
+                {cardHeader(userTypeLabels[user.user_type] || user.user_type)}
+
+                <div className="bg-white px-4 pt-4 flex flex-col gap-3 flex-1">
+                  <div className="bg-neutral-50 rounded-xl p-3.5">
+                    <p className="text-[11px] font-black uppercase tracking-widest text-neutral-400 mb-1.5">
+                      Pourquoi ils sont là
+                    </p>
+                    <p className="text-sm font-semibold text-neutral-900 leading-snug">{intentSummary}</p>
+                  </div>
+
+                  <div className="flex-1" />
+                  {calloutRow}
                 </div>
+
+                {cardFooter}
               </motion.div>
             );
           })}
@@ -1402,7 +1604,9 @@ export default function AdminUsersPage() {
           const statusConf = STATUS_CONFIG[status];
           const intentSummary = getIntentSummary(selectedUser);
           const action = getSuggestedAction(selectedUser, status);
-          const intentStyle = getIntentStyle(selectedUser.user_type);
+          const priorityLevel = getUserPriority(selectedUser, status, action);
+          const priority = PRIORITY_CONFIG[priorityLevel];
+          const intentStyle = getIntentStyle();
 
           return (
             <div className="fixed inset-0 z-100 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
@@ -1413,7 +1617,7 @@ export default function AdminUsersPage() {
                 className="bg-white w-full max-w-3xl max-h-[90vh] rounded-[40px] shadow-2xl border border-neutral-200 overflow-hidden flex flex-col"
               >
                 {/* Modal Header */}
-                <div className="p-8 border-b border-neutral-100 flex items-start justify-between bg-neutral-50/30">
+                <div className="p-8 border-b border-neutral-100 flex items-start justify-between bg-white">
                   <div className="flex items-center gap-6">
                     <div className="w-20 h-20 rounded-[28px] overflow-hidden border-4 border-white shadow-xl relative shrink-0">
                       {selectedUser.avatar_url ? (
@@ -1425,7 +1629,7 @@ export default function AdminUsersPage() {
                           className="object-cover w-full h-full"
                         />
                       ) : (
-                        <div className="w-full h-full flex items-center justify-center bg-primary text-white font-bold text-3xl">
+                        <div className="w-full h-full flex items-center justify-center bg-neutral-900 text-white font-bold text-3xl">
                           {selectedUser.full_name?.charAt(0) || selectedUser.email?.charAt(0)}
                         </div>
                       )}
@@ -1450,12 +1654,10 @@ export default function AdminUsersPage() {
                         >
                           {statusConf.label}
                         </span>
-                        {selectedUser.owner_followup_reasons.length > 0 && (
-                          <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-orange-50 border border-orange-100 text-[10px] font-black text-orange-600 uppercase tracking-widest">
-                            <WarningCircleIcon size={11} weight="fill" />
-                            À relancer
-                          </span>
-                        )}
+                        <span className={`flex items-center gap-1.5 px-3 py-1 rounded-lg border text-[10px] font-black uppercase tracking-widest ${priority.chip}`}>
+                          <PriorityIcon level={priorityLevel} size={11} className={priority.iconText} />
+                          {priority.label}
+                        </span>
                         {selectedUser.signup_device_label && (
                           <span className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-neutral-100 text-[10px] font-black text-neutral-500 uppercase tracking-widest">
                             {selectedUser.signup_device_label.includes("Mobile") ? (
@@ -1469,11 +1671,11 @@ export default function AdminUsersPage() {
                       </div>
                       <div className="flex flex-wrap items-center gap-4">
                         <span className="text-sm font-bold text-neutral-500 flex items-center gap-2">
-                          <EnvelopeIcon size={16} weight="bold" className="text-primary" />
+                          <EnvelopeIcon size={16} weight="bold" className="text-neutral-400" />
                           {selectedUser.email}
                         </span>
                         <span className="text-sm font-bold text-neutral-500 flex items-center gap-2">
-                          <PhoneIcon size={16} weight="bold" className="text-primary" />
+                          <PhoneIcon size={16} weight="bold" className="text-neutral-400" />
                           {selectedUser.phone || "Non renseigné"}
                         </span>
                       </div>
@@ -1492,8 +1694,9 @@ export default function AdminUsersPage() {
 
                   {/* SECTION 1: Intent hero — why they're here */}
                   <section>
-                    <div className={`rounded-3xl p-6 border ${intentStyle.bg} ${intentStyle.border} space-y-5`}>
-                      <div className="flex items-start justify-between gap-4">
+                    <div className={`relative overflow-hidden rounded-3xl p-6 border ${intentStyle.bg} ${priority.intentBorder} space-y-5`}>
+                      <div className={`absolute inset-y-0 left-0 w-1 ${priority.marker}`} />
+                      <div className="flex items-start justify-between gap-4 pl-2">
                         <div className="flex-1">
                           <p className={`text-[10px] font-black uppercase tracking-widest mb-2 ${intentStyle.label}`}>
                             Pourquoi ils sont là
@@ -1502,8 +1705,9 @@ export default function AdminUsersPage() {
                             {intentSummary}
                           </p>
                         </div>
-                        <div className={`px-4 py-2 rounded-2xl border text-[10px] font-black uppercase tracking-widest shrink-0 ${statusConf.badge}`}>
-                          {statusConf.label}
+                        <div className={`flex items-center gap-1.5 px-4 py-2 rounded-2xl border text-[10px] font-black uppercase tracking-widest shrink-0 ${priority.chip}`}>
+                          <PriorityIcon level={priorityLevel} size={12} className={priority.iconText} />
+                          {priority.label}
                         </div>
                       </div>
 
@@ -1548,7 +1752,7 @@ export default function AdminUsersPage() {
                                   <ClockIcon size={10} weight="bold" />
                                   Emménagement
                                 </span>
-                                <span className="text-xs font-bold text-blue-700">
+                                <span className="text-xs font-bold text-neutral-900">
                                   {selectedUser.onboarding_move_in_urgency}
                                 </span>
                               </div>
@@ -1561,7 +1765,7 @@ export default function AdminUsersPage() {
                               </span>
                               <div className="flex flex-wrap gap-1.5">
                                 {selectedUser.onboarding_property_types.map((t) => (
-                                  <span key={t} className="px-2.5 py-1 bg-blue-100 rounded-lg text-[11px] font-bold text-blue-700">
+                                  <span key={t} className="px-2.5 py-1 bg-neutral-100 rounded-lg text-[11px] font-bold text-neutral-700">
                                     {t}
                                   </span>
                                 ))}
@@ -1600,7 +1804,7 @@ export default function AdminUsersPage() {
                                   <ClockIcon size={10} weight="bold" />
                                   Disponibilité
                                 </span>
-                                <span className="text-xs font-bold text-amber-700">
+                                <span className="text-xs font-bold text-neutral-900">
                                   {selectedUser.onboarding_property_available}
                                 </span>
                               </div>
@@ -1657,13 +1861,13 @@ export default function AdminUsersPage() {
                                 </span>
                               </div>
                             )}
-                            {(selectedUser.onboarding_referral_source || selectedUser.referral_source) && (
+                            {getEffectiveReferralSource(selectedUser) && (
                               <div className="flex items-center justify-between">
                                 <span className={`text-[10px] font-black uppercase tracking-widest ${intentStyle.label}`}>
                                   Source
                                 </span>
-                                <span className="text-xs font-bold text-emerald-700">
-                                  {selectedUser.onboarding_referral_source || selectedUser.referral_source}
+                                <span className="text-xs font-bold text-neutral-900">
+                                  {getReferralSourceDisplay(selectedUser)}
                                 </span>
                               </div>
                             )}
@@ -1679,7 +1883,7 @@ export default function AdminUsersPage() {
                                   ? selectedUser.onboarding_service_areas
                                   : selectedUser.service_areas ?? []
                                 ).map((area, i) => (
-                                  <span key={i} className="px-2.5 py-1 bg-emerald-100 rounded-lg text-[11px] font-bold text-emerald-700">
+                                  <span key={i} className="px-2.5 py-1 bg-neutral-100 rounded-lg text-[11px] font-bold text-neutral-700">
                                     {area}
                                   </span>
                                 ))}
@@ -1692,35 +1896,25 @@ export default function AdminUsersPage() {
 
                     {/* Suggested action callout */}
                     <div
-                      className={`mt-3 flex items-center gap-3 p-4 rounded-2xl border ${
-                        action.urgent
-                          ? "bg-orange-50 border-orange-100"
-                          : "bg-neutral-50 border-neutral-100"
-                      }`}
+                      className={`mt-3 flex items-center gap-3 p-4 rounded-2xl border ${priority.callout}`}
                     >
-                      <ArrowRightIcon
-                        size={16}
-                        weight="bold"
-                        className={action.urgent ? "text-orange-500" : "text-neutral-400"}
-                      />
-                      <p
-                        className={`text-sm font-bold ${action.urgent ? "text-orange-700" : "text-neutral-600"}`}
-                      >
+                      <PriorityIcon level={priorityLevel} size={16} className={priority.iconText} />
+                      <p className="text-sm font-bold">
                         {action.text}
                       </p>
                     </div>
 
                     {selectedUser.owner_followup_reasons.length > 0 && (
-                      <div className="mt-3 rounded-2xl border border-orange-100 bg-orange-50 p-4">
-                        <p className="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest text-orange-600">
-                          <WarningCircleIcon size={12} weight="fill" />
+                      <div className={`mt-3 rounded-2xl border p-4 ${priority.callout}`}>
+                        <p className="mb-2 flex items-center gap-1.5 text-[10px] font-black uppercase tracking-widest">
+                          <PriorityIcon level={priorityLevel} size={12} className={priority.iconText} />
                           Raisons de relance
                         </p>
                         <div className="flex flex-wrap gap-2">
                           {selectedUser.owner_followup_reasons.map((reason) => (
                             <span
                               key={reason}
-                              className="rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold text-orange-700 border border-orange-100"
+                              className={`rounded-lg bg-white px-2.5 py-1 text-[11px] font-bold border ${priority.chip}`}
                             >
                               {reason}
                             </span>
@@ -1752,7 +1946,7 @@ export default function AdminUsersPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-2xl bg-blue-50 flex items-center justify-center text-blue-600 border border-blue-100 shrink-0">
+                          <div className="w-10 h-10 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-500 border border-neutral-100 shrink-0">
                             <MapPinIcon size={20} weight="bold" />
                           </div>
                           <div>
@@ -1768,7 +1962,7 @@ export default function AdminUsersPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
+                          <div className="w-10 h-10 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-500 border border-neutral-100 shrink-0">
                             <GlobeIcon size={20} weight="bold" />
                           </div>
                           <div>
@@ -1811,7 +2005,7 @@ export default function AdminUsersPage() {
                           </div>
                         </div>
                         <div className="flex items-center gap-4">
-                          <div className="w-10 h-10 rounded-2xl bg-purple-50 flex items-center justify-center text-purple-600 border border-purple-100 shrink-0">
+                          <div className="w-10 h-10 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-500 border border-neutral-100 shrink-0">
                             <IdentificationCardIcon size={20} weight="bold" />
                           </div>
                           <div>
@@ -1819,11 +2013,7 @@ export default function AdminUsersPage() {
                               Source d&apos;acquisition
                             </p>
                             <p className="font-bold text-neutral-900 text-sm">
-                              {(selectedUser.user_type === "agent"
-                                ? selectedUser.onboarding_referral_source
-                                : null) ||
-                                selectedUser.referral_source ||
-                                "Direct"}
+                              {getReferralSourceDisplay(selectedUser) || "Non renseigné"}
                             </p>
                           </div>
                         </div>
@@ -1851,7 +2041,7 @@ export default function AdminUsersPage() {
                         </h3>
                         <div className="space-y-4">
                           <div className="flex items-center gap-4">
-                            <div className="w-10 h-10 rounded-2xl bg-amber-50 flex items-center justify-center text-amber-600 border border-amber-100 shrink-0">
+                            <div className="w-10 h-10 rounded-2xl bg-neutral-50 flex items-center justify-center text-neutral-500 border border-neutral-100 shrink-0">
                               <BuildingsIcon size={20} weight="bold" />
                             </div>
                             <div>
@@ -1921,39 +2111,39 @@ export default function AdminUsersPage() {
                       Activité sur la plateforme
                     </h3>
                     <div className="flex flex-wrap gap-3">
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-amber-50 border border-amber-100 rounded-2xl">
-                        <HouseIcon size={16} weight="bold" className="text-amber-500" />
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-50 border border-neutral-100 rounded-2xl">
+                        <HouseIcon size={16} weight="bold" className="text-neutral-500" />
                         <span className="text-sm font-black text-neutral-900">
                           {selectedUser.properties_count}
                         </span>
-                        <span className="text-[10px] font-black text-amber-400 uppercase tracking-widest">
+                        <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
                           biens
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-2xl">
-                        <ClipboardTextIcon size={16} weight="bold" className="text-blue-500" />
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-50 border border-neutral-100 rounded-2xl">
+                        <ClipboardTextIcon size={16} weight="bold" className="text-neutral-500" />
                         <span className="text-sm font-black text-neutral-900">
                           {selectedUser.applications_count}
                         </span>
-                        <span className="text-[10px] font-black text-blue-400 uppercase tracking-widest">
+                        <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
                           candidatures
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-red-50 border border-red-100 rounded-2xl">
-                        <HeartIcon size={16} weight="bold" className="text-red-400" />
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-50 border border-neutral-100 rounded-2xl">
+                        <HeartIcon size={16} weight="bold" className="text-neutral-500" />
                         <span className="text-sm font-black text-neutral-900">
                           {selectedUser.favorites_count}
                         </span>
-                        <span className="text-[10px] font-black text-red-400 uppercase tracking-widest">
+                        <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
                           favoris
                         </span>
                       </div>
-                      <div className="flex items-center gap-2 px-4 py-2.5 bg-green-50 border border-green-100 rounded-2xl">
-                        <HandshakeIcon size={16} weight="bold" className="text-green-500" />
+                      <div className="flex items-center gap-2 px-4 py-2.5 bg-neutral-50 border border-neutral-100 rounded-2xl">
+                        <HandshakeIcon size={16} weight="bold" className="text-neutral-500" />
                         <span className="text-sm font-black text-neutral-900">
                           {selectedUser.agreements_renter_count + selectedUser.agreements_owner_count}
                         </span>
-                        <span className="text-[10px] font-black text-green-400 uppercase tracking-widest">
+                        <span className="text-[10px] font-black text-neutral-400 uppercase tracking-widest">
                           accords
                         </span>
                       </div>

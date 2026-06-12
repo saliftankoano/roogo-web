@@ -30,7 +30,10 @@ import { InterdictionsSelector } from "./InterdictionsSelector";
 import { PhotoUploader } from "./PhotoUploader";
 import { useExpandableScreen } from "@/components/ui/expandable-screen";
 import { savePendingPhotos } from "@/lib/clientPendingPhotos";
-import { compressImageToBase64 } from "@/lib/clientImageCompression";
+import {
+  compressPropertyPhotoFiles,
+  uploadPropertyPhotoFiles,
+} from "@/lib/clientPropertyPhotoUpload";
 import {
   getMockPropertyData,
   getMockPropertyPhotos,
@@ -889,20 +892,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
     const propertyId = result.propertyId;
     if (photos.length > 0) {
-      const base64Images = await Promise.all(
-        photos.map(async (file) => {
-          const { data, ext } = await compressImageToBase64(file);
-          return { data, ext };
-        }),
-      );
-
-      await fetch(`/api/properties/${propertyId}/upload-images`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ images: base64Images }),
+      await uploadPropertyPhotoFiles({
+        propertyId,
+        token,
+        files: photos,
       });
     }
 
@@ -1050,12 +1043,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
       if (photos.length > 0) {
         try {
-          const pendingPhotos = await Promise.all(
-            photos.map(async (file) => {
-              const { data, ext } = await compressImageToBase64(file);
-              return { data, ext };
-            }),
-          );
+          const pendingPhotos = await compressPropertyPhotoFiles(photos);
           pendingPhotosStoredInDb = await savePendingPhotos(
             paymentData.depositId,
             pendingPhotos,

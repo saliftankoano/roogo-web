@@ -21,7 +21,12 @@ import {
 } from "@/components/ui/expandable-screen";
 import { useAuth, useUser } from "@clerk/nextjs";
 import { PropertyFormModal } from "@/components/property-form/PropertyFormModal";
-import { getPendingPhotos, removePendingPhotos } from "@/lib/clientPendingPhotos";
+import {
+  getPendingPhotos,
+  type PendingPhoto,
+  removePendingPhotos,
+} from "@/lib/clientPendingPhotos";
+import { uploadCompressedPropertyPhotos } from "@/lib/clientPropertyPhotoUpload";
 
 export default function AdminListingsPage() {
   const { user } = useUser();
@@ -90,7 +95,7 @@ export default function AdminListingsPage() {
           formData: Record<string, unknown>;
           selectedTier: string;
           selectedAddOns: string[];
-          pendingPhotos?: Array<{ data: string; ext: string }>;
+          pendingPhotos?: PendingPhoto[];
           pendingPhotosOverflow?: boolean;
           pendingPhotosCount?: number;
           pendingPhotosStoredInDb?: boolean;
@@ -174,15 +179,17 @@ export default function AdminListingsPage() {
         if (finalizedKey) window.sessionStorage.setItem(finalizedKey, "1");
 
         if (propertyId && pendingPhotos.length > 0) {
-          await fetch(`/api/properties/${propertyId}/upload-images`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ images: pendingPhotos }),
-          });
-          await removePendingPhotos(depositId);
+          try {
+            await uploadCompressedPropertyPhotos({
+              propertyId,
+              token,
+              photos: pendingPhotos,
+            });
+          } catch (photoUploadError) {
+            console.error("Error uploading pending listing photos:", photoUploadError);
+          } finally {
+            await removePendingPhotos(depositId);
+          }
 
         } else if (pending.pendingPhotosOverflow) {
         }

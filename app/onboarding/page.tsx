@@ -456,7 +456,13 @@ export default function OnboardingPage() {
     }
   };
 
-  const handleRenterContact = async (info: { phone: string; notifications: { newListings: boolean } }) => {
+  const handleRenterContact = async (info: {
+    phone: string;
+    notifications: { newListings: boolean };
+    referralSource: string;
+    socialPlatform?: string;
+    referralSourceDetail?: string;
+  }) => {
     if (!user) return;
     setIsSubmitting(true);
     try {
@@ -464,6 +470,11 @@ export default function OnboardingPage() {
         webOnboardingData: {
           phone: info.phone,
           notifications: info.notifications,
+          referralSource: info.referralSource,
+          ...(info.socialPlatform ? { socialPlatform: info.socialPlatform } : {}),
+          ...(info.referralSourceDetail
+            ? { referralSourceDetail: info.referralSourceDetail }
+            : {}),
         },
         webOnboardingStep: 5,
       });

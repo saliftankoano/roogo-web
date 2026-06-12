@@ -6,8 +6,10 @@ import { CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import {
   getPendingPhotos,
+  type PendingPhoto,
   removePendingPhotos,
 } from "@/lib/clientPendingPhotos";
+import { uploadCompressedPropertyPhotos } from "@/lib/clientPropertyPhotoUpload";
 
 function PaymentCallbackContent() {
   const searchParams = useSearchParams();
@@ -205,7 +207,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           formData: Record<string, unknown>;
           selectedTier: string;
           selectedAddOns: string[];
-          pendingPhotos?: Array<{ data: string; ext: string }>;
+          pendingPhotos?: PendingPhoto[];
           pendingPhotosOverflow?: boolean;
           pendingPhotosCount?: number;
           pendingPhotosStoredInDb?: boolean;
@@ -296,19 +298,23 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
         window.sessionStorage.removeItem("pendingAdminListing");
         window.sessionStorage.setItem(finalizedKey, "1");
 
+        let photoUploadFailed = false;
         if (propertyId && pendingPhotos.length > 0) {
-          await fetch(`/api/properties/${propertyId}/upload-images`, {
-            method: "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization: `Bearer ${token}`,
-            },
-            body: JSON.stringify({ images: pendingPhotos }),
-          });
-          if (depositId) await removePendingPhotos(depositId);
+          try {
+            await uploadCompressedPropertyPhotos({
+              propertyId,
+              token,
+              photos: pendingPhotos,
+            });
+          } catch (photoUploadError) {
+            console.error("Error uploading pending listing photos:", photoUploadError);
+            photoUploadFailed = true;
+          } finally {
+            if (depositId) await removePendingPhotos(depositId);
+          }
         }
 
-        if (pending.pendingPhotosOverflow) {
+        if (pending.pendingPhotosOverflow || photoUploadFailed) {
           setMessage(
             "Paiement confirme et annonce creee. Ajoutez les photos depuis la fiche du bien.",
           );

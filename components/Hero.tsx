@@ -123,11 +123,11 @@ export function Hero() {
             className="mt-8 flex flex-wrap justify-center gap-3 text-white/80 text-sm font-medium"
         >
             <span>Recherches populaires :</span>
-            <button type="button" onClick={() => router.push('/location?q=Ouaga 2000')} className="hover:text-white underline decoration-white/30 hover:decoration-white transition-all">Ouaga 2000</button>
+            <button type="button" onClick={() => router.push('/proprietes?q=Ouaga 2000')} className="hover:text-white underline decoration-white/30 hover:decoration-white transition-all">Ouaga 2000</button>
             <span>•</span>
-            <button type="button" onClick={() => router.push('/location?q=Gounghin')} className="hover:text-white underline decoration-white/30 hover:decoration-white transition-all">Gounghin</button>
+            <button type="button" onClick={() => router.push('/proprietes?q=Gounghin')} className="hover:text-white underline decoration-white/30 hover:decoration-white transition-all">Gounghin</button>
             <span>•</span>
-            <button type="button" onClick={() => router.push('/location?q=Dassasgho')} className="hover:text-white underline decoration-white/30 hover:decoration-white transition-all">Dassasgho</button>
+            <button type="button" onClick={() => router.push('/proprietes?q=Dassasgho')} className="hover:text-white underline decoration-white/30 hover:decoration-white transition-all">Dassasgho</button>
         </motion.div>
       </div>
     </div>

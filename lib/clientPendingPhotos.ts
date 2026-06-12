@@ -1,4 +1,9 @@
-export type PendingPhoto = { data: string; ext: string };
+export type PendingPhoto = {
+  data: string;
+  ext: string;
+  width?: number;
+  height?: number;
+};
 
 const DB_NAME = "roogo_pending_listing";
 const STORE_NAME = "photos";

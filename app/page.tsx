@@ -2,7 +2,7 @@ import { fetchFeaturedProperties } from "../lib/data";
 import HomeClient from "../components/HomeClient";
 import { Metadata } from "next";
 import JsonLd from "../components/JsonLd";
-import { getWebSiteSchema } from "../lib/schemas";
+import { getHomePageSchema } from "../lib/schemas";
 
 export const metadata: Metadata = {
   title: "Roogo | Location Appartement et Maison au Burkina Faso",
@@ -25,7 +25,7 @@ export default async function Home() {
 
   return (
     <>
-      <JsonLd schema={getWebSiteSchema()} />
+      <JsonLd schema={getHomePageSchema()} />
       <HomeClient featuredProperties={featuredProperties} />
     </>
   );

@@ -9,10 +9,11 @@ import {
   useMotionValueEvent,
   AnimatePresence,
 } from "framer-motion";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   ListIcon,
   XIcon,
+  CaretDownIcon,
   HouseLineIcon,
   BriefcaseIcon,
   ChatCircleIcon,
@@ -24,13 +25,58 @@ import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { cn } from "../lib/utils";
 import { AnimatedBackground } from "./motion-primitives/animated-background";
-import { getAdminNavItems } from "../lib/navigation/adminNav";
+import {
+  getAdminNavItems,
+  type AdminNavEntry,
+  type AdminNavItem,
+} from "../lib/navigation/adminNav";
+
+function isLinkActive(pathname: string, href: string) {
+  return pathname === href || (href !== "/" && pathname.startsWith(href));
+}
+
+function isAdminEntryActive(pathname: string, item: AdminNavEntry) {
+  if (item.type === "group") {
+    return item.children.some((child) => isLinkActive(pathname, child.href));
+  }
+
+  return isLinkActive(pathname, item.href);
+}
+
+function StaffDesktopNavLink({
+  item,
+  isActive,
+}: {
+  item: AdminNavItem;
+  isActive: boolean;
+}) {
+  const Icon = item.icon;
+
+  return (
+    <Link
+      href={item.href}
+      data-id={item.id}
+      className={cn(
+        "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+        isActive ? "text-primary" : "text-neutral-500 hover:text-neutral-900",
+      )}
+    >
+      <Icon size={18} weight={isActive ? "fill" : "bold"} />
+      <span className="whitespace-nowrap">{item.label}</span>
+    </Link>
+  );
+}
 
 export function Navbar() {
   const { scrollY } = useScroll();
   const [hidden, setHidden] = useState(false);
   const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [openGroupId, setOpenGroupId] = useState<string | null>(null);
+  const [mobileOpenGroupId, setMobileOpenGroupId] = useState<string | null>(
+    null,
+  );
+  const staffNavRef = useRef<HTMLDivElement>(null);
   const { isSignedIn, isLoaded, user } = useUser();
   const pathname = usePathname();
 
@@ -49,6 +95,10 @@ export function Navbar() {
   const isStaff = userType === "staff" || userType === "founder";
   const isFounder = userType === "founder";
   const isAgentOrOwner = userType === "agent" || userType === "owner";
+  const staffNavEntries = useMemo(
+    () => getAdminNavItems(isFounder),
+    [isFounder],
+  );
 
   const publicNavItems = [
     { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
@@ -94,26 +144,6 @@ export function Navbar() {
     },
   ];
 
-  const staffNavItems = getAdminNavItems(isFounder).flatMap((item) => {
-    if (item.type === "group") {
-      return item.children.map((child) => ({
-        name: child.label,
-        href: child.href,
-        icon: child.icon,
-        id: child.id,
-      }));
-    }
-
-    return [
-      {
-        name: item.label,
-        href: item.href,
-        icon: item.icon,
-        id: item.id,
-      },
-    ];
-  });
-
   const agentOwnerNavItems = [
     { name: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
     {
@@ -144,12 +174,52 @@ export function Navbar() {
 
   // Determine navigation items based on user type
   const navItems = isStaff
-    ? staffNavItems
+    ? []
     : isAgentOrOwner
       ? agentOwnerNavItems
       : isSignedIn
         ? renterNavItems
-      : publicNavItems;
+        : publicNavItems;
+
+  useEffect(() => {
+    setOpenGroupId(null);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileMenuOpen || !isStaff) return;
+
+    const activeGroupId =
+      staffNavEntries.find(
+        (item) => item.type === "group" && isAdminEntryActive(pathname, item),
+      )?.id ?? null;
+    setMobileOpenGroupId(activeGroupId);
+  }, [isStaff, mobileMenuOpen, pathname, staffNavEntries]);
+
+  useEffect(() => {
+    if (!openGroupId) return;
+
+    const handlePointerDown = (event: PointerEvent) => {
+      if (
+        staffNavRef.current &&
+        !staffNavRef.current.contains(event.target as Node)
+      ) {
+        setOpenGroupId(null);
+      }
+    };
+
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setOpenGroupId(null);
+      }
+    };
+
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openGroupId]);
 
   return (
     <>
@@ -185,43 +255,137 @@ export function Navbar() {
           </Link>
 
           {/* Center Navigation - Pill style */}
-          <div className="hidden md:flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30">
-            <AnimatedBackground
-              defaultValue={pathname}
-              className="bg-white rounded-full shadow-sm"
-              transition={{
-                type: "spring",
-                stiffness: 400,
-                damping: 30,
-              }}
+          {isStaff ? (
+            <div
+              ref={staffNavRef}
+              className="hidden md:flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30"
             >
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  data-id={item.id}
-                  className={cn(
-                    "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
-                    pathname === item.href ||
-                      (item.href !== "/" && pathname.startsWith(item.href))
-                      ? "text-primary"
-                      : "text-neutral-500 hover:text-neutral-900",
-                  )}
-                >
-                  <item.icon
-                    size={18}
-                    weight={
-                      pathname === item.href ||
-                      (item.href !== "/" && pathname.startsWith(item.href))
-                        ? "fill"
-                        : "bold"
-                    }
-                  />
-                  <span className="whitespace-nowrap">{item.name}</span>
-                </Link>
-              ))}
-            </AnimatedBackground>
-          </div>
+              {staffNavEntries.map((item) => {
+                const isActive = isAdminEntryActive(pathname, item);
+
+                if (item.type === "link") {
+                  return (
+                    <StaffDesktopNavLink
+                      key={item.id}
+                      item={item}
+                      isActive={isActive}
+                    />
+                  );
+                }
+
+                const Icon = item.icon;
+                const isOpen = openGroupId === item.id;
+
+                return (
+                  <div key={item.id} className="relative">
+                    <button
+                      type="button"
+                      data-id={item.id}
+                      aria-haspopup="menu"
+                      aria-expanded={isOpen}
+                      onClick={() =>
+                        setOpenGroupId((current) =>
+                          current === item.id ? null : item.id,
+                        )
+                      }
+                      className={cn(
+                        "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+                        isActive
+                          ? "text-primary bg-white shadow-sm"
+                          : "text-neutral-500 hover:text-neutral-900",
+                      )}
+                    >
+                      <Icon size={18} weight={isActive ? "fill" : "bold"} />
+                      <span className="whitespace-nowrap">{item.label}</span>
+                      <CaretDownIcon
+                        size={14}
+                        weight="bold"
+                        className={cn(
+                          "transition-transform duration-200",
+                          isOpen && "rotate-180",
+                        )}
+                      />
+                    </button>
+
+                    <AnimatePresence>
+                      {isOpen && (
+                        <motion.div
+                          initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                          animate={{ opacity: 1, y: 0, scale: 1 }}
+                          exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                          transition={{ duration: 0.16, ease: "easeOut" }}
+                          role="menu"
+                          className="absolute left-0 top-full mt-3 w-64 overflow-hidden rounded-[24px] border border-neutral-200/70 bg-white p-2 shadow-2xl"
+                        >
+                          {item.children.map((child) => {
+                            const childActive = isLinkActive(
+                              pathname,
+                              child.href,
+                            );
+                            const ChildIcon = child.icon;
+
+                            return (
+                              <Link
+                                key={child.id}
+                                href={child.href}
+                                data-id={child.id}
+                                role="menuitem"
+                                onClick={() => setOpenGroupId(null)}
+                                className={cn(
+                                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-colors",
+                                  childActive
+                                    ? "bg-primary/10 text-primary"
+                                    : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
+                                )}
+                              >
+                                <ChildIcon
+                                  size={20}
+                                  weight={childActive ? "fill" : "bold"}
+                                />
+                                {child.label}
+                              </Link>
+                            );
+                          })}
+                        </motion.div>
+                      )}
+                    </AnimatePresence>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="hidden md:flex items-center bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30">
+              <AnimatedBackground
+                defaultValue={pathname}
+                className="bg-white rounded-full shadow-sm"
+                transition={{
+                  type: "spring",
+                  stiffness: 400,
+                  damping: 30,
+                }}
+              >
+                {navItems.map((item) => (
+                  <Link
+                    key={item.href}
+                    href={item.href}
+                    data-id={item.id}
+                    className={cn(
+                      "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+                      isLinkActive(pathname, item.href)
+                        ? "text-primary"
+                        : "text-neutral-500 hover:text-neutral-900",
+                    )}
+                  >
+                    <item.icon
+                      size={18}
+                      weight={isLinkActive(pathname, item.href) ? "fill" : "bold"}
+                    />
+                    <span className="whitespace-nowrap">{item.name}</span>
+                  </Link>
+                ))}
+              </AnimatedBackground>
+            </div>
+          )}
 
           {/* Right Actions */}
           <div className="flex items-center gap-2 sm:gap-4 shrink-0">
@@ -293,32 +457,129 @@ export function Navbar() {
               exit={{ opacity: 0, y: -20, scale: 0.95 }}
               className="md:hidden absolute top-full left-0 right-0 mt-4 bg-white/95 backdrop-blur-xl rounded-[32px] p-6 shadow-2xl border border-white/50 flex flex-col gap-2"
             >
-              {navItems.map((item) => (
-                <Link
-                  key={item.href}
-                  href={item.href}
-                  data-id={item.id}
-                  onClick={() => setMobileMenuOpen(false)}
-                  className={cn(
-                    "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
-                    pathname === item.href ||
-                      (item.href !== "/" && pathname.startsWith(item.href))
-                      ? "bg-primary/10 text-primary"
-                      : "text-neutral-600 hover:bg-neutral-50",
-                  )}
-                >
-                  <item.icon
-                    size={24}
-                    weight={
-                      pathname === item.href ||
-                      (item.href !== "/" && pathname.startsWith(item.href))
-                        ? "fill"
-                        : "bold"
+              {isStaff
+                ? staffNavEntries.map((item) => {
+                    const isActive = isAdminEntryActive(pathname, item);
+                    const Icon = item.icon;
+
+                    if (item.type === "group") {
+                      const isOpen = mobileOpenGroupId === item.id;
+
+                      return (
+                        <div key={item.id} data-id={item.id}>
+                          <button
+                            type="button"
+                            aria-expanded={isOpen}
+                            onClick={() =>
+                              setMobileOpenGroupId((current) =>
+                                current === item.id ? null : item.id,
+                              )
+                            }
+                            className={cn(
+                              "flex w-full items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
+                              isActive
+                                ? "bg-primary/10 text-primary"
+                                : "text-neutral-600 hover:bg-neutral-50",
+                            )}
+                          >
+                            <Icon size={24} weight={isActive ? "fill" : "bold"} />
+                            <span className="flex-1 text-left">
+                              {item.label}
+                            </span>
+                            <CaretDownIcon
+                              size={16}
+                              weight="bold"
+                              className={cn(
+                                "transition-transform duration-200",
+                                isOpen && "rotate-180",
+                              )}
+                            />
+                          </button>
+                          <AnimatePresence initial={false}>
+                            {isOpen && (
+                              <motion.div
+                                initial={{ height: 0, opacity: 0 }}
+                                animate={{ height: "auto", opacity: 1 }}
+                                exit={{ height: 0, opacity: 0 }}
+                                className="overflow-hidden"
+                              >
+                                <div className="ml-4 mt-1 flex flex-col gap-1 border-l border-neutral-100 pl-3">
+                                  {item.children.map((child) => {
+                                    const childActive = isLinkActive(
+                                      pathname,
+                                      child.href,
+                                    );
+                                    const ChildIcon = child.icon;
+
+                                    return (
+                                      <Link
+                                        key={child.id}
+                                        href={child.href}
+                                        data-id={child.id}
+                                        onClick={() =>
+                                          setMobileMenuOpen(false)
+                                        }
+                                        className={cn(
+                                          "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-all",
+                                          childActive
+                                            ? "bg-primary/10 text-primary"
+                                            : "text-neutral-600 hover:bg-neutral-50",
+                                        )}
+                                      >
+                                        <ChildIcon
+                                          size={20}
+                                          weight={childActive ? "fill" : "bold"}
+                                        />
+                                        {child.label}
+                                      </Link>
+                                    );
+                                  })}
+                                </div>
+                              </motion.div>
+                            )}
+                          </AnimatePresence>
+                        </div>
+                      );
                     }
-                  />
-                  {item.name}
-                </Link>
-              ))}
+
+                    return (
+                      <Link
+                        key={item.id}
+                        href={item.href}
+                        data-id={item.id}
+                        onClick={() => setMobileMenuOpen(false)}
+                        className={cn(
+                          "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
+                          isActive
+                            ? "bg-primary/10 text-primary"
+                            : "text-neutral-600 hover:bg-neutral-50",
+                        )}
+                      >
+                        <Icon size={24} weight={isActive ? "fill" : "bold"} />
+                        {item.label}
+                      </Link>
+                    );
+                  })
+                : navItems.map((item) => (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      data-id={item.id}
+                      onClick={() => setMobileMenuOpen(false)}
+                      className={cn(
+                        "flex items-center gap-4 p-4 rounded-2xl text-base font-bold transition-all",
+                        isLinkActive(pathname, item.href)
+                          ? "bg-primary/10 text-primary"
+                          : "text-neutral-600 hover:bg-neutral-50",
+                      )}
+                    >
+                      <item.icon
+                        size={24}
+                        weight={isLinkActive(pathname, item.href) ? "fill" : "bold"}
+                      />
+                      {item.name}
+                    </Link>
+                  ))}
 
               <div className="h-px bg-neutral-100 my-2 mx-4" />
 

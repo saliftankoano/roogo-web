@@ -4,6 +4,91 @@ This document tracks major product features that need durable implementation
 context beyond code comments. Each feature should capture the product intent,
 business rules, data model, rollout notes, and test coverage.
 
+The **Shipped** section below is a high-level, user-benefit view of what
+`roogo-web` does today — derived from the live surfaces (`app/`, `app/api/`,
+`components/`, `vercel.json` crons). It also serves as the **sole backend for the
+mobile app**, so much of this powers `roogo` too; the mobile-side benefit view
+lives in [`roogo/docs/roadmap.md`](../../roogo/docs/roadmap.md). Forward-looking
+work continues in the **Feature Checklist** and detailed sections that follow.
+
+---
+
+## Shipped
+
+### For visitors & renters — discover, apply, and rent in the browser
+
+- [x] **Public, shareable marketplace** — browse listings at `/proprietes` and open
+  any home at `/p/[id]` or `/proprietes/[id]` without an account. Pages are
+  SEO-friendly with sitemap, robots, and OpenGraph share images, so a WhatsApp or
+  Facebook link previews properly and pulls in demand.
+- [x] **Full property detail** — gallery, amenities, conditions, agent info, and
+  open-house availability, mirroring the mobile experience on the web.
+- [x] **Save favorites & track views** — persistent favorites and view tracking tie
+  the web and app sessions to one account.
+- [x] **Apply and book a visit** — submit a rental application and reserve open-house
+  slots from the browser.
+- [x] **Lock & pay to secure a home** — reserve/lock a property and pay deposit +
+  first month via Orange Money / Moov Money (PawaPay), with hosted payment-page and
+  callback handling.
+- [x] **Sign the lease online** — receive, review, sign, or decline a rental agreement
+  (bail), with a generated PDF contract.
+- [x] **Pay rent and keep receipts** — rent schedules plus downloadable per-transaction
+  rent receipts.
+- [x] **Protected deposits** — security deposits held with claim, approve-refund,
+  evidence upload, and payout-phone flows so renters get their money back fairly.
+- [x] **Verify identity once** — submit identity documents for a verified badge that
+  builds trust across the marketplace.
+- [x] **Earn through referrals** — the `/parrainage` referral / Roogo Pro Agent program
+  lets users bring in business and track commissions.
+- [x] **Self-serve account & legal** — onboarding, account-deletion requests, contact,
+  and full legal pages (privacy FR + EN, terms, sitemap).
+
+### For owners & agents — list, manage, and get paid on a bigger screen
+
+- [x] **Owner/agent dashboard** — manage all listings at `/mes-proprietes` with a
+  desktop-grade create/edit listing wizard (location picker, photo uploader with
+  client-side HEIC→JPEG compression).
+- [x] **Run the leasing pipeline** — review incoming applications, manage open-house
+  availability, lock a property to a chosen renter, and see the locked renter.
+- [x] **Issue and manage leases** — create rental agreements, send them, and track
+  sign/decline state.
+- [x] **Collect rent and cash out** — owner wallet with payout options and payout
+  requests; rent-schedule visibility on the owner side.
+- [x] **Handle deposits** — file claims and approve refunds against held deposits.
+
+### For staff & founders — operate the marketplace (`/admin`)
+
+- [x] **Listing moderation** — review and act on annonces before they go live.
+- [x] **Applications & locks desk** — manage applications, locks, and spontaneous
+  ("spontanées") applications in one place.
+- [x] **Dispute resolution** — litiges queue to review and resolve deposit/tenancy
+  disputes.
+- [x] **Identity verification review** — approve or reject submitted KYC documents.
+- [x] **Finances & dynamic pricing** — finances view plus server-side pricing controls
+  (tiers, add-ons, commission) editable without an app release.
+- [x] **People & growth ops** — users management, referral/parrainage administration,
+  talent pipeline, and open-house calendar.
+- [x] **Content management** — manage marketing/content surfaces from the panel.
+- [x] **Talent & careers** — public `/carrieres` and `/talent` flows with admin review
+  of applications and owner–talent matching.
+
+### Platform — the engine behind both apps
+
+- [x] **Single backend for web + mobile** — every authenticated mobile mutation hits
+  these `/api/*` routes (Bearer-JWT auth, CORS, rate limiting via Upstash).
+- [x] **Payments integration** — PawaPay initiate / status-poll / callback webhook for
+  Orange Money and Moov Money.
+- [x] **Push notifications** — push-token registration and delivery (e.g. renter rent
+  notifications).
+- [x] **Analytics & trending** — PostHog product analytics plus a trending endpoint and
+  hourly view aggregation.
+- [x] **Automated upkeep (cron)** — deposit auto-release, deposit deadline reminders,
+  deposit evidence retention, view aggregation, and property-storage cleanup.
+- [x] **Identity & auth backbone** — Clerk auth with webhook sync, Supabase user
+  mirroring, and a staff-code join flow.
+
+---
+
 ## Feature Checklist
 
 Use this list as the quick completion view for major features.
