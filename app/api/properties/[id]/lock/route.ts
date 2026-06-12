@@ -5,6 +5,11 @@ import { verifyToken } from "@clerk/backend";
 import { getSupabaseClient, getUserByClerkId } from "@/lib/user-sync";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
+import {
+  ALLOWED_CORRESPONDENT_CODES,
+  getCorrespondent,
+} from "@/lib/payment-providers";
+import { normalizePhone } from "@/lib/phone";
 
 // Use service role for reading config
 //const supabaseAdmin = createClient(
@@ -76,11 +81,30 @@ export async function POST(
 
     // 3. Parse Body
     const body = await req.json();
-    const { phoneNumber, provider, preAuthorisationCode } = body;
+    const { phoneNumber, correspondent: correspondentCode, provider: legacyProvider, preAuthorisationCode } = body;
 
-    if (!phoneNumber || !provider) {
+    if (!phoneNumber || (!correspondentCode && !legacyProvider)) {
       return cors(
         NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+      );
+    }
+
+    // Resolve correspondent — new clients send `correspondent`, legacy send `provider`
+    const resolvedCorrespondentCode: string =
+      correspondentCode ??
+      (legacyProvider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA");
+
+    if (!ALLOWED_CORRESPONDENT_CODES.has(resolvedCorrespondentCode)) {
+      return cors(
+        NextResponse.json({ error: "Opérateur de paiement non reconnu" }, { status: 400 })
+      );
+    }
+
+    const correspondentConfig = getCorrespondent(resolvedCorrespondentCode);
+
+    if (correspondentConfig?.requiresPreAuth && !preAuthorisationCode) {
+      return cors(
+        NextResponse.json({ error: "Un code d'autorisation est requis pour ce réseau" }, { status: 400 })
       );
     }
 
@@ -122,9 +146,7 @@ export async function POST(
     const depositId = crypto.randomUUID();
     const currency = "XOF";
 
-    let payerClientCode = provider;
-    if (provider === "ORANGE_MONEY") payerClientCode = "ORANGE_BFA";
-    if (provider === "MOOV_MONEY") payerClientCode = "MOOV_BFA";
+    const payerClientCode = resolvedCorrespondentCode;
 
     const { error: dbError } = await supabase.from("transactions").insert({
       deposit_id: depositId,
@@ -179,15 +201,13 @@ export async function POST(
       );
     }
 
-    // Format phone number
-    let formattedPhone = phoneNumber.replace(/\s/g, "");
-    if (formattedPhone.length === 9 && formattedPhone.startsWith("0")) {
-      formattedPhone = formattedPhone.substring(1);
+    // Build MSISDN: full MSISDN from new clients, national-only from legacy
+    let formattedPhone = (phoneNumber as string).replace(/\s/g, "");
+    const countryIso = correspondentConfig?.countryIso ?? "BF";
+    if (formattedPhone.length <= 8) {
+      const e164 = normalizePhone(formattedPhone, countryIso);
+      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
     }
-    formattedPhone = "226" + formattedPhone.slice(0, 8);
-
-    const pawaProvider =
-      provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
     const customerMessage = "Roogo Payment".slice(0, 22);
 
     const payload: PawaPayDepositPayload = {
@@ -196,7 +216,7 @@ export async function POST(
         type: "MMO",
         accountDetails: {
           phoneNumber: formattedPhone,
-          provider: pawaProvider,
+          provider: payerClientCode,
         },
       },
       amount: paymentAmount.toString(),

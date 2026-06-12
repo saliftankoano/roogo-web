@@ -1,6 +1,9 @@
 import { z } from "zod";
 import { PROPERTY_TYPE_IDS } from "./constants";
 
+export const MIN_LISTING_PHOTOS = 3;
+export const MAX_LISTING_PHOTOS = 20;
+
 export const listingBaseSchema = z.object({
   // Step 1
   type: z.enum(PROPERTY_TYPE_IDS),
@@ -29,8 +32,8 @@ export const listingBaseSchema = z.object({
     .max(1200, "Max 1200 caractères"),
   photos: z
     .array(z.any())
-    .min(3, "Au moins 3 photos requises")
-    .max(15, "Maximum 15 photos"),
+    .min(MIN_LISTING_PHOTOS, "Au moins 3 photos requises")
+    .max(MAX_LISTING_PHOTOS, `Maximum ${MAX_LISTING_PHOTOS} photos`),
   equipements: z
     .array(
       z.enum(["wifi", "securite", "jardin", "solaires", "piscine", "meuble"]),
@@ -104,10 +107,27 @@ export const INTERDICTIONS = [
   { id: "no_colocation", label: "Pas de colocation" },
 ];
 
+export const ENABLED_CORRESPONDENTS = [
+  "ORANGE_BFA",
+  "MOOV_BFA",
+  "ORANGE_CIV",
+  "MTN_MOMO_CIV",
+  "WAVE_CIV",
+  "ORANGE_SEN",
+  "FREE_SEN",
+  "WAVE_SEN",
+] as const;
+
+export type EnabledCorrespondent = typeof ENABLED_CORRESPONDENTS[number];
+
 export const paymentInitiateSchema = z.object({
   amount: z.number().positive(),
-  phoneNumber: z.string().regex(/^[0-9]{8,12}$/),
-  provider: z.enum(["ORANGE_MONEY", "MOOV_MONEY"]),
+  /** Full MSISDN digits without + (e.g. "22670123456") — up to 15 digits */
+  phoneNumber: z.string().regex(/^[0-9]{8,15}$/),
+  /** New: PawaPay correspondent code (preferred over legacy `provider`) */
+  correspondent: z.enum(ENABLED_CORRESPONDENTS).optional(),
+  /** Legacy: kept for backward compat with older mobile builds */
+  provider: z.enum(["ORANGE_MONEY", "MOOV_MONEY"]).optional(),
   // Mobile app uses: listing_submission, photography, property_lock, boost
   // Legacy/web may use: listing, lock
   transactionType: z.enum([

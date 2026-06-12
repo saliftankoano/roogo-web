@@ -17,6 +17,11 @@ import {
   creditOwnerEarningForSchedule,
   normalizePawaPayProvider,
 } from "@/lib/owner-wallet";
+import {
+  ALLOWED_CORRESPONDENT_CODES,
+  getCorrespondent,
+} from "@/lib/payment-providers";
+import { normalizePhone } from "@/lib/phone";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import {
   computeJournalierPricing,
@@ -174,7 +179,8 @@ export async function POST(req: Request) {
     const {
       amount,
       phoneNumber,
-      provider,
+      correspondent: correspondentCode,
+      provider: legacyProvider,
       description,
       transactionType,
       propertyId,
@@ -182,20 +188,32 @@ export async function POST(req: Request) {
       metadata,
     } = validatedData;
 
+    // Resolve correspondent: new clients send `correspondent`, legacy clients send `provider`
+    const resolvedCorrespondentCode: string =
+      correspondentCode ??
+      (legacyProvider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA");
+
+    if (!ALLOWED_CORRESPONDENT_CODES.has(resolvedCorrespondentCode)) {
+      log("error", { error: "Unknown correspondent", resolvedCorrespondentCode });
+      return errorResponse("Opérateur de paiement non reconnu", 400, req);
+    }
+
+    const correspondentConfig = getCorrespondent(resolvedCorrespondentCode);
+
     log("request-validated", {
       amount,
-      phoneNumber: phoneNumber.slice(0, 4) + "****",
-      provider,
+      phoneNumber: phoneNumber.slice(0, 6) + "****",
+      correspondent: resolvedCorrespondentCode,
       transactionType,
       propertyId,
       hasOTP: !!preAuthorisationCode,
     });
 
-    // Validation for Orange Burkina Faso which requires a pre-authorisation code
-    if (provider === "ORANGE_MONEY" && !preAuthorisationCode) {
-      log("error", { error: "Missing OTP for Orange Money" });
+    // Require OTP only when the correspondent has pre-auth
+    if (correspondentConfig?.requiresPreAuth && !preAuthorisationCode) {
+      log("error", { error: "Missing OTP for pre-auth correspondent" });
       return errorResponse(
-        "Un code d'autorisation est requis pour Orange Money",
+        "Un code d'autorisation est requis pour ce réseau",
         400,
         req,
       );
@@ -385,10 +403,7 @@ export async function POST(req: Request) {
       };
     }
 
-    // Map provider to PawaPay v2 format
-    let payerClientCode: string = provider;
-    if (provider === "ORANGE_MONEY") payerClientCode = "ORANGE_BFA";
-    if (provider === "MOOV_MONEY") payerClientCode = "MOOV_BFA";
+    const payerClientCode = resolvedCorrespondentCode;
 
     const { data: transactionRecord, error: dbError } = await supabase
       .from("transactions")
@@ -457,15 +472,16 @@ export async function POST(req: Request) {
       url: pawaUrl,
     });
 
-    // Format phone number
+    // Build MSISDN: if already a full MSISDN (length > 8), use as-is; otherwise
+    // normalise via libphonenumber using the correspondent's country.
     let formattedPhone = phoneNumber.replace(/\s/g, "");
-    if (formattedPhone.length === 9 && formattedPhone.startsWith("0")) {
-      formattedPhone = formattedPhone.substring(1);
+    const countryIso = correspondentConfig?.countryIso ?? "BF";
+    if (formattedPhone.length <= 8) {
+      // National number — prepend country code via libphonenumber
+      const e164 = normalizePhone(formattedPhone, countryIso);
+      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
     }
-    formattedPhone = "226" + formattedPhone.slice(0, 8);
 
-    const pawaProvider =
-      provider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA";
     const customerMessage = preAuthorisationCode
       ? `${preAuthorisationCode} ${(description || "Roogo Payment").replace(/[^a-zA-Z0-9\s]/g, "")}`.slice(
           0,
@@ -481,7 +497,7 @@ export async function POST(req: Request) {
         type: "MMO",
         accountDetails: {
           phoneNumber: formattedPhone,
-          provider: pawaProvider,
+          provider: payerClientCode,
         },
       },
       amount: resolvedAmount.toString(),
@@ -497,7 +513,7 @@ export async function POST(req: Request) {
       url: `${pawaUrl}/v2/deposits`,
       depositId,
       formattedPhone: formattedPhone.slice(0, 6) + "****",
-      pawaProvider,
+      correspondent: payerClientCode,
       amount: resolvedAmount.toString(),
       hasOTP: !!preAuthorisationCode,
     });

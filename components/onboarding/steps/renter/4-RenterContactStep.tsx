@@ -2,83 +2,102 @@
 
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
-import { PhoneIcon, BellIcon, WarningCircleIcon } from "@phosphor-icons/react";
-import { z } from "zod";
+import { PhoneIcon, BellIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { normalizePhone, parseStoredPhone } from "@/lib/phone";
+import { AcquisitionSourceField } from "@/components/onboarding/AcquisitionSourceField";
+import {
+  REFERRAL_SOURCE_OTHER,
+  REFERRAL_SOURCE_SOCIAL,
+} from "@/lib/acquisition-source";
 
-const BF_DIGITS = 8;
-
-const contactSchema = z.object({
-  phone: z
-    .string()
-    .length(BF_DIGITS, `Numéro incomplet — ${BF_DIGITS} chiffres requis`)
-    .regex(/^\d+$/, "Chiffres uniquement"),
-});
-
-type FieldErrors = { phone?: string };
+type FieldErrors = {
+  phone?: string;
+  referralSource?: string;
+  socialPlatform?: string;
+  referralSourceDetail?: string;
+};
 
 interface RenterContactStepProps {
-  onNext: (info: { phone: string; notifications: { newListings: boolean } }) => void;
+  onNext: (info: {
+    phone: string;
+    notifications: { newListings: boolean };
+    referralSource: string;
+    socialPlatform?: string;
+    referralSourceDetail?: string;
+  }) => void;
   initialValues?: {
     phone?: string | null;
     notifications?: { newListings?: boolean } | null;
+    referralSource?: string | null;
+    socialPlatform?: string | null;
+    referralSourceDetail?: string | null;
+    referralSourceOther?: string | null;
   };
-}
-
-function FieldError({ msg }: { msg?: string }) {
-  if (!msg) return null;
-  return (
-    <p className="flex items-center gap-1.5 text-xs text-red-400 mt-1.5">
-      <WarningCircleIcon size={13} weight="fill" />
-      {msg}
-    </p>
-  );
-}
-
-function getLocalPhoneDigits(value?: string | null) {
-  const digits = (value ?? "").replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("226")) return digits.slice(3);
-  if (digits.length === 9 && digits.startsWith("0")) return digits.slice(1);
-  return digits.slice(0, BF_DIGITS);
 }
 
 export function RenterContactStep({
   onNext,
   initialValues,
 }: RenterContactStepProps) {
-  const [phone, setPhone] = useState("");
+  const [phoneIso, setPhoneIso] = useState("BF");
+  const [phoneNational, setPhoneNational] = useState("");
   const [newListings, setNewListings] = useState(true);
+  const [referralSource, setReferralSource] = useState("");
+  const [socialPlatform, setSocialPlatform] = useState("");
+  const [referralSourceDetail, setReferralSourceDetail] = useState("");
   const [errors, setErrors] = useState<FieldErrors>({});
   const [shakeKey, setShakeKey] = useState(0);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    setPhone(getLocalPhoneDigits(initialValues?.phone));
+    const parsed = parseStoredPhone(initialValues?.phone);
+    setPhoneIso(parsed?.iso ?? "BF");
+    setPhoneNational(parsed?.national ?? "");
     setNewListings(initialValues?.notifications?.newListings ?? true);
+    setReferralSource(initialValues?.referralSource ?? "");
+    setSocialPlatform(initialValues?.socialPlatform ?? "");
+    setReferralSourceDetail(
+      initialValues?.referralSourceDetail ??
+        initialValues?.referralSourceOther ??
+        "",
+    );
     setErrors({});
   }, [initialValues]);
-
-  const handleChange = (raw: string) => {
-    const digits = raw.replace(/\D/g, "").slice(0, BF_DIGITS);
-    setPhone(digits);
-    setErrors({});
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const parsed = contactSchema.safeParse({ phone });
-    if (!parsed.success) {
-      setErrors({ phone: parsed.error.issues[0]?.message });
+    const newErrors: FieldErrors = {};
+    const e164 = normalizePhone(phoneNational, phoneIso);
+    if (!e164) newErrors.phone = "Numéro de téléphone invalide";
+    if (!referralSource) newErrors.referralSource = "Indiquez comment vous nous avez trouvés";
+    if (referralSource === REFERRAL_SOURCE_SOCIAL && !socialPlatform) {
+      newErrors.socialPlatform = "Choisissez le réseau social";
+    }
+    if (referralSource === REFERRAL_SOURCE_OTHER && !referralSourceDetail.trim()) {
+      newErrors.referralSourceDetail = "Précisez comment vous nous avez trouvés";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       setShakeKey((k) => k + 1);
       return;
     }
 
     setErrors({});
     setIsSubmitting(true);
-    onNext({ phone: `+226${parsed.data.phone}`, notifications: { newListings } });
+    onNext({
+      phone: e164!,
+      notifications: { newListings },
+      referralSource,
+      ...(socialPlatform ? { socialPlatform } : {}),
+      ...(referralSourceDetail.trim()
+        ? { referralSourceDetail: referralSourceDetail.trim() }
+        : {}),
+    });
   };
 
   return (
@@ -119,35 +138,46 @@ export function RenterContactStep({
         className="space-y-6 text-left"
       >
         <div className="space-y-2">
-          <label className="text-sm font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
-            <PhoneIcon size={14} weight="bold" className="text-primary" />
-            Numéro de téléphone *
-          </label>
-          <div className="relative">
-            <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-              <span className="text-sm font-bold text-neutral-500">+226</span>
-            </div>
-            <Input
-              type="tel"
-              inputMode="numeric"
-              maxLength={BF_DIGITS}
-              value={phone}
-              onChange={(e) => handleChange(e.target.value)}
-              placeholder="70000000"
-              className={`h-14 bg-[#1C1510] text-white rounded-xl pl-16 text-lg font-bold tracking-[0.2em] ${
-                errors.phone
-                  ? "border-red-500/70 focus:ring-red-500"
-                  : "border-[#3D3027] focus:ring-primary"
-              }`}
-            />
-            <div className="absolute inset-y-0 right-4 flex items-center pointer-events-none">
-              <span className={`text-xs font-bold tabular-nums ${phone.length === BF_DIGITS ? "text-green-500" : "text-neutral-600"}`}>
-                {phone.length}/{BF_DIGITS}
-              </span>
-            </div>
-          </div>
-          <FieldError msg={errors.phone} />
+          <PhoneNumberInput
+            iso={phoneIso}
+            national={phoneNational}
+            onIsoChange={(iso) => { setPhoneIso(iso); setErrors({}); }}
+            onNationalChange={(n) => { setPhoneNational(n); setErrors({}); }}
+            label="Numéro de téléphone"
+            required
+            error={errors.phone}
+            variant="dark"
+          />
         </div>
+
+        <AcquisitionSourceField
+          referralSource={referralSource}
+          socialPlatform={socialPlatform}
+          referralSourceDetail={referralSourceDetail}
+          errors={errors}
+          onReferralSourceChange={(source) => {
+            setReferralSource(source);
+            if (source !== REFERRAL_SOURCE_SOCIAL) setSocialPlatform("");
+            if (source !== REFERRAL_SOURCE_OTHER) setReferralSourceDetail("");
+            setErrors((current) => ({
+              ...current,
+              referralSource: undefined,
+              socialPlatform: undefined,
+              referralSourceDetail: undefined,
+            }));
+          }}
+          onSocialPlatformChange={(platform) => {
+            setSocialPlatform(platform);
+            setErrors((current) => ({ ...current, socialPlatform: undefined }));
+          }}
+          onReferralSourceDetailChange={(detail) => {
+            setReferralSourceDetail(detail);
+            setErrors((current) => ({
+              ...current,
+              referralSourceDetail: undefined,
+            }));
+          }}
+        />
 
         {/* Notifications */}
         <div className="space-y-2">

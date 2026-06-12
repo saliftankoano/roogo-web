@@ -1,104 +1,71 @@
 /**
- * PawaPay Transaction Limits for Burkina Faso
- * 
- * Official limits from PawaPay API for supported mobile money providers
+ * PawaPay Transaction Limits
+ *
+ * Conservative limits used for Burkina Faso, Côte d'Ivoire, and Senegal.
+ * Start with min 100 / max 2,000,000 XOF for all XOF correspondents.
+ * Verify exact per-correspondent limits against PawaPay active config and
+ * update these constants when confirmed.
  */
 
-export const PAYMENT_LIMITS = {
-  BFA: {
-    country: "BFA",
-    currency: "XOF",
-    providers: {
-      MOOV_BFA: {
-        name: "Moov Money",
-        deposit: {
-          min: 100,
-          max: 2_000_000,
-        },
-        payout: {
-          min: 100,
-          max: 2_000_000,
-        },
-        refund: {
-          min: 100,
-          max: 2_000_000,
-        },
-      },
-      ORANGE_BFA: {
-        name: "Orange Money",
-        deposit: {
-          min: 1,
-          max: 2_000_000,
-        },
-      },
-    },
-  },
-} as const;
+type DepositLimits = { min: number; max: number };
+
+export const PAYMENT_LIMITS: Record<string, { deposit: DepositLimits }> = {
+  // Burkina Faso
+  MOOV_BFA: { deposit: { min: 100, max: 2_000_000 } },
+  ORANGE_BFA: { deposit: { min: 1, max: 2_000_000 } },
+  // Côte d'Ivoire
+  ORANGE_CIV: { deposit: { min: 100, max: 2_000_000 } },
+  MTN_MOMO_CIV: { deposit: { min: 100, max: 2_000_000 } },
+  WAVE_CIV: { deposit: { min: 100, max: 2_000_000 } },
+  // Sénégal
+  ORANGE_SEN: { deposit: { min: 100, max: 2_000_000 } },
+  FREE_SEN: { deposit: { min: 100, max: 2_000_000 } },
+  WAVE_SEN: { deposit: { min: 100, max: 2_000_000 } },
+};
 
 /**
- * Get minimum deposit amount across all providers
- * Use this for validation to ensure compatibility with all payment methods
+ * Get the minimum deposit amount for a given correspondent.
+ * Falls back to the highest min across all correspondents when unspecified.
  */
-export function getMinimumDepositAmount(): number {
-  return Math.max(
-    PAYMENT_LIMITS.BFA.providers.MOOV_BFA.deposit.min,
-    PAYMENT_LIMITS.BFA.providers.ORANGE_BFA.deposit.min
-  );
+export function getMinDepositAmount(correspondent?: string): number {
+  if (correspondent && PAYMENT_LIMITS[correspondent]) {
+    return PAYMENT_LIMITS[correspondent].deposit.min;
+  }
+  return Math.max(...Object.values(PAYMENT_LIMITS).map((l) => l.deposit.min));
 }
 
 /**
- * Get maximum deposit amount across all providers
+ * Get the maximum deposit amount for a given correspondent.
+ * Falls back to the lowest max across all correspondents when unspecified.
  */
-export function getMaximumDepositAmount(): number {
-  return Math.min(
-    PAYMENT_LIMITS.BFA.providers.MOOV_BFA.deposit.max,
-    PAYMENT_LIMITS.BFA.providers.ORANGE_BFA.deposit.max
-  );
+export function getMaxDepositAmount(correspondent?: string): number {
+  if (correspondent && PAYMENT_LIMITS[correspondent]) {
+    return PAYMENT_LIMITS[correspondent].deposit.max;
+  }
+  return Math.min(...Object.values(PAYMENT_LIMITS).map((l) => l.deposit.max));
 }
 
 /**
- * Validate if an amount is within acceptable deposit limits
- * @param amount - Amount in XOF
- * @param provider - Optional provider to check specific limits
- * @returns true if amount is valid, false otherwise
+ * Check whether an amount is within the deposit limits for a correspondent.
+ * When no correspondent is given, validates against the safest cross-provider limits.
  */
 export function isValidDepositAmount(
   amount: number,
-  provider?: "MOOV_BFA" | "ORANGE_BFA"
+  correspondent?: string,
 ): boolean {
   if (amount <= 0) return false;
-
-  if (provider) {
-    const limits = PAYMENT_LIMITS.BFA.providers[provider].deposit;
-    return amount >= limits.min && amount <= limits.max;
-  }
-
-  // Check if valid for all providers (safest approach)
-  const minAmount = getMinimumDepositAmount();
-  const maxAmount = getMaximumDepositAmount();
-  return amount >= minAmount && amount <= maxAmount;
+  const min = getMinDepositAmount(correspondent);
+  const max = getMaxDepositAmount(correspondent);
+  return amount >= min && amount <= max;
 }
 
-/**
- * Get validation error message for invalid amount
- */
-export function getDepositAmountError(amount: number): string | null {
-  const minAmount = getMinimumDepositAmount();
-  const maxAmount = getMaximumDepositAmount();
-
-  if (amount < minAmount) {
-    return `Le montant minimum est de ${minAmount.toLocaleString()} XOF (requis par Moov Money)`;
-  }
-
-  if (amount > maxAmount) {
-    return `Le montant maximum est de ${maxAmount.toLocaleString()} XOF`;
-  }
-
-  return null;
+// Legacy convenience exports (BFA-only) — kept for callers that haven't been updated
+export function getMinimumDepositAmount(): number {
+  return getMinDepositAmount();
+}
+export function getMaximumDepositAmount(): number {
+  return getMaxDepositAmount();
 }
 
-/**
- * Constants for easy reference
- */
-export const MIN_DEPOSIT_AMOUNT = getMinimumDepositAmount(); // 100 XOF (Moov limit)
-export const MAX_DEPOSIT_AMOUNT = getMaximumDepositAmount(); // 2,000,000 XOF
+export const MIN_DEPOSIT_AMOUNT = getMinDepositAmount();
+export const MAX_DEPOSIT_AMOUNT = getMaxDepositAmount();

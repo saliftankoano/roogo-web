@@ -22,6 +22,10 @@ import {
   voidPendingReferralForTransaction,
 } from "@/lib/referrals";
 
+// Valid PawaPay 3-letter country codes for payment page
+const VALID_PAYMENT_PAGE_COUNTRIES = ["BFA", "CIV", "SEN"] as const;
+type PaymentPageCountry = typeof VALID_PAYMENT_PAGE_COUNTRIES[number];
+
 // Schema for Payment Page request
 const paymentPageSchema = z.object({
   amount: z.number().positive(),
@@ -31,6 +35,8 @@ const paymentPageSchema = z.object({
   tier_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
   referralCode: z.string().optional(),
+  /** ISO 3-letter country code for PawaPay payment page; defaults to "BFA" */
+  country: z.enum(VALID_PAYMENT_PAGE_COUNTRIES).optional(),
   metadata: z.record(z.string(), z.unknown()).optional(),
 });
 
@@ -165,8 +171,11 @@ export async function POST(req: Request) {
       tier_id,
       add_ons,
       referralCode,
+      country: requestedCountry,
       metadata,
     } = validatedData;
+
+    const pawaPayCountry: PaymentPageCountry = requestedCountry ?? "BFA";
     const resolvedMetadata: Record<string, unknown> = metadata || {};
     const supabase = getSupabaseClient();
     const normalizedReferralCode = normalizeReferralCode(
@@ -314,7 +323,7 @@ export async function POST(req: Request) {
         amount: resolvedAmount.toString(),
         currency,
       },
-      country: "BFA",
+      country: pawaPayCountry,
       language: "FR",
       reason: (description || "Roogo Payment").slice(0, 50).replace(/[^a-zA-Z0-9\s]/g, ""),
     };
