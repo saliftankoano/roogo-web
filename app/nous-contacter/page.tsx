@@ -18,6 +18,9 @@ import {
 import { marketingAssets } from "../../components/marketing/assets";
 
 export default function ContactPage() {
+  const contactHeroImage =
+    marketingAssets.agentOffice ?? marketingAssets.finalCta;
+
   const [formState, setFormState] = useState({
     name: "",
     email: "",
@@ -65,8 +68,8 @@ export default function ContactPage() {
         <section className="relative overflow-hidden bg-[#17120f] px-3 pb-3 pt-28 sm:px-6 lg:pt-32">
           <div className="relative mx-auto min-h-[620px] max-w-[1500px] overflow-hidden rounded-[30px] border border-white/10 bg-neutral-950">
             <MarketingImage
-              src={marketingAssets.agentOffice.src}
-              fallbackSrc={marketingAssets.agentOffice.fallback}
+              src={contactHeroImage.src}
+              fallbackSrc={contactHeroImage.fallback}
               alt="Assistance Roogo au téléphone"
               fill
               sizes="100vw"

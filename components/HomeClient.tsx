@@ -76,6 +76,9 @@ const roogoFlow = [
   },
 ];
 
+const ownerAudienceImage =
+  marketingAssets.ownerHandoff ?? marketingAssets.ownerWorkflow;
+
 const audiencePaths = [
   {
     icon: HouseLineIcon,
@@ -89,7 +92,7 @@ const audiencePaths = [
     icon: BuildingsIcon,
     title: "Propriétaires",
     body: "Présentez votre bien proprement et gardez les demandes dans un parcours plus sérieux.",
-    image: marketingAssets.ownerHandoff,
+    image: ownerAudienceImage,
     href: "/proprietes",
     cta: "Publier un bien",
   },

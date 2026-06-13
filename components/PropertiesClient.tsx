@@ -154,6 +154,8 @@ function PropertiesPageContent({
     userType === "founder";
   const isStaffOrFounder = userType === "staff" || userType === "founder";
   const isAgentOrOwner = userType === "agent" || userType === "owner";
+  const searchConsoleImage =
+    marketingAssets.searchConsole ?? marketingAssets.heroHome;
 
   const filteredProperties = useMemo(() => {
     const result = properties.filter((listing) => {
@@ -288,8 +290,8 @@ function PropertiesPageContent({
         {/* Results Header */}
         <section className="relative overflow-hidden rounded-[2rem] bg-[#17120f] p-6 text-white shadow-2xl shadow-black/10 md:p-10">
           <MarketingImage
-            src={marketingAssets.searchConsole.src}
-            fallbackSrc={marketingAssets.searchConsole.fallback}
+            src={searchConsoleImage.src}
+            fallbackSrc={searchConsoleImage.fallback}
             alt="Recherche de propriétés Roogo"
             fill
             priority

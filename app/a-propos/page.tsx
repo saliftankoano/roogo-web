@@ -34,6 +34,11 @@ const principles = [
 ];
 
 export default function AboutPage() {
+  const proofImage =
+    marketingAssets.propertyPhotography ?? marketingAssets.verification;
+  const neighborhoodImage =
+    marketingAssets.neighborhood ?? marketingAssets.finalCta;
+
   return (
     <div className="min-h-screen bg-[#f5efe6]">
       <JsonLd schema={getAboutPageSchema()} />
@@ -98,8 +103,8 @@ export default function AboutPage() {
           <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
             <div className="relative aspect-[4/3] overflow-hidden rounded-[30px] border border-white/10 bg-white/5">
               <MarketingImage
-                src={marketingAssets.propertyPhotography.src}
-                fallbackSrc={marketingAssets.propertyPhotography.fallback}
+                src={proofImage.src}
+                fallbackSrc={proofImage.fallback}
                 alt="Photographie professionnelle d'un bien Roogo"
                 fill
                 sizes="(max-width: 1024px) 100vw, 620px"
@@ -127,8 +132,8 @@ export default function AboutPage() {
           <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
             <div className="relative min-h-[440px] overflow-hidden rounded-[30px]">
               <MarketingImage
-                src={marketingAssets.neighborhood.src}
-                fallbackSrc={marketingAssets.neighborhood.fallback}
+                src={neighborhoodImage.src}
+                fallbackSrc={neighborhoodImage.fallback}
                 alt="Quartier résidentiel à Ouagadougou"
                 fill
                 sizes="(max-width: 1024px) 100vw, 560px"
