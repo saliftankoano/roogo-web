@@ -65,7 +65,10 @@ export const listingBaseSchema = z.object({
   source_locale: z.enum(["fr", "en"]).optional(),
 
   // Step 3
-  tier_id: z.enum(["essentiel", "standard", "premium"]),
+  tier_id: z.enum(["essentiel", "standard", "premium"]).optional(),
+  listing_payment_mode: z
+    .enum(["free_success_fee", "upfront_package", "daily_free"])
+    .optional(),
   payment_id: z.string().optional(),
   transaction_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
@@ -76,11 +79,26 @@ export const listingBaseSchema = z.object({
   owner_id: z.uuid().optional(),
 });
 
-export const listingSchema = listingBaseSchema.refine(
-  (data) =>
-    !data.on_behalf_of_client || (data.on_behalf_of_client && data.owner_id),
-  { message: "Sélectionnez un propriétaire ou agent", path: ["owner_id"] },
-);
+export const listingSchema = listingBaseSchema.superRefine((data, ctx) => {
+  if (data.on_behalf_of_client && !data.owner_id) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Sélectionnez un propriétaire ou agent",
+      path: ["owner_id"],
+    });
+  }
+
+  const paymentMode =
+    data.listing_payment_mode ??
+    (data.frequence === "journalier" ? "daily_free" : "upfront_package");
+  if (paymentMode === "upfront_package" && !data.tier_id) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Choisissez un pack",
+      path: ["tier_id"],
+    });
+  }
+});
 
 export const PROPERTY_TYPES = [
   { id: "appartement", label: "Appartement" },

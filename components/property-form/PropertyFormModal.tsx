@@ -42,6 +42,7 @@ import {
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
 
 const DAILY_LISTING_PUBLICATION_FEE = 0;
+const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
 
 interface PropertyFormModalProps {
   userType: string;
@@ -412,9 +413,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
-  const [paymentChoice, setPaymentChoice] = useState<"free" | "pay">(
-    isStaffOrFounder ? "free" : "pay",
-  );
+  const [paymentChoice, setPaymentChoice] = useState<"free" | "pay">("free");
   const [isTestListing, setIsTestListing] = useState(false);
   const [tiersList, setTiersList] = useState<PricingTier[]>([]);
   const [addonsList, setAddonsList] = useState<PricingAddon[]>([]);
@@ -445,11 +444,13 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const selectedOwnerId = selectedOwner?.id ?? null;
   const isDailyListing = formData.frequence === "journalier";
 
+  const isFreeMonthlyListing = !isDailyListing && paymentChoice === "free";
+
   useEffect(() => {
-    if (isDailyListing && selectedTier !== "essentiel") {
+    if ((isDailyListing || isFreeMonthlyListing) && selectedTier !== "essentiel") {
       setSelectedTier("essentiel");
     }
-  }, [isDailyListing, selectedTier]);
+  }, [isDailyListing, isFreeMonthlyListing, selectedTier]);
 
   const rentAmount = parseInt(formData.prixMensuel, 10) || 0;
   const moveInBreakdown = getMoveInPaymentBreakdown({
@@ -460,18 +461,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const selectedTierConfig = selectedTier
     ? (tiersList.find((tier) => tier.id === selectedTier) ?? null)
     : null;
-  const commissionAmount =
-    paymentChoice === "free" || formData.frequence === "journalier"
-      ? 0
-      : rentAmount * (commissionRate ?? 0);
+  const commissionAmount = isFreeMonthlyListing || isDailyListing
+    ? 0
+    : rentAmount * (commissionRate ?? 0);
   const baseFeeAmount =
-    paymentChoice === "free"
+    isFreeMonthlyListing
       ? 0
       : formData.frequence === "journalier"
         ? DAILY_LISTING_PUBLICATION_FEE
         : (selectedTierConfig?.base_fee ?? 0);
   const addOnsAmount =
-    paymentChoice === "free"
+    isFreeMonthlyListing
       ? 0
       : selectedAddOns.reduce((sum, id) => {
           const addon = addonsList.find((item) => item.id === id);
@@ -479,8 +479,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         }, 0);
   const totalAmount = baseFeeAmount + commissionAmount + addOnsAmount;
   const referralDiscountAmount =
-    paymentChoice === "pay" ? (referralQuote?.discountAmount ?? 0) : 0;
+    !isFreeMonthlyListing ? (referralQuote?.discountAmount ?? 0) : 0;
   const payableAmount = Math.max(0, totalAmount - referralDiscountAmount);
+  const deferredSuccessFeeAmount = isFreeMonthlyListing
+    ? Math.round((rentAmount * MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) / 10000)
+    : 0;
 
   useEffect(() => {
     setReferralQuote(null);
@@ -529,9 +532,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       setCurrentStep(Math.min(3, Math.max(1, draft.currentStep || 1)));
       setSelectedTier(draft.selectedTier ?? null);
       setSelectedAddOns(draft.selectedAddOns ?? []);
-      setPaymentChoice(
-        isStaffOrFounder ? (draft.paymentChoice ?? "free") : "pay",
-      );
+      setPaymentChoice(draft.paymentChoice ?? "free");
       setIsTestListing(draft.isTestListing ?? false);
       setOnBehalfOfClient(draft.onBehalfOfClient ?? false);
       setSelectedOwner(draft.selectedOwner ?? null);
@@ -682,6 +683,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
   const buildListingData = (paymentId?: string, addOns = selectedAddOns) => {
     const isDaily = formData.frequence === "journalier";
+    const listingPaymentMode = isDaily
+      ? "daily_free"
+      : paymentChoice === "free"
+        ? "free_success_fee"
+        : "upfront_package";
+    const isFreeMonthly = listingPaymentMode === "free_success_fee";
     return {
       ...formData,
       prixMensuel: Number(formData.prixMensuel),
@@ -703,8 +710,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       dosAndDonts: cleanRules(formData.dosAndDonts),
       virtualTourUrl: isStaffOrFounder ? formData.virtualTourUrl.trim() : "",
       photos,
-      tier_id: selectedTier ?? undefined,
-      add_ons: addOns,
+      tier_id: isDaily || isFreeMonthly ? "essentiel" : (selectedTier ?? undefined),
+      listing_payment_mode: listingPaymentMode,
+      add_ons: isFreeMonthly ? [] : addOns,
       payment_id: paymentId,
       on_behalf_of_client: onBehalfOfClient,
       owner_id: onBehalfOfClient ? (selectedOwnerId ?? undefined) : undefined,
@@ -805,6 +813,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     }
     if (step === 3 && onBehalfOfClient && !selectedOwnerId) {
       nextErrors.owner_id = "Sélectionnez un propriétaire ou agent";
+    }
+    if (step === 3 && !isDailyListing && paymentChoice === "pay" && !selectedTier) {
+      nextErrors.tier_id = "Choisissez un pack";
     }
     setErrors((current) => ({ ...current, ...nextErrors }));
     return Object.keys(nextErrors).length === 0;
@@ -968,7 +979,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const startHostedPayment = async (addOns: string[]) => {
     const token = await getToken();
     if (!token) throw new Error("No token found");
-    if (commissionRate === null) {
+    if (!isDailyListing && commissionRate === null) {
       throw new Error(
         "Commission non configurée. Vérifiez les paramètres admin.",
       );
@@ -981,7 +992,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       const addon = addonsList.find((item) => item.id === id);
       return sum + (addon?.price || 0);
     }, 0);
-    const commission = isDailyListing ? 0 : rentAmount * commissionRate;
+    const commission = isDailyListing ? 0 : rentAmount * (commissionRate ?? 0);
     const amount =
       (isDailyListing ? DAILY_LISTING_PUBLICATION_FEE : tier.base_fee) +
       commission +
@@ -1060,6 +1071,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           formData,
           selectedTier,
           selectedAddOns: addOns,
+          listingPaymentMode: "upfront_package",
           pendingPhotosOverflow,
           pendingPhotosCount,
           pendingPhotosStoredInDb,
@@ -1084,7 +1096,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       return;
     }
 
-    if (isStaffOrFounder && paymentChoice === "free") {
+    if (isFreeMonthlyListing) {
       setIsSubmitting(true);
       try {
         setSelectedAddOns([]);
@@ -1782,10 +1794,43 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         )}
       </div>
 
+      {!isDailyListing && (
+        <div className="space-y-4 rounded-3xl border border-neutral-200 bg-white p-5">
+          <h4 className="text-lg font-extrabold text-neutral-950">
+            Mode de publication
+          </h4>
+          <SegmentedButton
+            value={paymentChoice}
+            options={[
+              { id: "free", label: "Gratuite" },
+              { id: "pay", label: "Packs payants" },
+            ]}
+            onChange={(value) => {
+              setPaymentChoice(value);
+              setReferralQuote(null);
+              setReferralError(null);
+              if (value === "free") {
+                setSelectedTier("essentiel");
+                setSelectedAddOns([]);
+              }
+            }}
+          />
+          <p className="text-sm font-semibold leading-6 text-neutral-500">
+            {paymentChoice === "free"
+              ? "Publiez sans paiement aujourd'hui. Roogo prélèvera 50% du premier loyer encaissé."
+              : "Choisissez un pack maintenant pour payer la publication et éviter le frais de succès au premier loyer."}
+          </p>
+        </div>
+      )}
+
       <div className="space-y-4">
         <h4 className="text-lg font-extrabold text-neutral-950">
-          {isDailyListing ? "Publication journalière" : "Packs de publication"}{" "}
-          <span className="text-red-500">*</span>
+          {isDailyListing
+            ? "Publication journalière"
+            : isFreeMonthlyListing
+              ? "Publication gratuite"
+              : "Packs de publication"}{" "}
+          {!isFreeMonthlyListing && <span className="text-red-500">*</span>}
         </h4>
         {isDailyListing ? (
           <button
@@ -1818,14 +1863,40 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               </p>
             </div>
           </button>
+        ) : isFreeMonthlyListing ? (
+          <button
+            type="button"
+            onClick={() => {
+              setSelectedTier("essentiel");
+              setErrors((current) => {
+                const next = { ...current };
+                delete next.tier_id;
+                return next;
+              });
+            }}
+            className="w-full rounded-3xl border-2 border-primary bg-primary/5 p-5 text-left transition-all"
+          >
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-lg font-extrabold text-neutral-950">
+                  Publication gratuite
+                </p>
+                <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
+                  Mise en ligne avec les limites du pack essentiel. Aucun
+                  paiement aujourd&apos;hui; le frais Roogo sera prélevé sur le
+                  premier loyer encaissé.
+                </p>
+              </div>
+              <p className="shrink-0 text-2xl font-black text-neutral-950">
+                {formatAmount(0)}
+              </p>
+            </div>
+          </button>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
             {tiersList.map((tier) => {
               const selected = selectedTier === tier.id;
-              const price =
-                paymentChoice === "free"
-                  ? 0
-                  : tier.base_fee + rentAmount * (commissionRate ?? 0);
+              const price = tier.base_fee + rentAmount * (commissionRate ?? 0);
               return (
                 <button
                   key={tier.id}
@@ -1861,7 +1932,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           </div>
         )}
         <FieldError message={errors.tier_id} />
-        {paymentChoice === "pay" && commissionConfigError && (
+        {paymentChoice === "pay" && !isDailyListing && commissionConfigError && (
           <p className="text-xs font-semibold text-red-600">
             {commissionConfigError}
           </p>
@@ -1873,14 +1944,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <h4 className="text-lg font-extrabold text-neutral-950">
             Contrôles staff
           </h4>
-          <SegmentedButton
-            value={paymentChoice}
-            options={[
-              { id: "free", label: "Gratuit" },
-              { id: "pay", label: "Payer pour client" },
-            ]}
-            onChange={setPaymentChoice}
-          />
           {renderOwnerSearch()}
           <label className="flex cursor-pointer items-center gap-3">
             <input
@@ -1898,7 +1961,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
       <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
         <h4 className="text-lg font-extrabold text-neutral-950">
-          Récapitulatif du paiement
+          {isFreeMonthlyListing ? "Récapitulatif" : "Récapitulatif du paiement"}
         </h4>
         <div className="mt-4 space-y-2 text-sm">
           <div className="flex justify-between text-neutral-600">
@@ -1913,7 +1976,15 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               {formatAmount(addOnsAmount)}
             </span>
           </div>
-          {paymentChoice === "pay" && selectedTier && (
+          {isFreeMonthlyListing && (
+            <div className="flex justify-between text-neutral-600">
+              <span>Frais au premier loyer</span>
+              <span className="font-extrabold text-neutral-950">
+                {formatAmount(deferredSuccessFeeAmount)}
+              </span>
+            </div>
+          )}
+          {paymentChoice === "pay" && !isDailyListing && selectedTier && (
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
               <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
                 Code de parrainage
@@ -1964,7 +2035,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           )}
           <div className="flex justify-between border-t border-neutral-200 pt-3 text-base">
             <span className="font-extrabold text-neutral-950">
-              Total à payer
+              {isFreeMonthlyListing ? "À payer aujourd'hui" : "Total à payer"}
             </span>
             <span className="text-xl font-black text-primary">
               {formatAmount(payableAmount)}

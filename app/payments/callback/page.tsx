@@ -204,6 +204,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           formData: Record<string, unknown>;
           selectedTier: string;
           selectedAddOns: string[];
+          listingPaymentMode?: string;
           pendingPhotos?: PendingPhoto[];
           pendingPhotosOverflow?: boolean;
           pendingPhotosCount?: number;
@@ -263,6 +264,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
                     .slice(0, 20)
                 : [],
               tier_id: pending.selectedTier,
+              listing_payment_mode: "upfront_package",
               add_ons: pending.selectedAddOns,
               payment_id: depositId,
               on_behalf_of_client: onBehalfOfClient,
