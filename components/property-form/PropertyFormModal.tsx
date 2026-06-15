@@ -21,6 +21,8 @@ import {
   listingBaseSchema,
   listingSchema,
   PROPERTY_TYPES,
+  CITY_OPTIONS,
+  type CityId,
 } from "@/lib/validations";
 import type { PropertyTypeId } from "@/lib/constants";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
@@ -29,10 +31,11 @@ import { EquipementsSelector } from "./EquipementsSelector";
 import { InterdictionsSelector } from "./InterdictionsSelector";
 import { PhotoUploader } from "./PhotoUploader";
 import { useExpandableScreen } from "@/components/ui/expandable-screen";
-import { savePendingPhotos } from "@/lib/clientPendingPhotos";
+import { savePendingPhotos, savePendingVideo } from "@/lib/clientPendingPhotos";
 import {
   compressPropertyPhotoFiles,
   uploadPropertyPhotoFiles,
+  uploadPropertyVideoFile,
 } from "@/lib/clientPropertyPhotoUpload";
 import {
   getMockPropertyData,
@@ -83,7 +86,6 @@ type ReferralQuote = {
 
 type RentalFrequency = "mensuel" | "journalier";
 type CautionType = "aucune" | "pourcentage" | "fixe";
-type CityId = "ouaga" | "bobo";
 
 interface PropertyFormData {
   type: PropertyTypeId;
@@ -135,11 +137,6 @@ const DEFAULT_FORM_DATA: PropertyFormData = {
   virtualTourUrl: "",
 };
 
-const CITY_OPTIONS: { id: CityId; label: string }[] = [
-  { id: "ouaga", label: "Ouagadougou" },
-  { id: "bobo", label: "Bobo-Dioulasso" },
-];
-
 const STEPS = [
   { id: 1, label: "Le bien" },
   { id: 2, label: "Photos & Détails" },
@@ -155,11 +152,27 @@ function toNumber(value: string, fallback = 0) {
   return Number.isFinite(parsed) ? parsed : fallback;
 }
 
+function optionalNumber(value: string) {
+  const trimmed = value.trim();
+  if (!trimmed) return undefined;
+  const parsed = Number(trimmed);
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
 function cleanRules(rules: string[]) {
   return rules
     .map((rule) => rule.trim())
     .filter(Boolean)
     .slice(0, 20);
+}
+
+async function fileToBase64(file: File) {
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
 }
 
 function getVirtualTourError(value: string): string | undefined {
@@ -201,7 +214,7 @@ function SegmentedButton<T extends string>({
   onChange,
 }: {
   value: T;
-  options: { id: T; label: string }[];
+  options: readonly { id: T; label: string }[];
   onChange: (value: T) => void;
 }) {
   return (
@@ -430,6 +443,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [formData, setFormData] = useState<PropertyFormData>(DEFAULT_FORM_DATA);
   const [photos, setPhotos] = useState<File[]>([]);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [showFreeTermsModal, setShowFreeTermsModal] = useState(false);
+  const [freeTermsAccepted, setFreeTermsAccepted] = useState(false);
 
   const [onBehalfOfClient, setOnBehalfOfClient] = useState(false);
   const [selectedOwner, setSelectedOwner] = useState<OwnersAgentsUser | null>(
@@ -445,6 +461,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const isDailyListing = formData.frequence === "journalier";
 
   const isFreeMonthlyListing = !isDailyListing && paymentChoice === "free";
+  const isFurnishedListing = formData.equipements.includes("meuble");
 
   useEffect(() => {
     if ((isDailyListing || isFreeMonthlyListing) && selectedTier !== "essentiel") {
@@ -484,6 +501,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const deferredSuccessFeeAmount = isFreeMonthlyListing
     ? Math.round((rentAmount * MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) / 10000)
     : 0;
+  const hasVideoEntitlement =
+    selectedTierConfig?.video_included === true || selectedAddOns.includes("video");
+  const sortedPaidTiers = useMemo(
+    () =>
+      [...tiersList].sort((a, b) => {
+        const aPrice = a.base_fee + rentAmount * (commissionRate ?? 0);
+        const bPrice = b.base_fee + rentAmount * (commissionRate ?? 0);
+        return aPrice - bPrice;
+      }),
+    [commissionRate, rentAmount, tiersList],
+  );
 
   useEffect(() => {
     setReferralQuote(null);
@@ -653,6 +681,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     value: PropertyFormData[K],
   ) => {
     setFormData((current) => ({ ...current, [field]: value }));
+    if (field === "equipements") {
+      setFreeTermsAccepted(false);
+    }
     setErrors((current) => {
       if (!current[field]) return current;
       const next = { ...current };
@@ -694,7 +725,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       prixMensuel: Number(formData.prixMensuel),
       chambres: Number(formData.chambres),
       sdb: Number(formData.sdb),
-      superficie: Number(formData.superficie),
+      superficie: optionalNumber(formData.superficie),
       vehicules: Number(formData.vehicules),
       cautionMois: isDaily ? undefined : Number(formData.cautionMois),
       loyerAvanceMois: isDaily ? 1 : Number(formData.loyerAvanceMois || 1),
@@ -713,6 +744,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       tier_id: isDaily || isFreeMonthly ? "essentiel" : (selectedTier ?? undefined),
       listing_payment_mode: listingPaymentMode,
       add_ons: isFreeMonthly ? [] : addOns,
+      freeSuccessFeeTermsAccepted:
+        isFreeMonthly && !formData.equipements.includes("meuble")
+          ? freeTermsAccepted
+          : undefined,
       payment_id: paymentId,
       on_behalf_of_client: onBehalfOfClient,
       owner_id: onBehalfOfClient ? (selectedOwnerId ?? undefined) : undefined,
@@ -736,6 +771,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const validateFull = () => {
     const result = listingSchema.safeParse(buildListingData());
     const nextErrors = collectErrors(result);
+    if (videoFile && isFreeMonthlyListing && !hasVideoEntitlement) {
+      nextErrors.video = "Choisissez un pack ou une option incluant la vidéo.";
+    }
     const virtualTourError = isStaffOrFounder
       ? getVirtualTourError(formData.virtualTourUrl)
       : undefined;
@@ -744,7 +782,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     }
     setErrors(nextErrors);
     return {
-      ok: result.success && !virtualTourError,
+      ok: result.success && !virtualTourError && !nextErrors.video,
       errors: nextErrors,
     };
   };
@@ -909,6 +947,13 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         files: photos,
       });
     }
+    if (videoFile) {
+      await uploadPropertyVideoFile({
+        propertyId,
+        token,
+        file: videoFile,
+      });
+    }
 
     localStorage.removeItem("roogo_property_draft");
     alert("Propriété ajoutée avec succès !");
@@ -1051,6 +1096,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       let pendingPhotosStoredInDb = false;
       let pendingPhotosOverflow = false;
       const pendingPhotosCount = photos.length;
+      let pendingVideoStoredInDb = false;
+      let pendingVideoOverflow = false;
 
       if (photos.length > 0) {
         try {
@@ -1065,6 +1112,20 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         }
       }
 
+      if (videoFile) {
+        try {
+          pendingVideoStoredInDb = await savePendingVideo(paymentData.depositId, {
+            data: await fileToBase64(videoFile),
+            ext: videoFile.name.split(".").pop()?.toLowerCase() || "mp4",
+            mimeType: videoFile.type || undefined,
+            sizeBytes: videoFile.size,
+          });
+          pendingVideoOverflow = !pendingVideoStoredInDb;
+        } catch {
+          pendingVideoOverflow = true;
+        }
+      }
+
       sessionStorage.setItem(
         "pendingAdminListing",
         JSON.stringify({
@@ -1075,6 +1136,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           pendingPhotosOverflow,
           pendingPhotosCount,
           pendingPhotosStoredInDb,
+          pendingVideoStoredInDb,
+          pendingVideoOverflow,
           onBehalfOfClient,
           selectedOwnerId,
           isTestListing,
@@ -1097,6 +1160,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     }
 
     if (isFreeMonthlyListing) {
+      if (!isFurnishedListing && !freeTermsAccepted) {
+        setShowFreeTermsModal(true);
+        return;
+      }
       setIsSubmitting(true);
       try {
         setSelectedAddOns([]);
@@ -1329,8 +1396,22 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       />
 
       <div>
-        <PhotoUploader files={photos} onChange={setPhotos} />
+        <PhotoUploader
+          files={photos}
+          onChange={setPhotos}
+          videoFile={videoFile}
+          onVideoChange={(file) => {
+            setVideoFile(file);
+            setErrors((current) => {
+              if (!current.video) return current;
+              const next = { ...current };
+              delete next.video;
+              return next;
+            });
+          }}
+        />
         <FieldError message={errors.photos} />
+        <FieldError message={errors.video} />
       </div>
 
       {isStaffOrFounder && (
@@ -1371,12 +1452,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         />
         <div className="space-y-2">
           <label className="text-sm font-extrabold text-neutral-800">
-            Superficie (m²) <span className="text-red-500">*</span>
+            Superficie (m²)
           </label>
           <input
-            required
             type="number"
             min="1"
+            placeholder="Ex: 120"
             className={`w-full rounded-2xl border bg-neutral-50 px-5 py-4 outline-none ${
               errors.superficie ? "border-red-500" : "border-neutral-200"
             }`}
@@ -1723,7 +1804,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <div className="rounded-2xl bg-neutral-50 p-3">
             <p className="font-bold text-neutral-400">Surface</p>
             <p className="font-extrabold text-neutral-950">
-              {formData.superficie || "0"} m²
+              {formData.superficie ? `${formData.superficie} m²` : "Non renseignée"}
             </p>
           </div>
           <div className="rounded-2xl bg-neutral-50 p-3">
@@ -1807,6 +1888,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             ]}
             onChange={(value) => {
               setPaymentChoice(value);
+              setFreeTermsAccepted(false);
               setReferralQuote(null);
               setReferralError(null);
               if (value === "free") {
@@ -1894,7 +1976,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           </button>
         ) : (
           <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {tiersList.map((tier) => {
+            {sortedPaidTiers.map((tier) => {
               const selected = selectedTier === tier.id;
               const price = tier.base_fee + rentAmount * (commissionRate ?? 0);
               return (
@@ -2158,6 +2240,57 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           )}
         </div>
       </div>
+
+      {showFreeTermsModal && (
+        <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
+            <h3 className="text-xl font-black text-neutral-950">
+              Conditions de publication gratuite
+            </h3>
+            <p className="mt-4 text-sm font-semibold leading-6 text-neutral-600">
+              En publiant sans paiement initial, vous confirmez que Roogo ne
+              vous facturera aucun frais tant que nous ne vous apportons pas un
+              locataire.
+            </p>
+            <p className="mt-3 text-sm font-semibold leading-6 text-neutral-600">
+              Lorsque le premier loyer sera encaissé, vous acceptez que Roogo
+              prélève 50% du premier mois de loyer comme frais de service, dans
+              la limite autorisée par la loi au Burkina Faso.
+            </p>
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+              <input
+                type="checkbox"
+                checked={freeTermsAccepted}
+                onChange={(event) => setFreeTermsAccepted(event.target.checked)}
+                className="mt-1 h-5 w-5 accent-primary"
+              />
+              <span className="text-sm font-extrabold leading-6 text-neutral-950">
+                J&apos;ai lu et j&apos;accepte ces conditions.
+              </span>
+            </label>
+            <div className="mt-6 flex flex-col gap-3 sm:flex-row">
+              <button
+                type="button"
+                onClick={() => setShowFreeTermsModal(false)}
+                className="flex-1 rounded-full bg-neutral-100 px-5 py-3 text-sm font-extrabold text-neutral-700 hover:bg-neutral-200"
+              >
+                Annuler
+              </button>
+              <button
+                type="button"
+                disabled={!freeTermsAccepted || isSubmitting}
+                onClick={() => {
+                  setShowFreeTermsModal(false);
+                  handlePublish();
+                }}
+                className="flex-[1.4] rounded-full bg-primary px-5 py-3 text-sm font-extrabold text-white shadow-lg disabled:opacity-50"
+              >
+                J&apos;accepte les conditions
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {showUpsell && (
         <UpsellModal

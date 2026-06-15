@@ -32,6 +32,7 @@ export type Property = {
   slots_filled?: number;
   photo_limit?: number;
   video_included?: boolean;
+  videoUrl?: string;
   city?: string;
   quartier?: string;
   created_at?: string;
@@ -127,7 +128,7 @@ function mapProperty(p: DBProperty): Property {
     price: p.price.toString(),
     bedrooms: p.bedrooms || 0,
     bathrooms: p.bathrooms || 0,
-    area: p.area?.toString() || "0",
+    area: p.area ? p.area.toString() : "",
     parking: p.parking_spaces || 0,
     period,
     frequence,
@@ -248,7 +249,14 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
   }
 
   const p = data as DBProperty;
-  return mapProperty(p);
+  const property = mapProperty(p);
+  const { data: videos } = await supabase
+    .from("property_videos")
+    .select("url")
+    .eq("property_id", id)
+    .limit(1);
+  property.videoUrl = videos?.[0]?.url || undefined;
+  return property;
 }
 export type Transaction = {
   id: string;

@@ -165,16 +165,18 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
               {property.bathrooms} sdb
             </span>
           </div>
-          <div className="flex items-center gap-1.5">
-            <RulerIcon
-              size={20}
-              weight="regular"
-              className="text-neutral-400"
-            />
-            <span className="text-xs font-semibold text-neutral-500">
-              {property.area} m²
-            </span>
-          </div>
+          {property.area && (
+            <div className="flex items-center gap-1.5">
+              <RulerIcon
+                size={20}
+                weight="regular"
+                className="text-neutral-400"
+              />
+              <span className="text-xs font-semibold text-neutral-500">
+                {property.area} m²
+              </span>
+            </div>
+          )}
         </div>
       </div>
     </div>

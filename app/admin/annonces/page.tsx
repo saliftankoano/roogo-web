@@ -121,7 +121,12 @@ export default function AdminListingsPage() {
               prixMensuel: Number(pending.formData.prixMensuel),
               chambres: Number(pending.formData.chambres),
               sdb: Number(pending.formData.sdb),
-              superficie: Number(pending.formData.superficie),
+              superficie:
+                pending.formData.superficie === undefined ||
+                pending.formData.superficie === null ||
+                pending.formData.superficie === ""
+                  ? undefined
+                  : Number(pending.formData.superficie),
               vehicules: Number(pending.formData.vehicules),
               cautionMois: Number(pending.formData.cautionMois),
               loyerAvanceMois: Number(pending.formData.loyerAvanceMois ?? 1),

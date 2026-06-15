@@ -4,6 +4,7 @@ import { isVerifiableUserType } from "@/lib/identity-verifications";
 import { resolveClerkId } from "@/lib/request-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
+import { notifyStaffIdentityVerificationSubmitted } from "@/lib/staff-identity-verification-notifications";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -81,6 +82,10 @@ export async function POST(req: Request) {
       console.error("Identity verification user update failed:", userError);
       return errorResponse("Failed to update verification status", 500, req);
     }
+
+    notifyStaffIdentityVerificationSubmitted(submission.id).catch((error) => {
+      console.error("Identity verification staff notification failed:", error);
+    });
 
     return cors(
       NextResponse.json({

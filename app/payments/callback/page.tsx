@@ -5,11 +5,16 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import {
+  getPendingVideo,
   getPendingPhotos,
   type PendingPhoto,
   removePendingPhotos,
+  removePendingVideo,
 } from "@/lib/clientPendingPhotos";
-import { uploadCompressedPropertyPhotos } from "@/lib/clientPropertyPhotoUpload";
+import {
+  uploadCompressedPropertyPhotos,
+  uploadPropertyVideoData,
+} from "@/lib/clientPropertyPhotoUpload";
 
 function PaymentCallbackContent() {
   const searchParams = useSearchParams();
@@ -209,6 +214,8 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           pendingPhotosOverflow?: boolean;
           pendingPhotosCount?: number;
           pendingPhotosStoredInDb?: boolean;
+          pendingVideoStoredInDb?: boolean;
+          pendingVideoOverflow?: boolean;
           onBehalfOfClient?: boolean;
           selectedOwnerId?: string | null;
           isTestListing?: boolean;
@@ -233,7 +240,12 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
               prixMensuel: Number(pending.formData.prixMensuel),
               chambres: Number(pending.formData.chambres),
               sdb: Number(pending.formData.sdb),
-              superficie: Number(pending.formData.superficie),
+              superficie:
+                pending.formData.superficie === undefined ||
+                pending.formData.superficie === null ||
+                pending.formData.superficie === ""
+                  ? undefined
+                  : Number(pending.formData.superficie),
               vehicules: Number(pending.formData.vehicules),
               cautionMois: Number(pending.formData.cautionMois),
               loyerAvanceMois: Number(pending.formData.loyerAvanceMois ?? 1),
@@ -316,9 +328,39 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           }
         }
 
-        if (pending.pendingPhotosOverflow || photoUploadFailed) {
+        let videoUploadFailed = false;
+        if (propertyId && pending.pendingVideoStoredInDb && depositId) {
+          const pendingVideo = await getPendingVideo(depositId);
+          if (pendingVideo) {
+            try {
+              await uploadPropertyVideoData({
+                propertyId,
+                token,
+                data: pendingVideo.data,
+                ext: pendingVideo.ext,
+                mimeType: pendingVideo.mimeType,
+                sizeBytes: pendingVideo.sizeBytes,
+              });
+            } catch (videoUploadError) {
+              console.error(
+                "Error uploading pending listing video:",
+                videoUploadError,
+              );
+              videoUploadFailed = true;
+            } finally {
+              await removePendingVideo(depositId);
+            }
+          }
+        }
+
+        if (
+          pending.pendingPhotosOverflow ||
+          pending.pendingVideoOverflow ||
+          photoUploadFailed ||
+          videoUploadFailed
+        ) {
           setMessage(
-            "Paiement confirme et annonce creee. Ajoutez les photos depuis la fiche du bien.",
+            "Paiement confirme et annonce creee. Ajoutez les médias depuis la fiche du bien.",
           );
         } else {
           setMessage("Paiement confirmé et annonce créée avec succès.");

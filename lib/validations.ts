@@ -4,6 +4,31 @@ import { PROPERTY_TYPE_IDS } from "./constants";
 export const MIN_LISTING_PHOTOS = 3;
 export const MAX_LISTING_PHOTOS = 20;
 
+const optionalPositiveInteger = (message: string) =>
+  z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    z.coerce.number().int().min(1, message).optional(),
+  );
+
+export const CITY_OPTIONS = [
+  { id: "ouaga", label: "Ouagadougou" },
+  { id: "bobo", label: "Bobo-Dioulasso" },
+  { id: "banfora", label: "Banfora" },
+  { id: "po", label: "Pô" },
+  { id: "cinkasse", label: "Cinkassé" },
+  { id: "kaya", label: "Kaya" },
+  { id: "koudougou", label: "Koudougou" },
+  { id: "manga", label: "Manga" },
+  { id: "ouahigouya", label: "Ouahigouya" },
+  { id: "tenkodogo", label: "Tenkodogo" },
+  { id: "yako", label: "Yako" },
+  { id: "dedougou", label: "Dédougou" },
+  { id: "koupela", label: "Koupéla" },
+  { id: "zorgho", label: "Zorgho" },
+] as const;
+
+export type CityId = (typeof CITY_OPTIONS)[number]["id"];
+
 export const listingBaseSchema = z.object({
   // Step 1
   type: z.enum(PROPERTY_TYPE_IDS),
@@ -14,17 +39,16 @@ export const listingBaseSchema = z.object({
   quartier: z
     .string()
     .min(2, "Le quartier doit contenir au moins 2 caractères"),
-  ville: z.enum(["ouaga", "bobo"]),
+  ville: z.enum(CITY_OPTIONS.map((city) => city.id) as [CityId, ...CityId[]]),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
 
   // Step 2
   chambres: z.coerce.number().int().min(1, "Au moins 1 chambre requise"),
   sdb: z.coerce.number().int().min(1, "Au moins 1 douche requise"),
-  superficie: z.coerce
-    .number()
-    .int()
-    .min(1, "La superficie doit être au moins 1 m²"),
+  superficie: optionalPositiveInteger(
+    "La superficie doit être au moins 1 m²",
+  ),
   vehicules: z.coerce.number().int().min(0),
   description: z
     .string()
@@ -34,6 +58,7 @@ export const listingBaseSchema = z.object({
     .array(z.any())
     .min(MIN_LISTING_PHOTOS, "Au moins 3 photos requises")
     .max(MAX_LISTING_PHOTOS, `Maximum ${MAX_LISTING_PHOTOS} photos`),
+  video: z.any().optional(),
   equipements: z
     .array(
       z.enum(["wifi", "securite", "jardin", "solaires", "piscine", "meuble"]),
@@ -72,6 +97,7 @@ export const listingBaseSchema = z.object({
   payment_id: z.string().optional(),
   transaction_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
+  freeSuccessFeeTermsAccepted: z.boolean().optional(),
   is_test: z.boolean().optional(),
 
   // Staff/founder: listing on behalf of client

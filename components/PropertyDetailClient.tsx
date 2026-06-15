@@ -480,6 +480,24 @@ export function PropertyDetailClient({
                 )}
               </section>
 
+              {listing.videoUrl && (
+                <section className="space-y-4 rounded-[32px] border border-neutral-100 bg-white p-6 shadow-sm md:p-8">
+                  <div>
+                    <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
+                      Vidéo
+                    </p>
+                    <h2 className="text-xl font-black text-neutral-900">
+                      Découvrez le bien en vidéo
+                    </h2>
+                  </div>
+                  <video
+                    src={listing.videoUrl}
+                    controls
+                    className="aspect-video w-full rounded-2xl bg-black object-contain"
+                  />
+                </section>
+              )}
+
               {listing.virtualTourUrl && (
                 <section className="bg-white p-6 md:p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-4">
                   <div>
@@ -506,7 +524,15 @@ export function PropertyDetailClient({
                   {[
                     { label: "Chambres", value: listing.bedrooms, Icon: BedIcon },
                     { label: "Salles de bain", value: listing.bathrooms, Icon: BathtubIcon },
-                    { label: "Superficie", value: listing.area ? listing.area + " m2" : "-", Icon: SquaresFourIcon },
+                    ...(listing.area
+                      ? [
+                          {
+                            label: "Superficie",
+                            value: listing.area + " m2",
+                            Icon: SquaresFourIcon,
+                          },
+                        ]
+                      : []),
                     { label: "Parking", value: listing.parking, Icon: CarIcon },
                   ].map((item, idx) => (
                     <div key={idx} className="bg-neutral-50 p-4 rounded-2xl flex flex-col gap-2">

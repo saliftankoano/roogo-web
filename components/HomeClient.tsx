@@ -85,7 +85,7 @@ const audiencePaths = [
     title: "Locataires",
     body: "Cherchez par quartier, comparez les biens et avancez vers une visite avec moins d'incertitude.",
     image: marketingAssets.organizedVisit,
-    href: "/proprietes?category=Residential",
+    href: "/proprietes",
     cta: "Voir les logements",
   },
   {

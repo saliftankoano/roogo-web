@@ -28,6 +28,29 @@ import { MarketingImage } from "./marketing/MarketingPrimitives";
 import { marketingAssets } from "./marketing/assets";
 import { cn } from "../lib/utils";
 
+const CATEGORY_FILTER_OPTIONS = [
+  { value: "all", label: "Tout" },
+  { value: "Furnished", label: "Meublé" },
+  { value: "Unfurnished", label: "Non meublé" },
+  { value: "Business", label: "Commercial" },
+];
+
+const CATEGORY_FILTER_VALUES = CATEGORY_FILTER_OPTIONS.map(
+  (option) => option.value,
+);
+
+const normalizeAmenity = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const isPropertyFurnished = (amenities: string[] = []) =>
+  amenities.some((amenity) =>
+    ["meuble", "furnished"].includes(normalizeAmenity(amenity)),
+  );
+
 function PropertiesPageContent({
   initialProperties,
 }: {
@@ -86,7 +109,7 @@ function PropertiesPageContent({
 
   useEffect(() => {
     const category = (searchParams?.get("category") || "").trim();
-    if (category === "Residential" || category === "Business") {
+    if (CATEGORY_FILTER_VALUES.includes(category)) {
       setCategoryFilter(category);
     }
   }, [searchParams]);
@@ -178,7 +201,12 @@ function PropertiesPageContent({
         typeFilter === "all" ||
         listing.propertyType.toLowerCase() === typeFilter.toLowerCase();
       const matchesCategory =
-        categoryFilter === "all" || listing.category === categoryFilter;
+        categoryFilter === "all" ||
+        (categoryFilter === "Furnished"
+          ? isPropertyFurnished(listing.amenities)
+          : categoryFilter === "Unfurnished"
+            ? !isPropertyFurnished(listing.amenities)
+            : listing.category === categoryFilter);
 
       return matchesSearch && matchesLocation && matchesType && matchesCategory;
     });
@@ -515,7 +543,7 @@ function PropertiesPageContent({
               label="Catégorie"
               value={categoryFilter}
               onChange={setCategoryFilter}
-              options={["Residential", "Business"]}
+              options={CATEGORY_FILTER_OPTIONS}
               placeholder="Toutes catégories"
             />
           </div>
@@ -590,11 +618,14 @@ function FilterSelect({
   label: string;
   value: string;
   onChange: (val: string) => void;
-  options: string[];
+  options: Array<string | { value: string; label: string }>;
   placeholder: string;
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
+  const normalizedOptions = options.map((option) =>
+    typeof option === "string" ? { value: option, label: option } : option,
+  );
 
   useEffect(() => {
     function handleClickOutside(event: MouseEvent) {
@@ -609,7 +640,11 @@ function FilterSelect({
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const selectedLabel = value === "all" ? placeholder : value;
+  const selectedLabel =
+    value === "all"
+      ? placeholder
+      : normalizedOptions.find((option) => option.value === value)?.label ||
+        value;
 
   return (
     <div className="space-y-3" ref={dropdownRef}>
@@ -658,21 +693,21 @@ function FilterSelect({
                 {value === "all" && <CheckIcon size={16} weight="bold" />}
               </button>
               <div className="h-px bg-neutral-50 my-1 mx-2" />
-              {options.map((opt) => (
+              {normalizedOptions.map((opt) => (
                 <button
-                  key={opt}
+                  key={opt.value}
                   onClick={() => {
-                    onChange(opt);
+                    onChange(opt.value);
                     setIsOpen(false);
                   }}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all ${
-                    value === opt
+                    value === opt.value
                       ? "bg-primary/10 text-primary"
                       : "text-neutral-600 hover:bg-neutral-50"
                   }`}
                 >
-                  {opt}
-                  {value === opt && <CheckIcon size={16} weight="bold" />}
+                  {opt.label}
+                  {value === opt.value && <CheckIcon size={16} weight="bold" />}
                 </button>
               ))}
             </motion.div>

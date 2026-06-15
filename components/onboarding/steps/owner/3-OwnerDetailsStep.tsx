@@ -19,6 +19,7 @@ import {
   REFERRAL_SOURCE_OTHER,
   REFERRAL_SOURCE_SOCIAL,
 } from "@/lib/acquisition-source";
+import { CITY_OPTIONS } from "@/lib/validations";
 
 type FieldErrors = Partial<
   Record<
@@ -63,7 +64,7 @@ interface OwnerDetailsStepProps {
   };
 }
 
-const CITIES = ["Ouagadougou", "Bobo-Dioulasso"] as const;
+const CITIES = CITY_OPTIONS.map((city) => city.label);
 const AVAILABILITY_OPTIONS = [
   { id: "Oui, maintenant", label: "Oui, disponible maintenant" },
   { id: "Dans 1-2 semaines", label: "Dans 1-2 semaines" },

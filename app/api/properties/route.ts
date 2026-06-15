@@ -37,6 +37,18 @@ const sanitizeString = (str: string) => {
   return sanitizeForStorage(str);
 };
 
+const normalizeAmenityName = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const hasFurnishedAmenity = (amenities: string[] | undefined) =>
+  (amenities ?? []).some((amenity) =>
+    ["meuble", "furnished"].includes(normalizeAmenityName(amenity)),
+  );
+
 export async function POST(req: Request) {
   console.log("Received POST request to /api/properties");
   try {
@@ -159,6 +171,17 @@ export async function POST(req: Request) {
       }
     }
 
+    if (
+      (user.user_type === "owner" || user.user_type === "agent") &&
+      user.identity_verification_status !== "approved"
+    ) {
+      return errorResponse(
+        "Vérification d'identité requise avant de publier une annonce.",
+        403,
+        req,
+      );
+    }
+
     // 5. Parse and validate request body
     console.log("Parsing request body...");
     const body = await req.json();
@@ -263,6 +286,9 @@ export async function POST(req: Request) {
             : "free_success_fee";
     const isFreeSuccessFeeListing =
       listingPaymentMode === "free_success_fee";
+    const isFurnishedListing = hasFurnishedAmenity(
+      parsedListingData.equipements,
+    );
     const effectiveAddOns = isFreeSuccessFeeListing
       ? []
       : (parsedListingData.add_ons ?? []);
@@ -274,6 +300,19 @@ export async function POST(req: Request) {
     if (isFreeSuccessFeeListing && (parsedListingData.add_ons?.length ?? 0) > 0) {
       return errorResponse(
         "Les options payantes nécessitent un pack de publication.",
+        400,
+        req,
+      );
+    }
+
+    if (
+      isFreeSuccessFeeListing &&
+      !isDailyListing &&
+      !isFurnishedListing &&
+      parsedListingData.freeSuccessFeeTermsAccepted !== true
+    ) {
+      return errorResponse(
+        "Vous devez accepter les conditions de publication gratuite.",
         400,
         req,
       );
@@ -393,7 +432,7 @@ export async function POST(req: Request) {
       status: propertyStatus as "en_attente" | "en_ligne",
       bedrooms: parsedListingData.chambres || null,
       bathrooms: parsedListingData.sdb || null,
-      area: parsedListingData.superficie || null,
+      area: parsedListingData.superficie ?? null,
       parking_spaces: parsedListingData.vehicules || null,
       address: `${sanitizeString(parsedListingData.quartier)}, ${sanitizeString(parsedListingData.ville)}`,
       city: parsedListingData.ville,

@@ -31,6 +31,7 @@ export type NotificationCopyKey =
   | "payments.listingPublished"
   | "payments.propertyReserved"
   | "payments.stayReserved"
+  | "identityVerification.urgentReviewRequested"
   | "properties.newMatch"
   | "properties.submittedForReview"
   | "properties.editApproved"
@@ -348,6 +349,16 @@ const notificationCopy: Record<
     en: {
       title: "Stay reserved",
       body: "Your stay reservation for {propertyLabel} is confirmed",
+    },
+  },
+  "identityVerification.urgentReviewRequested": {
+    fr: {
+      title: "URGENT: identité à vérifier",
+      body: "{userLabel} attend une vérification d'identité. Traitez ce dossier rapidement pour débloquer sa publication.",
+    },
+    en: {
+      title: "URGENT: identity review needed",
+      body: "{userLabel} is waiting for identity verification. Review this quickly so their listing can be unlocked.",
     },
   },
   "properties.newMatch": {

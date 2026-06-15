@@ -61,7 +61,7 @@ export function Footer() {
             </h4>
             <ul className="mt-6 space-y-4 text-sm font-bold text-white/70">
               <li>
-                <Link href="/proprietes?category=Residential" className="hover:text-white">
+                <Link href="/proprietes" className="hover:text-white">
                   Louer un logement
                 </Link>
               </li>

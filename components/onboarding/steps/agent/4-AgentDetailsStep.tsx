@@ -16,6 +16,7 @@ import {
   REFERRAL_SOURCE_OTHER,
   REFERRAL_SOURCE_SOCIAL,
 } from "@/lib/acquisition-source";
+import { CITY_OPTIONS } from "@/lib/validations";
 
 type FieldErrors = Partial<
   Record<
@@ -49,7 +50,7 @@ interface AgentDetailsStepProps {
   };
 }
 
-const SERVICE_AREAS = ["Ouagadougou", "Bobo-Dioulasso"] as const;
+const SERVICE_AREAS = CITY_OPTIONS.map((city) => city.label);
 
 const CHIP =
   "px-5 py-2.5 rounded-xl font-bold text-sm transition-all border cursor-pointer select-none";

@@ -14,7 +14,7 @@ export function InfoCards() {
         "Trouvez votre chez-vous idéal avec une expérience photo immersive et le plus grand choix de locations.",
       image: "/rent.png",
       action: "Voir les logements",
-      href: "/proprietes?category=Residential",
+      href: "/proprietes",
       imageScale: 1.2,
       translateY: 48,
     },

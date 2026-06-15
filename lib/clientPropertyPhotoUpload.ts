@@ -15,6 +15,12 @@ export type UploadedPropertyPhoto = {
   height?: number;
 };
 
+export type UploadedPropertyVideo = {
+  url: string;
+  mimeType?: string;
+  sizeBytes?: number;
+};
+
 const PHOTO_UPLOAD_CHUNK_SIZE = 4;
 
 function chunk<T>(items: T[], size: number): T[][] {
@@ -56,6 +62,16 @@ function getUploadedImages(payload: unknown): UploadedPropertyPhoto[] {
       typeof image === "object" &&
       typeof (image as { url?: unknown }).url === "string",
   );
+}
+
+async function fileToBase64(file: File): Promise<string> {
+  const buffer = await file.arrayBuffer();
+  let binary = "";
+  const bytes = new Uint8Array(buffer);
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
 }
 
 export async function compressPropertyPhotoFiles(
@@ -142,4 +158,69 @@ export async function uploadPropertyPhotoFiles({
   }
 
   return uploadedPhotos;
+}
+
+export async function uploadPropertyVideoFile({
+  propertyId,
+  token,
+  file,
+}: {
+  propertyId: string;
+  token: string;
+  file: File;
+}): Promise<UploadedPropertyVideo> {
+  const ext = file.name.split(".").pop()?.toLowerCase() || "mp4";
+  return uploadPropertyVideoData({
+    propertyId,
+    token,
+    data: await fileToBase64(file),
+    ext,
+    mimeType: file.type || undefined,
+    sizeBytes: file.size,
+  });
+}
+
+export async function uploadPropertyVideoData({
+  propertyId,
+  token,
+  data,
+  ext,
+  mimeType,
+  sizeBytes,
+}: {
+  propertyId: string;
+  token: string;
+  data: string;
+  ext: string;
+  mimeType?: string;
+  sizeBytes?: number;
+}): Promise<UploadedPropertyVideo> {
+  const response = await fetch(`/api/properties/${propertyId}/upload-video`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      data,
+      ext,
+      mimeType,
+      sizeBytes,
+    }),
+  });
+
+  const payload = await parseUploadResponse(response);
+  const success =
+    payload &&
+    typeof payload === "object" &&
+    "success" in payload &&
+    (payload as { success?: unknown }).success === true;
+
+  if (!response.ok || !success) {
+    throw new Error(getUploadErrorMessage(payload));
+  }
+
+  const video = (payload as { video?: UploadedPropertyVideo }).video;
+  if (!video?.url) throw new Error("Video upload response is missing a URL");
+  return video;
 }
