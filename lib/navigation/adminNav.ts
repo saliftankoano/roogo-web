@@ -2,6 +2,7 @@ import {
   BuildingsIcon,
   ReceiptIcon,
   ChartLineUpIcon,
+  ChatCircleTextIcon,
   GearIcon,
   ClipboardTextIcon,
   HandshakeIcon,
@@ -79,6 +80,13 @@ const baseAdminNavItems: AdminNavEntry[] = [
     href: "/admin/modifications",
     id: "admin-nav-modifications",
     icon: PencilSimpleLineIcon,
+  },
+  {
+    type: "link",
+    label: "Support",
+    href: "/admin/support",
+    id: "admin-nav-support",
+    icon: ChatCircleTextIcon,
   },
   {
     type: "group",

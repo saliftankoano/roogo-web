@@ -117,6 +117,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/applications/me", // Mobile app authenticates this route with Bearer JWT
   "/api/users/me/pending-edits", // Mobile app authenticates this route with Bearer JWT
   "/api/identity-verifications/(.*)", // Mobile app authenticates these routes with Bearer JWT
+  "/api/support/conversation", // Mobile app authenticates this route with Bearer JWT
+  "/api/support/upload-url", // Mobile app authenticates this route with Bearer JWT
+  "/api/support/messages", // Mobile app authenticates this route with Bearer JWT
   "/api/cron/(.*)",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates
