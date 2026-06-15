@@ -16,6 +16,9 @@ export const metadata: Metadata = {
     description: "Parcourez les meilleures offres de location à Ouagadougou. Photos professionnelles et prix transparents.",
     url: "https://www.roogobf.com/proprietes",
   },
+  alternates: {
+    canonical: "https://www.roogobf.com/proprietes",
+  },
 };
 
 export default function LocationLayout({

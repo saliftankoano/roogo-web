@@ -13,6 +13,8 @@ export const metadata: Metadata = {
   description: "Tableau de bord administratif Roogo",
 };
 
+export const dynamic = "force-dynamic";
+
 export default async function AdminLayout({
   children,
 }: {

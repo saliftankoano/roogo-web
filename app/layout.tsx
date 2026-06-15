@@ -5,8 +5,9 @@ import { ClerkProvider } from "@clerk/nextjs";
 import "./globals.css";
 import { NavHandler } from "../components/NavHandler";
 import JsonLd from "../components/JsonLd";
-import { getOrganizationSchema } from "../lib/schemas";
+import { getSiteIdentitySchema } from "../lib/schemas";
 import { TrustpilotScript } from "../components/TrustpilotScript";
+import { AcquisitionSourceGate } from "@/components/onboarding/AcquisitionSourceGate";
 
 const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
@@ -109,8 +110,9 @@ export default function RootLayout({
               </noscript>
             </>
           )}
-          <JsonLd schema={getOrganizationSchema()} />
+          <JsonLd schema={getSiteIdentitySchema()} />
           <NavHandler />
+          <AcquisitionSourceGate />
           {children}
         </body>
       </html>

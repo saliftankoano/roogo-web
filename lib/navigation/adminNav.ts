@@ -2,10 +2,12 @@ import {
   BuildingsIcon,
   ReceiptIcon,
   ChartLineUpIcon,
+  ChatCircleTextIcon,
   GearIcon,
   ClipboardTextIcon,
   HandshakeIcon,
   IdentificationCardIcon,
+  PencilSimpleLineIcon,
 } from "@phosphor-icons/react";
 
 export type AdminNavItem = {
@@ -27,6 +29,13 @@ export type AdminNavGroupItem = {
 export type AdminNavEntry = AdminNavItem | AdminNavGroupItem;
 
 const demandesNavItems: AdminNavItem[] = [
+  {
+    type: "link",
+    label: "Talent",
+    href: "/admin/talent",
+    id: "admin-nav-talent",
+    icon: ClipboardTextIcon,
+  },
   {
     type: "link",
     label: "Candidatures",
@@ -64,6 +73,20 @@ const baseAdminNavItems: AdminNavEntry[] = [
     href: "/admin/annonces",
     id: "admin-nav-annonces",
     icon: BuildingsIcon,
+  },
+  {
+    type: "link",
+    label: "Modifications",
+    href: "/admin/modifications",
+    id: "admin-nav-modifications",
+    icon: PencilSimpleLineIcon,
+  },
+  {
+    type: "link",
+    label: "Support",
+    href: "/admin/support",
+    id: "admin-nav-support",
+    icon: ChatCircleTextIcon,
   },
   {
     type: "group",

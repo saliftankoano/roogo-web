@@ -2,6 +2,7 @@ import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
+import { MAX_LISTING_PHOTOS } from "@/lib/validations";
 
 // Increase timeout for image uploads
 export const maxDuration = 60; // 60 seconds
@@ -67,6 +68,29 @@ export async function POST(
 
     if (!isStaffOrFounder(user) && property.agent_id !== user.id) {
       return cors(json({ error: "Forbidden" }, 403));
+    }
+
+    const { count: existingImageCount, error: imageCountError } = await supabase
+      .from("property_images")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId);
+
+    if (imageCountError) {
+      console.error("Error counting property images:", imageCountError);
+      return cors(json({ error: "Unable to verify photo limit" }, 500));
+    }
+
+    if ((existingImageCount || 0) >= MAX_LISTING_PHOTOS) {
+      return cors(
+        json(
+          {
+            error: `A property can have up to ${MAX_LISTING_PHOTOS} photos.`,
+            maxPhotos: MAX_LISTING_PHOTOS,
+            existingPhotos: existingImageCount || 0,
+          },
+          400,
+        ),
+      );
     }
 
     // 5. Convert base64 to buffer

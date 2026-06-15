@@ -17,17 +17,38 @@ import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 import { qualifyReferralForTransaction } from "@/lib/referrals";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
-import validator from "validator";
+import { sanitizeForStorage } from "@/lib/text-sanitize";
+
+const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
+const FREE_LISTING_DEFAULT_TIER_ID = "premium";
+type ListingPaymentMode =
+  | "free_success_fee"
+  | "upfront_package"
+  | "daily_free";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
 
-// Helper to sanitize string inputs
+// Helper to sanitize string inputs — trims and strips HTML tags only.
+// Never use validator.escape() here: HTML-encoding apostrophes etc. makes text
+// unreadable in push notifications, React Native, and PDFs.
 const sanitizeString = (str: string) => {
   if (typeof str !== "string") return str;
-  return validator.escape(validator.trim(str));
+  return sanitizeForStorage(str);
 };
+
+const normalizeAmenityName = (value: string) =>
+  value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .trim();
+
+const hasFurnishedAmenity = (amenities: string[] | undefined) =>
+  (amenities ?? []).some((amenity) =>
+    ["meuble", "furnished"].includes(normalizeAmenityName(amenity)),
+  );
 
 export async function POST(req: Request) {
   console.log("Received POST request to /api/properties");
@@ -151,6 +172,17 @@ export async function POST(req: Request) {
       }
     }
 
+    if (
+      (user.user_type === "owner" || user.user_type === "agent") &&
+      user.identity_verification_status !== "approved"
+    ) {
+      return errorResponse(
+        "Vérification d'identité requise avant de publier une annonce.",
+        403,
+        req,
+      );
+    }
+
     // 5. Parse and validate request body
     console.log("Parsing request body...");
     const body = await req.json();
@@ -242,12 +274,59 @@ export async function POST(req: Request) {
           .slice(0, 20)
       : [];
 
-    // 8. Resolve tier and commission from database (no hardcoded pricing)
+    // 8. Resolve listing payment mode, tier, and commission from database.
+    const isDailyListing = parsedListingData.frequence === "journalier";
+    const listingPaymentMode: ListingPaymentMode = isDailyListing
+      ? "daily_free"
+      : parsedListingData.listing_payment_mode === "upfront_package"
+        ? "upfront_package"
+        : parsedListingData.listing_payment_mode === "free_success_fee"
+          ? "free_success_fee"
+          : parsedListingData.payment_id
+            ? "upfront_package"
+            : "free_success_fee";
+    const isFreeSuccessFeeListing =
+      listingPaymentMode === "free_success_fee";
+    const isFurnishedListing = hasFurnishedAmenity(
+      parsedListingData.equipements,
+    );
+    const effectiveAddOns = isFreeSuccessFeeListing
+      ? []
+      : (parsedListingData.add_ons ?? []);
+    const effectiveTierId =
+      listingPaymentMode === "upfront_package"
+        ? (parsedListingData.tier_id ?? null)
+        : FREE_LISTING_DEFAULT_TIER_ID;
 
-    // Check if staff is paying (has payment_id)
-    const isStaffPaying = isStaffOrFounder && parsedListingData.payment_id;
-    const isFreeStaffListing =
-      isStaffOrFounder && !parsedListingData.payment_id;
+    if (isFreeSuccessFeeListing && (parsedListingData.add_ons?.length ?? 0) > 0) {
+      return errorResponse(
+        "Les options payantes nécessitent un pack de publication.",
+        400,
+        req,
+      );
+    }
+
+    if (
+      isFreeSuccessFeeListing &&
+      !isDailyListing &&
+      !isFurnishedListing &&
+      parsedListingData.freeSuccessFeeTermsAccepted !== true
+    ) {
+      return errorResponse(
+        "Vous devez accepter les conditions de publication gratuite.",
+        400,
+        req,
+      );
+    }
+
+    if (!isDailyListing && listingPaymentMode === "upfront_package") {
+      if (!effectiveTierId) {
+        return errorResponse("Forfait requis", 400, req);
+      }
+      if (!parsedListingData.payment_id) {
+        return errorResponse("Paiement requis pour ce forfait", 400, req);
+      }
+    }
 
     let selectedTier: {
       id: string;
@@ -259,13 +338,13 @@ export async function POST(req: Request) {
       min_price: number;
     } | null = null;
 
-    if (parsedListingData.tier_id) {
+    if (effectiveTierId) {
       const { data: tierData, error: tierError } = await supabase
         .from("listing_tiers")
         .select(
           "id, photo_limit, slot_limit, video_included, open_house_limit, has_badge, min_price",
         )
-        .eq("id", parsedListingData.tier_id)
+        .eq("id", effectiveTierId)
         .single();
 
       if (tierError || !tierData) {
@@ -277,7 +356,7 @@ export async function POST(req: Request) {
     }
 
     let commissionPercentage = 0;
-    if (!isFreeStaffListing) {
+    if (listingPaymentMode === "upfront_package" && !isDailyListing) {
       const { data: configData, error: configError } = await supabase
         .from("listing_config")
         .select("commission_percentage")
@@ -295,8 +374,7 @@ export async function POST(req: Request) {
       commissionPercentage = configData.commission_percentage;
     }
 
-    const isDailyListing = parsedListingData.frequence === "journalier";
-    const tierPrice = isFreeStaffListing
+    const tierPrice = isFreeSuccessFeeListing
       ? 0
       : selectedTier
         ? isDailyListing
@@ -305,7 +383,7 @@ export async function POST(req: Request) {
             parsedListingData.prixMensuel * commissionPercentage
         : null;
 
-    const isBoosted = parsedListingData.add_ons?.includes("boost") || false;
+    const isBoosted = effectiveAddOns.includes("boost");
     let boostExpiresAt = null;
     if (isBoosted) {
       const date = new Date();
@@ -314,42 +392,25 @@ export async function POST(req: Request) {
     }
 
     // Calculate slot limit with add-ons
-    let slotLimit =
-      selectedTier?.slot_limit || (isFreeStaffListing ? 100 : null);
-    if (
-      slotLimit !== null &&
-      parsedListingData.add_ons?.includes("extra_slots")
-    ) {
+    let slotLimit = selectedTier?.slot_limit || null;
+    if (slotLimit !== null && effectiveAddOns.includes("extra_slots")) {
       slotLimit += 25;
     }
 
     // Calculate photo limit with add-ons
-    let photoLimit =
-      selectedTier?.photo_limit || (isFreeStaffListing ? 20 : null);
-    if (
-      photoLimit !== null &&
-      parsedListingData.add_ons?.includes("extra_photos")
-    ) {
+    let photoLimit = selectedTier?.photo_limit || null;
+    if (photoLimit !== null && effectiveAddOns.includes("extra_photos")) {
       photoLimit += 5;
     }
 
     // Calculate open house limit with add-ons
-    let openHouseLimit =
-      selectedTier?.open_house_limit || (isFreeStaffListing ? 5 : null);
-    if (
-      openHouseLimit !== null &&
-      parsedListingData.add_ons?.includes("open_house")
-    ) {
+    let openHouseLimit = selectedTier?.open_house_limit || null;
+    if (openHouseLimit !== null && effectiveAddOns.includes("open_house")) {
       openHouseLimit += 1;
     }
 
     // Staff listings are automatically verified (en_ligne), owner/agent listings need approval
     const propertyStatus = isStaffOrFounder ? "en_ligne" : "en_attente";
-
-    // Generate staff transaction ID if needed
-    const staffDepositId = isFreeStaffListing
-      ? `STAFF-FREE-${Date.now()}-${Math.random().toString(36).substring(2, 8).toUpperCase()}`
-      : null;
 
     const dailyCautionValue = (() => {
       if (!isDailyListing) return null;
@@ -372,7 +433,7 @@ export async function POST(req: Request) {
       status: propertyStatus as "en_attente" | "en_ligne",
       bedrooms: parsedListingData.chambres || null,
       bathrooms: parsedListingData.sdb || null,
-      area: parsedListingData.superficie || null,
+      area: parsedListingData.superficie ?? null,
       parking_spaces: parsedListingData.vehicules || null,
       address: `${sanitizeString(parsedListingData.quartier)}, ${sanitizeString(parsedListingData.ville)}`,
       city: parsedListingData.ville,
@@ -406,21 +467,17 @@ export async function POST(req: Request) {
       caution_valeur:
         parsedListingData.frequence === "journalier" ? dailyCautionValue : null,
       // Tier information
-      tier_id: parsedListingData.tier_id || null,
+      tier_id: selectedTier?.id || null,
       tier_price: tierPrice,
       slot_limit: slotLimit,
       open_house_limit: openHouseLimit,
       photo_limit: photoLimit,
       video_included:
         selectedTier?.video_included ||
-        parsedListingData.add_ons?.includes("video") ||
-        isFreeStaffListing,
-      has_premium_badge: isStaffPaying
-        ? selectedTier?.has_badge || false
-        : isFreeStaffListing
-          ? true
-          : selectedTier?.has_badge || false,
-      payment_id: parsedListingData.payment_id || staffDepositId,
+        effectiveAddOns.includes("video") ||
+        false,
+      has_premium_badge: selectedTier?.has_badge || false,
+      payment_id: parsedListingData.payment_id || null,
       // Boost information
       is_boosted: isBoosted,
       boost_expires_at: boostExpiresAt,
@@ -468,47 +525,49 @@ export async function POST(req: Request) {
 
     if (propertyStatus === "en_ligne" && propertyData.is_test === false) {
       await translatePropertyIfNeeded(propertyId).catch((error) => {
-        console.error("Property translation on auto-live create failed:", error);
+        console.error(
+          "Property translation on auto-live create failed:",
+          error,
+        );
       });
     }
 
-    // 10. Create transaction record
-    if (isFreeStaffListing && staffDepositId) {
-      console.log("Creating staff listing transaction record...");
-      const staffTransaction = {
-        deposit_id: staffDepositId,
-        amount: 0,
-        currency: "XOF",
-        status: "completed" as const,
-        type: "staff_listing" as const,
-        provider: "STAFF_INTERNAL",
-        user_id: user.id,
-        property_id: propertyId,
-        metadata: {
-          staff_id: user.id,
-          staff_name: user.full_name || user.email,
-          owner_id: parsedListingData.owner_id || null,
-          reason: "Founding owner - free listing promotion",
-          created_by: "staff_portal",
-        },
-      };
+    // 10. Create deferred fee or link transaction record.
+    const deferredSuccessFeeAmount =
+      isFreeSuccessFeeListing && propertyData.is_test === false
+        ? Math.round(
+            (parsedListingData.prixMensuel *
+              MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) /
+              10000,
+          )
+        : 0;
 
-      const { data: txData, error: txError } = await supabase
-        .from("transactions")
-        .insert(staffTransaction)
-        .select()
-        .single();
+    if (deferredSuccessFeeAmount > 0) {
+      const { error: feeError } = await supabase
+        .from("property_listing_fees")
+        .insert({
+          property_id: propertyId,
+          owner_id: propertyData.agent_id,
+          fee_type: "success_fee",
+          rate_bps: MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
+          base_rent_amount: parsedListingData.prixMensuel,
+          fee_amount: deferredSuccessFeeAmount,
+          currency: "XOF",
+          status: "pending",
+          metadata: {
+            created_by: user.id,
+            listing_payment_mode: listingPaymentMode,
+            tier_id: selectedTier?.id || null,
+          },
+        });
 
-      if (txError) {
-        console.error("Error creating staff transaction:", txError);
-      } else if (txData) {
-        console.log("Staff transaction created:", txData.id);
-        await supabase
-          .from("properties")
-          .update({ transaction_id: txData.id })
-          .eq("id", propertyId);
+      if (feeError) {
+        console.error("Error creating deferred listing fee:", feeError);
+        return errorResponse("Failed to create listing fee", 500, req);
       }
-    } else if (parsedListingData.payment_id) {
+    }
+
+    if (parsedListingData.payment_id) {
       console.log(
         "Linking transaction to property:",
         parsedListingData.payment_id,
@@ -577,7 +636,9 @@ export async function POST(req: Request) {
       price: parsedListingData.prixMensuel || 0,
       city: parsedListingData.ville || null,
       quartier: parsedListingData.quartier || null,
-      tier_id: parsedListingData.tier_id || null,
+      tier_id: selectedTier?.id || null,
+      listing_payment_mode: listingPaymentMode,
+      deferred_success_fee_amount: deferredSuccessFeeAmount,
       status: propertyStatus,
       creator_type: user.user_type,
       is_boosted: isBoosted,
@@ -598,9 +659,9 @@ export async function POST(req: Request) {
         success: true,
         propertyId,
         isVerified: isStaffOrFounder,
-        transactionId: isStaffOrFounder
-          ? staffDepositId
-          : parsedListingData.payment_id,
+        transactionId: parsedListingData.payment_id || null,
+        listingPaymentMode,
+        deferredSuccessFeeAmount,
       }),
       req,
     );

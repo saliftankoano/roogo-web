@@ -6,6 +6,8 @@ import {
   type ClerkUserData,
 } from "../../../../../../lib/user-sync";
 import { captureServerEvent, identifyServerUser } from "@/lib/posthog-server";
+import { isValidStoredPhone } from "@/lib/phone";
+import { hasRequiredAcquisitionSourceDetail } from "@/lib/acquisition-source";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
@@ -21,19 +23,6 @@ function addCorsHeaders(res: NextResponse) {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === "object" && value !== null && !Array.isArray(value);
-}
-
-function normalizeBurkinaPhone(value: unknown): string | null {
-  if (typeof value !== "string") return null;
-  const digits = value.replace(/\D/g, "");
-
-  if (digits.length === 8) return `+226${digits}`;
-  if (digits.length === 11 && digits.startsWith("226")) return `+${digits}`;
-  if (digits.length === 9 && digits.startsWith("0")) {
-    return `+226${digits.slice(1)}`;
-  }
-
-  return null;
 }
 
 async function authenticateBearerUser(req: Request) {
@@ -64,9 +53,9 @@ function hasValidPrimaryPhone({
   privatePhone: unknown;
 }) {
   return Boolean(
-    clerkPhoneNumbers.some((phone) => normalizeBurkinaPhone(phone.phoneNumber)) ||
-      normalizeBurkinaPhone(onboardingData.phone) ||
-      normalizeBurkinaPhone(privatePhone),
+    clerkPhoneNumbers.some((phone) => isValidStoredPhone(phone.phoneNumber)) ||
+      isValidStoredPhone(onboardingData.phone as string | null) ||
+      isValidStoredPhone(privatePhone as string | null),
   );
 }
 
@@ -78,8 +67,8 @@ function hasValidWhatsapp({
   privateWhatsapp: unknown;
 }) {
   return Boolean(
-    normalizeBurkinaPhone(onboardingData.whatsapp) ||
-      normalizeBurkinaPhone(privateWhatsapp),
+    isValidStoredPhone(onboardingData.whatsapp as string | null) ||
+      isValidStoredPhone(privateWhatsapp as string | null),
   );
 }
 
@@ -109,9 +98,20 @@ export async function GET(req: Request) {
     const privateMetadata = isRecord(currentUser.privateMetadata)
       ? currentUser.privateMetadata
       : {};
+    const legacyOnboardingData = isRecord(privateMetadata.onboardingData)
+      ? privateMetadata.onboardingData
+      : {};
+    const mobileOnboardingData = isRecord(privateMetadata.mobileOnboardingData)
+      ? privateMetadata.mobileOnboardingData
+      : {};
     const webOnboardingData = isRecord(privateMetadata.webOnboardingData)
       ? privateMetadata.webOnboardingData
       : {};
+    const mergedOnboardingData = {
+      ...legacyOnboardingData,
+      ...mobileOnboardingData,
+      ...webOnboardingData,
+    };
 
     return addCorsHeaders(
       NextResponse.json({
@@ -133,6 +133,8 @@ export async function GET(req: Request) {
             ? publicMetadata.webOnboardingStep
             : null,
         webOnboardingData,
+        hasReferralSource:
+          hasRequiredAcquisitionSourceDetail(mergedOnboardingData),
       }),
     );
   } catch (error) {
@@ -332,6 +334,20 @@ export async function POST(req: Request) {
       ...mergedMobileOnboardingData,
       ...mergedWebOnboardingData,
     };
+    const isCompleted = hasCompletedWebOnboarding === true || resolvedMobileCompleted === true;
+    if (
+      isCompleted &&
+      !["staff", "founder"].includes(selectedUserType) &&
+      !hasRequiredAcquisitionSourceDetail(mergedOnboardingData)
+    ) {
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: "Missing required acquisition source" },
+          { status: 400 },
+        ),
+      );
+    }
+
     if (
       (selectedUserType === "owner" || selectedUserType === "agent") &&
       (publicMetadata.hasCompletedMobileOnboarding === true ||
@@ -406,7 +422,6 @@ export async function POST(req: Request) {
           : {}
     ) as Record<string, unknown>;
 
-    const isCompleted = hasCompletedWebOnboarding === true || resolvedMobileCompleted === true;
     if (isCompleted) {
       await captureServerEvent(userId, "onboarding_completed", {
         userType: selectedUserType,
@@ -435,6 +450,20 @@ export async function POST(req: Request) {
           typeof resolvedOnboardingPayload.portfolioSize === "number"
             ? resolvedOnboardingPayload.portfolioSize
             : null,
+        referral_source:
+          typeof mergedOnboardingData.referralSource === "string"
+            ? mergedOnboardingData.referralSource
+            : null,
+        social_platform:
+          typeof mergedOnboardingData.socialPlatform === "string"
+            ? mergedOnboardingData.socialPlatform
+            : null,
+        referral_source_detail:
+          typeof mergedOnboardingData.referralSourceDetail === "string"
+            ? mergedOnboardingData.referralSourceDetail
+            : typeof mergedOnboardingData.referralSourceOther === "string"
+              ? mergedOnboardingData.referralSourceOther
+              : null,
       });
     }
 

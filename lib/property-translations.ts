@@ -108,7 +108,10 @@ function hasSourceText(source: TranslationSource) {
 
 function sanitizeOutputText(value: unknown) {
   if (typeof value !== "string") return "";
-  return validator.escape(validator.trim(value));
+  // Strip HTML tags only — do not HTML-encode, as translated text is stored
+  // and served in plain-text contexts (push notifications, React Native, PDFs).
+  // Regex targets real tags only, so bare < > operators in prose are preserved.
+  return validator.trim(value).replace(/<\/?[a-zA-Z][^>]*>/g, "");
 }
 
 function sanitizeOutputRules(value: unknown) {
@@ -122,7 +125,9 @@ function failureUpdate(
   error: unknown,
 ): PropertyTranslationUpdate {
   const message =
-    error instanceof Error ? error.message : String(error || "Translation failed");
+    error instanceof Error
+      ? error.message
+      : String(error || "Translation failed");
 
   return {
     translation_source_locale: sourceLocale,
@@ -190,19 +195,23 @@ export function getPropertyTranslationSourceHash(input: {
   return buildTranslationSource(input).sourceHash;
 }
 
-function getStoredEnglishTranslationHash(translations: PropertyTranslations | null) {
+function getStoredEnglishTranslationHash(
+  translations: PropertyTranslations | null,
+) {
   const english = translations?.en;
   if (!english || typeof english !== "object") return null;
   const sourceHash = (english as Record<string, unknown>).source_hash;
   return typeof sourceHash === "string" ? sourceHash : null;
 }
 
-function hasStoredEnglishTranslation(translations: PropertyTranslations | null) {
+function hasStoredEnglishTranslation(
+  translations: PropertyTranslations | null,
+) {
   const english = translations?.en;
   return Boolean(
     english &&
-      typeof english.description === "string" &&
-      Array.isArray(english.dos_and_donts),
+    typeof english.description === "string" &&
+    Array.isArray(english.dos_and_donts),
   );
 }
 
@@ -216,9 +225,10 @@ function extractOutputText(response: unknown): string {
     return response.output_text;
   }
 
-  const output = response && typeof response === "object" && "output" in response
-    ? response.output
-    : null;
+  const output =
+    response && typeof response === "object" && "output" in response
+      ? response.output
+      : null;
 
   if (!Array.isArray(output)) return "";
 
@@ -321,7 +331,9 @@ async function requestOpenAITranslation(
 
     const outputText = extractOutputText(result);
     if (!outputText) {
-      throw new Error("OpenAI translation response did not include output text.");
+      throw new Error(
+        "OpenAI translation response did not include output text.",
+      );
     }
 
     const parsed = JSON.parse(outputText) as Partial<OpenAITranslationPayload>;

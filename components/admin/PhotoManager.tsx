@@ -16,7 +16,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import Image from "next/image";
 import { useAuth } from "@clerk/nextjs";
-import { compressImageToBase64 } from "@/lib/clientImageCompression";
+import { uploadPropertyPhotoFiles } from "@/lib/clientPropertyPhotoUpload";
 
 interface PhotoManagerProps {
   propertyId: string;
@@ -72,13 +72,16 @@ export default function PhotoManager({
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [currentPrimaryUrl, setCurrentPrimaryUrl] = useState(
+    primaryImageUrl || "",
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isFullscreenOpen = fullscreenIndex !== null && !!photos[fullscreenIndex];
 
-  // Find the index of the primary image
-  const primaryIndex = primaryImageUrl
-    ? photos.findIndex((p) => p === primaryImageUrl)
-    : 0;
+  const matchedPrimaryIndex = currentPrimaryUrl
+    ? photos.findIndex((p) => p === currentPrimaryUrl)
+    : -1;
+  const primaryIndex = matchedPrimaryIndex >= 0 ? matchedPrimaryIndex : 0;
 
   useEffect(() => {
     setProfessional(isProfessional);
@@ -89,6 +92,10 @@ export default function PhotoManager({
     const sanitized = sanitizePhotoUrls(initialPhotos);
     setPhotos(sanitized);
   }, [initialPhotos, propertyId]);
+
+  useEffect(() => {
+    setCurrentPrimaryUrl(primaryImageUrl || "");
+  }, [primaryImageUrl, propertyId]);
 
   useEffect(() => {
     if (fullscreenIndex !== null && fullscreenIndex >= photos.length) {
@@ -133,37 +140,17 @@ export default function PhotoManager({
     setLoading(true);
     try {
       const token = await getToken();
+      if (!token) throw new Error("No token found");
       const files = Array.from(e.target.files);
-      const processedImages = await Promise.all(
-        files.map((file) => compressImageToBase64(file)),
+      const uploadedImages = await uploadPropertyPhotoFiles({
+        propertyId,
+        token,
+        files,
+      });
+      const newUrls = sanitizePhotoUrls(
+        uploadedImages.map((img: { url: string }) => img.url),
       );
-
-      const response = await fetch(
-        `/api/properties/${propertyId}/upload-images`,
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
-          body: JSON.stringify({ images: processedImages }),
-        },
-      );
-
-      if (!response.ok) {
-        const body = await response.text().catch(() => "");
-        throw new Error(
-          `HTTP ${response.status} ${response.statusText} — ${body.slice(0, 200)}`,
-        );
-      }
-
-      const result = await response.json();
-      if (result.success && result.images) {
-        const newUrls = sanitizePhotoUrls(
-          result.images.map((img: { url: string }) => img.url),
-        );
-        setPhotos((prev) => [...prev, ...newUrls]);
-      }
+      setPhotos((prev) => [...prev, ...newUrls]);
     } catch (error) {
       console.error("Upload error:", error);
       const detail = error instanceof Error ? error.message : String(error);
@@ -270,12 +257,13 @@ export default function PhotoManager({
       });
 
       if (!response.ok) {
-        // No revert needed since we didn't optimistically update
         alert("Erreur lors de la définition de la photo principale");
+        return;
       }
+
+      setCurrentPrimaryUrl(photoUrl);
     } catch (error) {
       console.error("Set primary error:", error);
-      // No revert needed
       alert("Erreur lors de la définition de la photo principale");
     }
   };
@@ -473,7 +461,7 @@ export default function PhotoManager({
       )}
     </div>
     {isFullscreenOpen && fullscreenIndex !== null && (
-      <div className="fixed inset-0 z-[200] bg-black/95 flex items-center justify-center p-4">
+      <div className="fixed inset-0 z-200 bg-black/95 flex items-center justify-center p-4">
         <button
           type="button"
           onClick={() => setFullscreenIndex(null)}

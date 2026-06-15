@@ -1,6 +1,34 @@
 import { z } from "zod";
 import { PROPERTY_TYPE_IDS } from "./constants";
 
+export const MIN_LISTING_PHOTOS = 3;
+export const MAX_LISTING_PHOTOS = 20;
+
+const optionalPositiveInteger = (message: string) =>
+  z.preprocess(
+    (value) => (value === "" || value === null ? undefined : value),
+    z.coerce.number().int().min(1, message).optional(),
+  );
+
+export const CITY_OPTIONS = [
+  { id: "ouaga", label: "Ouagadougou" },
+  { id: "bobo", label: "Bobo-Dioulasso" },
+  { id: "banfora", label: "Banfora" },
+  { id: "po", label: "Pô" },
+  { id: "cinkasse", label: "Cinkassé" },
+  { id: "kaya", label: "Kaya" },
+  { id: "koudougou", label: "Koudougou" },
+  { id: "manga", label: "Manga" },
+  { id: "ouahigouya", label: "Ouahigouya" },
+  { id: "tenkodogo", label: "Tenkodogo" },
+  { id: "yako", label: "Yako" },
+  { id: "dedougou", label: "Dédougou" },
+  { id: "koupela", label: "Koupéla" },
+  { id: "zorgho", label: "Zorgho" },
+] as const;
+
+export type CityId = (typeof CITY_OPTIONS)[number]["id"];
+
 export const listingBaseSchema = z.object({
   // Step 1
   type: z.enum(PROPERTY_TYPE_IDS),
@@ -11,17 +39,16 @@ export const listingBaseSchema = z.object({
   quartier: z
     .string()
     .min(2, "Le quartier doit contenir au moins 2 caractères"),
-  ville: z.enum(["ouaga", "bobo"]),
+  ville: z.enum(CITY_OPTIONS.map((city) => city.id) as [CityId, ...CityId[]]),
   latitude: z.number().min(-90).max(90).optional(),
   longitude: z.number().min(-180).max(180).optional(),
 
   // Step 2
   chambres: z.coerce.number().int().min(1, "Au moins 1 chambre requise"),
   sdb: z.coerce.number().int().min(1, "Au moins 1 douche requise"),
-  superficie: z.coerce
-    .number()
-    .int()
-    .min(1, "La superficie doit être au moins 1 m²"),
+  superficie: optionalPositiveInteger(
+    "La superficie doit être au moins 1 m²",
+  ),
   vehicules: z.coerce.number().int().min(0),
   description: z
     .string()
@@ -29,8 +56,9 @@ export const listingBaseSchema = z.object({
     .max(1200, "Max 1200 caractères"),
   photos: z
     .array(z.any())
-    .min(3, "Au moins 3 photos requises")
-    .max(15, "Maximum 15 photos"),
+    .min(MIN_LISTING_PHOTOS, "Au moins 3 photos requises")
+    .max(MAX_LISTING_PHOTOS, `Maximum ${MAX_LISTING_PHOTOS} photos`),
+  video: z.any().optional(),
   equipements: z
     .array(
       z.enum(["wifi", "securite", "jardin", "solaires", "piscine", "meuble"]),
@@ -62,10 +90,14 @@ export const listingBaseSchema = z.object({
   source_locale: z.enum(["fr", "en"]).optional(),
 
   // Step 3
-  tier_id: z.enum(["essentiel", "standard", "premium"]),
+  tier_id: z.enum(["essentiel", "standard", "premium"]).optional(),
+  listing_payment_mode: z
+    .enum(["free_success_fee", "upfront_package", "daily_free"])
+    .optional(),
   payment_id: z.string().optional(),
   transaction_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
+  freeSuccessFeeTermsAccepted: z.boolean().optional(),
   is_test: z.boolean().optional(),
 
   // Staff/founder: listing on behalf of client
@@ -73,11 +105,26 @@ export const listingBaseSchema = z.object({
   owner_id: z.uuid().optional(),
 });
 
-export const listingSchema = listingBaseSchema.refine(
-  (data) =>
-    !data.on_behalf_of_client || (data.on_behalf_of_client && data.owner_id),
-  { message: "Sélectionnez un propriétaire ou agent", path: ["owner_id"] },
-);
+export const listingSchema = listingBaseSchema.superRefine((data, ctx) => {
+  if (data.on_behalf_of_client && !data.owner_id) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Sélectionnez un propriétaire ou agent",
+      path: ["owner_id"],
+    });
+  }
+
+  const paymentMode =
+    data.listing_payment_mode ??
+    (data.frequence === "journalier" ? "daily_free" : "upfront_package");
+  if (paymentMode === "upfront_package" && !data.tier_id) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Choisissez un pack",
+      path: ["tier_id"],
+    });
+  }
+});
 
 export const PROPERTY_TYPES = [
   { id: "appartement", label: "Appartement" },
@@ -104,10 +151,27 @@ export const INTERDICTIONS = [
   { id: "no_colocation", label: "Pas de colocation" },
 ];
 
+export const ENABLED_CORRESPONDENTS = [
+  "ORANGE_BFA",
+  "MOOV_BFA",
+  "ORANGE_CIV",
+  "MTN_MOMO_CIV",
+  "WAVE_CIV",
+  "ORANGE_SEN",
+  "FREE_SEN",
+  "WAVE_SEN",
+] as const;
+
+export type EnabledCorrespondent = typeof ENABLED_CORRESPONDENTS[number];
+
 export const paymentInitiateSchema = z.object({
   amount: z.number().positive(),
-  phoneNumber: z.string().regex(/^[0-9]{8,12}$/),
-  provider: z.enum(["ORANGE_MONEY", "MOOV_MONEY"]),
+  /** Full MSISDN digits without + (e.g. "22670123456") — up to 15 digits */
+  phoneNumber: z.string().regex(/^[0-9]{8,15}$/),
+  /** New: PawaPay correspondent code (preferred over legacy `provider`) */
+  correspondent: z.enum(ENABLED_CORRESPONDENTS).optional(),
+  /** Legacy: kept for backward compat with older mobile builds */
+  provider: z.enum(["ORANGE_MONEY", "MOOV_MONEY"]).optional(),
   // Mobile app uses: listing_submission, photography, property_lock, boost
   // Legacy/web may use: listing, lock
   transactionType: z.enum([

@@ -69,14 +69,14 @@ function hasStoredEnglishTranslation(translations) {
     translations && typeof translations === "object" ? translations.en : null;
   return Boolean(
     english &&
-      typeof english.description === "string" &&
-      Array.isArray(english.dos_and_donts),
+    typeof english.description === "string" &&
+    Array.isArray(english.dos_and_donts),
   );
 }
 
 function sanitizeOutputText(value) {
   if (typeof value !== "string") return "";
-  return validator.escape(validator.trim(value));
+  return validator.trim(value).replace(/<\/?[a-zA-Z][^>]*>/g, "");
 }
 
 function sanitizeOutputRules(value) {
@@ -189,7 +189,10 @@ async function translate(description, rules) {
 }
 
 async function updateProperty(id, update) {
-  const { error } = await supabase.from("properties").update(update).eq("id", id);
+  const { error } = await supabase
+    .from("properties")
+    .update(update)
+    .eq("id", id);
   if (error) throw error;
 }
 
@@ -300,7 +303,9 @@ async function main() {
   let cursorId = null;
 
   while (!MAX_ROWS || processed < MAX_ROWS) {
-    const remaining = MAX_ROWS ? Math.min(BATCH_SIZE, MAX_ROWS - processed) : BATCH_SIZE;
+    const remaining = MAX_ROWS
+      ? Math.min(BATCH_SIZE, MAX_ROWS - processed)
+      : BATCH_SIZE;
     let query = supabase
       .from("properties")
       .select(

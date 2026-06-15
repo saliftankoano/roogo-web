@@ -37,7 +37,7 @@ const nextConfig: NextConfig = {
     return [
       {
         source: "/louer/residentiel",
-        destination: "/proprietes?category=Residential",
+        destination: "/proprietes",
         permanent: true,
       },
       {

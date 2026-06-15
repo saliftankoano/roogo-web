@@ -15,9 +15,15 @@ import {
 import { z } from "zod";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/input";
+import { CITY_OPTIONS } from "@/lib/validations";
+
+const CITIES = CITY_OPTIONS.map((city) => city.label) as [
+  string,
+  ...string[],
+];
 
 const preferencesSchema = z.object({
-  location: z.enum(["Ouagadougou", "Bobo-Dioulasso"], {
+  location: z.enum(CITIES, {
     message: "Choisissez une ville",
   }),
   propertyTypes: z
@@ -45,7 +51,6 @@ interface RenterPreferencesStepProps {
   initialValues?: Partial<PreferencesOutput>;
 }
 
-const CITIES = ["Ouagadougou", "Bobo-Dioulasso"] as const;
 const PROPERTY_TYPES = ["Appartement", "Villa", "Commercial"] as const;
 const ROOM_OPTIONS = ["Studio", "1", "2", "3", "4+"] as const;
 const FURNISHED_OPTIONS = ["Meublé", "Non meublé", "Peu importe"] as const;

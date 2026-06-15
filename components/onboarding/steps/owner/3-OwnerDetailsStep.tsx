@@ -3,7 +3,6 @@
 import React, { useEffect, useState } from "react";
 import { motion } from "framer-motion";
 import {
-  PhoneIcon,
   WhatsappLogoIcon,
   MapPinIcon,
   HouseIcon,
@@ -11,61 +10,28 @@ import {
   CheckCircleIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
-import { z } from "zod";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
-
-const BF_DIGITS = 8;
-
-const bfPhone = z
-  .string()
-  .length(BF_DIGITS, `Numéro incomplet — ${BF_DIGITS} chiffres requis`)
-  .regex(/^\d+$/, "Chiffres uniquement");
-
-const ownerDetailsSchema = z
-  .object({
-    phone: bfPhone,
-    whatsapp: z.string().optional(),
-    isSameAsPhone: z.boolean(),
-    propertyCity: z.enum(["Ouagadougou", "Bobo-Dioulasso"], {
-      message: "Choisissez la ville du bien",
-    }),
-    propertyAvailable: z.enum(["Oui, maintenant", "Dans 1-2 semaines", "Dans 1-3 mois"], {
-      message: "Choisissez la disponibilité",
-    }),
-    notifications: z.object({
-      viewingRequests: z.boolean(),
-      messages: z.boolean(),
-      payments: z.boolean(),
-    }),
-  })
-  .superRefine((data, ctx) => {
-    if (!data.isSameAsPhone) {
-      if (!data.whatsapp) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["whatsapp"],
-          message: "Entrez votre numéro WhatsApp",
-        });
-      } else if (data.whatsapp.length !== BF_DIGITS) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["whatsapp"],
-          message: `Numéro incomplet — ${BF_DIGITS} chiffres requis`,
-        });
-      } else if (!/^\d+$/.test(data.whatsapp)) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          path: ["whatsapp"],
-          message: "Chiffres uniquement",
-        });
-      }
-    }
-  });
+import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { normalizePhone, parseStoredPhone } from "@/lib/phone";
+import { AcquisitionSourceField } from "@/components/onboarding/AcquisitionSourceField";
+import {
+  REFERRAL_SOURCE_OTHER,
+  REFERRAL_SOURCE_SOCIAL,
+} from "@/lib/acquisition-source";
+import { CITY_OPTIONS } from "@/lib/validations";
 
 type FieldErrors = Partial<
-  Record<"phone" | "whatsapp" | "propertyCity" | "propertyAvailable", string>
+  Record<
+    | "phone"
+    | "whatsapp"
+    | "propertyCity"
+    | "propertyAvailable"
+    | "referralSource"
+    | "socialPlatform"
+    | "referralSourceDetail",
+    string
+  >
 >;
 
 interface OwnerNotifications {
@@ -81,6 +47,9 @@ interface OwnerDetailsStepProps {
     propertyCity: string;
     propertyAvailable: string;
     notifications: OwnerNotifications;
+    referralSource: string;
+    socialPlatform?: string;
+    referralSourceDetail?: string;
   }) => void;
   initialValues?: {
     phone?: string | null;
@@ -88,10 +57,14 @@ interface OwnerDetailsStepProps {
     propertyCity?: string | null;
     propertyAvailable?: string | null;
     notifications?: Partial<OwnerNotifications> | null;
+    referralSource?: string | null;
+    socialPlatform?: string | null;
+    referralSourceDetail?: string | null;
+    referralSourceOther?: string | null;
   };
 }
 
-const CITIES = ["Ouagadougou", "Bobo-Dioulasso"] as const;
+const CITIES = CITY_OPTIONS.map((city) => city.label);
 const AVAILABILITY_OPTIONS = [
   { id: "Oui, maintenant", label: "Oui, disponible maintenant" },
   { id: "Dans 1-2 semaines", label: "Dans 1-2 semaines" },
@@ -114,60 +87,20 @@ function FieldError({ msg }: { msg?: string }) {
   );
 }
 
-function PhoneInput({
-  value,
-  onChange,
-  placeholder,
-  hasError,
-}: {
-  value: string;
-  onChange: (v: string) => void;
-  placeholder?: string;
-  hasError?: boolean;
-}) {
-  return (
-    <div className="relative">
-      <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
-        <span className="text-xs font-bold text-neutral-500">+226</span>
-      </div>
-      <Input
-        type="tel"
-        inputMode="numeric"
-        maxLength={BF_DIGITS}
-        value={value}
-        onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, BF_DIGITS))}
-        placeholder={placeholder ?? "70000000"}
-        className={`h-12 bg-[#1C1510] text-white rounded-xl pl-14 font-bold tracking-[0.15em] ${
-          hasError
-            ? "border-red-500/70 focus:ring-red-500"
-            : "border-[#3D3027] focus:ring-primary"
-        }`}
-      />
-      <div className="absolute inset-y-0 right-3 flex items-center pointer-events-none">
-        <span className={`text-xs font-bold tabular-nums ${value.length === BF_DIGITS ? "text-green-500" : "text-neutral-600"}`}>
-          {value.length}/{BF_DIGITS}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-function getLocalPhoneDigits(value?: string | null) {
-  const digits = (value ?? "").replace(/\D/g, "");
-  if (digits.length === 11 && digits.startsWith("226")) return digits.slice(3);
-  if (digits.length === 9 && digits.startsWith("0")) return digits.slice(1);
-  return digits.slice(0, BF_DIGITS);
-}
-
 export function OwnerDetailsStep({
   onNext,
   initialValues,
 }: OwnerDetailsStepProps) {
-  const [phone, setPhone] = useState("");
-  const [whatsapp, setWhatsapp] = useState("");
+  const [phoneIso, setPhoneIso] = useState("BF");
+  const [phoneNational, setPhoneNational] = useState("");
+  const [whatsappIso, setWhatsappIso] = useState("BF");
+  const [whatsappNational, setWhatsappNational] = useState("");
   const [isSameAsPhone, setIsSameAsPhone] = useState(true);
   const [propertyCity, setPropertyCity] = useState("");
   const [propertyAvailable, setPropertyAvailable] = useState("");
+  const [referralSource, setReferralSource] = useState("");
+  const [socialPlatform, setSocialPlatform] = useState("");
+  const [referralSourceDetail, setReferralSourceDetail] = useState("");
   const [notifications, setNotifications] = useState<OwnerNotifications>({
     viewingRequests: true,
     messages: true,
@@ -181,16 +114,24 @@ export function OwnerDetailsStep({
     setErrors((e) => ({ ...e, [field]: undefined }));
 
   useEffect(() => {
-    const initialPhone = getLocalPhoneDigits(initialValues?.phone);
-    const initialWhatsapp = getLocalPhoneDigits(initialValues?.whatsapp);
-    const sameAsPhone =
-      !initialWhatsapp || (initialPhone && initialPhone === initialWhatsapp);
+    const parsedPhone = parseStoredPhone(initialValues?.phone);
+    const parsedWa = parseStoredPhone(initialValues?.whatsapp);
+    const sameAsPhone = !parsedWa || parsedPhone?.national === parsedWa.national;
 
-    setPhone(initialPhone);
-    setWhatsapp(sameAsPhone ? initialPhone : initialWhatsapp);
+    setPhoneIso(parsedPhone?.iso ?? "BF");
+    setPhoneNational(parsedPhone?.national ?? "");
+    setWhatsappIso(sameAsPhone ? (parsedPhone?.iso ?? "BF") : (parsedWa?.iso ?? "BF"));
+    setWhatsappNational(sameAsPhone ? (parsedPhone?.national ?? "") : (parsedWa?.national ?? ""));
     setIsSameAsPhone(Boolean(sameAsPhone));
     setPropertyCity(initialValues?.propertyCity ?? "");
     setPropertyAvailable(initialValues?.propertyAvailable ?? "");
+    setReferralSource(initialValues?.referralSource ?? "");
+    setSocialPlatform(initialValues?.socialPlatform ?? "");
+    setReferralSourceDetail(
+      initialValues?.referralSourceDetail ??
+        initialValues?.referralSourceOther ??
+        "",
+    );
     setNotifications({
       viewingRequests: initialValues?.notifications?.viewingRequests ?? true,
       messages: initialValues?.notifications?.messages ?? true,
@@ -200,46 +141,53 @@ export function OwnerDetailsStep({
   }, [initialValues]);
 
   useEffect(() => {
-    if (isSameAsPhone) setWhatsapp(phone);
-  }, [isSameAsPhone, phone]);
+    if (isSameAsPhone) {
+      setWhatsappIso(phoneIso);
+      setWhatsappNational(phoneNational);
+    }
+  }, [isSameAsPhone, phoneIso, phoneNational]);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
 
-    const parsed = ownerDetailsSchema.safeParse({
-      phone,
-      whatsapp: isSameAsPhone ? undefined : whatsapp || undefined,
-      isSameAsPhone,
-      propertyCity: propertyCity || undefined,
-      propertyAvailable: propertyAvailable || undefined,
-      notifications,
-    });
+    const newErrors: FieldErrors = {};
+    const phoneE164 = normalizePhone(phoneNational, phoneIso);
+    if (!phoneE164) newErrors.phone = "Numéro de téléphone invalide";
 
-    if (!parsed.success) {
-      const fieldErrors: FieldErrors = {};
-      for (const issue of parsed.error.issues) {
-        const key = issue.path[0] as keyof FieldErrors;
-        if (!fieldErrors[key]) fieldErrors[key] = issue.message;
-      }
-      setErrors(fieldErrors);
+    const whatsappE164 = isSameAsPhone
+      ? phoneE164
+      : normalizePhone(whatsappNational, whatsappIso);
+    if (!isSameAsPhone && !whatsappE164) newErrors.whatsapp = "Numéro WhatsApp invalide";
+
+    if (!propertyCity) newErrors.propertyCity = "Choisissez la ville du bien";
+    if (!propertyAvailable) newErrors.propertyAvailable = "Choisissez la disponibilité";
+    if (!referralSource) newErrors.referralSource = "Indiquez comment vous nous avez trouvés";
+    if (referralSource === REFERRAL_SOURCE_SOCIAL && !socialPlatform) {
+      newErrors.socialPlatform = "Choisissez le réseau social";
+    }
+    if (referralSource === REFERRAL_SOURCE_OTHER && !referralSourceDetail.trim()) {
+      newErrors.referralSourceDetail = "Précisez comment vous nous avez trouvés";
+    }
+
+    if (Object.keys(newErrors).length > 0) {
+      setErrors(newErrors);
       setShakeKey((k) => k + 1);
       return;
     }
 
     setErrors({});
     setIsSubmitting(true);
-
-    const fmt = (d: string) => `+226${d}`;
     onNext({
-      phone: fmt(parsed.data.phone),
-      whatsapp: isSameAsPhone
-        ? fmt(parsed.data.phone)
-        : parsed.data.whatsapp
-          ? fmt(parsed.data.whatsapp)
-          : undefined,
-      propertyCity: parsed.data.propertyCity,
-      propertyAvailable: parsed.data.propertyAvailable,
-      notifications: parsed.data.notifications,
+      phone: phoneE164!,
+      whatsapp: isSameAsPhone ? phoneE164! : whatsappE164 ?? undefined,
+      propertyCity,
+      propertyAvailable,
+      notifications,
+      referralSource,
+      ...(socialPlatform ? { socialPlatform } : {}),
+      ...(referralSourceDetail.trim()
+        ? { referralSourceDetail: referralSourceDetail.trim() }
+        : {}),
     });
   };
 
@@ -272,18 +220,16 @@ export function OwnerDetailsStep({
       >
         {/* Row 1 — Phone + WhatsApp */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-          <div className="space-y-2">
-            <label className="text-sm font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
-              <PhoneIcon size={16} weight="bold" className="text-primary" />
-              Téléphone *
-            </label>
-            <PhoneInput
-              value={phone}
-              onChange={(v) => { setPhone(v); clearError("phone"); }}
-              hasError={!!errors.phone}
-            />
-            <FieldError msg={errors.phone} />
-          </div>
+          <PhoneNumberInput
+            iso={phoneIso}
+            national={phoneNational}
+            onIsoChange={(iso) => { setPhoneIso(iso); clearError("phone"); }}
+            onNationalChange={(n) => { setPhoneNational(n); clearError("phone"); }}
+            label="Téléphone"
+            required
+            error={errors.phone}
+            variant="dark"
+          />
 
           <div className="space-y-2">
             <div className="flex items-center justify-between">
@@ -301,10 +247,14 @@ export function OwnerDetailsStep({
               </div>
             </div>
             {!isSameAsPhone ? (
-              <PhoneInput
-                value={whatsapp}
-                onChange={(v) => { setWhatsapp(v); clearError("whatsapp"); }}
-                hasError={!!errors.whatsapp}
+              <PhoneNumberInput
+                iso={whatsappIso}
+                national={whatsappNational}
+                onIsoChange={(iso) => { setWhatsappIso(iso); clearError("whatsapp"); }}
+                onNationalChange={(n) => { setWhatsappNational(n); clearError("whatsapp"); }}
+                error={errors.whatsapp}
+                variant="dark"
+                prefixIcon={<WhatsappLogoIcon size={16} weight="fill" className="text-green-500" />}
               />
             ) : (
               <div className="h-12 bg-[#1C1510]/50 border border-[#3D3027]/50 rounded-xl flex items-center px-4 text-neutral-500 italic text-sm">
@@ -361,7 +311,37 @@ export function OwnerDetailsStep({
           </div>
         </div>
 
-        {/* Row 3 — Notifications */}
+        {/* Row 3 — Acquisition source */}
+        <AcquisitionSourceField
+          referralSource={referralSource}
+          socialPlatform={socialPlatform}
+          referralSourceDetail={referralSourceDetail}
+          errors={errors}
+          onReferralSourceChange={(source) => {
+            setReferralSource(source);
+            if (source !== REFERRAL_SOURCE_SOCIAL) setSocialPlatform("");
+            if (source !== REFERRAL_SOURCE_OTHER) setReferralSourceDetail("");
+            setErrors((current) => ({
+              ...current,
+              referralSource: undefined,
+              socialPlatform: undefined,
+              referralSourceDetail: undefined,
+            }));
+          }}
+          onSocialPlatformChange={(platform) => {
+            setSocialPlatform(platform);
+            setErrors((current) => ({ ...current, socialPlatform: undefined }));
+          }}
+          onReferralSourceDetailChange={(detail) => {
+            setReferralSourceDetail(detail);
+            setErrors((current) => ({
+              ...current,
+              referralSourceDetail: undefined,
+            }));
+          }}
+        />
+
+        {/* Row 4 — Notifications */}
         <div className="space-y-3">
           <label className="text-sm font-bold text-neutral-400 uppercase tracking-wider flex items-center gap-2">
             <BellIcon size={16} weight="bold" className="text-primary" />

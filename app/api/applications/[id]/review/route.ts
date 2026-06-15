@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { unescapeText } from "@/lib/text-sanitize";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -16,7 +17,7 @@ export async function OPTIONS(req: Request) {
  */
 export async function PATCH(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: applicationId } = await params;
@@ -27,7 +28,9 @@ export async function PATCH(
 
     let clerkUserId: string;
     try {
-      const { sub } = await verifyToken(token, { secretKey: process.env.CLERK_SECRET_KEY! });
+      const { sub } = await verifyToken(token, {
+        secretKey: process.env.CLERK_SECRET_KEY!,
+      });
       clerkUserId = sub;
     } catch {
       return errorResponse("Invalid token", 401, req);
@@ -37,7 +40,10 @@ export async function PATCH(
     if (!user) return errorResponse("User not found", 404, req);
 
     const body = await req.json();
-    const { action, reason } = body as { action: "approve" | "reject"; reason?: string };
+    const { action, reason } = body as {
+      action: "approve" | "reject";
+      reason?: string;
+    };
 
     if (!action || !["approve", "reject"].includes(action)) {
       return errorResponse("action must be 'approve' or 'reject'", 400, req);
@@ -46,7 +52,9 @@ export async function PATCH(
     // Fetch application + verify ownership
     const { data: application, error: fetchError } = await supabaseAdmin
       .from("applications")
-      .select("id, property_id, user_id, status, properties(agent_id, quartier, address)")
+      .select(
+        "id, property_id, user_id, status, properties(agent_id, quartier, address)",
+      )
       .eq("id", applicationId)
       .single();
 
@@ -54,7 +62,11 @@ export async function PATCH(
       return errorResponse("Application not found", 404, req);
     }
 
-    const property = application.properties as unknown as { agent_id: string; quartier?: string; address?: string } | null;
+    const property = application.properties as unknown as {
+      agent_id: string;
+      quartier?: string;
+      address?: string;
+    } | null;
     if (!property || property.agent_id !== user.id) {
       return errorResponse("Forbidden", 403, req);
     }
@@ -70,7 +82,7 @@ export async function PATCH(
       .update({
         status: newStatus,
         reviewed_at: new Date().toISOString(),
-        rejection_reason: action === "reject" ? (reason || null) : null,
+        rejection_reason: action === "reject" ? reason || null : null,
       })
       .eq("id", applicationId);
 
@@ -79,7 +91,8 @@ export async function PATCH(
       return errorResponse("Failed to update application", 500, req);
     }
 
-    const propLocation = property.quartier || property.address || "votre bien";
+    const propLocation =
+      unescapeText(property.quartier || property.address) || "votre bien";
 
     await notifyUserWithTemplate(
       application.user_id,

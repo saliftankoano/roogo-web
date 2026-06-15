@@ -26,6 +26,9 @@ interface MobileOnboardingData {
   serviceAreas?: string[];
   portfolioSize?: string | null;
   referralSource?: string;
+  socialPlatform?: string;
+  referralSourceDetail?: string;
+  referralSourceOther?: string;
 }
 
 interface ClerkPublicMetadata {
@@ -114,6 +117,8 @@ export interface FullUser {
   onboarding_service_areas: string[];
   onboarding_portfolio_size: string | null;
   onboarding_referral_source: string | null;
+  onboarding_social_platform: string | null;
+  onboarding_referral_source_detail: string | null;
   // Agent top-level Clerk private metadata
   clerk_company_name: string | null;
   clerk_professional_link: string | null;
@@ -467,6 +472,11 @@ export async function GET() {
         onboarding_service_areas: toStringArray(onboarding?.serviceAreas),
         onboarding_portfolio_size: onboarding?.portfolioSize ?? null,
         onboarding_referral_source: onboarding?.referralSource ?? null,
+        onboarding_social_platform: onboarding?.socialPlatform ?? null,
+        onboarding_referral_source_detail:
+          onboarding?.referralSourceDetail ??
+          onboarding?.referralSourceOther ??
+          null,
         clerk_company_name: priv?.companyName ?? null,
         clerk_professional_link: priv?.professionalLink ?? null,
       };

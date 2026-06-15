@@ -1,6 +1,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const OWNER_RENT_FEE_RATE_BPS = 700;
+export const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
 
 export type OwnerPayoutStatus =
   | "requested"
@@ -18,13 +19,16 @@ const FAILED_PAYOUT_STATUSES = new Set<OwnerPayoutStatus>([
   "not_found",
 ]);
 
-export function calculateOwnerRentAmounts(grossRentAmount: number) {
+export function calculateOwnerRentAmounts(
+  grossRentAmount: number,
+  feeRateBps = OWNER_RENT_FEE_RATE_BPS,
+) {
   const gross = Math.max(0, Math.round(Number(grossRentAmount) || 0));
-  const feeAmount = Math.round((gross * OWNER_RENT_FEE_RATE_BPS) / 10000);
+  const feeAmount = Math.round((gross * feeRateBps) / 10000);
 
   return {
     grossRentAmount: gross,
-    feeRateBps: OWNER_RENT_FEE_RATE_BPS,
+    feeRateBps,
     feeAmount,
     netAmount: gross - feeAmount,
   };
@@ -84,9 +88,49 @@ export async function creditOwnerEarningForSchedule(scheduleId: string) {
         .select("currency")
         .eq("id", schedule.transaction_id)
         .maybeSingle()
-    : { data: null };
+      : { data: null };
 
-  const amounts = calculateOwnerRentAmounts(schedule.amount);
+  const { data: pendingListingFee, error: listingFeeError } = await supabaseAdmin
+    .from("property_listing_fees")
+    .select("id, rate_bps, fee_amount, metadata")
+    .eq("property_id", schedule.property_id)
+    .eq("owner_id", schedule.owner_id)
+    .eq("fee_type", "success_fee")
+    .eq("status", "pending")
+    .maybeSingle();
+
+  if (listingFeeError) throw listingFeeError;
+
+  const hasListingSuccessFee = Boolean(pendingListingFee);
+  const pendingListingFeeMetadata =
+    pendingListingFee?.metadata &&
+    typeof pendingListingFee.metadata === "object" &&
+    !Array.isArray(pendingListingFee.metadata)
+      ? (pendingListingFee.metadata as Record<string, unknown>)
+      : {};
+  const amounts = hasListingSuccessFee
+    ? {
+        grossRentAmount: Math.max(0, Math.round(Number(schedule.amount) || 0)),
+        feeRateBps: Number(pendingListingFee?.rate_bps) || MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
+        feeAmount: Math.min(
+          Math.max(0, Math.round(Number(schedule.amount) || 0)),
+          Math.max(0, Math.round(Number(pendingListingFee?.fee_amount) || 0)),
+        ),
+        netAmount:
+          Math.max(0, Math.round(Number(schedule.amount) || 0)) -
+          Math.min(
+            Math.max(0, Math.round(Number(schedule.amount) || 0)),
+            Math.max(0, Math.round(Number(pendingListingFee?.fee_amount) || 0)),
+          ),
+      }
+    : calculateOwnerRentAmounts(schedule.amount);
+  const metadata = hasListingSuccessFee
+    ? {
+        feeKind: "listing_success_fee",
+        listingFeeId: pendingListingFee?.id,
+        normalRentFeeRateBps: OWNER_RENT_FEE_RATE_BPS,
+      }
+    : {};
 
   const { data: earning, error: insertError } = await supabaseAdmin
     .from("owner_earnings")
@@ -100,6 +144,7 @@ export async function creditOwnerEarningForSchedule(scheduleId: string) {
       fee_rate_bps: amounts.feeRateBps,
       fee_amount: amounts.feeAmount,
       net_amount: amounts.netAmount,
+      metadata,
       currency:
         transaction &&
         "currency" in transaction &&
@@ -115,6 +160,25 @@ export async function creditOwnerEarningForSchedule(scheduleId: string) {
   if (insertError) {
     if (insertError.code === "23505") return { credited: false };
     throw insertError;
+  }
+
+  if (hasListingSuccessFee && pendingListingFee?.id && earning?.id) {
+    const { error: collectError } = await supabaseAdmin
+      .from("property_listing_fees")
+      .update({
+        status: "collected",
+        owner_earning_id: earning.id,
+        collected_at: new Date().toISOString(),
+        metadata: {
+          ...pendingListingFeeMetadata,
+          feeKind: "listing_success_fee",
+          collectedFromScheduleId: schedule.id,
+        },
+      })
+      .eq("id", pendingListingFee.id)
+      .eq("status", "pending");
+
+    if (collectError) throw collectError;
   }
 
   return { credited: true, earningId: earning?.id as string | undefined };

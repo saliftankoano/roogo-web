@@ -9,6 +9,7 @@ import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import { creditOwnerEarningForSchedule } from "@/lib/owner-wallet";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import { voidPendingReferralForTransaction } from "@/lib/referrals";
+import { unescapeText } from "@/lib/text-sanitize";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -74,7 +75,8 @@ export async function POST(req: Request) {
         .single();
 
       if (!propertyData) return null;
-      return propertyData.quartier || propertyData.address || null;
+      const raw = propertyData.quartier || propertyData.address || null;
+      return raw ? unescapeText(raw) : null;
     };
 
     const resolveWebProvider = (statusPayload: unknown): string | null => {

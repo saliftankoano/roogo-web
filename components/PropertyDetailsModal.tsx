@@ -279,19 +279,21 @@ export default function PropertyDetailsModal({
                         Salles de bain
                       </div>
                     </div>
-                    <div className="bg-neutral-50 rounded-2xl p-4 text-center">
-                      <RulerIcon
-                        size={28}
-                        weight="duotone"
-                        className="text-neutral-400 mx-auto mb-2"
-                      />
-                      <div className="text-xl font-bold text-neutral-900">
-                        {property.area}
+                    {property.area && (
+                      <div className="bg-neutral-50 rounded-2xl p-4 text-center">
+                        <RulerIcon
+                          size={28}
+                          weight="duotone"
+                          className="text-neutral-400 mx-auto mb-2"
+                        />
+                        <div className="text-xl font-bold text-neutral-900">
+                          {property.area}
+                        </div>
+                        <div className="text-xs text-neutral-500 font-semibold uppercase tracking-wider mt-1">
+                          m²
+                        </div>
                       </div>
-                      <div className="text-xs text-neutral-500 font-semibold uppercase tracking-wider mt-1">
-                        m²
-                      </div>
-                    </div>
+                    )}
                     <div className="bg-neutral-50 rounded-2xl p-4 text-center">
                       <CarIcon
                         size={28}

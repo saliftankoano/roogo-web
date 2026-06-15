@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
+import { MAX_LISTING_PHOTOS } from "@/lib/validations";
 
 // Increase body size limit for image uploads (Next.js App Router)
 export const maxDuration = 60; // 60 seconds
@@ -72,6 +73,30 @@ export async function POST(
 
     if (!isStaffOrFounder(user) && property.agent_id !== user.id) {
       return cors(json({ error: "Forbidden" }, 403));
+    }
+
+    const { count: existingImageCount, error: imageCountError } = await supabase
+      .from("property_images")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId);
+
+    if (imageCountError) {
+      console.error("Error counting property images:", imageCountError);
+      return cors(json({ error: "Unable to verify photo limit" }, 500));
+    }
+
+    const nextImageCount = (existingImageCount || 0) + images.length;
+    if (nextImageCount > MAX_LISTING_PHOTOS) {
+      return cors(
+        json(
+          {
+            error: `A property can have up to ${MAX_LISTING_PHOTOS} photos.`,
+            maxPhotos: MAX_LISTING_PHOTOS,
+            existingPhotos: existingImageCount || 0,
+          },
+          400,
+        ),
+      );
     }
 
     const { data: existingPrimaryRows } = await supabase

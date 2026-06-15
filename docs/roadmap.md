@@ -4,17 +4,249 @@ This document tracks major product features that need durable implementation
 context beyond code comments. Each feature should capture the product intent,
 business rules, data model, rollout notes, and test coverage.
 
+The **Shipped** section below is a high-level, user-benefit view of what
+`roogo-web` does today — derived from the live surfaces (`app/`, `app/api/`,
+`components/`, `vercel.json` crons). It also serves as the **sole backend for the
+mobile app**, so much of this powers `roogo` too; the mobile-side benefit view
+lives in [`roogo/docs/roadmap.md`](../../roogo/docs/roadmap.md). Forward-looking
+work continues in the **Feature Checklist** and detailed sections that follow.
+
+---
+
+## Shipped
+
+### For visitors & renters — discover, apply, and rent in the browser
+
+- [x] **Public, shareable marketplace** — browse listings at `/proprietes` and open
+      any home at `/p/[id]` or `/proprietes/[id]` without an account. Pages are
+      SEO-friendly with sitemap, robots, and OpenGraph share images, so a WhatsApp or
+      Facebook link previews properly and pulls in demand.
+- [x] **Full property detail** — gallery, amenities, conditions, agent info, and
+      open-house availability, mirroring the mobile experience on the web.
+- [x] **Save favorites & track views** — persistent favorites and view tracking tie
+      the web and app sessions to one account.
+- [x] **Apply and book a visit** — submit a rental application and reserve open-house
+      slots from the browser.
+- [x] **Lock & pay to secure a home** — reserve/lock a property and pay deposit +
+      first month via mobile money (Orange, Moov, MTN, Wave, Free in Burkina Faso,
+      Côte d'Ivoire, and Senegal) through PawaPay, with hosted payment-page and callback
+      handling.
+- [x] **International contact numbers** — onboarding and Clerk metadata validation
+      accept E.164 phone/WhatsApp from 10 countries (Burkina Faso default plus Belgium,
+      Canada, Côte d'Ivoire, France, Italy, Mali, Niger, Senegal, and the United States)
+      for diaspora users signing up from abroad.
+- [x] **Sign the lease online** — receive, review, sign, or decline a rental agreement
+      (bail), with a generated PDF contract.
+- [x] **Pay rent and keep receipts** — rent schedules plus downloadable per-transaction
+      rent receipts.
+- [x] **Protected deposits** — security deposits held with claim, approve-refund,
+      evidence upload, and payout-phone flows so renters get their money back fairly.
+- [x] **Verify identity once** — submit identity documents for a verified badge that
+      builds trust across the marketplace.
+- [x] **Earn through referrals** — the `/parrainage` referral / Roogo Pro Agent program
+      lets users bring in business and track commissions.
+- [x] **Self-serve account & legal** — onboarding, account-deletion requests, contact,
+      and full legal pages (privacy FR + EN, terms, sitemap).
+
+### For owners & agents — list, manage, and get paid on a bigger screen
+
+- [x] **Owner/agent dashboard** — manage all listings at `/mes-proprietes` with a
+      desktop-grade create/edit listing wizard (location picker, photo uploader with
+      client-side HEIC→JPEG compression).
+- [x] **Staged owner edits with staff review** — published listings stay live while
+      owners propose changes (price, location, description, rules, etc.); staff approve
+      or reject at `/admin/modifications` before anything goes live. Mobile uses the same
+      backend flow.
+- [x] **Run the leasing pipeline** — review incoming applications, manage open-house
+      availability, lock a property to a chosen renter, and see the locked renter.
+- [x] **Issue and manage leases** — create rental agreements, send them, and track
+      sign/decline state.
+- [x] **Collect rent and cash out** — owner wallet with payout options and payout
+      requests; rent-schedule visibility on the owner side.
+- [x] **Handle deposits** — file claims and approve refunds against held deposits.
+
+### For staff & founders — operate the marketplace (`/admin`)
+
+- [x] **Listing moderation** — review and act on annonces before they go live.
+- [x] **Owner edit moderation** — review staged changesets from `/admin/modifications`
+      (approve applies diff to `properties`; reject notifies owner with optional note).
+- [x] **Applications & locks desk** — manage applications, locks, and spontaneous
+      ("spontanées") applications in one place.
+- [x] **Dispute resolution** — litiges queue to review and resolve deposit/tenancy
+      disputes.
+- [x] **Identity verification review** — approve or reject submitted KYC documents.
+- [x] **Finances & dynamic pricing** — finances view plus server-side pricing controls
+      (tiers, add-ons, commission) editable without an app release.
+- [x] **People & growth ops** — users management, referral/parrainage administration,
+      talent pipeline, and open-house calendar.
+- [x] **Content management** — manage marketing/content surfaces from the panel.
+- [x] **Talent & careers** — public `/carrieres` and `/talent` flows with admin review
+      of applications and owner–talent matching.
+
+### Platform — the engine behind both apps
+
+- [x] **Single backend for web + mobile** — every authenticated mobile mutation hits
+      these `/api/*` routes (Bearer-JWT auth, CORS, rate limiting via Upstash).
+- [x] **Payments integration** — PawaPay initiate / status-poll / callback webhook for
+      multi-country mobile money (8 correspondents across BFA, CIV, SEN); legacy
+      `ORANGE_MONEY` / `MOOV_MONEY` requests still map to Burkina Faso for older mobile
+      builds.
+- [x] **Push notifications** — push-token registration and delivery (e.g. renter rent
+      notifications).
+- [x] **Analytics & trending** — PostHog product analytics plus a trending endpoint and
+      hourly view aggregation.
+- [x] **Automated upkeep (cron)** — deposit auto-release, deposit deadline reminders,
+      deposit evidence retention, view aggregation, and property-storage cleanup.
+- [x] **Identity & auth backbone** — Clerk auth with webhook sync, Supabase user
+      mirroring, and a staff-code join flow.
+- [x] **French-safe text storage** — user text is stored without HTML encoding so
+      accented characters and apostrophes render correctly in push notifications, mobile,
+      and PDFs; legacy encoded rows are backfilled via migrations 032–033.
+
+---
+
 ## Feature Checklist
 
 Use this list as the quick completion view for major features.
 
+- [x] Staged owner property edits with staff review — shipped; migrations 031–033
+      applied in dev; production migration + QA pending
+- [x] International phone numbers + multi-country mobile money — shipped (mobile
+      `76f7c7b`, web `8ec4cdc`); sandbox QA for CIV/SEN correspondents pending
 - [x] Referral / Roogo Pro Agent Pilot - developed; referral UI, admin review,
-  checkout pricing, commission creation, and approval-state handling are in
-  place; pending database migration and production QA
+      checkout pricing, commission creation, and approval-state handling are in
+      place; pending database migration and production QA
 - [ ] CINET card payments for diaspora renters - enable card payments through
-  CINET so users abroad can reserve and rent homes before arriving
+      CINET so users abroad can reserve and rent homes before arriving
 - [ ] Owner-side rent-received push notification - send a push to the owner
-  when their tenant pays rent (today only the renter is notified)
+      when their tenant pays rent (today only the renter is notified)
+
+## [x] Staged Owner Property Edits With Staff Review
+
+Status: implemented; pending production migration (031–033) and end-to-end QA
+
+### Goal
+
+After a listing is published, owners and agents need to adjust price, location,
+description, house rules, and other fields without staff doing the edit for them.
+Every owner change is **staged** in `property_pending_edits` and reviewed by staff
+before it replaces live data — the listing stays online with current values until
+approval.
+
+This avoids silent misrepresentation (e.g. bait-and-switch pricing) while giving
+owners day-to-day control over their annonces.
+
+### Product Rules
+
+- Only the listing owner (`agent_id`) may submit a pending changeset; staff may
+  bypass ownership checks for support.
+- Submitting a new changeset **replaces** any existing pending row for that
+  property (one open changeset at a time).
+- Owners may withdraw their pending changeset (`DELETE` on the pending-edits
+  route).
+- Staff approve → payload is applied to `properties` (+ amenities join table);
+  staff reject → owner is notified with an optional review note.
+- Empty diffs return `200 { success: true, noChanges: true }` — not an error.
+- **`address` is never accepted from clients.** It is always derived server-side
+  as `"{quartier}, {city}"` when either field is approved, keeping columns in sync.
+- **`interdictions`**: clients send IDs (`no_animaux`, …); the server converts to
+  French labels before diff/store so the DB column format matches create-listing
+  behavior.
+- Editable fields are allowlisted in `pendingEditPayloadSchema`. Tier, boost
+  entitlements, status, `frequence`, virtual tour URL, payment IDs, and `agent_id`
+  are never stageable.
+- `amenities` capped at 50 items, 100 chars each.
+- Description or `dos_and_donts` changes reset translation hash (same as direct
+  staff edit).
+
+### Data Model
+
+Migrations:
+
+- `supabase/migrations/031_property_pending_edits.sql` — table + partial unique
+  index (one pending row per property)
+- `supabase/migrations/032_unescape_html_entities_in_text_fields.sql` — one-pass
+  decode of legacy HTML-encoded French text in `properties`
+- `supabase/migrations/033_pending_edits_fixes.sql` — `updated_at` trigger on
+  pending edits; looped entity re-decode (max 3 passes) for double-escaped strings
+
+Table `property_pending_edits`:
+
+- `property_id`, `submitted_by`, `payload` (jsonb diff), `status`
+  (`pending` | `approved` | `rejected`), `review_note`, timestamps
+
+### Backend Surfaces
+
+Core helper: `lib/property-pending-edits.ts`
+
+- `pendingEditPayloadSchema` — allowlist + validation
+- `validateAndDiffPendingEdit()` — sanitize, ID→label conversion, diff vs current row
+- `applyPendingEdit()` — write columns, sync amenities, recompute address, reset
+  translations when needed
+
+Owner APIs (Bearer JWT or session):
+
+- `GET /api/properties/[id]/pending-edits` — current pending row
+- `POST /api/properties/[id]/pending-edits` — submit/replace changeset
+- `DELETE /api/properties/[id]/pending-edits` — withdraw
+- `GET /api/users/me/pending-edits` — batch `{ propertyIds }` for mobile my-properties
+  (fixes N+1 per-property polling)
+
+Staff APIs:
+
+- `GET /api/admin/pending-edits` — queue list
+- `PATCH /api/admin/pending-edits/[id]` — approve or reject
+
+### Product Surfaces
+
+Web:
+
+- `/mes-proprietes/[id]` — owner edit form submits pending changeset; diff preview
+  before confirm
+- `/admin/modifications` — staff queue with field-level diff labels
+- `/admin/annonces/[id]` — inline pending-edit banner + link to queue
+
+Mobile (`roogo`):
+
+- Edit published listing via add-property flow (non-staff) → `submitPendingEdit`
+- Snapshot on load; **only changed fields** sent (avoids re-validating unchanged
+  short descriptions and drops silent field loss)
+- My Properties: single batch call for pending-edit badges
+
+### French Text / Encoding (shipped with this feature)
+
+Root cause: `validator.escape()` at write time stored HTML entities (`&#x27;`,
+`&amp;`) that broke French in push notifications and React Native.
+
+Fix layers:
+
+- **Write path:** `lib/text-sanitize.ts::sanitizeForStorage()` — trim + strip HTML
+  tags only; preserve `é`, `'`, `&`, etc. Tag regex `/<\/?[a-zA-Z][^>]*>/g` so
+  prose like `loyer < 100k` survives.
+- **Read path:** `unescapeText()` / mobile `decodeHtmlEntities()` on mappers and
+  notification builders for legacy rows.
+- **Migrations 032–033:** backfill + looped re-decode for double-escaped strings.
+- **Notifications:** `renderNotificationCopy()` trims interpolated title/body
+  (fixes trailing space when `reviewNote` is empty on reject).
+
+### Rollout Checklist
+
+- Apply migrations `031`, `032`, and `033` to production Supabase.
+- QA: owner stages price + quartier + interdiction change → staff approves →
+  verify live price, recomputed address, and interdiction labels (not IDs).
+- QA: owner submits with no actual changes → `noChanges` response; mobile navigates
+  back without error alert.
+- QA: French description with apostrophes/accents displays correctly in app,
+  push notification, and admin diff view.
+- QA: mobile my-properties pending badge loads via one batch request.
+
+### Test Coverage Target
+
+- Schema validation rejects disallowed fields and oversized amenities arrays.
+- Interdiction ID→label conversion before diff; empty array vs null comparison.
+- Address recomputation when only quartier or only city changes.
+- Idempotent approve (double-click) does not double-apply.
+- `noChanges` vs validation error distinction on POST.
 
 ## [x] Referral / Roogo Pro Agent Pilot
 
@@ -316,6 +548,63 @@ Current verification run:
 - Whether rejected referrers should be allowed to reapply indefinitely or after
   staff unlock.
 
+## [x] International Phone Number Support
+
+Status: shipped 2026-06-12 (mobile `76f7c7b`, web `8ec4cdc`)
+
+### Goal
+
+Let diaspora users register and stay reachable with phone/WhatsApp numbers from
+outside Burkina Faso, and let renters pay via mobile money in Burkina Faso,
+Côte d'Ivoire, or Senegal when their wallet matches an enabled PawaPay
+correspondent.
+
+### Scope
+
+**Contact (10 countries, E.164 storage):**
+
+Burkina Faso (default), Belgium, Canada, Côte d'Ivoire, France, Italy, Mali,
+Niger, Senegal, United States.
+
+Surfaces: mobile onboarding (owner/agent/renter), contact modals, web onboarding
+steps, Clerk metadata API.
+
+**Payment (3 countries, XOF, PawaPay correspondents):**
+
+| Country       | Correspondents                           | Pre-auth OTP              |
+| ------------- | ---------------------------------------- | ------------------------- |
+| Burkina Faso  | `ORANGE_BFA`, `MOOV_BFA`                 | Orange only (`*144*4*6#`) |
+| Côte d'Ivoire | `ORANGE_CIV`, `MTN_MOMO_CIV`, `WAVE_CIV` | None by default           |
+| Senegal       | `ORANGE_SEN`, `FREE_SEN`, `WAVE_SEN`     | None by default           |
+
+Payment surfaces: mobile `PaymentModalImpl`, web `PropertyPaymentModal`, and
+backend initiate/lock routes. Payment page accepts optional `country` (`BFA` |
+`CIV` | `SEN`).
+
+**Out of scope (unchanged):**
+
+- Owner-wallet payouts remain Burkina-only.
+- Journalier caution refund destinations remain Burkina-only.
+
+### Technical Notes
+
+- Validation: `libphonenumber-js/min` in both repos.
+- Shared config: `roogo/constants/phoneCountries.ts`,
+  `roogo/constants/paymentProviders.ts`, `roogo-web/lib/phone-countries.ts`,
+  `roogo-web/lib/payment-providers.ts`.
+- API contract: clients send `correspondent` + full MSISDN; legacy mobile
+  builds that send `provider: ORANGE_MONEY | MOOV_MONEY` still map to BFA.
+- Deposit limits: conservative min 100 / max 2,000,000 XOF per correspondent
+  in `lib/payment-limits.ts` — verify against live PawaPay config.
+
+### Rollout Checklist
+
+- [x] Mobile contact + payment UI and backend contract.
+- [x] Web contact + payment UI and API routes.
+- [ ] Sandbox QA: BFA Orange (OTP), CIV Wave, SEN Orange.
+- [ ] Confirm per-correspondent deposit min/max with PawaPay active config.
+- [ ] Confirm whether `ORANGE_CIV` / `ORANGE_SEN` require pre-auth OTP in prod.
+
 ## [ ] CINET Card Payments For Diaspora Renters
 
 Status: not started, added 2026-05-27
@@ -478,8 +767,8 @@ notification.
     webhook)
 - Notification copy (FR primary, mirror keys in `roogo/locales/messages.ts`):
   - Title: `Loyer reçu`
-  - Body: ``${renterFirstName} a payé son loyer. ${netAmount} FCFA
-    disponibles à retirer.`` — use **net** amount (after 7% commission)
+  - Body: `${renterFirstName} a payé son loyer. ${netAmount} FCFA
+disponibles à retirer.` — use **net** amount (after 7% commission)
     since that is what the owner can actually withdraw.
 - Data payload: include `earningId`, `scheduleId`, `propertyId`,
   `netAmount`, `grossAmount`, `feeAmount`, `currency` so the mobile app can

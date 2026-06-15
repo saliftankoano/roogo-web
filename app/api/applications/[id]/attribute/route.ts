@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { unescapeText } from "@/lib/text-sanitize";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -106,7 +107,9 @@ export async function POST(
           "viewingRequests",
           "applications.rejectedOtherSelected",
           {
-            location: property.quartier || property.address || "votre bien",
+            location:
+              unescapeText(property.quartier || property.address) ||
+              "votre bien",
           },
           {
             type: "application_rejected",
@@ -128,7 +131,8 @@ export async function POST(
       "viewingRequests",
       "applications.tenantAttributed",
       {
-        location: property.quartier || property.address || "votre bien",
+        location:
+          unescapeText(property.quartier || property.address) || "votre bien",
       },
       { type: "tenant_attributed", applicationId },
     );

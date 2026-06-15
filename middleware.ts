@@ -101,7 +101,9 @@ const isPublicRoute = createRouteMatcher([
   "/supprimer-compte",
   "/app",
   "/personnel/rejoindre",
+  "/talent(.*)",
   "/parrainage(.*)",
+  "/proprietes",
   "/louer/residentiel",
   "/louer/commercial",
   "/publier-bien",
@@ -113,14 +115,22 @@ const isPublicRoute = createRouteMatcher([
   "/api/clerk/users/me/metadata", // Mobile app uses JWT auth, not session
   "/api/favorites", // Mobile app authenticates this route with Bearer JWT
   "/api/applications/me", // Mobile app authenticates this route with Bearer JWT
+  "/api/users/me/pending-edits", // Mobile app authenticates this route with Bearer JWT
   "/api/identity-verifications/(.*)", // Mobile app authenticates these routes with Bearer JWT
+  "/api/support/conversation", // Mobile app authenticates this route with Bearer JWT
+  "/api/support/upload-url", // Mobile app authenticates this route with Bearer JWT
+  "/api/support/messages", // Mobile app authenticates this route with Bearer JWT
   "/api/cron/(.*)",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates
   "/api/properties/(.*)/availability",
+  // Pending-edits — mobile authenticates with Bearer JWT
+  "/api/properties/(.*)/pending-edits",
   // Shared property links — must be accessible without sign-in
   "/p/(.*)",
   "/proprietes/(.*)",
+  // Payment callback — accessed from PawaPay redirect; Safari has no Clerk session
+  "/payments/callback",
 ]);
 
 // Routes that bypass the onboarding gate:

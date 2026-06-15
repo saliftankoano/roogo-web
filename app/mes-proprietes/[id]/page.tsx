@@ -1,7 +1,7 @@
 "use client";
 
 import { useUser } from "@clerk/nextjs";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -21,14 +21,11 @@ import {
   ClockIcon,
   XCircleIcon,
   UserCircleIcon,
+  WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
-import {
-  fetchPropertyById,
-  updateProperty,
-  Property,
-} from "@/lib/data";
+import { fetchPropertyById, Property } from "@/lib/data";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
@@ -56,7 +53,6 @@ type PropertyFieldValue =
   | null
   | undefined;
 
-// Property type mapping to French
 const PROPERTY_TYPE_MAP: Record<string, string> = {
   villa: "Villa",
   appartement: "Appartement",
@@ -105,6 +101,69 @@ const getStatusColor = (status: string) => {
   }
 };
 
+type PendingEdit = {
+  id: string;
+  payload: Record<string, unknown>;
+  status: string;
+  review_note: string | null;
+  created_at: string;
+};
+
+async function fetchPendingEdit(
+  propertyId: string,
+): Promise<PendingEdit | null> {
+  const res = await fetch(`/api/properties/${propertyId}/pending-edits`);
+  if (!res.ok) return null;
+  const json = (await res.json()) as { pendingEdit: PendingEdit | null };
+  return json.pendingEdit ?? null;
+}
+
+async function submitPendingEdit(
+  propertyId: string,
+  payload: Record<string, unknown>,
+): Promise<{ success: boolean; error?: string }> {
+  const res = await fetch(`/api/properties/${propertyId}/pending-edits`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const json = (await res.json()) as { success?: boolean; error?: string };
+  if (!res.ok)
+    return { success: false, error: json.error ?? "Erreur inconnue" };
+  return { success: true };
+}
+
+async function cancelPendingEdit(propertyId: string): Promise<boolean> {
+  const res = await fetch(`/api/properties/${propertyId}/pending-edits`, {
+    method: "DELETE",
+  });
+  return res.ok;
+}
+
+// Field labels for the diff view
+const FIELD_LABELS: Record<string, string> = {
+  price: "Prix",
+  caution_mois: "Caution (mois)",
+  loyer_avance_mois: "Loyer d'avance (mois)",
+  caution_type: "Type de caution",
+  caution_valeur: "Valeur caution",
+  city: "Ville",
+  quartier: "Quartier",
+  latitude: "Latitude",
+  longitude: "Longitude",
+  property_type: "Type de bien",
+  bedrooms: "Chambres",
+  bathrooms: "Salles de bain",
+  area: "Superficie",
+  parking_spaces: "Parking",
+  sejour_minimum: "Séjour minimum",
+  capacite_max: "Capacité max",
+  description: "Description",
+  dos_and_donts: "Règles",
+  interdictions: "Interdictions",
+  amenities: "Équipements",
+};
+
 export default function OwnerPropertyDetailPage() {
   const params = useParams();
   const id = (params?.id as string) || "";
@@ -112,64 +171,74 @@ export default function OwnerPropertyDetailPage() {
   const [listing, setListing] = useState<Property | null>(null);
   const [loading, setLoading] = useState(true);
 
-  // Candidatures state
-  interface Applicant {
-    id: string;
-    status: string;
-    created_at: string;
-    users: { full_name: string | null; phone: string | null; avatar_url: string | null } | null;
-  }
-  interface LockTransaction {
-    id: string;
-    amount: number;
-    currency: string;
-    status: string;
-    created_at: string;
-    users: { full_name: string | null } | null;
-  }
-  const [applicants] = useState<Applicant[]>([]);
-  const [lockTransactions] = useState<LockTransaction[]>([]);
+  const [applicants] = useState<
+    {
+      id: string;
+      status: string;
+      created_at: string;
+      users: {
+        full_name: string | null;
+        phone: string | null;
+        avatar_url: string | null;
+      } | null;
+    }[]
+  >([]);
+  const [lockTransactions] = useState<
+    {
+      id: string;
+      amount: number;
+      currency: string;
+      status: string;
+      created_at: string;
+      users: { full_name: string | null } | null;
+    }[]
+  >([]);
   const [loadingApplicants] = useState(false);
 
-  // Edit Management
+  // Edit state
   const { user: clerkUser } = useUser();
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Property>>({});
   const [confirmEditModalOpen, setConfirmEditModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
 
+  // Pending edit state
+  const [pendingEdit, setPendingEdit] = useState<PendingEdit | null>(null);
+  const [loadingPendingEdit, setLoadingPendingEdit] = useState(false);
+  const [isCancelling, setIsCancelling] = useState(false);
+
+  const loadPendingEdit = useCallback(async (propertyId: string) => {
+    setLoadingPendingEdit(true);
+    const data = await fetchPendingEdit(propertyId);
+    setPendingEdit(data);
+    setLoadingPendingEdit(false);
+  }, []);
+
   useEffect(() => {
     async function loadData() {
       if (!id) return;
-
       try {
         const propertyData = await fetchPropertyById(id);
-        
-        // Verify ownership
         if (propertyData && propertyData.owner_id !== clerkUser?.id) {
           router.push("/proprietes");
           return;
         }
-
         setListing(propertyData);
+        if (propertyData) await loadPendingEdit(propertyData.id);
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
         setLoading(false);
       }
     }
-    
-    if (clerkUser) {
-      loadData();
-    }
-  }, [id, clerkUser, router]);
+    if (clerkUser) loadData();
+  }, [id, clerkUser, router, loadPendingEdit]);
 
   const startEditing = () => {
     if (!listing) return;
     setEditForm({
       description: listing.description,
       price: listing.price,
-      address: listing.address,
       city: listing.city,
       quartier: listing.quartier,
       bedrooms: listing.bedrooms,
@@ -188,34 +257,33 @@ export default function OwnerPropertyDetailPage() {
     setEditForm({});
   };
 
-  const handleEditChange = (field: keyof Property, value: PropertyFieldValue) => {
+  const handleEditChange = (
+    field: keyof Property,
+    value: PropertyFieldValue,
+  ) => {
     setEditForm((prev) => ({ ...prev, [field]: value }));
   };
 
   const formatChangeValue = (value: PropertyFieldValue): string => {
-    if (value === null || value === undefined || value === "") {
-      return "(vide)";
-    }
-
-    if (Array.isArray(value)) {
+    if (value === null || value === undefined || value === "") return "(vide)";
+    if (Array.isArray(value))
       return value.length > 0 ? value.join(", ") : "(vide)";
-    }
-
-    if (typeof value === "object") {
-      return JSON.stringify(value);
-    }
-
+    if (typeof value === "object") return JSON.stringify(value);
     return String(value);
   };
 
   const getChangedFields = () => {
     if (!listing) return [];
-    const changes: { field: string; old: PropertyFieldValue; new: PropertyFieldValue; label: string }[] = [];
-    
+    const changes: {
+      field: string;
+      old: PropertyFieldValue;
+      new: PropertyFieldValue;
+      label: string;
+    }[] = [];
+
     const fields: { key: keyof Property; label: string }[] = [
       { key: "description", label: "Description" },
       { key: "price", label: "Prix" },
-      { key: "address", label: "Adresse" },
       { key: "city", label: "Ville" },
       { key: "quartier", label: "Quartier" },
       { key: "bedrooms", label: "Chambres" },
@@ -223,22 +291,28 @@ export default function OwnerPropertyDetailPage() {
       { key: "area", label: "Superficie" },
       { key: "parking", label: "Parking" },
       { key: "propertyType", label: "Type de bien" },
-      { key: "period", label: "Période" },
     ];
 
     fields.forEach(({ key, label }) => {
       if (editForm[key] !== undefined && editForm[key] !== listing[key]) {
-        changes.push({ field: key, old: listing[key], new: editForm[key], label });
+        changes.push({
+          field: key,
+          old: listing[key],
+          new: editForm[key],
+          label,
+        });
       }
     });
 
-    // Check amenities separately
-    if (editForm.amenities && JSON.stringify(editForm.amenities) !== JSON.stringify(listing.amenities)) {
-      changes.push({ 
-        field: "amenities", 
-        old: listing.amenities.join(", "), 
-        new: editForm.amenities.join(", "), 
-        label: "Commodités" 
+    if (
+      editForm.amenities &&
+      JSON.stringify(editForm.amenities) !== JSON.stringify(listing.amenities)
+    ) {
+      changes.push({
+        field: "amenities",
+        old: listing.amenities.join(", "),
+        new: editForm.amenities.join(", "),
+        label: "Équipements",
       });
     }
 
@@ -253,18 +327,52 @@ export default function OwnerPropertyDetailPage() {
     setConfirmEditModalOpen(true);
   };
 
+  // Map the UI editForm fields to pending-edit API payload keys (snake_case DB columns)
+  const buildApiPayload = () => {
+    const payload: Record<string, unknown> = {};
+    if (editForm.price !== undefined) payload.price = editForm.price;
+    if (editForm.city !== undefined) payload.city = editForm.city;
+    if (editForm.quartier !== undefined) payload.quartier = editForm.quartier;
+    if (editForm.bedrooms !== undefined) payload.bedrooms = editForm.bedrooms;
+    if (editForm.bathrooms !== undefined)
+      payload.bathrooms = editForm.bathrooms;
+    if (editForm.area !== undefined) payload.area = editForm.area;
+    if (editForm.parking !== undefined)
+      payload.parking_spaces = editForm.parking;
+    if (editForm.propertyType !== undefined)
+      payload.property_type = editForm.propertyType;
+    if (editForm.description !== undefined)
+      payload.description = editForm.description;
+    if (editForm.amenities !== undefined)
+      payload.amenities = editForm.amenities;
+    return payload;
+  };
+
   const confirmSave = async () => {
     if (!listing) return;
     setIsSaving(true);
-    const success = await updateProperty(listing.id, editForm);
+    const result = await submitPendingEdit(listing.id, buildApiPayload());
     setIsSaving(false);
-    if (success) {
-      setListing({ ...listing, ...editForm } as Property);
+    if (result.success) {
       setIsEditing(false);
       setConfirmEditModalOpen(false);
       setEditForm({});
+      // Refresh the pending edit banner
+      await loadPendingEdit(listing.id);
     } else {
-      alert("Erreur lors de la mise à jour du bien");
+      alert(result.error ?? "Erreur lors de la soumission des modifications.");
+    }
+  };
+
+  const handleCancelPendingEdit = async () => {
+    if (!listing || !pendingEdit) return;
+    setIsCancelling(true);
+    const ok = await cancelPendingEdit(listing.id);
+    setIsCancelling(false);
+    if (ok) {
+      setPendingEdit(null);
+    } else {
+      alert("Impossible d'annuler les modifications.");
     }
   };
 
@@ -309,17 +417,31 @@ export default function OwnerPropertyDetailPage() {
                 exit={{ opacity: 0, scale: 0.95, y: 10 }}
                 className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10"
               >
-                <h3 className="text-xl font-bold text-neutral-900 mb-4">
-                  Confirmer les modifications
+                <h3 className="text-xl font-bold text-neutral-900 mb-2">
+                  Soumettre pour validation
                 </h3>
+                <p className="text-sm text-neutral-500 mb-4">
+                  Ces modifications seront examinées par notre équipe avant
+                  d&apos;être appliquées. Votre annonce reste visible sans
+                  changement en attendant.
+                </p>
                 <div className="space-y-2 mb-6 max-h-60 overflow-y-auto">
                   {getChangedFields().map((change, idx) => (
-                    <div key={idx} className="text-sm bg-neutral-50 p-3 rounded-lg">
-                      <p className="font-bold text-neutral-700">{change.label}</p>
+                    <div
+                      key={idx}
+                      className="text-sm bg-neutral-50 p-3 rounded-lg"
+                    >
+                      <p className="font-bold text-neutral-700">
+                        {change.label}
+                      </p>
                       <p className="text-neutral-500">
-                        <span className="line-through">{formatChangeValue(change.old)}</span>
+                        <span className="line-through">
+                          {formatChangeValue(change.old)}
+                        </span>
                         {" → "}
-                        <span className="text-primary font-semibold">{formatChangeValue(change.new)}</span>
+                        <span className="text-primary font-semibold">
+                          {formatChangeValue(change.new)}
+                        </span>
                       </p>
                     </div>
                   ))}
@@ -338,7 +460,7 @@ export default function OwnerPropertyDetailPage() {
                     className="flex-1 bg-primary text-white"
                     disabled={isSaving}
                   >
-                    {isSaving ? "Enregistrement..." : "Confirmer"}
+                    {isSaving ? "Soumission..." : "Soumettre"}
                   </Button>
                 </div>
               </motion.div>
@@ -347,6 +469,48 @@ export default function OwnerPropertyDetailPage() {
         </AnimatePresence>
       </Portal>
 
+      {/* Pending edit banner */}
+      {!loadingPendingEdit && pendingEdit && (
+        <div className="bg-amber-50 border border-amber-200 rounded-[24px] p-5 flex flex-col sm:flex-row sm:items-start gap-4">
+          <div className="flex items-start gap-3 flex-1">
+            <ClockIcon
+              size={20}
+              weight="fill"
+              className="text-amber-500 mt-0.5 shrink-0"
+            />
+            <div className="min-w-0">
+              <p className="font-black text-amber-800 text-sm">
+                Modifications en attente de validation
+              </p>
+              <p className="text-xs text-amber-700 mt-1">
+                Ces champs sont en cours de révision :{" "}
+                <span className="font-semibold">
+                  {Object.keys(pendingEdit.payload)
+                    .map((k) => FIELD_LABELS[k] ?? k)
+                    .join(", ")}
+                </span>
+              </p>
+              <p className="text-xs text-amber-500 mt-1">
+                Soumis le{" "}
+                {new Date(pendingEdit.created_at).toLocaleDateString("fr-FR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                })}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="ghost"
+            className="text-xs font-bold text-amber-700 hover:bg-amber-100 shrink-0 self-start"
+            onClick={handleCancelPendingEdit}
+            disabled={isCancelling}
+          >
+            {isCancelling ? "Annulation..." : "Retirer"}
+          </Button>
+        </div>
+      )}
+
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-4">
@@ -354,9 +518,9 @@ export default function OwnerPropertyDetailPage() {
             onClick={() => router.back()}
             className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all duration-200 active:scale-95"
           >
-            <CaretLeftIcon 
-              size={24} 
-              className="text-neutral-700 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-all duration-200" 
+            <CaretLeftIcon
+              size={24}
+              className="text-neutral-700 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-all duration-200"
               weight="bold"
             />
           </button>
@@ -371,10 +535,16 @@ export default function OwnerPropertyDetailPage() {
                 <span
                   className={cn(
                     "px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border",
-                    getStatusColor(listing.status)
+                    getStatusColor(listing.status),
                   )}
                 >
                   {getStatusLabel(listing.status)}
+                </span>
+              )}
+              {pendingEdit && (
+                <span className="px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider border bg-amber-50 text-amber-700 border-amber-200 flex items-center gap-1">
+                  <WarningCircleIcon size={10} weight="fill" />
+                  Modifications en attente
                 </span>
               )}
             </div>
@@ -388,7 +558,9 @@ export default function OwnerPropertyDetailPage() {
                   <input
                     type="text"
                     value={editForm.quartier}
-                    onChange={(e) => handleEditChange("quartier", e.target.value)}
+                    onChange={(e) =>
+                      handleEditChange("quartier", e.target.value)
+                    }
                     placeholder="Quartier"
                     className="bg-neutral-50 border border-neutral-200 rounded px-1"
                   />
@@ -414,6 +586,7 @@ export default function OwnerPropertyDetailPage() {
             </div>
           </div>
         </div>
+
         <div className="flex gap-3 items-center">
           {isEditing ? (
             <div className="flex gap-2">
@@ -428,7 +601,7 @@ export default function OwnerPropertyDetailPage() {
                 className="bg-primary text-white text-xs font-bold uppercase tracking-wider"
                 onClick={handleSaveClick}
               >
-                Enregistrer
+                Soumettre
               </Button>
             </div>
           ) : (
@@ -436,6 +609,12 @@ export default function OwnerPropertyDetailPage() {
               variant="ghost"
               className="text-primary hover:bg-orange-50 text-xs font-bold uppercase tracking-wider"
               onClick={startEditing}
+              disabled={!!pendingEdit}
+              title={
+                pendingEdit
+                  ? "Des modifications sont déjà en attente de validation"
+                  : undefined
+              }
             >
               Modifier
             </Button>
@@ -453,16 +632,19 @@ export default function OwnerPropertyDetailPage() {
               initialPhotos={listing.images}
               primaryImageUrl={listing.image}
               isProfessional={listing.status === "en_ligne"}
-              onPhotosUpdated={() => {
-                // Owners can't change status, just refresh
-              }}
+              onPhotosUpdated={() => {}}
             />
           </section>
 
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-8">
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               {[
-                { label: "Chambres", value: listing.bedrooms, icon: BedIcon, key: "bedrooms" },
+                {
+                  label: "Chambres",
+                  value: listing.bedrooms,
+                  icon: BedIcon,
+                  key: "bedrooms",
+                },
                 {
                   label: "Salles de bain",
                   value: listing.bathrooms,
@@ -476,7 +658,12 @@ export default function OwnerPropertyDetailPage() {
                   key: "area",
                   suffix: " m²",
                 },
-                { label: "Parking", value: listing.parking, icon: CarIcon, key: "parking" },
+                {
+                  label: "Parking",
+                  value: listing.parking,
+                  icon: CarIcon,
+                  key: "parking",
+                },
               ].map((item, idx) => (
                 <div
                   key={idx}
@@ -495,12 +682,18 @@ export default function OwnerPropertyDetailPage() {
                       <input
                         type="text"
                         value={editForm[item.key as keyof Property] as string}
-                        onChange={(e) => handleEditChange(item.key as keyof Property, e.target.value)}
+                        onChange={(e) =>
+                          handleEditChange(
+                            item.key as keyof Property,
+                            e.target.value,
+                          )
+                        }
                         className="text-sm font-black text-neutral-900 bg-white border border-neutral-200 rounded px-1 w-full"
                       />
                     ) : (
                       <p className="text-sm font-black text-neutral-900">
-                        {item.value || "-"}{item.suffix || ""}
+                        {item.value || "-"}
+                        {item.suffix || ""}
                       </p>
                     )}
                   </div>
@@ -512,7 +705,9 @@ export default function OwnerPropertyDetailPage() {
               {isEditing ? (
                 <textarea
                   value={editForm.description}
-                  onChange={(e) => handleEditChange("description", e.target.value)}
+                  onChange={(e) =>
+                    handleEditChange("description", e.target.value)
+                  }
                   className="w-full h-40 p-4 text-neutral-600 leading-relaxed bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                 />
               ) : (
@@ -620,7 +815,8 @@ export default function OwnerPropertyDetailPage() {
                       />
                     ) : (
                       <div className="w-full h-full flex items-center justify-center text-xl font-bold text-primary">
-                        {listing.agent.full_name?.charAt(0)?.toUpperCase() || "?"}
+                        {listing.agent.full_name?.charAt(0)?.toUpperCase() ||
+                          "?"}
                       </div>
                     )}
                   </div>
@@ -702,22 +898,38 @@ export default function OwnerPropertyDetailPage() {
             <UsersIcon size={16} weight="bold" className="text-primary" />
           </div>
           <h2 className="text-lg font-black text-neutral-900">Candidatures</h2>
-          <span className="text-xs font-bold text-neutral-400 bg-neutral-100 px-2 py-1 rounded-lg">{applicants.length}</span>
+          <span className="text-xs font-bold text-neutral-400 bg-neutral-100 px-2 py-1 rounded-lg">
+            {applicants.length}
+          </span>
         </div>
 
-        {lockTransactions.length > 0 && lockTransactions[0].status === "completed" && (
-          <div className="bg-green-50 border border-green-200 rounded-[24px] p-6">
-            <div className="flex items-center gap-3 mb-2">
-              <CheckCircleIcon size={20} weight="fill" className="text-green-600" />
-              <p className="font-black text-green-700">Bien loue</p>
+        {lockTransactions.length > 0 &&
+          lockTransactions[0].status === "completed" && (
+            <div className="bg-green-50 border border-green-200 rounded-[24px] p-6">
+              <div className="flex items-center gap-3 mb-2">
+                <CheckCircleIcon
+                  size={20}
+                  weight="fill"
+                  className="text-green-600"
+                />
+                <p className="font-black text-green-700">Bien loué</p>
+              </div>
+              <p className="text-sm text-green-600 font-medium">
+                {lockTransactions[0].users?.full_name || "Locataire inconnu"}
+              </p>
+              <p className="text-xs text-green-500 mt-1">
+                {lockTransactions[0].amount.toLocaleString("fr-FR")} FCFA —{" "}
+                {new Date(lockTransactions[0].created_at).toLocaleDateString(
+                  "fr-FR",
+                  {
+                    day: "numeric",
+                    month: "long",
+                    year: "numeric",
+                  },
+                )}
+              </p>
             </div>
-            <p className="text-sm text-green-600 font-medium">{lockTransactions[0].users?.full_name || "Locataire inconnu"}</p>
-            <p className="text-xs text-green-500 mt-1">
-              {lockTransactions[0].amount.toLocaleString("fr-FR")} FCFA —{" "}
-              {new Date(lockTransactions[0].created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" })}
-            </p>
-          </div>
-        )}
+          )}
 
         <section className="bg-white rounded-[32px] border border-neutral-100 shadow-sm overflow-hidden">
           {loadingApplicants ? (
@@ -727,28 +939,64 @@ export default function OwnerPropertyDetailPage() {
           ) : applicants.length === 0 ? (
             <div className="flex flex-col items-center py-16 gap-3 text-center">
               <UserCircleIcon size={40} className="text-neutral-200" />
-              <p className="text-sm font-bold text-neutral-400">Aucune candidature pour ce bien</p>
+              <p className="text-sm font-bold text-neutral-400">
+                Aucune candidature pour ce bien
+              </p>
             </div>
           ) : (
             <div className="divide-y divide-neutral-50">
               {applicants.map((applicant) => {
                 const statusConfig = {
-                  approved: { label: "Accepte", color: "bg-green-100 text-green-700", Icon: CheckCircleIcon },
-                  rejected: { label: "Refuse", color: "bg-red-100 text-red-600", Icon: XCircleIcon },
-                  pending: { label: "En attente", color: "bg-yellow-100 text-yellow-700", Icon: ClockIcon },
-                }[applicant.status] || { label: "En attente", color: "bg-yellow-100 text-yellow-700", Icon: ClockIcon };
+                  approved: {
+                    label: "Accepté",
+                    color: "bg-green-100 text-green-700",
+                    Icon: CheckCircleIcon,
+                  },
+                  rejected: {
+                    label: "Refusé",
+                    color: "bg-red-100 text-red-600",
+                    Icon: XCircleIcon,
+                  },
+                  pending: {
+                    label: "En attente",
+                    color: "bg-yellow-100 text-yellow-700",
+                    Icon: ClockIcon,
+                  },
+                }[applicant.status] || {
+                  label: "En attente",
+                  color: "bg-yellow-100 text-yellow-700",
+                  Icon: ClockIcon,
+                };
                 return (
-                  <div key={applicant.id} className="flex items-center gap-4 p-6">
+                  <div
+                    key={applicant.id}
+                    className="flex items-center gap-4 p-6"
+                  >
                     <div className="w-10 h-10 rounded-xl bg-primary/10 flex items-center justify-center text-sm font-black text-primary shrink-0">
-                      {applicant.users?.full_name?.charAt(0)?.toUpperCase() || "?"}
+                      {applicant.users?.full_name?.charAt(0)?.toUpperCase() ||
+                        "?"}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="font-bold text-neutral-900 truncate">{applicant.users?.full_name || "Candidat inconnu"}</p>
+                      <p className="font-bold text-neutral-900 truncate">
+                        {applicant.users?.full_name || "Candidat inconnu"}
+                      </p>
                       <p className="text-xs text-neutral-400 mt-0.5">
-                        {new Date(applicant.created_at).toLocaleDateString("fr-FR", { day: "numeric", month: "short", year: "numeric" })}
+                        {new Date(applicant.created_at).toLocaleDateString(
+                          "fr-FR",
+                          {
+                            day: "numeric",
+                            month: "short",
+                            year: "numeric",
+                          },
+                        )}
                       </p>
                     </div>
-                    <div className={cn("flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0", statusConfig.color)}>
+                    <div
+                      className={cn(
+                        "flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold shrink-0",
+                        statusConfig.color,
+                      )}
+                    >
                       <statusConfig.Icon size={12} weight="fill" />
                       {statusConfig.label}
                     </div>

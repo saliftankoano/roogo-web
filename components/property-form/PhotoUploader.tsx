@@ -1,12 +1,21 @@
 "use client";
 
 import React, { useEffect, useMemo, useRef } from "react";
-import { Camera, X, AlertCircle, Image as ImageIcon } from "lucide-react";
+import {
+  Camera,
+  X,
+  AlertCircle,
+  Image as ImageIcon,
+  Video,
+} from "lucide-react";
 import Image from "next/image";
+import { MAX_LISTING_PHOTOS, MIN_LISTING_PHOTOS } from "@/lib/validations";
 
 interface PhotoUploaderProps {
   files: File[];
   onChange: (files: File[]) => void;
+  videoFile?: File | null;
+  onVideoChange?: (file: File | null) => void;
   min?: number;
   max?: number;
 }
@@ -14,10 +23,13 @@ interface PhotoUploaderProps {
 export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   files,
   onChange,
-  min = 3,
-  max = 15,
+  videoFile,
+  onVideoChange,
+  min = MIN_LISTING_PHOTOS,
+  max = MAX_LISTING_PHOTOS,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
@@ -30,6 +42,11 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
   const removeFile = (index: number) => {
     const updatedFiles = files.filter((_, i) => i !== index);
     onChange(updatedFiles);
+  };
+
+  const handleVideoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    onVideoChange?.(e.target.files?.[0] ?? null);
+    e.target.value = "";
   };
 
   const isUnderMin = files.length < min;
@@ -102,6 +119,57 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
         <div className="flex items-center gap-2 text-amber-600 text-xs mt-2 bg-amber-50 p-2 rounded-lg">
           <AlertCircle className="w-3 h-3" />
           Veuillez ajouter au moins {min} photos pour valider l&apos;annonce.
+        </div>
+      )}
+
+      {onVideoChange && (
+        <div className="rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
+              <Video className="h-4 w-4" />
+              Vidéo du bien
+            </label>
+            <span className="text-xs font-semibold text-neutral-400">
+              Optionnelle
+            </span>
+          </div>
+          {videoFile ? (
+            <div className="space-y-3">
+              <video
+                src={URL.createObjectURL(videoFile)}
+                controls
+                className="aspect-video w-full rounded-xl bg-black object-contain"
+              />
+              <div className="flex items-center justify-between gap-3">
+                <p className="truncate text-xs font-semibold text-neutral-500">
+                  {videoFile.name}
+                </p>
+                <button
+                  type="button"
+                  onClick={() => onVideoChange(null)}
+                  className="rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600"
+                >
+                  Retirer
+                </button>
+              </div>
+            </div>
+          ) : (
+            <button
+              type="button"
+              onClick={() => videoInputRef.current?.click()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-dashed border-neutral-200 bg-white px-4 py-5 text-sm font-bold text-neutral-500 transition-all hover:border-primary/40 hover:text-primary"
+            >
+              <Video className="h-5 w-5" />
+              Ajouter une vidéo
+            </button>
+          )}
+          <input
+            ref={videoInputRef}
+            type="file"
+            accept="video/mp4,video/quicktime,video/webm,video/x-m4v"
+            onChange={handleVideoChange}
+            className="hidden"
+          />
         </div>
       )}
     </div>

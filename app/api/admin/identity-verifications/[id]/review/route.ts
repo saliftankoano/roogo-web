@@ -1,6 +1,23 @@
 import { NextResponse } from "next/server";
-import { requireStaffSupabaseUser } from "@/lib/identity-verifications";
+import {
+  requireStaffSupabaseUser,
+  syncClerkIdentityVerificationMetadata,
+} from "@/lib/identity-verifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+
+type VerificationSubmissionForReview = {
+  id: string;
+  user_id: string;
+  status: string;
+  users: { clerk_id: string | null } | { clerk_id: string | null }[] | null;
+};
+
+function getSubmissionClerkId(submission: VerificationSubmissionForReview) {
+  const user = Array.isArray(submission.users)
+    ? submission.users[0]
+    : submission.users;
+  return user?.clerk_id ?? null;
+}
 
 export async function POST(
   req: Request,
@@ -36,9 +53,9 @@ export async function POST(
 
     const { data: submission, error: loadError } = await supabaseAdmin
       .from("identity_verification_submissions")
-      .select("id, user_id, status")
+      .select("id, user_id, status, users:user_id(clerk_id)")
       .eq("id", id)
-      .maybeSingle();
+      .maybeSingle<VerificationSubmissionForReview>();
 
     if (loadError) {
       console.error("Identity verification review load failed:", loadError);
@@ -97,6 +114,14 @@ export async function POST(
       console.error("Identity verification user review failed:", userError);
       return NextResponse.json({ error: "Failed to update user status" }, { status: 500 });
     }
+
+    syncClerkIdentityVerificationMetadata({
+      clerkUserId: getSubmissionClerkId(submission),
+      status: nextStatus,
+      verifiedAt: decision === "approve" ? now : null,
+    }).catch((error) => {
+      console.error("Identity verification Clerk metadata sync failed:", error);
+    });
 
     return NextResponse.json({
       success: true,

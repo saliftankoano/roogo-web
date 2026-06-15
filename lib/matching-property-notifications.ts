@@ -1,7 +1,11 @@
 import { PROPERTY_TYPE_IDS, type PropertyTypeId } from "@/lib/constants";
-import { countNotificationDeliveriesSince, reserveNotificationDelivery } from "@/lib/notification-deliveries";
+import {
+  countNotificationDeliveriesSince,
+  reserveNotificationDelivery,
+} from "@/lib/notification-deliveries";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { unescapeText } from "@/lib/text-sanitize";
 
 const NEW_LISTING_EVENT_TYPE = "properties.newMatch";
 const MAX_NEW_LISTING_PUSHES_PER_DAY = 1;
@@ -61,7 +65,9 @@ function getPropertyTypeLabel(type: string | null | undefined) {
   return `${type.charAt(0).toUpperCase()}${type.slice(1)}`;
 }
 
-function hasNewListingPreferenceEnabled(preferences: Record<string, unknown> | null) {
+function hasNewListingPreferenceEnabled(
+  preferences: Record<string, unknown> | null,
+) {
   const notifications =
     preferences && typeof preferences.notifications === "object"
       ? (preferences.notifications as Record<string, unknown>)
@@ -102,7 +108,8 @@ function hasPropertyTypeMatch(
   );
   if (preferredTypes.length === 0) return true;
   return Boolean(
-    property.property_type && preferredTypes.includes(property.property_type as PropertyTypeId),
+    property.property_type &&
+    preferredTypes.includes(property.property_type as PropertyTypeId),
   );
 }
 
@@ -110,7 +117,8 @@ function hasBudgetMatch(
   property: PublicPropertyForNotification,
   candidate: CandidateUser,
 ) {
-  const budget = readNumber(candidate.preferences?.budget) ?? candidate.budget_max;
+  const budget =
+    readNumber(candidate.preferences?.budget) ?? candidate.budget_max;
   if (!budget || !property.price) return true;
   return property.price <= budget;
 }
@@ -137,12 +145,11 @@ function hasFurnishedMatch(
     return true;
   }
 
-  const isFurnished = amenityNames.some((name) => normalizeText(name) === "meuble");
+  const isFurnished = amenityNames.some(
+    (name) => normalizeText(name) === "meuble",
+  );
 
-  if (
-    furnishedPreference === "meuble" ||
-    furnishedPreference === "furnished"
-  ) {
+  if (furnishedPreference === "meuble" || furnishedPreference === "furnished") {
     return isFurnished;
   }
 
@@ -181,7 +188,10 @@ export async function notifyRentersOfNewMatchingProperty(propertyId: string) {
     .maybeSingle();
 
   if (propertyError || !property) {
-    console.error("Unable to load property for new-listing notifications:", propertyError);
+    console.error(
+      "Unable to load property for new-listing notifications:",
+      propertyError,
+    );
     return { attempted: 0, sent: 0 };
   }
 
@@ -199,7 +209,10 @@ export async function notifyRentersOfNewMatchingProperty(propertyId: string) {
   const amenityNames =
     amenities
       ?.map((row) => {
-        const joined = row.amenities as { name?: unknown } | { name?: unknown }[] | null;
+        const joined = row.amenities as
+          | { name?: unknown }
+          | { name?: unknown }[]
+          | null;
         if (Array.isArray(joined)) return joined[0]?.name;
         return joined?.name;
       })
@@ -211,7 +224,10 @@ export async function notifyRentersOfNewMatchingProperty(propertyId: string) {
     .eq("user_type", "renter");
 
   if (candidatesError || !candidates) {
-    console.error("Unable to load renter candidates for new-listing notifications:", candidatesError);
+    console.error(
+      "Unable to load renter candidates for new-listing notifications:",
+      candidatesError,
+    );
     return { attempted: 0, sent: 0 };
   }
 
@@ -249,7 +265,9 @@ export async function notifyRentersOfNewMatchingProperty(propertyId: string) {
       "properties.newMatch",
       {
         type: getPropertyTypeLabel(publicProperty.property_type),
-        location: publicProperty.quartier || publicProperty.city || "Roogo",
+        location:
+          unescapeText(publicProperty.quartier || publicProperty.city) ||
+          "Roogo",
       },
       {
         type: "new_matching_property",
