@@ -1,6 +1,9 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
-import { isVerifiableUserType } from "@/lib/identity-verifications";
+import {
+  isVerifiableUserType,
+  syncClerkIdentityVerificationMetadata,
+} from "@/lib/identity-verifications";
 import { resolveClerkId } from "@/lib/request-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
@@ -82,6 +85,13 @@ export async function POST(req: Request) {
       console.error("Identity verification user update failed:", userError);
       return errorResponse("Failed to update verification status", 500, req);
     }
+
+    syncClerkIdentityVerificationMetadata({
+      clerkUserId,
+      status: "pending",
+    }).catch((error) => {
+      console.error("Identity verification Clerk metadata sync failed:", error);
+    });
 
     notifyStaffIdentityVerificationSubmitted(submission.id).catch((error) => {
       console.error("Identity verification staff notification failed:", error);

@@ -1,4 +1,4 @@
-import { currentUser, auth } from "@clerk/nextjs/server";
+import { currentUser, auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
 
@@ -14,6 +14,39 @@ export function isVerifiableUserType(userType?: string | null) {
 
 export function isStaffUserType(userType?: string | null) {
   return !!userType && STAFF_USER_TYPES.has(userType);
+}
+
+type IdentityVerificationStatus =
+  | "unsubmitted"
+  | "pending"
+  | "approved"
+  | "rejected";
+
+export async function syncClerkIdentityVerificationMetadata({
+  clerkUserId,
+  status,
+  verifiedAt = null,
+}: {
+  clerkUserId: string | null | undefined;
+  status: IdentityVerificationStatus;
+  verifiedAt?: string | null;
+}) {
+  if (!clerkUserId) return false;
+
+  try {
+    const client = await clerkClient();
+    await client.users.updateUserMetadata(clerkUserId, {
+      publicMetadata: {
+        identityVerificationStatus: status,
+        identityVerified: status === "approved",
+        identityVerifiedAt: status === "approved" ? verifiedAt : null,
+      },
+    });
+    return true;
+  } catch (error) {
+    console.error("Failed to sync Clerk identity verification metadata:", error);
+    return false;
+  }
 }
 
 export async function requireStaffSupabaseUser() {
