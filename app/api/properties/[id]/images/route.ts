@@ -241,6 +241,21 @@ export async function PATCH(
       return cors(json({ error: "Forbidden" }, 403));
     }
 
+    const { data: targetImage, error: targetImageError } = await supabase
+      .from("property_images")
+      .select("id")
+      .match({ property_id: propertyId, url })
+      .maybeSingle();
+
+    if (targetImageError) {
+      console.error("Error finding primary image target:", targetImageError);
+      return cors(json({ error: "Failed to find image" }, 500));
+    }
+
+    if (!targetImage) {
+      return cors(json({ error: "Image not found" }, 404));
+    }
+
     // 4. Update database: Set all to false, then target to true
     // First, set all images for this property to is_primary = false
     const { error: resetError } = await supabase
@@ -262,6 +277,16 @@ export async function PATCH(
     if (setError) {
       console.error("Error setting primary image:", setError);
       return cors(json({ error: "Failed to set primary image" }, 500));
+    }
+
+    const { error: propertyUpdateError } = await supabase
+      .from("properties")
+      .update({ primary_image: url })
+      .eq("id", propertyId);
+
+    if (propertyUpdateError) {
+      console.error("Error updating property primary image:", propertyUpdateError);
+      return cors(json({ error: "Failed to update property primary image" }, 500));
     }
 
     return cors(json({ success: true }));

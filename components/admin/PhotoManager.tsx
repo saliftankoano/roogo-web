@@ -72,13 +72,16 @@ export default function PhotoManager({
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
+  const [currentPrimaryUrl, setCurrentPrimaryUrl] = useState(
+    primaryImageUrl || "",
+  );
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isFullscreenOpen = fullscreenIndex !== null && !!photos[fullscreenIndex];
 
-  // Find the index of the primary image
-  const primaryIndex = primaryImageUrl
-    ? photos.findIndex((p) => p === primaryImageUrl)
-    : 0;
+  const matchedPrimaryIndex = currentPrimaryUrl
+    ? photos.findIndex((p) => p === currentPrimaryUrl)
+    : -1;
+  const primaryIndex = matchedPrimaryIndex >= 0 ? matchedPrimaryIndex : 0;
 
   useEffect(() => {
     setProfessional(isProfessional);
@@ -89,6 +92,10 @@ export default function PhotoManager({
     const sanitized = sanitizePhotoUrls(initialPhotos);
     setPhotos(sanitized);
   }, [initialPhotos, propertyId]);
+
+  useEffect(() => {
+    setCurrentPrimaryUrl(primaryImageUrl || "");
+  }, [primaryImageUrl, propertyId]);
 
   useEffect(() => {
     if (fullscreenIndex !== null && fullscreenIndex >= photos.length) {
@@ -250,12 +257,13 @@ export default function PhotoManager({
       });
 
       if (!response.ok) {
-        // No revert needed since we didn't optimistically update
         alert("Erreur lors de la définition de la photo principale");
+        return;
       }
+
+      setCurrentPrimaryUrl(photoUrl);
     } catch (error) {
       console.error("Set primary error:", error);
-      // No revert needed
       alert("Erreur lors de la définition de la photo principale");
     }
   };
