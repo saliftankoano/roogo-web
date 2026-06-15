@@ -20,6 +20,7 @@ import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { sanitizeForStorage } from "@/lib/text-sanitize";
 
 const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
+const FREE_LISTING_DEFAULT_TIER_ID = "premium";
 type ListingPaymentMode =
   | "free_success_fee"
   | "upfront_package"
@@ -295,7 +296,7 @@ export async function POST(req: Request) {
     const effectiveTierId =
       listingPaymentMode === "upfront_package"
         ? (parsedListingData.tier_id ?? null)
-        : "essentiel";
+        : FREE_LISTING_DEFAULT_TIER_ID;
 
     if (isFreeSuccessFeeListing && (parsedListingData.add_ons?.length ?? 0) > 0) {
       return errorResponse(

@@ -137,6 +137,8 @@ const DEFAULT_FORM_DATA: PropertyFormData = {
   virtualTourUrl: "",
 };
 
+const FREE_LISTING_DEFAULT_TIER_ID = "premium";
+
 const STEPS = [
   { id: 1, label: "Le bien" },
   { id: 2, label: "Photos & Détails" },
@@ -464,8 +466,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const isFurnishedListing = formData.equipements.includes("meuble");
 
   useEffect(() => {
-    if ((isDailyListing || isFreeMonthlyListing) && selectedTier !== "essentiel") {
-      setSelectedTier("essentiel");
+    if (
+      (isDailyListing || isFreeMonthlyListing) &&
+      selectedTier !== FREE_LISTING_DEFAULT_TIER_ID
+    ) {
+      setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
     }
   }, [isDailyListing, isFreeMonthlyListing, selectedTier]);
 
@@ -741,7 +746,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       dosAndDonts: cleanRules(formData.dosAndDonts),
       virtualTourUrl: isStaffOrFounder ? formData.virtualTourUrl.trim() : "",
       photos,
-      tier_id: isDaily || isFreeMonthly ? "essentiel" : (selectedTier ?? undefined),
+      tier_id: isDaily || isFreeMonthly ? FREE_LISTING_DEFAULT_TIER_ID : (selectedTier ?? undefined),
       listing_payment_mode: listingPaymentMode,
       add_ons: isFreeMonthly ? [] : addOns,
       freeSuccessFeeTermsAccepted:
@@ -1892,7 +1897,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               setReferralQuote(null);
               setReferralError(null);
               if (value === "free") {
-                setSelectedTier("essentiel");
+                setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
                 setSelectedAddOns([]);
               }
             }}
@@ -1918,7 +1923,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <button
             type="button"
             onClick={() => {
-              setSelectedTier("essentiel");
+              setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
               setErrors((current) => {
                 const next = { ...current };
                 delete next.tier_id;
@@ -1949,7 +1954,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <button
             type="button"
             onClick={() => {
-              setSelectedTier("essentiel");
+              setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
               setErrors((current) => {
                 const next = { ...current };
                 delete next.tier_id;
@@ -1964,7 +1969,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   Publication gratuite
                 </p>
                 <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
-                  Mise en ligne avec les limites du pack essentiel. Aucun
+                  Mise en ligne avec les avantages du pack Premium. Aucun
                   paiement aujourd&apos;hui; le frais Roogo sera prélevé sur le
                   premier loyer encaissé.
                 </p>
