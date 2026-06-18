@@ -17,6 +17,7 @@ export type ListingQuoteInput = {
   addOns?: string[] | null;
   frequence?: string | null;
   monthlyRent?: number | null;
+  quoteMode?: "upfront_package" | "free_success_fee" | null;
 };
 
 export type ListingReferralQuote = {
@@ -122,6 +123,27 @@ export async function computeListingSubmissionQuote(
   const frequence =
     input.frequence === "journalier" ? "journalier" : "mensuel";
   const addOns = uniqueStrings(input.addOns);
+  const monthlyRent = toWholeXof(input.monthlyRent);
+
+  if (input.quoteMode === "free_success_fee" && frequence === "mensuel") {
+    if (monthlyRent <= 0) {
+      throw new ReferralValidationError(
+        "missing_monthly_rent",
+        "Loyer mensuel manquant pour calculer le parrainage.",
+      );
+    }
+
+    const deferredSuccessFeeAmount = Math.round(monthlyRent / 2);
+    return {
+      tierId: null,
+      baseFee: deferredSuccessFeeAmount,
+      addOnsTotal: 0,
+      commissionAmount: 0,
+      originalAmount: deferredSuccessFeeAmount,
+      monthlyRent,
+      frequence,
+    };
+  }
 
   let addOnsTotal = 0;
   if (addOns.length > 0) {
@@ -157,7 +179,6 @@ export async function computeListingSubmissionQuote(
     );
   }
 
-  const monthlyRent = toWholeXof(input.monthlyRent);
   if (monthlyRent <= 0) {
     throw new ReferralValidationError(
       "missing_monthly_rent",
@@ -382,6 +403,63 @@ export async function createPendingReferralRedemption(
   );
 
   if (error) throw error;
+}
+
+export async function qualifyFreeListingReferral(
+  supabase: SupabaseClient,
+  params: {
+    referral: AppliedReferral | null;
+    referredUserId: string;
+    propertyId: string;
+  },
+) {
+  if (!params.referral || params.referral.originalAmount <= 0) {
+    return { qualified: false };
+  }
+
+  const { data: existingQualified, error: existingQualifiedError } =
+    await supabase
+      .from("referral_redemptions")
+      .select("id")
+      .eq("referred_user_id", params.referredUserId)
+      .eq("status", "qualified")
+      .maybeSingle();
+
+  if (existingQualifiedError) throw existingQualifiedError;
+  if (existingQualified) return { qualified: false };
+
+  const { data: redemption, error: redemptionError } = await supabase
+    .from("referral_redemptions")
+    .insert({
+      referrer_profile_id: params.referral.profile.id,
+      referred_user_id: params.referredUserId,
+      code_used: params.referral.profile.code,
+      property_id: params.propertyId,
+      original_amount: params.referral.originalAmount,
+      discount_amount: params.referral.discountAmount,
+      paid_amount: params.referral.paidAmount,
+      status: "qualified",
+    })
+    .select("id, referrer_profile_id")
+    .single();
+
+  if (redemptionError) throw redemptionError;
+
+  const { error: commissionError } = await supabase
+    .from("referral_commissions")
+    .insert({
+      redemption_id: redemption.id,
+      referrer_profile_id: redemption.referrer_profile_id,
+      amount: params.referral.commissionAmount,
+      currency: REFERRAL_CURRENCY,
+      status: "pending",
+    });
+
+  if (commissionError && commissionError.code !== "23505") {
+    throw commissionError;
+  }
+
+  return { qualified: true, redemptionId: redemption.id };
 }
 
 export async function voidPendingReferralForTransaction(

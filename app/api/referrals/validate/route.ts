@@ -16,6 +16,7 @@ const validateSchema = z.object({
   addOns: z.array(z.string()).optional(),
   frequence: z.enum(["mensuel", "journalier"]).optional(),
   monthlyRent: z.number().optional(),
+  quoteMode: z.enum(["upfront_package", "free_success_fee"]).optional(),
 });
 
 export async function OPTIONS(req: Request) {
@@ -36,12 +37,15 @@ export async function POST(req: Request) {
     });
 
     const quote =
-      body.tierId || body.frequence === "journalier"
+      body.quoteMode === "free_success_fee" ||
+      body.tierId ||
+      body.frequence === "journalier"
         ? await computeListingSubmissionQuote(supabase, {
             tierId: body.tierId,
             addOns: body.addOns,
             frequence: body.frequence,
             monthlyRent: body.monthlyRent,
+            quoteMode: body.quoteMode,
           })
         : null;
     const referral = quote ? applyReferralToQuote(quote, profile) : null;
