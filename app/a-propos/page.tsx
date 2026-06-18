@@ -13,7 +13,7 @@ import {
 import { marketingAssets } from "../../components/marketing/assets";
 
 export const metadata: Metadata = {
-  title: "À propos de Roogo | Révolutionner l'Immobilier au Burkina Faso",
+  title: "À propos - Révolutionner l'Immobilier au Burkina Faso",
   description:
     "Découvrez Roogo, la plateforme qui simplifie la location immobilière au Burkina Faso grâce à l'innovation, la transparence et la qualité.",
 };
@@ -64,7 +64,7 @@ export default function AboutPage() {
               <MarketingImage
                 src={marketingAssets.teamEditorial.src}
                 fallbackSrc={marketingAssets.teamEditorial.fallback}
-                alt="Équipe Roogo"
+                alt="Équipe Roogo préparant des annonces immobilières"
                 fill
                 sizes="(max-width: 1024px) 100vw, 740px"
                 className="object-cover"
@@ -106,6 +106,7 @@ export default function AboutPage() {
                 src={proofImage.src}
                 fallbackSrc={proofImage.fallback}
                 alt="Photographie professionnelle d'un bien Roogo"
+                loading="lazy"
                 fill
                 sizes="(max-width: 1024px) 100vw, 620px"
                 className="object-cover"

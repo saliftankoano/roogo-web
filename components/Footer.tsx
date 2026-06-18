@@ -23,7 +23,7 @@ export function Footer() {
               <span className="rounded-2xl bg-white p-2">
                 <Image
                   src="/logo.png?v=2"
-                  alt="Roogo Logo"
+                  alt="Logo Roogo"
                   width={34}
                   height={34}
                   className="object-contain"

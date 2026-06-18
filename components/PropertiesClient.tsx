@@ -115,6 +115,13 @@ function PropertiesPageContent({
   }, [searchParams]);
 
   useEffect(() => {
+    const type = (searchParams?.get("type") || "").trim();
+    if (type) {
+      setTypeFilter(type);
+    }
+  }, [searchParams]);
+
+  useEffect(() => {
     setProperties(initialProperties);
   }, [initialProperties]);
 

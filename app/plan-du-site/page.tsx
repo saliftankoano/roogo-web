@@ -3,7 +3,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Plan du Site | Roogo",
+  title: "Plan du Site",
   description:
     "Explorez toutes les pages et sections de Roogo - la plateforme immobilière au Burkina Faso.",
 };

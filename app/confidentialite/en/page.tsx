@@ -3,7 +3,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Privacy Policy | Roogo",
+  title: "Privacy Policy",
   description:
     "Read Roogo's privacy policy to understand how we collect, use, and protect your personal data.",
 };

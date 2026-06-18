@@ -5,7 +5,7 @@ import JsonLd from "../components/JsonLd";
 import { getHomePageSchema } from "../lib/schemas";
 
 export const metadata: Metadata = {
-  title: "Roogo | Location Appartement et Maison au Burkina Faso",
+  title: "Location Appartement et Maison au Burkina Faso | Roogo",
   description: "Trouvez votre logement idéal à Ouagadougou et au Burkina Faso. Location appartement, maison, villa et local commercial. Photos professionnelles, visites organisées.",
   keywords: [
     "location appartement ouagadougou",

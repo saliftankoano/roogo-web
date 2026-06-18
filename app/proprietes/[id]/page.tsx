@@ -44,7 +44,7 @@ export async function generateMetadata({
     };
   }
 
-  const title = `${getPropertyDisplayName(property)} | Roogo`;
+  const title = getPropertyDisplayName(property);
   const description = metadataDescription(
     getPropertyDisplayDescription(property),
   );

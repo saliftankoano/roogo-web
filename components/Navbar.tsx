@@ -249,7 +249,7 @@ export function Navbar() {
             <div className="mr-3 rounded-2xl bg-primary/10 p-2 transition-transform duration-300 group-hover:scale-105">
               <Image
                 src="/logo.png?v=2"
-                alt="Roogo Logo"
+                alt="Logo Roogo"
                 width={28}
                 height={28}
                 className="object-contain"
