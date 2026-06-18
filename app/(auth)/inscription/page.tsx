@@ -10,7 +10,7 @@ export default function SignUpPage() {
       <Link href="/" className="mb-8">
         <Image
           src="/logo.png?v=2"
-          alt="Roogo Logo"
+          alt="Logo Roogo"
           width={160}
           height={160}
           className="object-contain"

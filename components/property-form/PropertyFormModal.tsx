@@ -500,8 +500,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           return sum + (addon?.price || 0);
         }, 0);
   const totalAmount = baseFeeAmount + commissionAmount + addOnsAmount;
-  const referralDiscountAmount =
-    !isFreeMonthlyListing ? (referralQuote?.discountAmount ?? 0) : 0;
+  const referralDiscountAmount = referralQuote?.discountAmount ?? 0;
   const payableAmount = Math.max(0, totalAmount - referralDiscountAmount);
   const deferredSuccessFeeAmount = isFreeMonthlyListing
     ? Math.round((rentAmount * MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) / 10000)
@@ -717,7 +716,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     }));
   };
 
-  const buildListingData = (paymentId?: string, addOns = selectedAddOns) => {
+  const buildListingData = (
+    paymentId?: string,
+    addOns = selectedAddOns,
+    referralCodeOverride = referralQuote?.code,
+  ) => {
     const isDaily = formData.frequence === "journalier";
     const listingPaymentMode = isDaily
       ? "daily_free"
@@ -752,6 +755,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       freeSuccessFeeTermsAccepted:
         isFreeMonthly && !formData.equipements.includes("meuble")
           ? freeTermsAccepted
+          : undefined,
+      referralCode:
+        isFreeMonthly && referralCodeOverride
+          ? referralCodeOverride
           : undefined,
       payment_id: paymentId,
       on_behalf_of_client: onBehalfOfClient,
@@ -922,7 +929,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     setCurrentStep(1);
   };
 
-  const createListingDirectly = async (addOns: string[]) => {
+  const createListingDirectly = async (
+    addOns: string[],
+    activeReferral?: ReferralQuote | null,
+  ) => {
     const token = await getToken();
     if (!token) throw new Error("No token found");
 
@@ -933,7 +943,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         Authorization: `Bearer ${token}`,
       },
       body: JSON.stringify({
-        listingData: buildListingData(undefined, addOns),
+        listingData: buildListingData(undefined, addOns, activeReferral?.code),
       }),
     });
 
@@ -974,7 +984,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       setReferralQuote(null);
       return null;
     }
-    if (!selectedTier) {
+    if (!selectedTier && !isFreeMonthlyListing) {
       setReferralError("Choisissez un pack avant d'appliquer le code.");
       return null;
     }
@@ -993,10 +1003,13 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         },
         body: JSON.stringify({
           code,
-          tierId: selectedTier,
+          tierId: isFreeMonthlyListing ? undefined : selectedTier,
           addOns,
           frequence: formData.frequence,
           monthlyRent: rentAmount,
+          quoteMode: isFreeMonthlyListing
+            ? "free_success_fee"
+            : "upfront_package",
         }),
       });
       const data = await response.json();
@@ -1172,7 +1185,13 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       setIsSubmitting(true);
       try {
         setSelectedAddOns([]);
-        await createListingDirectly([]);
+        const activeReferral = referralCode.trim()
+          ? await validateReferralCode([])
+          : null;
+        if (referralCode.trim() && !activeReferral) {
+          throw new Error("Code de parrainage invalide.");
+        }
+        await createListingDirectly([], activeReferral);
       } catch (error) {
         console.error("Error creating property:", error);
         alert(
@@ -2071,7 +2090,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               </span>
             </div>
           )}
-          {paymentChoice === "pay" && !isDailyListing && selectedTier && (
+          {!isDailyListing &&
+            (isFreeMonthlyListing || (paymentChoice === "pay" && selectedTier)) && (
             <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
               <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
                 Code de parrainage
@@ -2114,9 +2134,21 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           )}
           {referralDiscountAmount > 0 && (
             <div className="flex justify-between text-green-700">
-              <span>Remise parrainage</span>
+              <span>
+                {isFreeMonthlyListing
+                  ? "Remise sur frais différé"
+                  : "Remise parrainage"}
+              </span>
               <span className="font-extrabold">
                 -{formatAmount(referralDiscountAmount)}
+              </span>
+            </div>
+          )}
+          {isFreeMonthlyListing && referralQuote && (
+            <div className="flex justify-between text-neutral-600">
+              <span>Frais différé après remise</span>
+              <span className="font-extrabold text-neutral-950">
+                {formatAmount(referralQuote.paidAmount)}
               </span>
             </div>
           )}

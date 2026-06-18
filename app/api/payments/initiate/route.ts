@@ -24,10 +24,9 @@ import {
 import { normalizePhone } from "@/lib/phone";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import {
-  computeJournalierPricing,
-  nightsBetween,
-  type CautionType,
-} from "@/lib/journalier-pricing";
+  finalizeDailyBookingAfterPaymentDepositId,
+  type DailyBookingRequestRow,
+} from "@/lib/daily-bookings";
 import {
   applyReferralToQuote,
   buildReferralMetadata,
@@ -226,6 +225,7 @@ export async function POST(req: Request) {
     let resolvedAmount = amount;
     let resolvedMetadata: Record<string, unknown> = metadata || {};
     let appliedReferral = null as ReturnType<typeof applyReferralToQuote> | null;
+    let dailyBookingRequestId: string | null = null;
 
     if (transactionType === "property_lock" && propertyId) {
       const { data: propertyRecord, error: propertyError } = await supabase
@@ -257,102 +257,104 @@ export async function POST(req: Request) {
           totalMoveInAmount: breakdown.totalAmount,
         };
       } else {
-        // Daily stay. New flow opts in by sending startDate/endDate — server
-        // then recomputes stay cost + caution so the client can't forge the
-        // caution amount. Legacy callers without dates keep the client-sent
-        // amount and skip escrow (no deposit_holds row will be created).
+        // Daily stays must go through Request to Book. The owner-approved
+        // request owns the pricing snapshot and payment deadline; direct
+        // daily payments are rejected.
         const meta = (metadata || {}) as Record<string, unknown>;
-        const startDate =
-          typeof meta.startDate === "string" ? meta.startDate : null;
-        const endDate = typeof meta.endDate === "string" ? meta.endDate : null;
+        dailyBookingRequestId =
+          typeof meta.dailyBookingRequestId === "string"
+            ? meta.dailyBookingRequestId
+            : null;
 
-        if (startDate && endDate) {
-          const nights = nightsBetween(startDate, endDate);
-          if (nights <= 0) {
+        if (!dailyBookingRequestId) {
+          return errorResponse(
+            "Daily rentals require an approved booking request before payment",
+            400,
+            req,
+          );
+        }
+
+        const { data: requestRow, error: requestError } = await supabase
+          .from("daily_booking_requests")
+          .select("*")
+          .eq("id", dailyBookingRequestId)
+          .maybeSingle();
+
+        if (requestError || !requestRow) {
+          return errorResponse("Booking request not found", 404, req);
+        }
+
+        const bookingRequest = requestRow as DailyBookingRequestRow;
+        if (
+          bookingRequest.property_id !== propertyId ||
+          bookingRequest.renter_id !== user.id
+        ) {
+          return errorResponse("Booking request does not match payment", 403, req);
+        }
+
+        if (
+          !["approved_awaiting_payment", "payment_pending"].includes(
+            bookingRequest.status,
+          )
+        ) {
+          return errorResponse("Booking request is not awaiting payment", 409, req);
+        }
+
+        if (
+          bookingRequest.payment_expires_at &&
+          new Date(bookingRequest.payment_expires_at) < new Date()
+        ) {
+          return errorResponse("Payment window has expired", 409, req);
+        }
+
+        if (
+          bookingRequest.transaction_id &&
+          bookingRequest.status === "payment_pending"
+        ) {
+          return errorResponse("Payment is already in progress", 409, req);
+        }
+
+        const payoutPhoneRaw =
+          typeof meta.payoutPhone === "string" ? meta.payoutPhone : null;
+        const payoutProviderRaw =
+          typeof meta.payoutProvider === "string"
+            ? meta.payoutProvider
+            : null;
+        const payoutProvider = payoutProviderRaw
+          ? normalizePawaPayProvider(payoutProviderRaw)
+          : null;
+
+        if (bookingRequest.caution_amount > 0) {
+          if (!payoutPhoneRaw || !payoutProvider) {
             return errorResponse(
-              "Booking must span at least one night",
+              "payoutPhone and payoutProvider are required for bookings with a caution",
               400,
               req,
             );
           }
-
-          const { data: listingConfig, error: listingConfigError } =
-            await supabase
-              .from("listing_config")
-              .select("daily_owner_commission_percentage")
-              .eq("id", "default")
-              .single();
-
-          const dailyOwnerCommissionPercentage = Number(
-            listingConfig?.daily_owner_commission_percentage,
-          );
-
-          if (
-            listingConfigError ||
-            !Number.isFinite(dailyOwnerCommissionPercentage)
-          ) {
-            console.error(
-              "Daily owner commission config missing:",
-              listingConfigError,
-            );
-            return errorResponse(
-              "Daily owner commission is not configured",
-              500,
-              req,
-            );
-          }
-
-          const breakdown = computeJournalierPricing({
-            nightlyRate: propertyRecord.price,
-            nights,
-            cautionType: propertyRecord.caution_type as CautionType,
-            cautionValeur: propertyRecord.caution_valeur,
-            ownerCommissionPercentage: dailyOwnerCommissionPercentage,
-          });
-
-          const payoutPhoneRaw =
-            typeof meta.payoutPhone === "string" ? meta.payoutPhone : null;
-          const payoutProviderRaw =
-            typeof meta.payoutProvider === "string"
-              ? meta.payoutProvider
-              : null;
-          const payoutProvider = payoutProviderRaw
-            ? normalizePawaPayProvider(payoutProviderRaw)
-            : null;
-
-          if (breakdown.cautionAmount > 0) {
-            if (!payoutPhoneRaw || !payoutProvider) {
-              return errorResponse(
-                "payoutPhone and payoutProvider are required for bookings with a caution",
-                400,
-                req,
-              );
-            }
-          }
-
-          resolvedAmount = breakdown.totalAmount;
-          resolvedMetadata = {
-            ...resolvedMetadata,
-            startDate,
-            endDate,
-            nights: breakdown.nights,
-            nightlyRate: breakdown.nightlyRate,
-            stayAmount: breakdown.stayAmount,
-            originalCautionAmount: breakdown.originalCautionAmount,
-            cautionAmount: breakdown.cautionAmount,
-            cautionCapAmount: breakdown.cautionCapAmount,
-            cautionType: breakdown.cautionType,
-            cautionValeur: breakdown.cautionValeur,
-            renterServiceFeeBps: breakdown.renterServiceFeeBps,
-            renterServiceFeeAmount: breakdown.renterServiceFeeAmount,
-            ownerCommissionBps: breakdown.ownerCommissionBps,
-            ownerCommissionAmount: breakdown.ownerCommissionAmount,
-            ownerNetAmount: breakdown.ownerNetAmount,
-            totalCollectedAmount: breakdown.totalAmount,
-            payoutPhone: payoutPhoneRaw || null,
-            payoutProvider: payoutProvider || null,
-          };
         }
+
+        resolvedAmount = bookingRequest.total_amount;
+        resolvedMetadata = {
+          ...resolvedMetadata,
+          dailyBookingRequestId,
+          startDate: bookingRequest.start_date,
+          endDate: bookingRequest.end_date,
+          nights: bookingRequest.nights,
+          nightlyRate: bookingRequest.nightly_rate,
+          stayAmount: bookingRequest.stay_amount,
+          originalCautionAmount: bookingRequest.original_caution_amount,
+          cautionAmount: bookingRequest.caution_amount,
+          cautionCapAmount: bookingRequest.caution_cap_amount,
+          renterServiceFeeBps: bookingRequest.renter_service_fee_bps,
+          renterServiceFeeAmount: bookingRequest.renter_service_fee_amount,
+          ownerCommissionBps: bookingRequest.owner_commission_bps,
+          ownerCommissionAmount: bookingRequest.owner_commission_amount,
+          ownerNetAmount: bookingRequest.owner_net_amount,
+          totalCollectedAmount: bookingRequest.total_amount,
+          payoutPhone: payoutPhoneRaw || null,
+          payoutProvider: payoutProvider || null,
+        };
       }
     }
 
@@ -573,6 +575,17 @@ export async function POST(req: Request) {
         await voidPendingReferralForTransaction(supabase, transactionRecord.id);
       }
 
+      if (dailyBookingRequestId) {
+        await supabase
+          .from("daily_booking_requests")
+          .update({
+            status: "approved_awaiting_payment",
+            transaction_id: null,
+          })
+          .eq("id", dailyBookingRequestId)
+          .eq("transaction_id", transactionRecord.id);
+      }
+
       const failureReason = result.details?.failureReason;
       const errorMessage =
         failureReason?.failureMessage ||
@@ -601,6 +614,18 @@ export async function POST(req: Request) {
         ),
         req,
       );
+    }
+
+    if (dailyBookingRequestId && transactionRecord?.id) {
+      await supabase
+        .from("daily_booking_requests")
+        .update({
+          status: "payment_pending",
+          payment_started_at: new Date().toISOString(),
+          transaction_id: transactionRecord.id,
+        })
+        .eq("id", dailyBookingRequestId)
+        .in("status", ["approved_awaiting_payment", "payment_pending"]);
     }
 
     // 7. Update status only if PawaPay COMPLETED immediately
@@ -661,6 +686,8 @@ export async function POST(req: Request) {
           await creditOwnerEarningForSchedule(scheduleId);
           await notifyOwnerRentReceivedForSchedule(scheduleId);
         }
+      } else if (transactionType === "property_lock" && dailyBookingRequestId) {
+        await finalizeDailyBookingAfterPaymentDepositId(depositId);
       }
     }
 

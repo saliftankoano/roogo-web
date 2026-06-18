@@ -18,10 +18,13 @@ import { Hero } from "./Hero";
 import { PropertyCard } from "./PropertyCard";
 import { Footer } from "./Footer";
 import { Property } from "../lib/data";
+import { homeFaqItems } from "../lib/home-content";
 import { Button } from "./ui/Button";
 import {
   DarkSection,
   EditorialSection,
+  ImagePanel,
+  InteractiveCard,
   MarketingImage,
   ProofStat,
   SectionHeader,
@@ -85,6 +88,7 @@ const audiencePaths = [
     title: "Locataires",
     body: "Cherchez par quartier, comparez les biens et avancez vers une visite avec moins d'incertitude.",
     image: marketingAssets.organizedVisit,
+    imageAlt: "Locataire visitant un logement organisé avec Roogo",
     href: "/proprietes",
     cta: "Voir les logements",
   },
@@ -93,6 +97,7 @@ const audiencePaths = [
     title: "Propriétaires",
     body: "Présentez votre bien proprement et gardez les demandes dans un parcours plus sérieux.",
     image: ownerAudienceImage,
+    imageAlt: "Propriétaire préparant la mise en location d'un bien avec Roogo",
     href: "/proprietes",
     cta: "Publier un bien",
   },
@@ -101,27 +106,17 @@ const audiencePaths = [
     title: "Commerces",
     body: "Trouvez un local visible pour lancer ou développer votre activité à Ouagadougou.",
     image: marketingAssets.commercialSpace,
+    imageAlt: "Local commercial disponible à Ouagadougou avec Roogo",
     href: "/proprietes?category=Business",
     cta: "Voir les locaux",
   },
 ];
 
-const trustQuestions = [
-  {
-    question: "Est-ce que les annonces sont vérifiées ?",
-    answer:
-      "Roogo met l'accent sur les informations utiles, les photos exploitables et les statuts de bien pour réduire les mauvaises surprises.",
-  },
-  {
-    question: "Est-ce que je paie pour visiter ?",
-    answer:
-      "La recherche doit rester simple pour le locataire. Le site met en avant le principe de zéro frais de visite imposés.",
-  },
-  {
-    question: "Est-ce utile pour les propriétaires ?",
-    answer:
-      "Oui. Le propriétaire gagne une présentation plus claire du bien et un flux de demandes plus structuré.",
-  },
+const popularSearches = [
+  { label: "Appartements à Ouagadougou", href: "/proprietes?type=appartement" },
+  { label: "Villas à louer", href: "/proprietes?type=villa" },
+  { label: "Locaux commerciaux", href: "/proprietes?category=Business" },
+  { label: "Biens meublés", href: "/proprietes?category=Furnished" },
 ];
 
 export default function HomeClient({ featuredProperties }: HomeClientProps) {
@@ -167,12 +162,12 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
             viewport={{ once: true, margin: "-80px" }}
           >
             {painPoints.map((point) => (
-              <motion.article
+              <InteractiveCard
                 key={point.title}
                 variants={item}
-                className="rounded-[28px] border border-[#e7dacb] bg-white/70 p-6 shadow-sm"
+                className="group rounded-[28px] border border-[#e7dacb] bg-white/70 p-6 shadow-sm hover:shadow-xl hover:shadow-[#5a321a]/10"
               >
-                <div className="mb-7 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                <div className="mb-7 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105">
                   <point.icon size={26} weight="duotone" />
                 </div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
@@ -184,7 +179,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                 <p className="mt-4 text-sm font-medium leading-7 text-neutral-600">
                   {point.body}
                 </p>
-              </motion.article>
+              </InteractiveCard>
             ))}
           </motion.div>
         </EditorialSection>
@@ -201,8 +196,13 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
 
               <div className="mt-10 grid gap-4">
                 {roogoFlow.map((step) => (
-                  <div
+                  <motion.div
                     key={step.step}
+                    initial={{ opacity: 0, x: -18 }}
+                    whileInView={{ opacity: 1, x: 0 }}
+                    whileHover={{ x: 5 }}
+                    viewport={{ once: true, margin: "-80px" }}
+                    transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                     className="grid gap-4 rounded-[24px] border border-white/10 bg-white/[0.06] p-5 sm:grid-cols-[72px_minmax(0,1fr)]"
                   >
                     <div className="text-2xl font-black text-primary">
@@ -216,18 +216,19 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                         {step.body}
                       </p>
                     </div>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
             </div>
 
             <div className="grid gap-4">
-              <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.06] p-3 shadow-2xl shadow-black/30">
+              <ImagePanel className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.06] p-3 shadow-2xl shadow-black/30">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-black/30">
                   <MarketingImage
                     src={marketingAssets.verification.src}
                     fallbackSrc={marketingAssets.verification.fallback}
                     alt="Vérification d'un bien immobilier Roogo"
+                    loading="lazy"
                     fill
                     sizes="(max-width: 1024px) 100vw, 430px"
                     className="object-cover"
@@ -244,14 +245,15 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                     </p>
                   </div>
                 </div>
-              </div>
+              </ImagePanel>
 
-              <div className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.06] p-3 shadow-2xl shadow-black/30">
+              <ImagePanel className="overflow-hidden rounded-[30px] border border-white/10 bg-white/[0.06] p-3 shadow-2xl shadow-black/30">
                 <div className="relative aspect-[4/3] overflow-hidden rounded-[22px] bg-black/30">
                   <MarketingImage
                     src={marketingAssets.securePayment.src}
                     fallbackSrc={marketingAssets.securePayment.fallback}
                     alt="Paiement sécurisé Roogo"
+                    loading="lazy"
                     fill
                     sizes="(max-width: 1024px) 100vw, 430px"
                     className="object-cover"
@@ -268,7 +270,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                     </p>
                   </div>
                 </div>
-              </div>
+              </ImagePanel>
             </div>
           </div>
         </DarkSection>
@@ -289,16 +291,17 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
             viewport={{ once: true, margin: "-80px" }}
           >
             {audiencePaths.map((path) => (
-              <motion.article
+              <InteractiveCard
                 key={path.title}
                 variants={item}
-                className="group overflow-hidden rounded-[30px] border border-neutral-200 bg-[#f8f5ef] shadow-sm"
+                className="group overflow-hidden rounded-[30px] border border-neutral-200 bg-[#f8f5ef] shadow-sm hover:shadow-2xl hover:shadow-[#5a321a]/10"
               >
                 <div className="relative aspect-[1.08] overflow-hidden">
                   <MarketingImage
                     src={path.image.src}
                     fallbackSrc={path.image.fallback}
-                    alt={path.title}
+                    alt={path.imageAlt}
+                    loading="lazy"
                     fill
                     sizes="(max-width: 1024px) 100vw, 380px"
                     className="object-cover transition-transform duration-700 group-hover:scale-105"
@@ -320,10 +323,14 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                     className="mt-6 inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-3 text-sm font-black text-white transition-colors hover:bg-primary"
                   >
                     {path.cta}
-                    <ArrowRightIcon size={18} weight="bold" />
+                    <ArrowRightIcon
+                      size={18}
+                      weight="bold"
+                      className="transition-transform duration-300 group-hover:translate-x-1"
+                    />
                   </Link>
                 </div>
-              </motion.article>
+              </InteractiveCard>
             ))}
           </motion.div>
         </EditorialSection>
@@ -360,6 +367,32 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
           </div>
         </section>
 
+        <EditorialSection className="bg-white">
+          <div className="grid gap-8 lg:grid-cols-[0.8fr_1.2fr] lg:items-center">
+            <SectionHeader
+              kicker="Recherches populaires"
+              title="Accédez plus vite aux biens les plus demandés."
+              description="Ces liens renforcent les parcours immobiliers utiles sans créer de pages de quartier qui n'existent pas encore."
+            />
+            <div className="grid gap-3 sm:grid-cols-2">
+              {popularSearches.map((search) => (
+                <Link
+                  key={search.href}
+                  href={search.href}
+                  className="group flex items-center justify-between rounded-2xl border border-neutral-200 bg-[#f8f5ef] px-5 py-4 text-sm font-black text-neutral-950 transition-colors hover:border-primary/40 hover:bg-primary/10"
+                >
+                  <span>{search.label}</span>
+                  <ArrowRightIcon
+                    size={18}
+                    weight="bold"
+                    className="text-primary transition-transform duration-300 group-hover:translate-x-1"
+                  />
+                </Link>
+              ))}
+            </div>
+          </div>
+        </EditorialSection>
+
         <DarkSection className="py-20 md:py-28">
           <div className="grid gap-10 lg:grid-cols-[0.86fr_1.14fr] lg:items-center">
             <SectionHeader
@@ -370,30 +403,31 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
             />
 
             <div className="grid gap-4">
-              {trustQuestions.map((item) => (
-                <article
+              {homeFaqItems.map((item) => (
+                <InteractiveCard
                   key={item.question}
-                  className="rounded-[24px] border border-white/10 bg-white/[0.06] p-6"
+                  className="rounded-[24px] border border-white/10 bg-white/[0.06] p-6 hover:border-white/20 hover:bg-white/[0.08]"
                 >
                   <h3 className="font-black text-white">{item.question}</h3>
                   <p className="mt-3 text-sm font-medium leading-7 text-white/60">
                     {item.answer}
                   </p>
-                </article>
+                </InteractiveCard>
               ))}
             </div>
           </div>
         </DarkSection>
 
         <section className="relative overflow-hidden bg-neutral-950 px-3 py-3">
-          <div className="relative mx-auto min-h-[520px] max-w-[1500px] overflow-hidden rounded-[30px]">
+          <ImagePanel className="relative mx-auto min-h-[520px] max-w-[1500px] overflow-hidden rounded-[30px]">
             <MarketingImage
               src={marketingAssets.finalCta.src}
               fallbackSrc={marketingAssets.finalCta.fallback}
               alt="Cour d'une maison disponible avec Roogo"
+              loading="lazy"
               fill
               sizes="100vw"
-              className="object-cover"
+              className="object-cover transition-transform duration-700 group-hover:scale-105"
             />
             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,9,7,0.88),rgba(12,9,7,0.45),rgba(12,9,7,0.16)),linear-gradient(180deg,rgba(12,9,7,0.12),rgba(12,9,7,0.78))]" />
             <div className="relative flex min-h-[520px] max-w-3xl flex-col justify-end px-6 py-10 sm:px-12 lg:px-16">
@@ -426,7 +460,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                 </Link>
               </div>
             </div>
-          </div>
+          </ImagePanel>
         </section>
       </main>
 

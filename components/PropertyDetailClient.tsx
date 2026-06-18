@@ -467,7 +467,7 @@ export function PropertyDetailClient({
                           <button key={idx} onClick={() => setCurrentImageIndex(idx)}
                             className={cn("relative shrink-0 w-16 h-16 rounded-xl overflow-hidden border-2 transition-all",
                               idx === currentImageIndex ? "border-primary" : "border-transparent opacity-70 hover:opacity-100")}>
-                            <Image src={img} alt="" fill className="object-cover" sizes="64px" />
+                            <Image src={img} alt={`Miniature ${idx + 1} de la propriété à ${listing.location}`} fill className="object-cover" sizes="64px" />
                           </button>
                         ))}
                       </div>

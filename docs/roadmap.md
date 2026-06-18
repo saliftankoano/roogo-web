@@ -118,6 +118,10 @@ Use this list as the quick completion view for major features.
       place; pending database migration and production QA
 - [ ] CINET card payments for diaspora renters - enable card payments through
       CINET so users abroad can reserve and rent homes before arriving
+- [ ] Daily rental request-to-book flow - launch daily rentals with owner
+      approval before payment, renter check-in/checkout confirmations, and
+      payout availability after completed checkout; product spec in
+      [`daily-rental-request-book-payout-flow.md`](daily-rental-request-book-payout-flow.md)
 - [ ] Owner-side rent-received push notification - send a push to the owner
       when their tenant pays rent (today only the renter is notified)
 

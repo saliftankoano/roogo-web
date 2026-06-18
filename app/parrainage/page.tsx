@@ -1,15 +1,20 @@
 "use client";
 
 import {
-  FormEvent,
   useCallback,
   useEffect,
   useMemo,
   useRef,
   useState,
 } from "react";
+import type { ChangeEvent, FormEvent } from "react";
 import { SignInButton, useAuth } from "@clerk/nextjs";
-import { CopyIcon, CheckCircleIcon } from "@phosphor-icons/react";
+import {
+  CopyIcon,
+  CheckCircleIcon,
+  UploadSimpleIcon,
+  XCircleIcon,
+} from "@phosphor-icons/react";
 import { formatPrice } from "@/lib/utils";
 
 type ReferrerProfile = {
@@ -51,7 +56,8 @@ type ReferralMeResponse = {
   totals?: { pending: number; paid: number };
 };
 
-const MAX_REFERRAL_IMAGE_BYTES = 1_250_000;
+const REFERRAL_IMAGE_COMPRESSION_TARGET_BYTES = 1_250_000;
+const MAX_REFERRAL_IMAGE_BYTES = 8 * 1024 * 1024;
 const MAX_REFERRAL_IMAGE_DIMENSION = 1600;
 
 const statusLabels: Record<ReferrerProfile["status"], string> = {
@@ -135,7 +141,19 @@ async function compressReferralImage(file: File, fallbackName: string) {
     throw new Error("Les pièces d'identité doivent être des images.");
   }
 
-  const image = await loadImage(file);
+  if (file.size > MAX_REFERRAL_IMAGE_BYTES) {
+    throw new Error(
+      "Image trop volumineuse. Envoyez une photo de moins de 8 Mo ou recadrez la pièce.",
+    );
+  }
+
+  let image: HTMLImageElement;
+  try {
+    image = await loadImage(file);
+  } catch {
+    return file;
+  }
+
   const scale = Math.min(
     1,
     MAX_REFERRAL_IMAGE_DIMENSION / Math.max(image.width, image.height),
@@ -153,17 +171,16 @@ async function compressReferralImage(file: File, fallbackName: string) {
 
   for (const quality of [0.82, 0.72, 0.62, 0.52]) {
     const blob = await canvasToBlob(canvas, "image/jpeg", quality);
-    if (blob.size <= MAX_REFERRAL_IMAGE_BYTES || quality === 0.52) {
-      if (blob.size > MAX_REFERRAL_IMAGE_BYTES) {
-        throw new Error(
-          "Image trop volumineuse. Envoyez une photo plus légère ou recadrez la pièce.",
-        );
-      }
+    if (
+      blob.size <= REFERRAL_IMAGE_COMPRESSION_TARGET_BYTES ||
+      quality === 0.52
+    ) {
+      if (blob.size > MAX_REFERRAL_IMAGE_BYTES) return file;
       return new File([blob], `${fallbackName}.jpg`, { type: "image/jpeg" });
     }
   }
 
-  throw new Error("Compression impossible.");
+  return file;
 }
 
 export default function ParrainagePage() {
@@ -174,7 +191,6 @@ export default function ParrainagePage() {
   const [applicationFormReady, setApplicationFormReady] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
-  const [fileNames, setFileNames] = useState({ idFront: "", idBack: "" });
   const applicationFormRef = useRef<HTMLFormElement>(null);
 
   const profile = data?.profile ?? null;
@@ -221,13 +237,6 @@ export default function ParrainagePage() {
       Boolean(applicationFormRef.current?.checkValidity()),
     );
   }, []);
-
-  const updateFileName = useCallback(
-    (name: "idFront" | "idBack", value: string) => {
-      setFileNames((current) => ({ ...current, [name]: value }));
-    },
-    [],
-  );
 
   useEffect(() => {
     if (canApply) updateApplicationFormReady();
@@ -365,8 +374,10 @@ export default function ParrainagePage() {
                     2. Partagez votre code
                   </p>
                   <p className="mt-1 text-sm leading-6 text-neutral-600">
-                    Un propriétaire ou agent utilise votre code au paiement de
-                    sa première annonce payante et reçoit 5% de réduction.
+                    Un propriétaire ou agent utilise votre code sur sa
+                    publication payante ou gratuite. La remise s’applique au
+                    paiement immédiat ou au frais différé de publication
+                    gratuite.
                   </p>
                 </div>
                 <div className="rounded-2xl bg-neutral-50 p-4">
@@ -374,8 +385,8 @@ export default function ParrainagePage() {
                     3. Touchez votre commission
                   </p>
                   <p className="mt-1 text-sm leading-6 text-neutral-600">
-                    Quand le paiement est confirmé et l’annonce créée, votre
-                    commission passe en attente de paiement.
+                    Quand l’annonce est créée et qualifiée, votre commission
+                    passe en attente de paiement manuel.
                   </p>
                 </div>
               </div>
@@ -451,16 +462,14 @@ export default function ParrainagePage() {
                   </select>
                 </label>
                 <FileInputField
-                  label="Pièce d'identité recto"
+                  label="Recto CNIB"
                   name="idFront"
-                  fileName={fileNames.idFront}
-                  onFileNameChange={(value) => updateFileName("idFront", value)}
+                  onReadyChange={updateApplicationFormReady}
                 />
                 <FileInputField
-                  label="Pièce d'identité verso"
+                  label="Verso CNIB"
                   name="idBack"
-                  fileName={fileNames.idBack}
-                  onFileNameChange={(value) => updateFileName("idBack", value)}
+                  onReadyChange={updateApplicationFormReady}
                 />
               </div>
               <button
@@ -631,35 +640,128 @@ export default function ParrainagePage() {
 function FileInputField({
   label,
   name,
-  fileName,
-  onFileNameChange,
+  onReadyChange,
 }: {
   label: string;
   name: "idFront" | "idBack";
-  fileName: string;
-  onFileNameChange: (value: string) => void;
+  onReadyChange: () => void;
 }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const [fileName, setFileName] = useState("");
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [fieldError, setFieldError] = useState<string | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  const clearFile = () => {
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl("");
+    setFileName("");
+    setFieldError(null);
+    if (inputRef.current) {
+      inputRef.current.value = "";
+      inputRef.current.setCustomValidity("");
+    }
+    window.setTimeout(onReadyChange, 0);
+  };
+
+  const handleChange = (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.currentTarget.files?.[0] ?? null;
+    if (previewUrl) URL.revokeObjectURL(previewUrl);
+    setPreviewUrl("");
+    setFileName("");
+    setFieldError(null);
+    event.currentTarget.setCustomValidity("");
+
+    if (!file) {
+      window.setTimeout(onReadyChange, 0);
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      const message = "Ajoutez une photo de la CNIB au format image.";
+      event.currentTarget.value = "";
+      event.currentTarget.setCustomValidity(message);
+      setFieldError(message);
+      window.setTimeout(onReadyChange, 0);
+      return;
+    }
+
+    if (file.size > MAX_REFERRAL_IMAGE_BYTES) {
+      const message = "La photo doit faire moins de 8 Mo.";
+      event.currentTarget.value = "";
+      event.currentTarget.setCustomValidity(message);
+      setFieldError(message);
+      window.setTimeout(onReadyChange, 0);
+      return;
+    }
+
+    setFileName(file.name);
+    setPreviewUrl(URL.createObjectURL(file));
+    window.setTimeout(onReadyChange, 0);
+  };
+
   return (
-    <label className="space-y-2">
-      <span className="text-sm font-semibold text-neutral-700">{label}</span>
-      <span className="flex min-h-[50px] cursor-pointer items-center gap-3 rounded-xl border border-neutral-200 px-4 py-3 text-sm">
-        <span className="rounded-lg bg-neutral-100 px-3 py-2 font-semibold text-neutral-800">
-          Choisir un fichier
-        </span>
-        <span className="min-w-0 flex-1 truncate text-neutral-600">
-          {fileName || "Aucun fichier sélectionné"}
-        </span>
-      </span>
+    <div className="space-y-2">
+      <label className="text-sm font-semibold text-neutral-700" htmlFor={name}>
+        {label}
+      </label>
+      <div
+        className={`rounded-2xl border bg-neutral-50 p-3 ${
+          fieldError ? "border-red-300" : "border-neutral-200"
+        }`}
+      >
+        <button
+          type="button"
+          onClick={() => inputRef.current?.click()}
+          className="group flex min-h-[150px] w-full flex-col items-center justify-center overflow-hidden rounded-xl border-2 border-dashed border-neutral-200 bg-white text-center transition hover:border-primary/50"
+        >
+          {previewUrl ? (
+            <span
+              className="block h-36 w-full rounded-lg bg-cover bg-center"
+              style={{ backgroundImage: `url(${previewUrl})` }}
+              aria-label={`Aperçu ${label}`}
+            />
+          ) : (
+            <span className="flex flex-col items-center gap-2 px-4 text-sm font-semibold text-neutral-500">
+              <UploadSimpleIcon size={24} weight="bold" />
+              Ajouter la photo
+            </span>
+          )}
+        </button>
+        <div className="mt-3 flex items-center justify-between gap-3">
+          <p className="min-w-0 truncate text-xs font-semibold text-neutral-500">
+            {fileName || "Image JPG, PNG ou HEIC acceptée"}
+          </p>
+          {fileName && (
+            <button
+              type="button"
+              onClick={clearFile}
+              className="inline-flex shrink-0 items-center gap-1 rounded-full bg-red-50 px-3 py-1 text-xs font-bold text-red-600"
+            >
+              <XCircleIcon size={14} weight="fill" />
+              Retirer
+            </button>
+          )}
+        </div>
+      </div>
       <input
+        ref={inputRef}
+        id={name}
         name={name}
         type="file"
         accept="image/*"
         required
         className="sr-only"
-        onChange={(event) =>
-          onFileNameChange(event.currentTarget.files?.[0]?.name || "")
-        }
+        onChange={handleChange}
       />
-    </label>
+      {fieldError && (
+        <p className="text-xs font-semibold text-red-600">{fieldError}</p>
+      )}
+    </div>
   );
 }

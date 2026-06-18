@@ -11,10 +11,18 @@ import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
 import { BOOST_DURATION_DAYS } from "@/lib/constants";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { listingBaseSchema } from "@/lib/validations";
+import { listingBaseSchema, MAX_LISTING_PHOTOS } from "@/lib/validations";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
-import { qualifyReferralForTransaction } from "@/lib/referrals";
+import {
+  type AppliedReferral,
+  applyReferralToQuote,
+  computeListingSubmissionQuote,
+  qualifyFreeListingReferral,
+  qualifyReferralForTransaction,
+  ReferralValidationError,
+  validateReferralForUser,
+} from "@/lib/referrals";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { sanitizeForStorage } from "@/lib/text-sanitize";
@@ -402,6 +410,9 @@ export async function POST(req: Request) {
     if (photoLimit !== null && effectiveAddOns.includes("extra_photos")) {
       photoLimit += 5;
     }
+    if (photoLimit !== null) {
+      photoLimit = Math.min(photoLimit, MAX_LISTING_PHOTOS);
+    }
 
     // Calculate open house limit with add-ons
     let openHouseLimit = selectedTier?.open_house_limit || null;
@@ -411,6 +422,49 @@ export async function POST(req: Request) {
 
     // Staff listings are automatically verified (en_ligne), owner/agent listings need approval
     const propertyStatus = isStaffOrFounder ? "en_ligne" : "en_attente";
+    const isTestListing = isStaffOrFounder
+      ? parsedListingData.is_test === true
+      : false;
+    const deferredSuccessFeeAmount =
+      isFreeSuccessFeeListing && isTestListing === false
+        ? Math.round(
+            (parsedListingData.prixMensuel *
+              MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) /
+              10000,
+          )
+        : 0;
+
+    const freeReferralCode =
+      typeof parsedListingData.referralCode === "string"
+        ? parsedListingData.referralCode.trim()
+        : "";
+    let freeListingReferral: AppliedReferral | null = null;
+    if (
+      freeReferralCode &&
+      isFreeSuccessFeeListing &&
+      !isDailyListing &&
+      deferredSuccessFeeAmount > 0
+    ) {
+      try {
+        const profile = await validateReferralForUser(supabase, {
+          code: freeReferralCode,
+          referredUserId: user.id,
+          referredUserType: user.user_type,
+        });
+        const quote = await computeListingSubmissionQuote(supabase, {
+          quoteMode: "free_success_fee",
+          frequence: "mensuel",
+          monthlyRent: parsedListingData.prixMensuel,
+        });
+        freeListingReferral = applyReferralToQuote(quote, profile);
+      } catch (referralError) {
+        if (referralError instanceof ReferralValidationError) {
+          return errorResponse(referralError.message, referralError.status, req);
+        }
+        console.error("Error validating free listing referral:", referralError);
+        return errorResponse("Failed to validate referral", 500, req);
+      }
+    }
 
     const dailyCautionValue = (() => {
       if (!isDailyListing) return null;
@@ -489,7 +543,7 @@ export async function POST(req: Request) {
       // Set published_at for staff listings since they go live immediately
       published_at: isStaffOrFounder ? new Date().toISOString() : null,
       // Only staff/founder may mark a listing as test (hidden from public)
-      is_test: isStaffOrFounder ? parsedListingData.is_test === true : false,
+      is_test: isTestListing,
       virtual_tour_url: isStaffOrFounder ? virtualTourUrl : null,
     };
 
@@ -533,15 +587,6 @@ export async function POST(req: Request) {
     }
 
     // 10. Create deferred fee or link transaction record.
-    const deferredSuccessFeeAmount =
-      isFreeSuccessFeeListing && propertyData.is_test === false
-        ? Math.round(
-            (parsedListingData.prixMensuel *
-              MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) /
-              10000,
-          )
-        : 0;
-
     if (deferredSuccessFeeAmount > 0) {
       const { error: feeError } = await supabase
         .from("property_listing_fees")
@@ -564,6 +609,18 @@ export async function POST(req: Request) {
       if (feeError) {
         console.error("Error creating deferred listing fee:", feeError);
         return errorResponse("Failed to create listing fee", 500, req);
+      }
+    }
+
+    if (freeListingReferral) {
+      try {
+        await qualifyFreeListingReferral(supabase, {
+          referral: freeListingReferral,
+          referredUserId: user.id,
+          propertyId,
+        });
+      } catch (referralError) {
+        console.error("Error qualifying free listing referral:", referralError);
       }
     }
 

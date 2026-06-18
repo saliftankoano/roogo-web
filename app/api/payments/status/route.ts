@@ -10,6 +10,7 @@ import { creditOwnerEarningForSchedule } from "@/lib/owner-wallet";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import { voidPendingReferralForTransaction } from "@/lib/referrals";
 import { unescapeText } from "@/lib/text-sanitize";
+import { finalizeDailyBookingAfterPayment } from "@/lib/daily-bookings";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -210,6 +211,22 @@ export async function POST(req: Request) {
           transaction as Record<string, unknown>,
         );
 
+        if (
+          transaction.status === "completed" &&
+          transaction.type === "property_lock" &&
+          transaction.property_id
+        ) {
+          const { data: propertyRecord } = await supabase
+            .from("properties")
+            .select("period")
+            .eq("id", transaction.property_id)
+            .maybeSingle();
+
+          if (propertyRecord?.period === "day") {
+            await finalizeDailyBookingAfterPayment(transaction.id);
+          }
+        }
+
         return cors(
           NextResponse.json({
             success: true,
@@ -351,6 +368,24 @@ export async function POST(req: Request) {
 
       if (dbStatus === "failed") {
         await voidPendingReferralForTransaction(supabase, transaction.id);
+        const metadata =
+          transaction.metadata && typeof transaction.metadata === "object"
+            ? (transaction.metadata as Record<string, unknown>)
+            : {};
+        const dailyBookingRequestId =
+          typeof metadata.dailyBookingRequestId === "string"
+            ? metadata.dailyBookingRequestId
+            : null;
+        if (dailyBookingRequestId) {
+          await supabase
+            .from("daily_booking_requests")
+            .update({
+              status: "approved_awaiting_payment",
+              transaction_id: null,
+            })
+            .eq("id", dailyBookingRequestId)
+            .eq("transaction_id", transaction.id);
+        }
       }
 
       // Handle post-payment logic if it just became completed
@@ -413,6 +448,8 @@ export async function POST(req: Request) {
               .from("properties")
               .update({ status: "locked" })
               .eq("id", transaction.property_id);
+          } else {
+            await finalizeDailyBookingAfterPayment(transaction.id);
           }
 
           if (propertyLabel) {

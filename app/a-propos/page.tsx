@@ -6,6 +6,8 @@ import { getAboutPageSchema } from "../../lib/schemas";
 import {
   DarkSection,
   EditorialSection,
+  ImagePanel,
+  InteractiveCard,
   MarketingImage,
   ProofStat,
   SectionHeader,
@@ -13,7 +15,7 @@ import {
 import { marketingAssets } from "../../components/marketing/assets";
 
 export const metadata: Metadata = {
-  title: "À propos de Roogo | Révolutionner l'Immobilier au Burkina Faso",
+  title: "À propos - Révolutionner l'Immobilier au Burkina Faso",
   description:
     "Découvrez Roogo, la plateforme qui simplifie la location immobilière au Burkina Faso grâce à l'innovation, la transparence et la qualité.",
 };
@@ -64,7 +66,7 @@ export default function AboutPage() {
               <MarketingImage
                 src={marketingAssets.teamEditorial.src}
                 fallbackSrc={marketingAssets.teamEditorial.fallback}
-                alt="Équipe Roogo"
+                alt="Équipe Roogo préparant des annonces immobilières"
                 fill
                 sizes="(max-width: 1024px) 100vw, 740px"
                 className="object-cover"
@@ -83,9 +85,9 @@ export default function AboutPage() {
             />
             <div className="grid gap-5">
               {principles.map((principle) => (
-                <article
+                <InteractiveCard
                   key={principle.title}
-                  className="rounded-[28px] border border-[#e7dacb] bg-white/70 p-7"
+                  className="rounded-[28px] border border-[#e7dacb] bg-white/70 p-7 hover:shadow-xl hover:shadow-[#5a321a]/10"
                 >
                   <h2 className="text-2xl font-black text-neutral-950">
                     {principle.title}
@@ -93,7 +95,7 @@ export default function AboutPage() {
                   <p className="mt-3 text-base font-medium leading-8 text-neutral-600">
                     {principle.body}
                   </p>
-                </article>
+                </InteractiveCard>
               ))}
             </div>
           </div>
@@ -101,17 +103,18 @@ export default function AboutPage() {
 
         <DarkSection>
           <div className="grid gap-12 lg:grid-cols-[1.05fr_0.95fr] lg:items-center">
-            <div className="relative aspect-[4/3] overflow-hidden rounded-[30px] border border-white/10 bg-white/5">
+            <ImagePanel className="relative aspect-[4/3] overflow-hidden rounded-[30px] border border-white/10 bg-white/5">
               <MarketingImage
                 src={proofImage.src}
                 fallbackSrc={proofImage.fallback}
                 alt="Photographie professionnelle d'un bien Roogo"
+                loading="lazy"
                 fill
                 sizes="(max-width: 1024px) 100vw, 620px"
-                className="object-cover"
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
-            </div>
+            </ImagePanel>
             <div>
               <SectionHeader
                 dark
@@ -130,17 +133,17 @@ export default function AboutPage() {
 
         <EditorialSection className="bg-white">
           <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr] lg:items-center">
-            <div className="relative min-h-[440px] overflow-hidden rounded-[30px]">
+            <ImagePanel className="relative min-h-[440px] overflow-hidden rounded-[30px]">
               <MarketingImage
                 src={neighborhoodImage.src}
                 fallbackSrc={neighborhoodImage.fallback}
                 alt="Quartier résidentiel à Ouagadougou"
                 fill
                 sizes="(max-width: 1024px) 100vw, 560px"
-                className="object-cover"
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
-            </div>
+            </ImagePanel>
 
             <div>
               <SectionHeader

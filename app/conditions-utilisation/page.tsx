@@ -2,7 +2,7 @@ import { Footer } from "../../components/Footer";
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Conditions Générales d'Utilisation | Roogo",
+  title: "Conditions Générales d'Utilisation",
   description:
     "Lisez les conditions générales d'utilisation de Roogo pour en savoir plus sur les règles d'utilisation de notre plateforme immobilière.",
 };

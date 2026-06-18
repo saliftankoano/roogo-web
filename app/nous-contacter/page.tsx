@@ -66,7 +66,12 @@ export default function ContactPage() {
     <div className="min-h-screen bg-[#f5efe6]">
       <main>
         <section className="relative overflow-hidden bg-[#17120f] px-3 pb-3 pt-28 sm:px-6 lg:pt-32">
-          <div className="relative mx-auto min-h-[620px] max-w-[1500px] overflow-hidden rounded-[30px] border border-white/10 bg-neutral-950">
+          <motion.div
+            initial={{ opacity: 0, y: 18, scale: 0.99 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            className="relative mx-auto min-h-[620px] max-w-[1500px] overflow-hidden rounded-[30px] border border-white/10 bg-neutral-950"
+          >
             <MarketingImage
               src={contactHeroImage.src}
               fallbackSrc={contactHeroImage.fallback}
@@ -89,7 +94,7 @@ export default function ContactPage() {
                 étape utile.
               </p>
             </div>
-          </div>
+          </motion.div>
         </section>
 
         <section className="py-24 md:py-32">
@@ -108,6 +113,8 @@ export default function ContactPage() {
                     className="rounded-[26px] border border-[#e7dacb] bg-white/75 p-6 shadow-sm"
                     initial={{ opacity: 0, x: -18 }}
                     animate={{ opacity: 1, x: 0 }}
+                    whileHover={{ x: 5, y: -2 }}
+                    whileTap={{ scale: 0.99 }}
                     transition={{ delay: index * 0.08 }}
                   >
                     <div className="flex items-start gap-4">
@@ -129,7 +136,14 @@ export default function ContactPage() {
                   </motion.div>
                 ))}
 
-                <div className="rounded-[26px] border border-[#e7dacb] bg-white/75 p-6 shadow-sm">
+                <motion.div
+                  initial={{ opacity: 0, x: -18 }}
+                  animate={{ opacity: 1, x: 0 }}
+                  whileHover={{ x: 5, y: -2 }}
+                  whileTap={{ scale: 0.99 }}
+                  transition={{ delay: contactInfo.length * 0.08 }}
+                  className="rounded-[26px] border border-[#e7dacb] bg-white/75 p-6 shadow-sm"
+                >
                   <div className="flex items-start gap-4">
                     <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
                       <MapPinIcon size={26} weight="duotone" />
@@ -146,7 +160,7 @@ export default function ContactPage() {
                       </p>
                     </div>
                   </div>
-                </div>
+                </motion.div>
               </div>
             </div>
 
@@ -154,6 +168,7 @@ export default function ContactPage() {
               className="rounded-[34px] border border-neutral-200 bg-white p-6 shadow-2xl shadow-[#5a321a]/10 sm:p-8 lg:p-10"
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -4 }}
               transition={{ delay: 0.2 }}
             >
               <h2 className="text-3xl font-black text-neutral-950">
@@ -234,7 +249,7 @@ export default function ContactPage() {
                   variant="primary"
                   size="lg"
                   fullWidth
-                  className="rounded-full py-4 text-base font-black"
+                  className="rounded-full py-4 text-base font-black transition-transform hover:-translate-y-0.5 active:translate-y-0"
                 >
                   <PaperPlaneTiltIcon size={22} weight="bold" className="mr-2" />
                   Envoyer le message

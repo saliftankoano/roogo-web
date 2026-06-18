@@ -200,7 +200,7 @@ export default function PropertyDetailsModal({
                           >
                             <Image
                               src={img}
-                              alt={`Propriété ${idx + 1}`}
+                              alt={`Photo ${idx + 1} de la propriété à ${property.location}`}
                               fill
                               className="object-cover"
                             />

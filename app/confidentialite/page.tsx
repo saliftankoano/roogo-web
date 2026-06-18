@@ -3,7 +3,7 @@ import { Metadata } from "next";
 import Link from "next/link";
 
 export const metadata: Metadata = {
-  title: "Politique de Confidentialité | Roogo",
+  title: "Politique de Confidentialité",
   description:
     "Consultez la politique de confidentialité de Roogo pour comprendre comment nous collectons, utilisons et protégeons vos données personnelles.",
 };

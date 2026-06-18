@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import Image from "next/image";
+import { motion } from "framer-motion";
 import {
   EnvelopeSimple,
   FacebookLogo,
@@ -23,7 +24,7 @@ export function Footer() {
               <span className="rounded-2xl bg-white p-2">
                 <Image
                   src="/logo.png?v=2"
-                  alt="Roogo Logo"
+                  alt="Logo Roogo"
                   width={34}
                   height={34}
                   className="object-contain"
@@ -43,14 +44,16 @@ export function Footer() {
                 { icon: XLogo, label: "X" },
                 { icon: LinkedinLogo, label: "LinkedIn" },
               ].map((item) => (
-                <a
+                <motion.a
                   key={item.label}
                   href="#"
                   aria-label={item.label}
+                  whileHover={{ y: -3, scale: 1.04 }}
+                  whileTap={{ scale: 0.94 }}
                   className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-primary hover:text-white"
                 >
                   <item.icon size={20} weight="fill" />
-                </a>
+                </motion.a>
               ))}
             </div>
           </div>

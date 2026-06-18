@@ -31,6 +31,23 @@ export type NotificationCopyKey =
   | "payments.listingPublished"
   | "payments.propertyReserved"
   | "payments.stayReserved"
+  | "dailyBookings.requestSubmittedOwner"
+  | "dailyBookings.requestSubmittedRenter"
+  | "dailyBookings.requestApprovedRenter"
+  | "dailyBookings.requestApprovedOwner"
+  | "dailyBookings.requestDeclinedRenter"
+  | "dailyBookings.requestExpiredRenter"
+  | "dailyBookings.paymentExpiredRenter"
+  | "dailyBookings.paymentConfirmedRenter"
+  | "dailyBookings.paymentConfirmedOwner"
+  | "dailyBookings.checkinReminderRenter"
+  | "dailyBookings.checkinConfirmedOwner"
+  | "dailyBookings.checkinIssueOwner"
+  | "dailyBookings.checkoutReminderRenter"
+  | "dailyBookings.checkoutReportedOwner"
+  | "dailyBookings.issueOpened"
+  | "dailyBookings.completedRenter"
+  | "dailyBookings.payoutAvailable"
   | "identityVerification.urgentReviewRequested"
   | "properties.newMatch"
   | "properties.submittedForReview"
@@ -349,6 +366,176 @@ const notificationCopy: Record<
     en: {
       title: "Stay reserved",
       body: "Your stay reservation for {propertyLabel} is confirmed",
+    },
+  },
+  "dailyBookings.requestSubmittedOwner": {
+    fr: {
+      title: "Nouvelle demande de séjour",
+      body: "{renterName} veut réserver {propertyLabel} du {startDate} au {endDate}.",
+    },
+    en: {
+      title: "New stay request",
+      body: "{renterName} wants to book {propertyLabel} from {startDate} to {endDate}.",
+    },
+  },
+  "dailyBookings.requestSubmittedRenter": {
+    fr: {
+      title: "Demande envoyée",
+      body: "Le propriétaire a jusqu'à {deadline} pour confirmer {propertyLabel}.",
+    },
+    en: {
+      title: "Request sent",
+      body: "The owner has until {deadline} to confirm {propertyLabel}.",
+    },
+  },
+  "dailyBookings.requestApprovedRenter": {
+    fr: {
+      title: "Séjour approuvé",
+      body: "Payez avant {deadline} pour confirmer votre séjour à {propertyLabel}.",
+    },
+    en: {
+      title: "Stay approved",
+      body: "Pay by {deadline} to confirm your stay at {propertyLabel}.",
+    },
+  },
+  "dailyBookings.requestApprovedOwner": {
+    fr: {
+      title: "Approbation envoyée",
+      body: "Le séjour à {propertyLabel} sera confirmé quand le locataire paie avant {deadline}.",
+    },
+    en: {
+      title: "Approval sent",
+      body: "The stay at {propertyLabel} is confirmed once the renter pays by {deadline}.",
+    },
+  },
+  "dailyBookings.requestDeclinedRenter": {
+    fr: {
+      title: "Demande refusée",
+      body: "Le propriétaire n'a pas pu accepter votre demande pour {propertyLabel}. Aucun paiement n'a été fait.",
+    },
+    en: {
+      title: "Request declined",
+      body: "The owner could not accept your request for {propertyLabel}. No payment was made.",
+    },
+  },
+  "dailyBookings.requestExpiredRenter": {
+    fr: {
+      title: "Demande expirée",
+      body: "Le propriétaire n'a pas répondu à temps pour {propertyLabel}. Aucun paiement n'a été fait.",
+    },
+    en: {
+      title: "Request expired",
+      body: "The owner did not respond in time for {propertyLabel}. No payment was made.",
+    },
+  },
+  "dailyBookings.paymentExpiredRenter": {
+    fr: {
+      title: "Paiement expiré",
+      body: "Le délai de paiement pour {propertyLabel} est passé. Faites une nouvelle demande si besoin.",
+    },
+    en: {
+      title: "Payment expired",
+      body: "The payment window for {propertyLabel} passed. Request again if needed.",
+    },
+  },
+  "dailyBookings.paymentConfirmedRenter": {
+    fr: {
+      title: "Séjour confirmé",
+      body: "Votre paiement est confirmé pour {propertyLabel}.",
+    },
+    en: {
+      title: "Stay confirmed",
+      body: "Your payment is confirmed for {propertyLabel}.",
+    },
+  },
+  "dailyBookings.paymentConfirmedOwner": {
+    fr: {
+      title: "Séjour confirmé",
+      body: "Le paiement pour {propertyLabel} est reçu et restera en attente jusqu'après le départ.",
+    },
+    en: {
+      title: "Stay confirmed",
+      body: "Payment for {propertyLabel} was received and stays pending until after checkout.",
+    },
+  },
+  "dailyBookings.checkinReminderRenter": {
+    fr: {
+      title: "Arrivée aujourd'hui",
+      body: "Votre séjour à {propertyLabel} commence à {time}. Confirmez l'accès à votre arrivée.",
+    },
+    en: {
+      title: "Check-in today",
+      body: "Your stay at {propertyLabel} starts at {time}. Confirm access when you arrive.",
+    },
+  },
+  "dailyBookings.checkinConfirmedOwner": {
+    fr: {
+      title: "Arrivée confirmée",
+      body: "Le locataire a confirmé l'accès à {propertyLabel}.",
+    },
+    en: {
+      title: "Check-in confirmed",
+      body: "The renter confirmed access to {propertyLabel}.",
+    },
+  },
+  "dailyBookings.checkinIssueOwner": {
+    fr: {
+      title: "Aide nécessaire",
+      body: "Le locataire a besoin d'aide pour accéder à {propertyLabel}. Répondez maintenant.",
+    },
+    en: {
+      title: "Help needed",
+      body: "The renter needs help accessing {propertyLabel}. Please respond now.",
+    },
+  },
+  "dailyBookings.checkoutReminderRenter": {
+    fr: {
+      title: "Départ aujourd'hui",
+      body: "Votre départ de {propertyLabel} est prévu à {time}. Confirmez après votre sortie.",
+    },
+    en: {
+      title: "Checkout today",
+      body: "Your checkout from {propertyLabel} is scheduled for {time}. Confirm after leaving.",
+    },
+  },
+  "dailyBookings.checkoutReportedOwner": {
+    fr: {
+      title: "Départ signalé",
+      body: "Le locataire a signalé son départ de {propertyLabel}. Signalez un problème avant {deadline} si besoin.",
+    },
+    en: {
+      title: "Checkout reported",
+      body: "The renter reported checkout from {propertyLabel}. Report a problem by {deadline} if needed.",
+    },
+  },
+  "dailyBookings.issueOpened": {
+    fr: {
+      title: "Problème signalé",
+      body: "Un problème a été signalé pour {propertyLabel}. Le paiement propriétaire reste en attente.",
+    },
+    en: {
+      title: "Problem reported",
+      body: "A problem was reported for {propertyLabel}. Owner payout remains pending.",
+    },
+  },
+  "dailyBookings.completedRenter": {
+    fr: {
+      title: "Séjour terminé",
+      body: "Votre séjour à {propertyLabel} est terminé. Votre reçu est disponible dans Roogo.",
+    },
+    en: {
+      title: "Stay completed",
+      body: "Your stay at {propertyLabel} is completed. Your receipt is available in Roogo.",
+    },
+  },
+  "dailyBookings.payoutAvailable": {
+    fr: {
+      title: "Paiement disponible",
+      body: "Votre paiement pour {propertyLabel} est maintenant disponible.",
+    },
+    en: {
+      title: "Payout available",
+      body: "Your payout for {propertyLabel} is now available.",
     },
   },
   "identityVerification.urgentReviewRequested": {

@@ -1,7 +1,10 @@
 import { Metadata } from "next";
 
 export const metadata: Metadata = {
-  title: "Location Appartement et Maison Ouagadougou | Roogo",
+  title: {
+    default: "Location Appartement et Maison Ouagadougou",
+    template: "%s | Roogo",
+  },
   description: "Parcourez les meilleures offres de location à Ouagadougou: appartements, maisons, villas, studios. Photos professionnelles, prix transparents. Trouvez votre logement aujourd'hui.",
   keywords: [
     "location appartement ouagadougou",

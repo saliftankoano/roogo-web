@@ -19,6 +19,8 @@ import {
 } from "@/components/ui/expandable-screen";
 import { HustleApplicationModal } from "@/components/carrieres/HustleApplicationModal";
 import {
+  ImagePanel,
+  InteractiveCard,
   Kicker,
   MarketingImage,
   SectionHeader,
@@ -112,11 +114,15 @@ export default function CareersPage() {
                   contentRadius="32px"
                 >
                   <ExpandableScreenTrigger>
-                    <div className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm font-black text-white shadow-2xl shadow-primary/25 transition hover:bg-primary-hover">
-                      <EnvelopeSimpleIcon size={20} weight="bold" />
-                      Candidature spontanée
-                    </div>
-                  </ExpandableScreenTrigger>
+                  <motion.div
+                    whileHover={{ y: -2, scale: 1.02 }}
+                    whileTap={{ scale: 0.97 }}
+                    className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm font-black text-white shadow-2xl shadow-primary/25 transition hover:bg-primary-hover"
+                  >
+                    <EnvelopeSimpleIcon size={20} weight="bold" />
+                    Candidature spontanée
+                  </motion.div>
+                </ExpandableScreenTrigger>
                   <ExpandableScreenContent
                     className="bg-neutral-50"
                     closeButtonClassName="text-neutral-400 hover:bg-neutral-200"
@@ -129,7 +135,11 @@ export default function CareersPage() {
                   className="inline-flex items-center justify-center gap-2 rounded-full border border-white/15 bg-white/10 px-7 py-4 text-sm font-black text-white transition hover:bg-white/15"
                 >
                   Comprendre Roogo
-                  <ArrowRightIcon size={18} weight="bold" />
+                  <ArrowRightIcon
+                    size={18}
+                    weight="bold"
+                    className="transition-transform duration-300 group-hover:translate-x-1"
+                  />
                 </Link>
               </div>
             </motion.div>
@@ -145,8 +155,10 @@ export default function CareersPage() {
               </p>
               <div className="mt-5 space-y-3">
                 {hiringSignals.map((signal) => (
-                  <div
+                  <motion.div
                     key={signal}
+                    whileHover={{ x: 4, backgroundColor: "rgba(255,255,255,0.14)" }}
+                    whileTap={{ scale: 0.99 }}
                     className="flex items-start gap-3 rounded-2xl bg-white/10 p-4 text-sm font-bold text-white/80"
                   >
                     <CheckCircleIcon
@@ -155,7 +167,7 @@ export default function CareersPage() {
                       className="mt-0.5 shrink-0 text-primary"
                     />
                     <span>{signal}</span>
-                  </div>
+                  </motion.div>
                 ))}
               </div>
               <p className="mt-5 text-sm leading-7 text-white/60">
@@ -179,14 +191,11 @@ export default function CareersPage() {
                 const Icon = principle.icon;
 
                 return (
-                  <motion.div
+                  <InteractiveCard
                     key={principle.title}
-                    initial={{ opacity: 0, y: 18 }}
-                    whileInView={{ opacity: 1, y: 0 }}
-                    viewport={{ once: true, margin: "-80px" }}
-                    className="rounded-[1.75rem] border border-black/10 bg-white p-7 shadow-sm"
+                    className="rounded-[1.75rem] border border-black/10 bg-white p-7 shadow-sm hover:shadow-xl hover:shadow-[#5a321a]/10"
                   >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105">
                       <Icon size={25} weight="duotone" />
                     </div>
                     <h2 className="mt-6 text-xl font-black">
@@ -195,7 +204,7 @@ export default function CareersPage() {
                     <p className="mt-3 text-sm leading-7 text-neutral-600">
                       {principle.description}
                     </p>
-                  </motion.div>
+                  </InteractiveCard>
                 );
               })}
             </div>
@@ -204,14 +213,14 @@ export default function CareersPage() {
 
         <section className="bg-[#17120f] py-24 text-white md:py-32">
           <div className="mx-auto grid w-full max-w-7xl gap-12 px-6 lg:grid-cols-[0.9fr_1.1fr] lg:items-center">
-            <div className="relative min-h-[520px] overflow-hidden rounded-[2rem]">
+            <ImagePanel className="relative min-h-[520px] overflow-hidden rounded-[2rem]">
               <MarketingImage
                 src={marketingAssets.ownerWorkflow.src}
                 fallbackSrc={marketingAssets.ownerWorkflow.fallback}
                 alt="Équipe Roogo organisant un workflow propriétaire"
                 fill
                 sizes="(min-width: 1024px) 45vw, 100vw"
-                className="object-cover"
+                className="object-cover transition-transform duration-700 group-hover:scale-105"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
               <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
@@ -222,7 +231,7 @@ export default function CareersPage() {
                   Une équipe qui vérifie, documente et suit.
                 </p>
               </div>
-            </div>
+            </ImagePanel>
 
             <div>
               <SectionHeader
@@ -234,9 +243,9 @@ export default function CareersPage() {
 
               <div className="mt-10 grid gap-4 sm:grid-cols-3">
                 {teamMembers.map((member) => (
-                  <div
+                  <InteractiveCard
                     key={member.name}
-                    className="rounded-[1.5rem] border border-white/10 bg-white/10 p-5"
+                    className="rounded-[1.5rem] border border-white/10 bg-white/10 p-5 hover:border-white/20 hover:bg-white/[0.12]"
                   >
                     <div className="flex h-14 w-14 items-center justify-center overflow-hidden rounded-full bg-white/10 text-xl font-black text-white/50">
                       {member.image ? (
@@ -261,7 +270,7 @@ export default function CareersPage() {
                     <p className="mt-3 text-sm leading-6 text-white/60">
                       {member.description}
                     </p>
-                  </div>
+                  </InteractiveCard>
                 ))}
               </div>
             </div>
@@ -300,10 +309,14 @@ export default function CareersPage() {
                     contentRadius="32px"
                   >
                     <ExpandableScreenTrigger>
-                      <div className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-4 text-sm font-black text-neutral-950 transition hover:bg-white/90">
+                      <motion.div
+                        whileHover={{ y: -2, scale: 1.02 }}
+                        whileTap={{ scale: 0.97 }}
+                        className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-4 text-sm font-black text-neutral-950 transition hover:bg-white/90"
+                      >
                         <EnvelopeSimpleIcon size={20} weight="bold" />
                         Envoyer ma candidature
-                      </div>
+                      </motion.div>
                     </ExpandableScreenTrigger>
                     <ExpandableScreenContent
                       className="bg-neutral-50"

@@ -1,4 +1,5 @@
 import { Property } from "./data";
+import { homeFaqItems } from "./home-content";
 import { isDailyRental } from "./rental-period";
 
 const SITE_URL = "https://www.roogobf.com";
@@ -389,20 +390,37 @@ function getPropertyListNode(properties: Property[]): JsonLdNode {
   };
 }
 
+function getFaqPageNode(id: string, items: typeof homeFaqItems): JsonLdNode {
+  return {
+    "@type": "FAQPage",
+    "@id": id,
+    mainEntity: items.map((item) => ({
+      "@type": "Question",
+      name: item.question,
+      acceptedAnswer: {
+        "@type": "Answer",
+        text: item.answer,
+      },
+    })),
+  };
+}
+
 export function getSiteIdentitySchema() {
   return graph([getOrganizationNode(), getWebsiteNode()]);
 }
 
 export function getHomePageSchema() {
+  const url = SITE_URL;
   return graph([
     getWebPageNode({
-      id: `${SITE_URL}/#webpage`,
-      url: SITE_URL,
-      name: "Roogo | Location Appartement et Maison au Burkina Faso",
+      id: `${url}/#webpage`,
+      url,
+      name: "Location Appartement et Maison au Burkina Faso | Roogo",
       description:
         "Trouvez votre logement idéal à Ouagadougou et au Burkina Faso.",
       mainEntity: { "@id": ORGANIZATION_ID },
     }),
+    getFaqPageNode(`${url}/#faq`, homeFaqItems),
   ]);
 }
 

@@ -152,7 +152,15 @@ export async function PUT(request: NextRequest) {
     // Update tiers if provided
     if (tiers && Array.isArray(tiers)) {
       for (const tier of tiers) {
-        const { id, min_price } = tier;
+        const {
+          id,
+          min_price,
+          photo_limit,
+          slot_limit,
+          video_included,
+          open_house_limit,
+          has_badge,
+        } = tier;
 
         if (!id || min_price === undefined) {
           results.errors.push({
@@ -163,9 +171,31 @@ export async function PUT(request: NextRequest) {
           continue;
         }
 
+        const updatePayload: Partial<
+          Pick<
+            Tier,
+            | "min_price"
+            | "photo_limit"
+            | "slot_limit"
+            | "video_included"
+            | "open_house_limit"
+            | "has_badge"
+          >
+        > = { min_price };
+
+        if (photo_limit !== undefined) updatePayload.photo_limit = photo_limit;
+        if (slot_limit !== undefined) updatePayload.slot_limit = slot_limit;
+        if (video_included !== undefined) {
+          updatePayload.video_included = video_included;
+        }
+        if (open_house_limit !== undefined) {
+          updatePayload.open_house_limit = open_house_limit;
+        }
+        if (has_badge !== undefined) updatePayload.has_badge = has_badge;
+
         const { data, error } = await supabaseAdmin
           .from("listing_tiers")
-          .update({ min_price })
+          .update(updatePayload)
           .eq("id", id)
           .select()
           .single();

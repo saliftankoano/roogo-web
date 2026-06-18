@@ -98,6 +98,7 @@ export const listingBaseSchema = z.object({
   transaction_id: z.string().optional(),
   add_ons: z.array(z.string()).optional(),
   freeSuccessFeeTermsAccepted: z.boolean().optional(),
+  referralCode: z.string().optional(),
   is_test: z.boolean().optional(),
 
   // Staff/founder: listing on behalf of client
