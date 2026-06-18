@@ -53,17 +53,19 @@ function StaffDesktopNavLink({
   const Icon = item.icon;
 
   return (
-    <Link
-      href={item.href}
-      data-id={item.id}
-      className={cn(
-        "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
-        isActive ? "text-primary" : "text-neutral-500 hover:text-neutral-900",
-      )}
-    >
-      <Icon size={18} weight={isActive ? "fill" : "bold"} />
-      <span className="whitespace-nowrap">{item.label}</span>
-    </Link>
+    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}>
+      <Link
+        href={item.href}
+        data-id={item.id}
+        className={cn(
+          "flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+          isActive ? "text-primary" : "text-neutral-500 hover:text-neutral-900",
+        )}
+      >
+        <Icon size={18} weight={isActive ? "fill" : "bold"} />
+        <span className="whitespace-nowrap">{item.label}</span>
+      </Link>
+    </motion.div>
   );
 }
 
@@ -284,7 +286,7 @@ export function Navbar() {
 
                 return (
                   <div key={item.id} className="relative">
-                    <button
+                    <motion.button
                       type="button"
                       data-id={item.id}
                       aria-haspopup="menu"
@@ -300,6 +302,8 @@ export function Navbar() {
                           ? "text-primary bg-white shadow-sm"
                           : "text-neutral-500 hover:text-neutral-900",
                       )}
+                      whileHover={{ y: -2 }}
+                      whileTap={{ scale: 0.97 }}
                     >
                       <Icon size={18} weight={isActive ? "fill" : "bold"} />
                       <span className="whitespace-nowrap">{item.label}</span>
@@ -311,7 +315,7 @@ export function Navbar() {
                           isOpen && "rotate-180",
                         )}
                       />
-                    </button>
+                    </motion.button>
 
                     <AnimatePresence>
                       {isOpen && (
@@ -331,25 +335,30 @@ export function Navbar() {
                             const ChildIcon = child.icon;
 
                             return (
-                              <Link
-                                key={child.id}
-                                href={child.href}
-                                data-id={child.id}
-                                role="menuitem"
-                                onClick={() => setOpenGroupId(null)}
-                                className={cn(
-                                  "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-colors",
-                                  childActive
-                                    ? "bg-primary/10 text-primary"
-                                    : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
-                                )}
-                              >
-                                <ChildIcon
-                                  size={20}
-                                  weight={childActive ? "fill" : "bold"}
-                                />
-                                {child.label}
-                              </Link>
+                                <motion.div
+                                  key={child.id}
+                                  whileHover={{ x: 3 }}
+                                  whileTap={{ scale: 0.98 }}
+                                >
+                                  <Link
+                                    href={child.href}
+                                    data-id={child.id}
+                                    role="menuitem"
+                                    onClick={() => setOpenGroupId(null)}
+                                    className={cn(
+                                      "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-colors",
+                                      childActive
+                                        ? "bg-primary/10 text-primary"
+                                        : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
+                                    )}
+                                  >
+                                    <ChildIcon
+                                      size={20}
+                                      weight={childActive ? "fill" : "bold"}
+                                    />
+                                    {child.label}
+                                  </Link>
+                                </motion.div>
                             );
                           })}
                         </motion.div>
@@ -371,23 +380,31 @@ export function Navbar() {
                 }}
               >
                 {navItems.map((item) => (
-                  <Link
+                  <motion.div
                     key={item.href}
-                    href={item.href}
-                    data-id={item.id}
-                    className={cn(
-                      "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black outline-none transition-colors duration-200",
-                      isLinkActive(pathname, item.href)
-                        ? "text-primary"
-                        : "text-neutral-500 hover:text-neutral-950",
-                    )}
+                    data-id={item.href}
+                    whileHover={{ y: -2 }}
+                    whileTap={{ scale: 0.97 }}
                   >
-                    <item.icon
-                      size={18}
-                      weight={isLinkActive(pathname, item.href) ? "fill" : "bold"}
-                    />
-                    <span className="whitespace-nowrap">{item.name}</span>
-                  </Link>
+                    <Link
+                      href={item.href}
+                      data-id={item.id}
+                      className={cn(
+                        "flex items-center gap-2 rounded-full px-4 py-2 text-sm font-black outline-none transition-colors duration-200",
+                        isLinkActive(pathname, item.href)
+                          ? "text-primary"
+                          : "text-neutral-500 hover:text-neutral-950",
+                      )}
+                    >
+                      <item.icon
+                        size={18}
+                        weight={
+                          isLinkActive(pathname, item.href) ? "fill" : "bold"
+                        }
+                      />
+                      <span className="whitespace-nowrap">{item.name}</span>
+                    </Link>
+                  </motion.div>
                 ))}
               </AnimatedBackground>
             </div>
@@ -419,38 +436,48 @@ export function Navbar() {
               </div>
             ) : (
               <div className="flex items-center gap-2">
-                <Link href="/connexion" className="hidden sm:block">
-                  <Button
-                    variant="ghost"
-                    size="md"
-                    className="font-black text-neutral-600"
-                  >
-                    Connexion
-                  </Button>
-                </Link>
-                <Link href="/inscription">
-                  <Button
-                    variant="primary"
-                    size="md"
-                    className="rounded-full px-6 font-black shadow-md transition-all hover:scale-105 hover:shadow-lg"
-                  >
-                    Rejoindre
-                  </Button>
-                </Link>
+                <motion.div
+                  className="hidden sm:block"
+                  whileHover={{ y: -2 }}
+                  whileTap={{ scale: 0.97 }}
+                >
+                  <Link href="/connexion">
+                    <Button
+                      variant="ghost"
+                      size="md"
+                      className="font-black text-neutral-600"
+                    >
+                      Connexion
+                    </Button>
+                  </Link>
+                </motion.div>
+                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}>
+                  <Link href="/inscription">
+                    <Button
+                      variant="primary"
+                      size="md"
+                      className="rounded-full px-6 font-black shadow-md transition-all hover:scale-105 hover:shadow-lg"
+                    >
+                      Rejoindre
+                    </Button>
+                  </Link>
+                </motion.div>
               </div>
             )}
 
             {/* Mobile Menu Toggle */}
-            <button
+            <motion.button
               className="md:hidden p-2 text-neutral-600 hover:text-primary bg-neutral-100 rounded-full transition-all ml-1"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+              whileHover={{ scale: 1.04 }}
+              whileTap={{ scale: 0.94 }}
             >
               {mobileMenuOpen ? (
                 <XIcon size={22} weight="bold" />
               ) : (
                 <ListIcon size={22} weight="bold" />
               )}
-            </button>
+            </motion.button>
           </div>
         </div>
 

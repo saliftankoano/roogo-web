@@ -1,7 +1,13 @@
 "use client";
 
 import Image, { type ImageProps } from "next/image";
-import { type ComponentPropsWithoutRef, type ReactNode, useEffect, useState } from "react";
+import { motion, type HTMLMotionProps } from "framer-motion";
+import {
+  type ComponentPropsWithoutRef,
+  type ReactNode,
+  useEffect,
+  useState,
+} from "react";
 import { cn } from "@/lib/utils";
 
 type MarketingImageProps = Omit<ImageProps, "src" | "alt"> & {
@@ -40,6 +46,80 @@ export function MarketingImage({
   );
 }
 
+const premiumEase = [0.22, 1, 0.36, 1] as const;
+
+export function Reveal({
+  children,
+  className,
+  delay = 0,
+  y = 18,
+}: {
+  children: ReactNode;
+  className?: string;
+  delay?: number;
+  y?: number;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.65, delay, ease: premiumEase }}
+      className={className}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export function InteractiveCard({
+  children,
+  className,
+  hoverClassName,
+  ...props
+}: HTMLMotionProps<"div"> & {
+  hoverClassName?: string;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -6, scale: 1.01 }}
+      whileTap={{ scale: 0.99 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.45, ease: premiumEase }}
+      {...props}
+      className={cn(
+        "group will-change-transform transition-shadow duration-300",
+        hoverClassName,
+        className,
+      )}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
+export function ImagePanel({
+  children,
+  className,
+  ...props
+}: HTMLMotionProps<"div">) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, y: 20, scale: 0.985 }}
+      whileInView={{ opacity: 1, y: 0, scale: 1 }}
+      whileHover={{ y: -5 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.7, ease: premiumEase }}
+      {...props}
+      className={cn("group will-change-transform", className)}
+    >
+      {children}
+    </motion.div>
+  );
+}
+
 export function Kicker({
   children,
   className,
@@ -75,7 +155,11 @@ export function SectionHeader({
   title: string;
 }) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, y: 18 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.65, ease: premiumEase }}
       className={cn(
         "max-w-3xl",
         align === "center" && "mx-auto text-center",
@@ -101,7 +185,7 @@ export function SectionHeader({
       >
         {description}
       </p>
-    </div>
+    </motion.div>
   );
 }
 
@@ -118,7 +202,12 @@ export function DarkSection({
         className,
       )}
     >
-      <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(201,106,46,0.25),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.06),transparent_42%)]" />
+      <motion.div
+        aria-hidden="true"
+        className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(201,106,46,0.25),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.06),transparent_42%)]"
+        animate={{ opacity: [0.72, 1, 0.72] }}
+        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+      />
       <div className="relative mx-auto w-full max-w-7xl px-6">{children}</div>
     </section>
   );
@@ -149,7 +238,12 @@ export function ProofStat({
   value: string;
 }) {
   return (
-    <div
+    <motion.div
+      initial={{ opacity: 0, x: -10 }}
+      whileInView={{ opacity: 1, x: 0 }}
+      whileHover={{ x: 3 }}
+      viewport={{ once: true, margin: "-80px" }}
+      transition={{ duration: 0.45, ease: premiumEase }}
       className={cn(
         "min-w-0 border-l pl-4",
         dark ? "border-white/15" : "border-neutral-200",
@@ -171,6 +265,6 @@ export function ProofStat({
       >
         {label}
       </div>
-    </div>
+    </motion.div>
   );
 }

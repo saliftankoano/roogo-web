@@ -31,6 +31,11 @@ export function Hero() {
   };
 
   const popularSearches = ["Ouaga 2000", "Gounghin", "Dassasgho"];
+  const trustBadges = [
+    "Logements vérifiés",
+    "Visites organisées",
+    "Paiement suivi",
+  ];
 
   return (
     <section className="relative overflow-hidden bg-[#efe6d9] px-3 pb-10 pt-28 sm:px-6 lg:pt-32">
@@ -38,15 +43,22 @@ export function Hero() {
 
       <div className="relative mx-auto max-w-[1500px] overflow-hidden rounded-[30px] border border-white/50 bg-[#17120f] shadow-2xl shadow-[#5a321a]/25 sm:rounded-[36px]">
         <div className="absolute inset-0">
-          <MarketingImage
-            src={marketingAssets.heroHome.src}
-            fallbackSrc={marketingAssets.heroHome.fallback}
-            alt="Maison moderne disponible à Ouagadougou"
-            fill
-            sizes="100vw"
-            priority
-            className="object-cover"
-          />
+          <motion.div
+            className="absolute inset-0"
+            initial={{ scale: 1.05 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 1.35, ease: [0.22, 1, 0.36, 1] }}
+          >
+            <MarketingImage
+              src={marketingAssets.heroHome.src}
+              fallbackSrc={marketingAssets.heroHome.fallback}
+              alt="Maison moderne disponible à Ouagadougou"
+              fill
+              sizes="100vw"
+              priority
+              className="object-cover"
+            />
+          </motion.div>
           <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,9,7,0.92),rgba(12,9,7,0.58)_48%,rgba(12,9,7,0.18)),linear-gradient(180deg,rgba(12,9,7,0.2),rgba(12,9,7,0.72))]" />
         </div>
 
@@ -58,25 +70,31 @@ export function Hero() {
             className="max-w-4xl"
           >
             <div className="mb-8 flex flex-wrap gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-white/70">
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
-                Logements vérifiés
-              </span>
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
-                Visites organisées
-              </span>
-              <span className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5">
-                Paiement suivi
-              </span>
+              {trustBadges.map((badge, index) => (
+                <motion.span
+                  key={badge}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{
+                    delay: 0.12 + index * 0.08,
+                    duration: 0.45,
+                    ease: [0.22, 1, 0.36, 1],
+                  }}
+                  whileHover={{ y: -2, backgroundColor: "rgba(255,255,255,0.16)" }}
+                  className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5"
+                >
+                  {badge}
+                </motion.span>
+              ))}
             </div>
 
-            <h1 className="max-w-4xl text-5xl font-black leading-[0.95] tracking-tight text-white sm:text-7xl lg:text-8xl">
-              Trouvez un logement fiable à Ouagadougou, sans perdre de temps.
+            <h1 className="max-w-3xl text-5xl font-black leading-[0.98] tracking-tight text-white sm:text-7xl lg:text-7xl">
+              Logements fiables à Ouagadougou.
             </h1>
 
             <p className="mt-7 max-w-2xl text-base font-medium leading-8 text-white/70 sm:text-lg">
-              Roogo structure la recherche locative autour d&apos;annonces
-              vérifiées, de photos claires, de visites mieux coordonnées et
-              d&apos;un accompagnement qui garde chaque étape lisible.
+              Annonces vérifiées, visites organisées, paiement suivi. Roogo
+              rend la location plus simple, du premier clic aux clés.
             </p>
 
             <motion.form
@@ -84,6 +102,7 @@ export function Hero() {
               className="mt-10 max-w-3xl rounded-[28px] border border-white/15 bg-white p-2 shadow-2xl shadow-black/30 sm:flex sm:items-center sm:gap-2"
               initial={{ opacity: 0, y: 24 }}
               animate={{ opacity: 1, y: 0 }}
+              whileHover={{ y: -2 }}
               transition={{ duration: 0.75, delay: 0.15, ease: "easeOut" }}
             >
               <div className="flex h-16 flex-1 items-center px-4">
@@ -113,16 +132,18 @@ export function Hero() {
             <div className="mt-6 flex flex-wrap items-center gap-2 text-sm font-bold text-white/70">
               <span>Recherches populaires</span>
               {popularSearches.map((search) => (
-                <button
+                <motion.button
                   key={search}
                   type="button"
                   onClick={() =>
                     router.push(`/proprietes?q=${encodeURIComponent(search)}`)
                   }
+                  whileHover={{ y: -2, scale: 1.03 }}
+                  whileTap={{ scale: 0.96 }}
                   className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-white transition-colors hover:bg-white/20"
                 >
                   {search}
-                </button>
+                </motion.button>
               ))}
             </div>
           </motion.div>
