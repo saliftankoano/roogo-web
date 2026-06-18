@@ -232,6 +232,26 @@ export async function POST(req: Request) {
       }
     }
 
+    if (transactionType === "property_lock" && propertyId) {
+      const { data: propertyRecord, error: propertyError } = await supabase
+        .from("properties")
+        .select("period")
+        .eq("id", propertyId)
+        .maybeSingle();
+
+      if (propertyError || !propertyRecord) {
+        return errorResponse("Property not found", 404, req);
+      }
+
+      if (propertyRecord.period === "day") {
+        return errorResponse(
+          "Daily rentals require an approved booking request before payment",
+          400,
+          req,
+        );
+      }
+    }
+
     log("request-validated", {
       amount: resolvedAmount,
       transactionType,

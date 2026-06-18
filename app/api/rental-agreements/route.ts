@@ -7,6 +7,7 @@ import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { addMonths, format } from "date-fns";
 import { creditOwnerEarningsForSchedules } from "@/lib/owner-wallet";
 import { unescapeText } from "@/lib/text-sanitize";
+import { getDailyCompletionEligibleAt, toDailyCheckoutAt } from "@/lib/daily-bookings";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -314,7 +315,8 @@ export async function POST(req: Request) {
       const ownerNetAmount = Number(meta.ownerNetAmount || 0);
 
       if (stayAmount > 0 && ownerNetAmount >= 0) {
-        const availableAt = new Date(`${startDate}T00:00:00Z`);
+        const checkoutAt = toDailyCheckoutAt(endDate);
+        const availableAt = getDailyCompletionEligibleAt(checkoutAt);
         const { error: earningError } = await supabaseAdmin
           .from("owner_earnings")
           .insert({

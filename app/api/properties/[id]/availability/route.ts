@@ -25,7 +25,7 @@ export async function GET(
 
     let query = supabaseAdmin
       .from("property_blocked_dates")
-      .select("id, start_date, end_date, block_type, agreement_id, note")
+      .select("id, start_date, end_date, block_type, agreement_id, note, expires_at")
       .eq("property_id", propertyId)
       .order("start_date", { ascending: true });
 
@@ -39,7 +39,13 @@ export async function GET(
       return errorResponse("Failed to fetch availability", 500, req);
     }
 
-    return cors(NextResponse.json({ blockedRanges: data ?? [] }), req);
+    const nowIso = new Date().toISOString();
+    const blockedRanges = (data ?? []).filter((range) => {
+      if (range.block_type !== "booking_hold") return true;
+      return !range.expires_at || range.expires_at > nowIso;
+    });
+
+    return cors(NextResponse.json({ blockedRanges }), req);
   } catch (error) {
     console.error("Error in GET /api/properties/[id]/availability:", error);
     return errorResponse("Internal server error", 500, req);
@@ -99,16 +105,22 @@ export async function POST(
       return errorResponse("endDate must be >= startDate", 400, req);
     }
 
-    // Reject if any existing booked range overlaps
+    // Reject if any existing booked range or active payment hold overlaps.
     const { data: conflicts } = await supabaseAdmin
       .from("property_blocked_dates")
-      .select("id")
+      .select("id, block_type, expires_at")
       .eq("property_id", propertyId)
-      .eq("block_type", "booked")
+      .in("block_type", ["booked", "booking_hold"])
       .lte("start_date", endDate)
       .gte("end_date", startDate);
 
-    if (conflicts && conflicts.length > 0) {
+    const nowIso = new Date().toISOString();
+    const hasActiveConflict = (conflicts || []).some((conflict) => {
+      if (conflict.block_type !== "booking_hold") return true;
+      return !conflict.expires_at || conflict.expires_at > nowIso;
+    });
+
+    if (hasActiveConflict) {
       return errorResponse(
         "Ces dates chevauchent une réservation existante et ne peuvent pas être bloquées",
         409,

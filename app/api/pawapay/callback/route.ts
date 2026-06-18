@@ -10,6 +10,7 @@ import {
 } from "@/lib/owner-wallet";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import { updateDepositRefundFromPawaPayStatus } from "@/lib/pawapay-payouts";
+import { finalizeDailyBookingAfterPayment } from "@/lib/daily-bookings";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -252,6 +253,27 @@ export async function POST(req: Request) {
 
     log("db-updated", { transactionId, newStatus: dbStatus });
 
+    if (dbStatus === "failed") {
+      const metadata =
+        transaction.metadata && typeof transaction.metadata === "object"
+          ? (transaction.metadata as Record<string, unknown>)
+          : {};
+      const dailyBookingRequestId =
+        typeof metadata.dailyBookingRequestId === "string"
+          ? metadata.dailyBookingRequestId
+          : null;
+      if (dailyBookingRequestId) {
+        await supabase
+          .from("daily_booking_requests")
+          .update({
+            status: "approved_awaiting_payment",
+            transaction_id: null,
+          })
+          .eq("id", dailyBookingRequestId)
+          .eq("transaction_id", transaction.id);
+      }
+    }
+
     // 4. Handle Post-Payment Logic
     if (dbStatus === "completed") {
       if (transaction.status !== "completed") {
@@ -317,6 +339,7 @@ export async function POST(req: Request) {
               transactionId,
               propertyId,
             });
+            await finalizeDailyBookingAfterPayment(transaction.id);
           }
 
           if (propertyLabel) {
