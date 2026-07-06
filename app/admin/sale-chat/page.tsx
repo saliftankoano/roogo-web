@@ -1,0 +1,591 @@
+"use client";
+
+import { useCallback, useEffect, useRef, useState } from "react";
+import Image from "next/image";
+import {
+  ChatCircleTextIcon,
+  PaperPlaneRightIcon,
+  FileTextIcon,
+  BankIcon,
+} from "@phosphor-icons/react";
+import { Button } from "@/components/ui/Button";
+import { cn } from "@/lib/utils";
+
+type Kind = "seller" | "buyer";
+
+type ConvUser = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  user_type: string | null;
+};
+
+type ConvProperty = {
+  id: string;
+  property_type: string;
+  price: number | null;
+  quartier: string | null;
+  city: string | null;
+};
+
+type ConversationSummary = {
+  id: string;
+  kind: Kind;
+  property_id: string;
+  status: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_for_staff: number;
+  property: ConvProperty | null;
+  user: ConvUser | null;
+};
+
+type Attachment = { id: string; url: string | null };
+
+type Message = {
+  id: string;
+  sender_type: "user" | "staff" | "system";
+  message_type:
+    | "text"
+    | "visit_request"
+    | "visit_confirmation"
+    | "mandate_offer"
+    | "mandate_signed"
+    | "notary_meeting";
+  body: string | null;
+  metadata: Record<string, unknown> | null;
+  created_at: string;
+  attachments?: Attachment[];
+};
+
+const LIST_POLL_MS = 10000;
+const THREAD_POLL_MS = 5000;
+
+function fmtFCFA(n: unknown) {
+  const v = typeof n === "number" ? n : Number(n);
+  if (!Number.isFinite(v)) return "—";
+  return `${Math.round(v).toLocaleString("fr-FR")} FCFA`;
+}
+
+function convTitle(c: ConversationSummary | null) {
+  if (!c?.property) return "Bien à vendre";
+  return `${c.property.property_type} · ${c.property.quartier ?? ""}`;
+}
+
+export default function AdminSaleChatPage() {
+  const [conversations, setConversations] = useState<ConversationSummary[]>([]);
+  const [filter, setFilter] = useState<"all" | "seller" | "buyer">("all");
+  const [selected, setSelected] = useState<ConversationSummary | null>(null);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [draft, setDraft] = useState("");
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  // Action panels
+  const [showMandate, setShowMandate] = useState(false);
+  const [net, setNet] = useState("");
+  const [list, setList] = useState("");
+  const [days, setDays] = useState("90");
+  const [showNotary, setShowNotary] = useState(false);
+  const [notaryAt, setNotaryAt] = useState("");
+  const [notaryName, setNotaryName] = useState("");
+
+  const threadRef = useRef<HTMLDivElement>(null);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/sale-chat/conversations");
+      if (!res.ok) throw new Error("Échec du chargement");
+      const data = await res.json();
+      setConversations((data.conversations ?? []) as ConversationSummary[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    }
+  }, []);
+
+  const loadThread = useCallback(async (id: string) => {
+    try {
+      const res = await fetch(`/api/sale-chat/conversations/${id}`);
+      if (!res.ok) throw new Error("Échec du chargement");
+      const data = await res.json();
+      setMessages((data.messages ?? []) as Message[]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    }
+  }, []);
+
+  useEffect(() => {
+    loadConversations();
+    const interval = setInterval(loadConversations, LIST_POLL_MS);
+    return () => clearInterval(interval);
+  }, [loadConversations]);
+
+  useEffect(() => {
+    if (!selected) return;
+    loadThread(selected.id);
+    const interval = setInterval(() => loadThread(selected.id), THREAD_POLL_MS);
+    return () => clearInterval(interval);
+  }, [selected, loadThread]);
+
+  useEffect(() => {
+    threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
+  }, [messages]);
+
+  const handleSelect = (c: ConversationSummary) => {
+    setSelected(c);
+    setMessages([]);
+    setShowMandate(false);
+    setShowNotary(false);
+    setConversations((prev) =>
+      prev.map((x) => (x.id === c.id ? { ...x, unread_for_staff: 0 } : x)),
+    );
+  };
+
+  const handleSend = async () => {
+    if (!selected || !draft.trim() || sending) return;
+    setSending(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/sale-chat/messages", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ conversationId: selected.id, body: draft.trim() }),
+      });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        throw new Error(data.error || "Échec de l'envoi");
+      }
+      setDraft("");
+      await loadThread(selected.id);
+      await loadConversations();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur");
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const postAction = useCallback(
+    async (path: string, body: Record<string, unknown>) => {
+      if (!selected) return false;
+      setError(null);
+      try {
+        const res = await fetch(
+          `/api/sale-chat/conversations/${selected.id}/${path}`,
+          {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+          },
+        );
+        if (!res.ok) {
+          const data = await res.json().catch(() => ({}));
+          throw new Error(data.error || "Échec");
+        }
+        await loadThread(selected.id);
+        await loadConversations();
+        return true;
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "Erreur");
+        return false;
+      }
+    },
+    [selected, loadThread, loadConversations],
+  );
+
+  const handleSendMandate = async () => {
+    const ok = await postAction("mandate", {
+      sellerNetPrice: Number(net),
+      listPrice: Number(list),
+      exclusivityDays: Number(days) || 90,
+    });
+    if (ok) {
+      setShowMandate(false);
+      setNet("");
+      setList("");
+      setDays("90");
+    }
+  };
+
+  const handleScheduleNotary = async () => {
+    if (!notaryAt) return;
+    const ok = await postAction("notary", {
+      scheduledAt: new Date(notaryAt).toISOString(),
+      notaryName: notaryName.trim() || undefined,
+    });
+    if (ok) {
+      setShowNotary(false);
+      setNotaryAt("");
+      setNotaryName("");
+    }
+  };
+
+  const handleConfirmVisit = (
+    visitRequestId: string,
+    slot: { date: string; time: string },
+  ) => postAction("confirm-visit", { visitRequestId, slot });
+
+  const visible = conversations.filter(
+    (c) => filter === "all" || c.kind === filter,
+  );
+
+  return (
+    <div className="flex flex-col">
+      <h1 className="text-2xl font-bold text-neutral-900 mb-2 flex items-center gap-2">
+        <ChatCircleTextIcon size={26} weight="bold" /> Conversations ventes
+      </h1>
+      <p className="text-sm text-neutral-500 mb-4">
+        Roogo est le seul interlocuteur. Répondez aux vendeurs et acheteurs,
+        envoyez les mandats, confirmez les visites et planifiez les rendez-vous
+        notaire.
+      </p>
+
+      {error && <p className="text-sm text-red-600 mb-4">{error}</p>}
+
+      <div className="flex gap-2 mb-3">
+        {(["all", "seller", "buyer"] as const).map((f) => (
+          <button
+            key={f}
+            onClick={() => setFilter(f)}
+            className={cn(
+              "px-3 py-1.5 rounded-full text-sm font-semibold border",
+              filter === f
+                ? "bg-[#C96A2E] text-white border-[#C96A2E]"
+                : "bg-white text-neutral-600 border-neutral-200",
+            )}
+          >
+            {f === "all" ? "Tous" : f === "seller" ? "Vendeurs" : "Acheteurs"}
+          </button>
+        ))}
+      </div>
+
+      <div className="grid grid-cols-1 md:grid-cols-[320px_1fr] gap-4 h-[70vh]">
+        {/* List */}
+        <div className="border border-neutral-200 rounded-2xl overflow-y-auto bg-white">
+          {visible.length === 0 ? (
+            <p className="p-6 text-sm text-neutral-500">Aucune conversation.</p>
+          ) : (
+            visible.map((c) => (
+              <button
+                key={c.id}
+                onClick={() => handleSelect(c)}
+                className={cn(
+                  "w-full text-left px-4 py-3 border-b border-neutral-100 hover:bg-neutral-50 transition",
+                  selected?.id === c.id && "bg-neutral-50",
+                )}
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-neutral-900 truncate">
+                    {convTitle(c)}
+                  </span>
+                  {c.unread_for_staff > 0 && (
+                    <span className="shrink-0 bg-[#C96A2E] text-white text-xs font-bold rounded-full px-2 py-0.5">
+                      {c.unread_for_staff}
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-0.5">
+                  <span
+                    className={cn(
+                      "text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5",
+                      c.kind === "seller"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-sky-100 text-sky-700",
+                    )}
+                  >
+                    {c.kind === "seller" ? "Vendeur" : "Acheteur"}
+                  </span>
+                  <span className="text-xs text-neutral-500 truncate">
+                    {c.user?.full_name || "—"}
+                  </span>
+                </div>
+                <p className="text-sm text-neutral-500 truncate mt-0.5">
+                  {c.last_message_preview || "—"}
+                </p>
+              </button>
+            ))
+          )}
+        </div>
+
+        {/* Thread */}
+        <div className="border border-neutral-200 rounded-2xl flex flex-col bg-white overflow-hidden">
+          {!selected ? (
+            <div className="flex-1 flex items-center justify-center text-neutral-400 text-sm">
+              Sélectionnez une conversation
+            </div>
+          ) : (
+            <>
+              <div className="px-5 py-3 border-b border-neutral-100 flex items-center justify-between gap-3">
+                <div className="min-w-0">
+                  <p className="font-semibold text-neutral-900 truncate">
+                    {convTitle(selected)}
+                  </p>
+                  <p className="text-xs text-neutral-500 truncate">
+                    {selected.kind === "seller" ? "Vendeur" : "Acheteur"} ·{" "}
+                    {selected.user?.full_name || "—"}
+                  </p>
+                </div>
+                <div className="flex gap-2 shrink-0">
+                  {selected.kind === "seller" && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowMandate((v) => !v);
+                        setShowNotary(false);
+                      }}
+                      className="gap-1.5"
+                    >
+                      <FileTextIcon size={16} /> Mandat
+                    </Button>
+                  )}
+                  {selected.kind === "buyer" && (
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowNotary((v) => !v);
+                        setShowMandate(false);
+                      }}
+                      className="gap-1.5"
+                    >
+                      <BankIcon size={16} /> Notaire
+                    </Button>
+                  )}
+                </div>
+              </div>
+
+              {/* Mandate form */}
+              {showMandate && (
+                <div className="px-5 py-3 border-b border-neutral-100 bg-neutral-50 grid grid-cols-3 gap-2 items-end">
+                  <Field label="Net vendeur" value={net} onChange={setNet} />
+                  <Field label="Prix de vente" value={list} onChange={setList} />
+                  <Field label="Exclusivité (j)" value={days} onChange={setDays} />
+                  <div className="col-span-3 flex justify-end">
+                    <Button onClick={handleSendMandate}>Envoyer le mandat</Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Notary form */}
+              {showNotary && (
+                <div className="px-5 py-3 border-b border-neutral-100 bg-neutral-50 flex flex-wrap gap-2 items-end">
+                  <label className="flex flex-col text-xs font-semibold text-neutral-500">
+                    Date et heure
+                    <input
+                      type="datetime-local"
+                      value={notaryAt}
+                      onChange={(e) => setNotaryAt(e.target.value)}
+                      className="mt-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <label className="flex flex-col text-xs font-semibold text-neutral-500 flex-1">
+                    Notaire (optionnel)
+                    <input
+                      value={notaryName}
+                      onChange={(e) => setNotaryName(e.target.value)}
+                      className="mt-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm"
+                    />
+                  </label>
+                  <Button onClick={handleScheduleNotary} disabled={!notaryAt}>
+                    Planifier
+                  </Button>
+                </div>
+              )}
+
+              <div
+                ref={threadRef}
+                className="flex-1 overflow-y-auto px-5 py-4 space-y-3"
+              >
+                {messages.map((m) => (
+                  <MessageRow
+                    key={m.id}
+                    message={m}
+                    onConfirmVisit={handleConfirmVisit}
+                  />
+                ))}
+              </div>
+
+              <div className="border-t border-neutral-100 p-3 flex items-end gap-2">
+                <textarea
+                  value={draft}
+                  onChange={(e) => setDraft(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey) {
+                      e.preventDefault();
+                      handleSend();
+                    }
+                  }}
+                  placeholder="Répondre…"
+                  rows={1}
+                  className="flex-1 resize-none rounded-xl border border-neutral-200 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#C96A2E]/30 max-h-32"
+                />
+                <Button
+                  onClick={handleSend}
+                  disabled={sending || !draft.trim()}
+                  className="shrink-0"
+                >
+                  <PaperPlaneRightIcon size={18} weight="fill" />
+                </Button>
+              </div>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function Field({
+  label,
+  value,
+  onChange,
+}: {
+  label: string;
+  value: string;
+  onChange: (v: string) => void;
+}) {
+  return (
+    <label className="flex flex-col text-xs font-semibold text-neutral-500">
+      {label}
+      <input
+        value={value}
+        onChange={(e) => onChange(e.target.value)}
+        inputMode="numeric"
+        className="mt-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm"
+      />
+    </label>
+  );
+}
+
+function MessageRow({
+  message,
+  onConfirmVisit,
+}: {
+  message: Message;
+  onConfirmVisit: (
+    visitRequestId: string,
+    slot: { date: string; time: string },
+  ) => void;
+}) {
+  const meta = (message.metadata ?? {}) as Record<string, unknown>;
+
+  if (message.message_type === "text") {
+    const isStaff = message.sender_type === "staff";
+    const isSystem = message.sender_type === "system";
+    if (isSystem) {
+      return (
+        <div className="mx-auto max-w-[80%] rounded-xl bg-neutral-100 px-4 py-2 text-center text-xs text-neutral-600">
+          {message.body}
+        </div>
+      );
+    }
+    return (
+      <div
+        className={cn(
+          "max-w-[75%] rounded-2xl px-4 py-2",
+          isStaff
+            ? "ml-auto bg-[#C96A2E] text-white"
+            : "mr-auto bg-neutral-100 text-neutral-900",
+        )}
+      >
+        {(message.attachments ?? []).map((a) =>
+          a.url ? (
+            <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="block mb-2">
+              <Image
+                src={a.url}
+                alt="pièce jointe"
+                width={200}
+                height={200}
+                className="rounded-lg object-cover"
+                unoptimized
+              />
+            </a>
+          ) : null,
+        )}
+        {message.body && (
+          <p className="whitespace-pre-wrap text-sm">{message.body}</p>
+        )}
+      </div>
+    );
+  }
+
+  // Cards (centered)
+  const slots = (meta.proposed_slots ?? []) as { date: string; time: string }[];
+  const scheduledSlot = meta.scheduled_slot as
+    | { date: string; time: string }
+    | undefined;
+  const visitRequestId =
+    typeof meta.visit_request_id === "string" ? meta.visit_request_id : null;
+
+  return (
+    <div className="mx-auto w-[85%] rounded-xl bg-[#FBF1EA] border border-[#EAD9CC] px-4 py-3 text-center">
+      <p className="text-sm font-bold text-neutral-800">
+        {cardTitle(message.message_type)}
+      </p>
+
+      {message.message_type === "visit_request" && (
+        <div className="mt-2 space-y-2">
+          {slots.map((s, i) => (
+            <button
+              key={i}
+              onClick={() => visitRequestId && onConfirmVisit(visitRequestId, s)}
+              className="block w-full rounded-lg border border-[#C96A2E] py-2 text-sm font-bold text-[#C96A2E] hover:bg-[#C96A2E] hover:text-white transition"
+            >
+              Confirmer {s.date} · {s.time}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {message.message_type === "visit_confirmation" && scheduledSlot && (
+        <p className="mt-1 text-sm text-neutral-700">
+          {scheduledSlot.date} · {scheduledSlot.time}
+        </p>
+      )}
+
+      {message.message_type === "mandate_offer" && (
+        <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
+          <p>Net vendeur : {fmtFCFA(meta.seller_net_price)}</p>
+          <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
+          <p>Exclusivité : {String(meta.exclusivity_days ?? 90)} jours</p>
+        </div>
+      )}
+
+      {message.message_type === "mandate_signed" && (
+        <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
+          <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
+          {typeof meta.signed_typed_name === "string" && (
+            <p>Signé par : {meta.signed_typed_name}</p>
+          )}
+        </div>
+      )}
+
+      {message.message_type === "notary_meeting" && (
+        <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
+          {typeof meta.scheduled_at === "string" && (
+            <p>{new Date(meta.scheduled_at).toLocaleString("fr-FR")}</p>
+          )}
+          {typeof meta.location_label === "string" && (
+            <p>{meta.location_label}</p>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function cardTitle(type: Message["message_type"]) {
+  switch (type) {
+    case "visit_request":
+      return "📅 Demande de visite";
+    case "visit_confirmation":
+      return "✅ Visite confirmée";
+    case "mandate_offer":
+      return "📄 Proposition de mandat";
+    case "mandate_signed":
+      return "✍️ Mandat signé";
+    case "notary_meeting":
+      return "🏛 Rendez-vous notaire";
+    default:
+      return "Mise à jour";
+  }
+}

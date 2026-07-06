@@ -10,6 +10,10 @@ import { convertIdsToLabels } from "@/lib/interdictions";
 import { cors, corsOptions, errorResponse, safeError } from "@/lib/api-helpers";
 import { checkRateLimit, listingLimiter } from "@/lib/rate-limit";
 import { BOOST_DURATION_DAYS } from "@/lib/constants";
+import {
+  getOrCreateSellerConversation,
+  postSaleMessage,
+} from "@/lib/sale-chat";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { listingBaseSchema, MAX_LISTING_PHOTOS } from "@/lib/validations";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
@@ -180,16 +184,9 @@ export async function POST(req: Request) {
       }
     }
 
-    if (
-      (user.user_type === "owner" || user.user_type === "agent") &&
-      user.identity_verification_status !== "approved"
-    ) {
-      return errorResponse(
-        "Vérification d'identité requise avant de publier une annonce.",
-        403,
-        req,
-      );
-    }
+    // Identity (KYC) verification is a recommendation, not a gate: owners/agents can
+    // create listings without it. Staff still moderate every listing before it goes
+    // live (en_attente), and sales keep their ownership-docs + signed-mandate gates.
 
     // 5. Parse and validate request body
     console.log("Parsing request body...");
@@ -201,9 +198,13 @@ export async function POST(req: Request) {
       return errorResponse("Missing listingData in request body", 400, req);
     }
 
+    const isSaleListing = listingData.listing_type === "vendre";
     const normalizedListingData = {
       ...listingData,
-      frequence: listingData.frequence ?? "mensuel",
+      // A sale has no rental frequency; only default it for rentals.
+      frequence: isSaleListing
+        ? listingData.frequence
+        : (listingData.frequence ?? "mensuel"),
       cautionType: listingData.cautionType ?? listingData.caution_type,
       cautionValeur: listingData.cautionValeur ?? listingData.caution_valeur,
     };
@@ -293,8 +294,10 @@ export async function POST(req: Request) {
           : parsedListingData.payment_id
             ? "upfront_package"
             : "free_success_fee";
+    // Sales are free to list but are NOT rentals — they must not trigger the
+    // rental free-listing success-fee path (terms gate + 50%-of-first-month fee).
     const isFreeSuccessFeeListing =
-      listingPaymentMode === "free_success_fee";
+      !isSaleListing && listingPaymentMode === "free_success_fee";
     const isFurnishedListing = hasFurnishedAmenity(
       parsedListingData.equipements,
     );
@@ -420,8 +423,13 @@ export async function POST(req: Request) {
       openHouseLimit += 1;
     }
 
+    // Sale listings (vendre) must always start en_attente — they cannot go live
+    // until ownership documents are staff-approved, even for staff/founder authors.
+    const listingType = isSaleListing ? "vendre" : "louer";
+
     // Staff listings are automatically verified (en_ligne), owner/agent listings need approval
-    const propertyStatus = isStaffOrFounder ? "en_ligne" : "en_attente";
+    const propertyStatus =
+      isStaffOrFounder && !isSaleListing ? "en_ligne" : "en_attente";
     const isTestListing = isStaffOrFounder
       ? parsedListingData.is_test === true
       : false;
@@ -481,8 +489,12 @@ export async function POST(req: Request) {
     const propertyData = {
       agent_id: parsedListingData.owner_id || user.id,
       description: sanitizeString(parsedListingData.description) || null,
+      // For a sale, the wizard price is the owner's NET asking price; Roogo's public
+      // sale price is set later from the signed mandate. We seed `price` with the
+      // asking as a placeholder (never shown publicly while en_attente).
       price: parsedListingData.prixMensuel,
-      listing_type: "louer" as const,
+      seller_asking_price: isSaleListing ? parsedListingData.prixMensuel : null,
+      listing_type: listingType,
       property_type: parsedListingData.type,
       status: propertyStatus as "en_attente" | "en_ligne",
       bedrooms: parsedListingData.chambres || null,
@@ -494,32 +506,41 @@ export async function POST(req: Request) {
       quartier: sanitizeString(parsedListingData.quartier),
       latitude: parsedListingData.latitude || null,
       longitude: parsedListingData.longitude || null,
-      caution_mois:
-        parsedListingData.frequence === "journalier"
+      caution_mois: isSaleListing
+        ? null
+        : parsedListingData.frequence === "journalier"
           ? null
           : (parsedListingData.cautionMois ?? null),
-      loyer_avance_mois:
-        parsedListingData.frequence === "journalier"
+      loyer_avance_mois: isSaleListing
+        ? null
+        : parsedListingData.frequence === "journalier"
           ? 1
           : parsedListingData.loyerAvanceMois || 1,
       interdictions: interdictionsLabels,
       dos_and_donts: dosAndDonts,
-      period: parsedListingData.frequence === "journalier" ? "day" : "month",
-      frequence: parsedListingData.frequence,
+      // A sale has no recurring period / rental frequency.
+      period: isSaleListing
+        ? null
+        : parsedListingData.frequence === "journalier"
+          ? "day"
+          : "month",
+      frequence: isSaleListing ? null : parsedListingData.frequence,
       sejour_minimum:
-        parsedListingData.frequence === "journalier"
+        !isSaleListing && parsedListingData.frequence === "journalier"
           ? (parsedListingData.sejour_minimum ?? 1)
           : null,
       capacite_max:
-        parsedListingData.frequence === "journalier"
+        !isSaleListing && parsedListingData.frequence === "journalier"
           ? (parsedListingData.capacite_max ?? 2)
           : null,
       caution_type:
-        parsedListingData.frequence === "journalier"
+        !isSaleListing && parsedListingData.frequence === "journalier"
           ? (parsedListingData.cautionType ?? "aucune")
           : null,
       caution_valeur:
-        parsedListingData.frequence === "journalier" ? dailyCautionValue : null,
+        !isSaleListing && parsedListingData.frequence === "journalier"
+          ? dailyCautionValue
+          : null,
       // Tier information
       tier_id: selectedTier?.id || null,
       tier_price: tierPrice,
@@ -541,7 +562,9 @@ export async function POST(req: Request) {
       translated_at: null,
       translation_error: null,
       // Set published_at for staff listings since they go live immediately
-      published_at: isStaffOrFounder ? new Date().toISOString() : null,
+      // (sales never auto-publish — they wait on ownership verification).
+      published_at:
+        isStaffOrFounder && !isSaleListing ? new Date().toISOString() : null,
       // Only staff/founder may mark a listing as test (hidden from public)
       is_test: isTestListing,
       virtual_tour_url: isStaffOrFounder ? virtualTourUrl : null,
@@ -584,6 +607,30 @@ export async function POST(req: Request) {
           error,
         );
       });
+    }
+
+    // For a sale, open the owner's seller↔Roogo thread with a welcome card so they
+    // have a place to talk to the team while their listing is reviewed. Best-effort.
+    if (isSaleListing) {
+      try {
+        const { conversation } = await getOrCreateSellerConversation({
+          propertyId,
+          sellerId: propertyData.agent_id,
+        });
+        if (conversation) {
+          await postSaleMessage({
+            conversationId: conversation.id,
+            senderId: null,
+            senderType: "system",
+            messageType: "text",
+            body:
+              "Votre annonce a bien été reçue. L'équipe Roogo vérifie vos documents " +
+              "et reviendra vers vous ici avec une proposition de prix et de mandat.",
+          });
+        }
+      } catch (chatError) {
+        console.error("Failed to open seller sale conversation:", chatError);
+      }
     }
 
     // 10. Create deferred fee or link transaction record.

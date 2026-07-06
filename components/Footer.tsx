@@ -13,6 +13,7 @@ import {
   XLogo,
 } from "@phosphor-icons/react";
 import { TrustpilotReviewCollector } from "./TrustpilotReviewCollector";
+import { OFFICE_MAPS_URL } from "@/lib/office";
 
 export function Footer() {
   return (
@@ -121,10 +122,15 @@ export function Footer() {
             <ul className="mt-6 space-y-5 text-sm font-semibold leading-7 text-white/70">
               <li className="flex items-start gap-3">
                 <MapPin size={20} className="mt-1 shrink-0 text-primary" />
-                <span>
+                <a
+                  href={OFFICE_MAPS_URL}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="hover:text-white"
+                >
                   Karpala, 3ème boutique après le groupe l&apos;académie,
                   Ouagadougou
-                </span>
+                </a>
               </li>
               <li className="flex items-center gap-3">
                 <Phone size={20} className="shrink-0 text-primary" />

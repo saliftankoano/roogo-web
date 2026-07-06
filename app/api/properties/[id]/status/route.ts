@@ -32,7 +32,9 @@ export async function PATCH(
 
     const { data: existingProperty, error: propertyError } = await supabaseAdmin
       .from("properties")
-      .select("agent_id, is_boosted, status, is_test")
+      .select(
+        "agent_id, is_boosted, status, is_test, listing_type, ownership_verification_status",
+      )
       .eq("id", propertyId)
       .maybeSingle();
 
@@ -46,6 +48,42 @@ export async function PATCH(
     }
 
     const isGoingLive = status === "en_ligne";
+
+    // Compliance gate: a sale listing cannot go live until its ownership documents
+    // have been staff-approved. This is the core anti-scam guarantee.
+    if (
+      isGoingLive &&
+      existingProperty.listing_type === "vendre" &&
+      existingProperty.ownership_verification_status !== "approved"
+    ) {
+      return NextResponse.json(
+        {
+          error:
+            "Les documents de propriété doivent être vérifiés avant la mise en ligne.",
+        },
+        { status: 409 },
+      );
+    }
+
+    // Mandate gate: a sale listing also needs a signed mandate (the owner agreed to
+    // Roogo's sale price + exclusivity) before it can go live.
+    if (isGoingLive && existingProperty.listing_type === "vendre") {
+      const { data: signedMandate } = await supabaseAdmin
+        .from("property_mandates")
+        .select("id")
+        .eq("property_id", propertyId)
+        .eq("status", "signed")
+        .maybeSingle();
+      if (!signedMandate) {
+        return NextResponse.json(
+          {
+            error:
+              "Le mandat de vente doit être signé par le propriétaire avant la mise en ligne.",
+          },
+          { status: 409 },
+        );
+      }
+    }
     const wasAlreadyLive = existingProperty?.status === "en_ligne";
 
     // Post-approval logic: set published_at and refresh boost expiration

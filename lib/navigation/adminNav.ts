@@ -1,11 +1,13 @@
 import {
   BuildingsIcon,
+  CalendarCheckIcon,
   ReceiptIcon,
   ChartLineUpIcon,
   ChatCircleTextIcon,
   GearIcon,
   ClipboardTextIcon,
   HandshakeIcon,
+  HouseLineIcon,
   IdentificationCardIcon,
   PencilSimpleLineIcon,
 } from "@phosphor-icons/react";
@@ -52,6 +54,20 @@ const demandesNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
+    label: "Documents propriété",
+    href: "/admin/ownership-verifications",
+    id: "admin-nav-ownership-verifications",
+    icon: HouseLineIcon,
+  },
+  {
+    type: "link",
+    label: "Visites",
+    href: "/admin/visit-requests",
+    id: "admin-nav-visit-requests",
+    icon: CalendarCheckIcon,
+  },
+  {
+    type: "link",
     label: "Parrainage",
     href: "/admin/parrainage",
     id: "admin-nav-parrainage",
@@ -87,6 +103,13 @@ const baseAdminNavItems: AdminNavEntry[] = [
     href: "/admin/support",
     id: "admin-nav-support",
     icon: ChatCircleTextIcon,
+  },
+  {
+    type: "link",
+    label: "Ventes",
+    href: "/admin/sale-chat",
+    id: "admin-nav-sale-chat",
+    icon: HandshakeIcon,
   },
   {
     type: "group",

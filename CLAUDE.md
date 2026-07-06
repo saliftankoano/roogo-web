@@ -215,3 +215,7 @@ Any route reachable from the Expo app must:
 ### Never log secrets
 
 No Clerk tokens, PawaPay API keys, Supabase service keys, or raw user PII in `console.log`, PostHog events, or error alerts. When instrumenting, log token _length_ and presence, never contents.
+
+## Project logbook
+
+Product memory lives in `docs/DECISIONS.md` (why), `docs/CONCEPTS.md` (how it works), and `docs/CHANGELOG.md` (what shipped, when). After any non-obvious decision, answered conceptual question, or shipped feature/fix, use the `logbook` skill to record it.

@@ -1,0 +1,336 @@
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+// Per-property chat where Roogo is the only counterparty (broker model). Buyers and
+// sellers never talk to each other. Each conversation has a `kind`:
+//   * 'seller' — the owner ↔ Roogo (listing review, price negotiation, mandate)
+//   * 'buyer'  — a buyer ↔ Roogo (interest, visits, notary meeting)
+// `user_id` is the non-Roogo party; any staff/founder is the Roogo side of every thread.
+
+export const SALE_CHAT_ATTACHMENTS_BUCKET = "sale-chat-attachments";
+
+const ATTACHMENT_URL_TTL_SECONDS = 60 * 60; // 1 hour
+
+export type SaleConversationKind = "seller" | "buyer";
+export type SaleRole = "user" | "staff";
+export type SaleSenderType = SaleRole | "system";
+export type SaleMessageType =
+  | "text"
+  | "visit_request"
+  | "visit_confirmation"
+  | "mandate_offer"
+  | "mandate_signed"
+  | "notary_meeting";
+
+export type SaleConversationRow = {
+  id: string;
+  property_id: string;
+  kind: SaleConversationKind;
+  user_id: string;
+  staff_id: string | null;
+  status: string;
+  last_message_at: string | null;
+  last_message_preview: string | null;
+  unread_for_user: number;
+  unread_for_staff: number;
+};
+
+export type SaleAttachmentRow = {
+  id: string;
+  message_id: string;
+  storage_path: string;
+  mime_type: string | null;
+  size_bytes: number | null;
+  width: number | null;
+  height: number | null;
+};
+
+export type SaleMessageRow = {
+  id: string;
+  conversation_id: string;
+  sender_id: string | null;
+  sender_type: SaleSenderType;
+  message_type: SaleMessageType;
+  body: string | null;
+  metadata: Record<string, unknown> | null;
+  read_at: string | null;
+  created_at: string;
+};
+
+const STAFF_TYPES = new Set(["staff", "founder"]);
+
+export function isStaffType(userType: string | null | undefined) {
+  return !!userType && STAFF_TYPES.has(userType);
+}
+
+/**
+ * Resolves the caller's role within a conversation. Any staff/founder resolves to
+ * "staff" (the Roogo side of every thread); the thread's own user resolves to "user".
+ */
+export function resolveRole(
+  conversation: Pick<SaleConversationRow, "user_id">,
+  user: { id: string; user_type: string | null },
+): SaleRole | null {
+  if (isStaffType(user.user_type)) return "staff";
+  if (user.id === conversation.user_id) return "user";
+  return null;
+}
+
+/**
+ * Returns the buyer↔Roogo conversation for (property, buyer), creating it on first
+ * contact. The buyer cannot be the property's lister.
+ */
+export async function getOrCreateBuyerConversation(params: {
+  propertyId: string;
+  buyerId: string;
+}) {
+  const { propertyId, buyerId } = params;
+
+  const { data: property, error: propertyError } = await supabaseAdmin
+    .from("properties")
+    .select("id, agent_id, listing_type")
+    .eq("id", propertyId)
+    .maybeSingle();
+
+  if (propertyError) throw propertyError;
+  if (!property) return { conversation: null, reason: "not_found" as const };
+  if (property.listing_type !== "vendre")
+    return { conversation: null, reason: "not_a_sale" as const };
+  if (property.agent_id === buyerId)
+    return { conversation: null, reason: "own_listing" as const };
+
+  return upsertConversation({ propertyId, userId: buyerId, kind: "buyer" });
+}
+
+/**
+ * Returns the seller↔Roogo conversation for a property, creating it on first contact.
+ * Used when a `vendre` listing is submitted and whenever the owner opens their thread.
+ */
+export async function getOrCreateSellerConversation(params: {
+  propertyId: string;
+  sellerId: string;
+}) {
+  const { propertyId, sellerId } = params;
+  return upsertConversation({ propertyId, userId: sellerId, kind: "seller" });
+}
+
+async function upsertConversation(params: {
+  propertyId: string;
+  userId: string;
+  kind: SaleConversationKind;
+}) {
+  const { propertyId, userId, kind } = params;
+
+  const { data: existing, error: selectError } = await supabaseAdmin
+    .from("sale_conversations")
+    .select("*")
+    .eq("property_id", propertyId)
+    .eq("user_id", userId)
+    .eq("kind", kind)
+    .maybeSingle();
+
+  if (selectError) throw selectError;
+  if (existing)
+    return { conversation: existing as SaleConversationRow, reason: null };
+
+  const { data: created, error: insertError } = await supabaseAdmin
+    .from("sale_conversations")
+    .insert({ property_id: propertyId, user_id: userId, kind })
+    .select("*")
+    .single();
+
+  if (insertError) throw insertError;
+  return { conversation: created as SaleConversationRow, reason: null };
+}
+
+export async function getSaleConversation(conversationId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("sale_conversations")
+    .select("*")
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (error) throw error;
+  return (data as SaleConversationRow) ?? null;
+}
+
+export async function withSignedSaleAttachmentUrls(
+  attachments: SaleAttachmentRow[],
+) {
+  if (attachments.length === 0) return [];
+  const { data, error } = await supabaseAdmin.storage
+    .from(SALE_CHAT_ATTACHMENTS_BUCKET)
+    .createSignedUrls(
+      attachments.map((a) => a.storage_path),
+      ATTACHMENT_URL_TTL_SECONDS,
+    );
+
+  if (error || !data) {
+    console.error("Failed to sign sale attachment URLs:", error);
+    return attachments.map((a) => ({ ...a, url: null as string | null }));
+  }
+  const urlByPath = new Map(data.map((d) => [d.path ?? "", d.signedUrl ?? null]));
+  return attachments.map((a) => ({
+    ...a,
+    url: urlByPath.get(a.storage_path) ?? null,
+  }));
+}
+
+export async function loadSaleMessagesWithAttachments(conversationId: string) {
+  const { data: messages, error: messagesError } = await supabaseAdmin
+    .from("sale_messages")
+    .select("*")
+    .eq("conversation_id", conversationId)
+    .order("created_at", { ascending: true });
+
+  if (messagesError) throw messagesError;
+  const rows = (messages ?? []) as SaleMessageRow[];
+  if (rows.length === 0) return [];
+
+  const { data: attachments, error: attachmentsError } = await supabaseAdmin
+    .from("sale_message_attachments")
+    .select("*")
+    .in(
+      "message_id",
+      rows.map((m) => m.id),
+    );
+  if (attachmentsError) throw attachmentsError;
+
+  const signed = await withSignedSaleAttachmentUrls(
+    (attachments ?? []) as SaleAttachmentRow[],
+  );
+  const byMessage = new Map<string, typeof signed>();
+  for (const a of signed) {
+    const list = byMessage.get(a.message_id) ?? [];
+    list.push(a);
+    byMessage.set(a.message_id, list);
+  }
+  return rows.map((m) => ({ ...m, attachments: byMessage.get(m.id) ?? [] }));
+}
+
+function previewFromMessage(
+  body: string | null,
+  messageType: SaleMessageType,
+  hasAttachment: boolean,
+) {
+  if (messageType === "visit_request") return "📅 Demande de visite";
+  if (messageType === "visit_confirmation") return "✅ Visite confirmée";
+  if (messageType === "mandate_offer") return "📄 Proposition de mandat";
+  if (messageType === "mandate_signed") return "✍️ Mandat signé";
+  if (messageType === "notary_meeting") return "🏛 Rendez-vous notaire";
+  const trimmed = (body ?? "").trim();
+  if (trimmed) return trimmed.slice(0, 140);
+  return hasAttachment ? "📷 Image" : "";
+}
+
+/**
+ * Records a message, updates the conversation preview, and bumps the unread counter
+ * of the side that did NOT send it. A 'system' message bumps both sides. When a staff
+ * member is the first to reply, records who picked the thread up (staff_id).
+ */
+export async function postSaleMessage(params: {
+  conversationId: string;
+  senderId: string | null;
+  senderType: SaleSenderType;
+  messageType?: SaleMessageType;
+  body: string | null;
+  metadata?: Record<string, unknown> | null;
+  attachments?: {
+    storagePath: string;
+    mimeType?: string | null;
+    sizeBytes?: number | null;
+    width?: number | null;
+    height?: number | null;
+  }[];
+}) {
+  const messageType = params.messageType ?? "text";
+  const attachments = params.attachments ?? [];
+
+  const { data: message, error: messageError } = await supabaseAdmin
+    .from("sale_messages")
+    .insert({
+      conversation_id: params.conversationId,
+      sender_id: params.senderId,
+      sender_type: params.senderType,
+      message_type: messageType,
+      body: params.body ?? null,
+      metadata: params.metadata ?? null,
+    })
+    .select("*")
+    .single();
+
+  if (messageError || !message) {
+    throw messageError ?? new Error("Failed to insert sale message");
+  }
+
+  if (attachments.length > 0) {
+    const { error: attachmentError } = await supabaseAdmin
+      .from("sale_message_attachments")
+      .insert(
+        attachments.map((a) => ({
+          message_id: message.id,
+          storage_path: a.storagePath,
+          mime_type: a.mimeType ?? null,
+          size_bytes: a.sizeBytes ?? null,
+          width: a.width ?? null,
+          height: a.height ?? null,
+        })),
+      );
+    if (attachmentError) throw attachmentError;
+  }
+
+  const preview = previewFromMessage(
+    params.body,
+    messageType,
+    attachments.length > 0,
+  );
+  const now = new Date().toISOString();
+
+  const { data: conv } = await supabaseAdmin
+    .from("sale_conversations")
+    .select("unread_for_user, unread_for_staff, staff_id")
+    .eq("id", params.conversationId)
+    .single();
+
+  // Bump unread for the side that did not send. A 'system' message bumps both.
+  const update: Record<string, unknown> = {
+    last_message_at: now,
+    last_message_preview: preview,
+    status: "open",
+  };
+  if (params.senderType !== "user")
+    update.unread_for_user = (conv?.unread_for_user ?? 0) + 1;
+  if (params.senderType !== "staff")
+    update.unread_for_staff = (conv?.unread_for_staff ?? 0) + 1;
+  // Record the first staff member to engage (for display only).
+  if (params.senderType === "staff" && params.senderId && !conv?.staff_id)
+    update.staff_id = params.senderId;
+
+  await supabaseAdmin
+    .from("sale_conversations")
+    .update(update)
+    .eq("id", params.conversationId);
+
+  return { message: message as SaleMessageRow, attachmentsCount: attachments.length };
+}
+
+/**
+ * Resets the unread counter for one side and marks delivered messages read.
+ */
+export async function markSaleConversationRead(
+  conversationId: string,
+  role: SaleRole,
+) {
+  const column = role === "user" ? "unread_for_user" : "unread_for_staff";
+
+  await supabaseAdmin
+    .from("sale_conversations")
+    .update({ [column]: 0 })
+    .eq("id", conversationId);
+
+  // Mark messages not sent by this side as read (best-effort).
+  await supabaseAdmin
+    .from("sale_messages")
+    .update({ read_at: new Date().toISOString() })
+    .eq("conversation_id", conversationId)
+    .is("read_at", null)
+    .neq("sender_type", role);
+}

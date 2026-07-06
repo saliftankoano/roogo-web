@@ -8,6 +8,7 @@ import JsonLd from "../components/JsonLd";
 import { getSiteIdentitySchema } from "../lib/schemas";
 import { TrustpilotScript } from "../components/TrustpilotScript";
 import { AcquisitionSourceGate } from "@/components/onboarding/AcquisitionSourceGate";
+import { ProfileNameGate } from "@/components/onboarding/ProfileNameGate";
 
 const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
@@ -113,6 +114,7 @@ export default function RootLayout({
           <JsonLd schema={getSiteIdentitySchema()} />
           <NavHandler />
           <AcquisitionSourceGate />
+          <ProfileNameGate />
           {children}
         </body>
       </html>

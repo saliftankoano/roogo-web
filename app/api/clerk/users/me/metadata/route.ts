@@ -335,6 +335,36 @@ export async function POST(req: Request) {
       ...mergedWebOnboardingData,
     };
     const isCompleted = hasCompletedWebOnboarding === true || resolvedMobileCompleted === true;
+
+    // Authoritative name gate: a user cannot be marked onboarded without a real
+    // first AND last name. This is the single chokepoint for BOTH web and mobile
+    // (both POST here to set completion), so it can't be bypassed by an OAuth
+    // signup with no name, a raced/dismissed client modal, or a direct request.
+    // The effective name is what WILL exist after this request: the value being
+    // set now, falling back to what Clerk already has.
+    const effectiveFirstName = (
+      trimmedFirstName ||
+      currentUser.firstName ||
+      ""
+    ).trim();
+    const effectiveLastName = (
+      trimmedLastName ||
+      currentUser.lastName ||
+      ""
+    ).trim();
+    if (
+      isCompleted &&
+      !["staff", "founder"].includes(selectedUserType) &&
+      (!effectiveFirstName || !effectiveLastName)
+    ) {
+      return addCorsHeaders(
+        NextResponse.json(
+          { error: "Missing required name" },
+          { status: 400 },
+        ),
+      );
+    }
+
     if (
       isCompleted &&
       !["staff", "founder"].includes(selectedUserType) &&

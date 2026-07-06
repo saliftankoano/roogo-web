@@ -16,6 +16,7 @@ import {
   SectionHeader,
 } from "../../components/marketing/MarketingPrimitives";
 import { marketingAssets } from "../../components/marketing/assets";
+import { OFFICE_MAPS_URL } from "../../lib/office";
 
 export default function ContactPage() {
   const contactHeroImage =
@@ -158,6 +159,14 @@ export default function ContactPage() {
                       <p className="text-sm font-semibold leading-6 text-neutral-500">
                         3ème boutique après le groupe l&apos;académie
                       </p>
+                      <a
+                        href={OFFICE_MAPS_URL}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="mt-2 inline-block text-sm font-black text-primary hover:underline"
+                      >
+                        Voir l&apos;itinéraire →
+                      </a>
                     </div>
                   </div>
                 </motion.div>

@@ -126,6 +126,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/properties/(.*)/availability",
   // Pending-edits — mobile authenticates with Bearer JWT
   "/api/properties/(.*)/pending-edits",
+  // Ownership documents (Roogo Sell) — mobile authenticates with Bearer JWT
+  "/api/properties/(.*)/ownership-documents",
+  "/api/properties/(.*)/ownership-documents/upload-url",
+  // Sale chat — mobile authenticates with Bearer JWT
+  "/api/sale-chat/(.*)",
   // Shared property links — must be accessible without sign-in
   "/p/(.*)",
   "/proprietes/(.*)",

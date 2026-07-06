@@ -49,6 +49,9 @@ export type NotificationCopyKey =
   | "dailyBookings.completedRenter"
   | "dailyBookings.payoutAvailable"
   | "identityVerification.urgentReviewRequested"
+  | "ownershipVerification.reviewRequested"
+  | "ownershipVerification.approved"
+  | "ownershipVerification.rejected"
   | "properties.newMatch"
   | "properties.submittedForReview"
   | "properties.editApproved"
@@ -546,6 +549,36 @@ const notificationCopy: Record<
     en: {
       title: "URGENT: identity review needed",
       body: "{userLabel} is waiting for identity verification. Review this quickly so their listing can be unlocked.",
+    },
+  },
+  "ownershipVerification.reviewRequested": {
+    fr: {
+      title: "Documents de propriété à vérifier",
+      body: "{userLabel} a soumis des documents pour une annonce à vendre. Vérifiez-les pour débloquer la mise en ligne.",
+    },
+    en: {
+      title: "Ownership documents to review",
+      body: "{userLabel} submitted documents for a sale listing. Review them to unlock publishing.",
+    },
+  },
+  "ownershipVerification.approved": {
+    fr: {
+      title: "Documents approuvés ✅",
+      body: "Vos documents de propriété sont vérifiés. Votre annonce à vendre peut maintenant être mise en ligne.",
+    },
+    en: {
+      title: "Documents approved ✅",
+      body: "Your ownership documents are verified. Your sale listing can now go live.",
+    },
+  },
+  "ownershipVerification.rejected": {
+    fr: {
+      title: "Documents à revoir",
+      body: "Vos documents de propriété n'ont pas été validés. Ouvrez l'app pour voir la raison et renvoyer.",
+    },
+    en: {
+      title: "Documents need changes",
+      body: "Your ownership documents were not approved. Open the app to see why and resubmit.",
     },
   },
   "properties.newMatch": {

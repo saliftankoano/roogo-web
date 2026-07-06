@@ -86,7 +86,11 @@ export const listingBaseSchema = z.object({
     .max(20, "Maximum 20 règles")
     .optional(),
   virtualTourUrl: z.string().optional(),
-  frequence: z.enum(["mensuel", "journalier"]),
+  // Rent vs sale. Optional + default keeps older mobile builds (which never send
+  // it) creating rentals exactly as before.
+  listing_type: z.enum(["louer", "vendre"]).optional().default("louer"),
+  // Required for rentals; omitted for sales (a sale has no rental frequency).
+  frequence: z.enum(["mensuel", "journalier"]).optional(),
   source_locale: z.enum(["fr", "en"]).optional(),
 
   // Step 3
@@ -112,6 +116,24 @@ export const listingSchema = listingBaseSchema.superRefine((data, ctx) => {
       code: "custom",
       message: "Sélectionnez un propriétaire ou agent",
       path: ["owner_id"],
+    });
+  }
+
+  const isSale = data.listing_type === "vendre";
+
+  if (isSale) {
+    // A sale is free to submit. The owner enters a net asking price; Roogo reviews
+    // the documents and negotiates a sale price + mandate before anything is published.
+    // No rental-specific (frequency / payment-pack) checks apply.
+    return;
+  }
+
+  // Rentals must specify a frequency.
+  if (!data.frequence) {
+    ctx.addIssue({
+      code: "custom",
+      message: "Choisissez une fréquence de location",
+      path: ["frequence"],
     });
   }
 

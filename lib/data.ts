@@ -48,6 +48,8 @@ export type Property = {
   virtualTourUrl?: string;
   latitude?: number | null;
   longitude?: number | null;
+  listingType?: "louer" | "vendre";
+  ownershipVerified?: boolean;
   agent?: {
     full_name: string;
     phone: string;
@@ -110,6 +112,8 @@ interface DBProperty {
   virtual_tour_url?: string | null;
   latitude?: number | null;
   longitude?: number | null;
+  listing_type?: string | null;
+  ownership_verified?: boolean | null;
 }
 
 // Helper function to map DB properties to frontend format
@@ -161,6 +165,8 @@ function mapProperty(p: DBProperty): Property {
     transaction_id: p.transaction_id || undefined,
     is_test: p.is_test || false,
     virtualTourUrl: p.virtual_tour_url || undefined,
+    listingType: (p.listing_type as "louer" | "vendre") || "louer",
+    ownershipVerified: p.ownership_verified ?? false,
     latitude: p.latitude ?? null,
     longitude: p.longitude ?? null,
     agent: {

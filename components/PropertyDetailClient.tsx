@@ -291,6 +291,7 @@ export function PropertyDetailClient({
 
   const rentAmount = Number(listing.price);
   const isDailyListing = isDailyRental(listing);
+  const isSaleListing = listing.listingType === "vendre";
   const dailyConditionRows = getDailyConditionRows(listing);
   const depositMonths = Number(listing.deposit ?? 0);
   const advanceRentMonths = Number(listing.loyerAvanceMois ?? 1);
@@ -570,16 +571,18 @@ export function PropertyDetailClient({
                     <CurrencyCircleDollarIcon size={24} weight="bold" />
                   </div>
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
-                    {getPriceTitle(listing)}
+                    {isSaleListing ? "Prix de vente" : getPriceTitle(listing)}
                   </p>
                 </div>
                 <p className="text-3xl font-black text-neutral-900 tracking-tight">
                   {formatXofAmount(listing.price)}{" "}
-                  <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">
-                    {getPricePeriodLabel(listing)}
-                  </span>
+                  {!isSaleListing && (
+                    <span className="text-sm text-neutral-400 font-bold uppercase tracking-wider ml-1">
+                      {getPricePeriodLabel(listing)}
+                    </span>
+                  )}
                 </p>
-                {isDailyListing ? (
+                {isSaleListing ? null : isDailyListing ? (
                   <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4 text-xs font-bold text-neutral-500">
                     {dailyConditionRows.map((row) => (
                       <div
@@ -609,7 +612,31 @@ export function PropertyDetailClient({
                 )}
               </section>
 
-              {isRenter && listing.status === "en_ligne" && !isDailyListing && (
+              {/* Sale listings: contact happens through the in-app buyer↔seller chat */}
+              {isSaleListing && listing.status === "en_ligne" && (
+                <section className="bg-white p-6 rounded-[32px] border border-neutral-100 shadow-sm space-y-3">
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+                    Acheter ce bien
+                  </p>
+                  <p className="text-sm font-medium text-neutral-500">
+                    Les documents de propriété sont vérifiés par Roogo. Roogo
+                    gère toute la transaction&nbsp;: échangez avec notre équipe,
+                    organisez la visite et signez chez le notaire depuis
+                    l&apos;application Roogo.
+                  </p>
+                  <a
+                    href="https://roogo.bf"
+                    className="block w-full rounded-2xl bg-primary py-4 text-center font-black text-white hover:bg-primary/90"
+                  >
+                    Discuter avec Roogo dans l&apos;app
+                  </a>
+                </section>
+              )}
+
+              {isRenter &&
+                !isSaleListing &&
+                listing.status === "en_ligne" &&
+                !isDailyListing && (
                 <section className="bg-white p-6 rounded-[32px] border border-neutral-100 shadow-sm space-y-3">
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">Actions</p>
                   {hasApplied && applicationStatus && (() => {

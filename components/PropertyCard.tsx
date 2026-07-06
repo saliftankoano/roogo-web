@@ -100,13 +100,24 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
             </div>
           )}
 
-          {property.agent?.identity_verified && (
-            <div className="absolute bottom-4 left-4 flex items-center bg-white/95 px-3 py-1.5 rounded-full shadow-md border border-green-200 z-10">
-              <SealCheckIcon size={14} weight="fill" className="text-green-600" />
-              <span className="text-green-700 text-[10px] font-black tracking-tighter uppercase ml-1">
-                Identité vérifiée
-              </span>
-            </div>
+          {property.listingType === "vendre" ? (
+            property.ownershipVerified && (
+              <div className="absolute bottom-4 left-4 flex items-center bg-white/95 px-3 py-1.5 rounded-full shadow-md border border-green-200 z-10">
+                <SealCheckIcon size={14} weight="fill" className="text-green-600" />
+                <span className="text-green-700 text-[10px] font-black tracking-tighter uppercase ml-1">
+                  Documents vérifiés
+                </span>
+              </div>
+            )
+          ) : (
+            property.agent?.identity_verified && (
+              <div className="absolute bottom-4 left-4 flex items-center bg-white/95 px-3 py-1.5 rounded-full shadow-md border border-green-200 z-10">
+                <SealCheckIcon size={14} weight="fill" className="text-green-600" />
+                <span className="text-green-700 text-[10px] font-black tracking-tighter uppercase ml-1">
+                  Identité vérifiée
+                </span>
+              </div>
+            )
           )}
 
           {/* Status Badge */}
@@ -132,7 +143,9 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
             {formatXofAmount(property.price)}
           </span>
           <span className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
-            {getPricePeriodLabel(property)}
+            {property.listingType === "vendre"
+              ? "À vendre"
+              : getPricePeriodLabel(property)}
           </span>
           <span className="text-xs text-neutral-400 font-medium">
             • {timePosted}
