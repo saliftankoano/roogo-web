@@ -1,3 +1,4 @@
+import { markConversationRead } from "@/lib/chat-read";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // Per-property chat where Roogo is the only counterparty (broker model). Buyers and
@@ -319,18 +320,10 @@ export async function markSaleConversationRead(
   conversationId: string,
   role: SaleRole,
 ) {
-  const column = role === "user" ? "unread_for_user" : "unread_for_staff";
-
-  await supabaseAdmin
-    .from("sale_conversations")
-    .update({ [column]: 0 })
-    .eq("id", conversationId);
-
-  // Mark messages not sent by this side as read (best-effort).
-  await supabaseAdmin
-    .from("sale_messages")
-    .update({ read_at: new Date().toISOString() })
-    .eq("conversation_id", conversationId)
-    .is("read_at", null)
-    .neq("sender_type", role);
+  await markConversationRead({
+    conversationsTable: "sale_conversations",
+    messagesTable: "sale_messages",
+    conversationId,
+    role,
+  });
 }

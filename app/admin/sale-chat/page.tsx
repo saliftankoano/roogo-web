@@ -55,6 +55,7 @@ type Message = {
   body: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  read_at: string | null;
   attachments?: Attachment[];
 };
 
@@ -503,6 +504,11 @@ function MessageRow({
         )}
         {message.body && (
           <p className="whitespace-pre-wrap text-sm">{message.body}</p>
+        )}
+        {isStaff && (
+          <p className="mt-1 text-right text-[11px] text-white/70">
+            {message.read_at ? "✓✓ Lu" : "✓ Envoyé"}
+          </p>
         )}
       </div>
     );

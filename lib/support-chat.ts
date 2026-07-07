@@ -1,3 +1,4 @@
+import { markConversationRead } from "@/lib/chat-read";
 import { notifyUser } from "@/lib/push-notifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -212,6 +213,23 @@ export async function postSupportMessage(params: {
     .eq("id", conversationId);
 
   return { message, attachmentsCount: attachments.length };
+}
+
+/**
+ * Marks a support thread read for one side: zeroes that side's unread counter AND
+ * stamps read_at on the OTHER party's messages, so the sender's read receipts flip
+ * to "Lu". Mirrors markSaleConversationRead in lib/sale-chat.ts.
+ */
+export async function markSupportConversationRead(
+  conversationId: string,
+  role: "user" | "staff",
+) {
+  await markConversationRead({
+    conversationsTable: "support_conversations",
+    messagesTable: "support_messages",
+    conversationId,
+    role,
+  });
 }
 
 /**

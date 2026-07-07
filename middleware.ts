@@ -123,6 +123,9 @@ const isPublicRoute = createRouteMatcher([
   "/api/support/conversation", // Mobile app authenticates this route with Bearer JWT
   "/api/support/upload-url", // Mobile app authenticates this route with Bearer JWT
   "/api/support/messages", // Mobile app authenticates this route with Bearer JWT
+  // Support staff console — mobile authenticates with Bearer JWT; routes gate on
+  // isStaffLikeUserType internally, so exposing them here doesn't relax authorization.
+  "/api/support/admin/(.*)",
   "/api/cron/(.*)",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates

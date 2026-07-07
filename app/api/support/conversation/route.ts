@@ -1,10 +1,10 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { resolveClerkId } from "@/lib/request-auth";
-import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   getOrCreateConversation,
   loadMessagesWithAttachments,
+  markSupportConversationRead,
 } from "@/lib/support-chat";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
 
@@ -23,15 +23,17 @@ export async function GET(req: Request) {
     if (!user) return errorResponse("User not found", 404, req);
 
     const conversation = await getOrCreateConversation(user.id);
-    const messages = await loadMessagesWithAttachments(conversation.id);
 
+    // Zero the user's unread counter and stamp read_at on staff messages so the
+    // staff side sees "Lu". Skip entirely when nothing is unread — a zero counter
+    // means there are no unread incoming messages to stamp, so this avoids a no-op
+    // UPDATE + Realtime broadcast on every idle open/poll.
     if (conversation.unread_for_user > 0) {
-      await supabaseAdmin
-        .from("support_conversations")
-        .update({ unread_for_user: 0 })
-        .eq("id", conversation.id);
+      await markSupportConversationRead(conversation.id, "user");
       conversation.unread_for_user = 0;
     }
+
+    const messages = await loadMessagesWithAttachments(conversation.id);
 
     return cors(
       NextResponse.json({ success: true, conversation, messages }),

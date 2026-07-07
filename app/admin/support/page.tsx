@@ -40,6 +40,7 @@ type Message = {
   sender_type: "user" | "staff";
   body: string | null;
   created_at: string;
+  read_at: string | null;
   attachments?: Attachment[];
 };
 
@@ -241,6 +242,11 @@ export default function AdminSupportPage() {
                       )}
                       {m.body && (
                         <p className="whitespace-pre-wrap text-sm">{m.body}</p>
+                      )}
+                      {isStaff && (
+                        <p className="mt-1 text-right text-[11px] text-white/70">
+                          {m.read_at ? "✓✓ Lu" : "✓ Envoyé"}
+                        </p>
                       )}
                     </div>
                   );

@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { resolveClerkId } from "@/lib/request-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { loadMessagesWithAttachments } from "@/lib/support-chat";
+import {
+  loadMessagesWithAttachments,
+  markSupportConversationRead,
+} from "@/lib/support-chat";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
 import { isStaffLikeUserType } from "@/lib/user-types";
 
@@ -38,15 +41,14 @@ export async function GET(req: Request) {
     if (error) throw error;
     if (!conversation) return errorResponse("Conversation not found", 404, req);
 
-    const messages = await loadMessagesWithAttachments(conversationId);
-
+    // Zero staff unread and stamp read_at on the user's messages so the user sees
+    // "Lu". Skip when nothing is unread to avoid a no-op UPDATE + Realtime broadcast.
     if (conversation.unread_for_staff > 0) {
-      await supabaseAdmin
-        .from("support_conversations")
-        .update({ unread_for_staff: 0 })
-        .eq("id", conversationId);
+      await markSupportConversationRead(conversationId, "staff");
       conversation.unread_for_staff = 0;
     }
+
+    const messages = await loadMessagesWithAttachments(conversationId);
 
     return cors(
       NextResponse.json({ success: true, conversation, messages }),
