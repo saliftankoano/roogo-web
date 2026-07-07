@@ -42,6 +42,14 @@ export default function SitemapPage() {
                 </li>
                 <li>
                   <Link
+                    href="/visites-3d"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Visites 3D
+                  </Link>
+                </li>
+                <li>
+                  <Link
                     href="/a-propos"
                     className="text-primary-600 hover:text-primary-700 hover:underline"
                   >

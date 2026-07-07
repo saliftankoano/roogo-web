@@ -20,6 +20,7 @@ import {
   BuildingsIcon,
   HouseIcon,
   HandshakeIcon,
+  CubeFocusIcon,
 } from "@phosphor-icons/react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
@@ -109,6 +110,12 @@ export function Navbar() {
       href: "/proprietes",
       icon: BuildingsIcon,
       id: "nav-proprietes",
+    },
+    {
+      name: "Visites 3D",
+      href: "/visites-3d",
+      icon: CubeFocusIcon,
+      id: "nav-visites-3d",
     },
     {
       name: "À propos",

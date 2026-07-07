@@ -1,8 +1,9 @@
 import { Property } from "./data";
 import { homeFaqItems } from "./home-content";
 import { isDailyRental } from "./rental-period";
+import { PRICE_PER_ROOM, formatFCFA } from "./visites-3d";
 
-const SITE_URL = "https://www.roogobf.com";
+export const SITE_URL = "https://www.roogobf.com";
 const ORGANIZATION_ID = `${SITE_URL}/#organization`;
 const WEBSITE_ID = `${SITE_URL}/#website`;
 
@@ -440,6 +441,56 @@ export function getAboutPageSchema() {
       { name: "Accueil", item: SITE_URL },
       { name: "À propos", item: url },
     ]),
+  ]);
+}
+
+export function getVisites3dPageSchema() {
+  const url = `${SITE_URL}/visites-3d`;
+  return graph([
+    getWebPageNode({
+      id: `${url}#webpage`,
+      url,
+      name: "Visites virtuelles 3D à Ouagadougou | Roogo",
+      description: `Scan 3D de biens immobiliers à Ouagadougou : visite virtuelle immersive, lien partageable, ${formatFCFA(PRICE_PER_ROOM)} par pièce.`,
+      mainEntity: { "@id": `${url}#service` },
+    }),
+    getBreadcrumbNode(`${url}#breadcrumb`, [
+      { name: "Accueil", item: SITE_URL },
+      { name: "Visites 3D", item: url },
+    ]),
+    {
+      "@type": "Service",
+      "@id": `${url}#service`,
+      name: "Visite virtuelle 3D immobilière",
+      serviceType: "Visite virtuelle 3D immobilière",
+      description:
+        "Scan 3D sur place, visite virtuelle immersive hébergée et lien partageable pour vos biens immobiliers à Ouagadougou.",
+      url,
+      provider: { "@id": ORGANIZATION_ID },
+      areaServed: [
+        {
+          "@type": "City",
+          name: "Ouagadougou",
+        },
+        {
+          "@type": "Country",
+          name: "Burkina Faso",
+        },
+      ],
+      offers: {
+        "@type": "Offer",
+        url,
+        price: PRICE_PER_ROOM,
+        priceCurrency: "XOF",
+        availability: "https://schema.org/InStock",
+        priceSpecification: {
+          "@type": "UnitPriceSpecification",
+          price: PRICE_PER_ROOM,
+          priceCurrency: "XOF",
+          unitText: "pièce",
+        },
+      },
+    },
   ]);
 }
 

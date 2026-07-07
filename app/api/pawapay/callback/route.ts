@@ -11,6 +11,7 @@ import {
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import { updateDepositRefundFromPawaPayStatus } from "@/lib/pawapay-payouts";
 import { finalizeDailyBookingAfterPayment } from "@/lib/daily-bookings";
+import { handleVisit3dDepositCallback } from "@/lib/visit3d-callback";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -191,7 +192,43 @@ export async function POST(req: Request) {
       .eq("deposit_id", transactionId)
       .single();
 
-    if (fetchError || !transaction) {
+    // PGRST116 = zero rows (a genuine miss). Any other error is a transient
+    // DB failure: return 500 so PawaPay retries instead of dropping the event.
+    if (fetchError && fetchError.code !== "PGRST116") {
+      log("transaction-fetch-error", {
+        transactionId,
+        error: String(fetchError),
+        code: fetchError.code,
+      });
+      return NextResponse.json({ error: "DB fetch failed" }, { status: 500 });
+    }
+
+    if (!transaction) {
+      // Not a rent/listing transaction — try Visites 3D bookings, which share
+      // this PawaPay account. Deposit IDs are unique in both tables.
+      const visit3d = await handleVisit3dDepositCallback(transactionId, status);
+      if (visit3d.dbError) {
+        // The bookings lookup itself failed — don't ack as "not found" or
+        // PawaPay will never retry a possibly-real booking callback.
+        log("visit3d-fetch-error", { transactionId, error: visit3d.dbError });
+        return NextResponse.json({ error: "DB fetch failed" }, { status: 500 });
+      }
+      if (visit3d.handled) {
+        log("visit3d-booking-updated", {
+          transactionId,
+          pawaPayStatus: status,
+          bookingId: visit3d.bookingId,
+          error: visit3d.error || null,
+        });
+        if (visit3d.error) {
+          return NextResponse.json(
+            { error: "Booking update failed" },
+            { status: 500 },
+          );
+        }
+        return NextResponse.json({ received: true, visit3d: true });
+      }
+
       log("transaction-not-found", {
         transactionId,
         fetchError: String(fetchError),

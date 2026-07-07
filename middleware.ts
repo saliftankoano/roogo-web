@@ -104,6 +104,7 @@ const isPublicRoute = createRouteMatcher([
   "/talent(.*)",
   "/parrainage(.*)",
   "/proprietes",
+  "/visites-3d",
   "/louer/residentiel",
   "/louer/commercial",
   "/publier-bien",
@@ -111,6 +112,8 @@ const isPublicRoute = createRouteMatcher([
   // API routes that need to be public (webhooks, health)
   "/api/health",
   "/api/pawapay/callback",
+  // Visites 3D self-serve booking — anonymous public flow
+  "/api/visites-3d/(.*)",
   "/api/clerk/webhook",
   "/api/clerk/users/me/metadata", // Mobile app uses JWT auth, not session
   "/api/favorites", // Mobile app authenticates this route with Bearer JWT

@@ -80,6 +80,11 @@ export function Footer() {
                 </Link>
               </li>
               <li>
+                <Link href="/visites-3d" className="hover:text-white">
+                  Visites 3D
+                </Link>
+              </li>
+              <li>
                 <Link href="/mes-proprietes" className="hover:text-white">
                   Mes biens
                 </Link>

@@ -7,6 +7,38 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Visites 3D move under the Roogo brand — 2026-07-06
+
+**Decision:** The 3D virtual-tour scanning service (marketing page + self-serve
+booking + PawaPay payment + SMS) moved from the Kazedra site to `/visites-3d` here.
+Kazedra is now purely a software-development/consulting brand and 308-redirects its
+old `/visites-3d` URL to us. Pricing simplified to a **single 15 000 FCFA / pièce**
+rate — the old dual pricing (10 000 standalone / 7 500 "with Roogo", 25% off) is
+retired along with the `with_roogo` column.
+
+**Why:** 3D visits for homes and businesses are squarely part of Roogo's real-estate
+mission; keeping them on the agency site split the brand story. The "discount if you
+list on Roogo" framing also made no sense once Roogo itself is the seller. Both
+sites already shared one Supabase project, so the `bookings` table and its data were
+already in our database — the migration was code + branding, not data.
+
+**Ruled out / alternatives:**
+- *Marketing page only (booking via WhatsApp)* — rejected; the self-serve flow
+  already worked and was worth keeping end-to-end.
+- *Separate PawaPay webhook endpoint* — rejected; deposit IDs are UUIDs with unique
+  indexes in both `transactions` and `bookings`, so the existing
+  `/api/pawapay/callback` can route safely by lookup fallback (`lib/visit3d-callback.ts`).
+- *Keeping two price tiers as a listing incentive* — rejected in favor of one simple
+  number.
+
+**Status:** Shipped. Ops follow-ups: apply migration `045` (drops `with_roogo`),
+point the PawaPay dashboard webhook at `roogobf.com`, then strip the
+Supabase/PawaPay/AT env vars from kazedra's Vercel. SMS (`AT_*`/`TEAM_PHONE` in
+Vercel) is deliberately skipped for now — the integration isn't in use; bookings
+work without it and failures are logged, not thrown. See [visites-3d.md](./visites-3d.md).
+
+---
+
 ### Identity (KYC) becomes optional — 2026-07-06
 
 **Decision:** Owner/agent identity verification (photo of national ID, recto/verso)
