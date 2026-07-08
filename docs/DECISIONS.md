@@ -7,6 +7,67 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Conditional listing form for sales & bare land — 2026-07-08
+
+**Decision:** The listing wizard adapts to what's being listed. Sales (vendre) hide
+all tenant-relationship sections (refundable deposit, move-in "Total à l'entrée"
+math, interdictions, house rules) and show only physical-asset amenities (jardin,
+piscine, solaires, securite — wifi and meuble read as rental perks). Bare land
+(terrain, whether for rent or sale) drops the bedroom/bathroom/vehicle counters
+entirely — 0 is now legal end-to-end (backend stores null) — and superficie
+becomes required, since m² is the headline fact of a land deal.
+
+**Why:** The old form was rental-shaped for everything: a land sale literally could
+not be submitted honestly (bedrooms/bathrooms were forced ≥ 1 in the UI, the mobile
+schema, AND the server schema), and sales showed nonsense like a move-in total
+computed from the asking price. Real seller feedback surfaced both.
+
+**Ruled out / alternatives:**
+- *Conditioning the counters on listing_type instead of property type* — rejected;
+  a terrain rental has the same problem, so the rule keys off `type === "terrain"`.
+- *Clearing stale rental values on type-switch* — rejected in favor of stripping
+  them at payload build, which also survives restored drafts.
+- *One schema-level superRefine* — not possible as-is: both repos `pick()`/`omit()`
+  the base schema, so the rule lives in a shared plain function
+  (`requireListingFieldsByType`) mirrored mobile/web with identical messages.
+
+**Status:** Settled. The API also force-empties interdictions/house rules on sales
+so pre-update app builds can't write tenant rules onto sale listings.
+
+---
+
+### Support console goes mobile + read receipts — 2026-07-06
+
+**Decision:** Staff/founders answer support chats from a **Support** segment inside the
+mobile Messages tab (alongside **Ventes**), not a separate screen. Added read receipts
+(✓/✓✓ "Lu") to **both** support and sale chat. No DB migration — reused the existing
+`read_at` column and `unread_for_*` counters.
+
+**Why:** The founder had a real user waiting and could only reply from the website —
+there was no mobile interface listing conversations. The Messages tab is where a founder
+already looks for conversations, so a segment there is the most discoverable home.
+Read receipts were nearly free because sale chat already stamped `read_at`; sharing the
+indicator across both surfaces keeps them consistent.
+
+**Ruled out / alternatives:**
+- *Separate "Support client" screen off the Profile menu* — less discoverable; the
+  Messages tab is the natural conversation hub.
+- *New API routes for the mobile console* — unnecessary. The root cause of "can't reply
+  on mobile" was that the existing `/api/support/admin/*` routes weren't in middleware
+  `isPublicRoute`, so mobile Bearer calls were rejected. One middleware line fixed it
+  (routes still gate on `isStaffLikeUserType` in-handler). See
+  [how](./CONCEPTS.md#how-is-the-mobile-app-authorized-to-hit-our-api-and-supabase).
+- *Per-screen Supabase token registration* — a code review caught that each chat hook
+  registered the one process-global Supabase token getter and nulled it on unmount, so
+  closing one chat screen de-authenticated any other still-mounted one. Moved to a single
+  registration at app root.
+
+**Status:** Settled (shipped in app 1.16.0/61). Open follow-up: confirm the live "Lu"
+flip actually arrives over Realtime; if it only updates on refocus, `sale_messages` /
+`support_messages` need `REPLICA IDENTITY FULL`.
+
+---
+
 ### Visites 3D move under the Roogo brand — 2026-07-06
 
 **Decision:** The 3D virtual-tour scanning service (marketing page + self-serve

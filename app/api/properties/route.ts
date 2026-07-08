@@ -15,7 +15,11 @@ import {
   postSaleMessage,
 } from "@/lib/sale-chat";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { listingBaseSchema, MAX_LISTING_PHOTOS } from "@/lib/validations";
+import {
+  listingBaseSchema,
+  MAX_LISTING_PHOTOS,
+  requireListingFieldsByType,
+} from "@/lib/validations";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
 import {
@@ -224,6 +228,13 @@ export async function POST(req: Request) {
     }
     const parsedListingData = validationResult.data;
 
+    // Type-conditional rules: terrain requires superficie and allows 0
+    // rooms; every other type still requires ≥1 chambre and ≥1 douche.
+    const typeIssue = requireListingFieldsByType(parsedListingData);
+    if (typeIssue) {
+      return errorResponse("Données invalides: " + typeIssue.message, 400, req);
+    }
+
     let virtualTourUrl: string | null = null;
     try {
       virtualTourUrl = normalizeKuulaVirtualTourUrl(
@@ -272,16 +283,20 @@ export async function POST(req: Request) {
     // 6. Get Supabase client (service role - bypasses RLS)
     const supabase = getSupabaseClient();
 
-    // 7. Map interdiction IDs to labels (plain text)
-    const interdictionsLabels = convertIdsToLabels(
-      parsedListingData.interdictions,
-    );
-    const dosAndDonts = Array.isArray(parsedListingData.dosAndDonts)
-      ? parsedListingData.dosAndDonts
-          .map((rule) => sanitizeString(rule))
-          .filter((rule) => rule.length >= 2)
-          .slice(0, 20)
-      : [];
+    // 7. Map interdiction IDs to labels (plain text). Interdictions and house
+    // rules are tenant concepts — force them empty on sales so older app
+    // builds (which render those form sections for every listing) can't write
+    // tenant rules onto a sale listing.
+    const interdictionsLabels = isSaleListing
+      ? []
+      : convertIdsToLabels(parsedListingData.interdictions);
+    const dosAndDonts =
+      !isSaleListing && Array.isArray(parsedListingData.dosAndDonts)
+        ? parsedListingData.dosAndDonts
+            .map((rule) => sanitizeString(rule))
+            .filter((rule) => rule.length >= 2)
+            .slice(0, 20)
+        : [];
 
     // 8. Resolve listing payment mode, tier, and commission from database.
     const isDailyListing = parsedListingData.frequence === "journalier";

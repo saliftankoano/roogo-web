@@ -44,8 +44,11 @@ export const listingBaseSchema = z.object({
   longitude: z.number().min(-180).max(180).optional(),
 
   // Step 2
-  chambres: z.coerce.number().int().min(1, "Au moins 1 chambre requise"),
-  sdb: z.coerce.number().int().min(1, "Au moins 1 douche requise"),
+  // Floor is 0 to allow bare land (terrain); non-terrain listings must have
+  // ≥1 of each — enforced by requireListingFieldsByType (schema-level
+  // superRefine would break the .omit({photos}) call in the API route).
+  chambres: z.coerce.number().int().min(0),
+  sdb: z.coerce.number().int().min(0),
   superficie: optionalPositiveInteger(
     "La superficie doit être au moins 1 m²",
   ),
@@ -110,12 +113,52 @@ export const listingBaseSchema = z.object({
   owner_id: z.uuid().optional(),
 });
 
+/**
+ * Type-conditional field rules shared by the web form (via listingSchema's
+ * superRefine) and the API route (which parses listingBaseSchema.omit({photos})
+ * and therefore can't use a schema-level superRefine). Returns French error
+ * messages, or null when valid.
+ */
+export function requireListingFieldsByType(data: {
+  type: string;
+  chambres: number;
+  sdb: number;
+  superficie?: number | null;
+}): { path: "chambres" | "sdb" | "superficie"; message: string } | null {
+  if (data.type === "terrain") {
+    // Bare land: rooms are meaningless, but surface area is the headline fact.
+    if (!data.superficie || data.superficie < 1) {
+      return {
+        path: "superficie",
+        message: "La superficie est requise pour un terrain",
+      };
+    }
+    return null;
+  }
+  if (data.chambres < 1) {
+    return { path: "chambres", message: "Au moins 1 chambre requise" };
+  }
+  if (data.sdb < 1) {
+    return { path: "sdb", message: "Au moins 1 douche requise" };
+  }
+  return null;
+}
+
 export const listingSchema = listingBaseSchema.superRefine((data, ctx) => {
   if (data.on_behalf_of_client && !data.owner_id) {
     ctx.addIssue({
       code: "custom",
       message: "Sélectionnez un propriétaire ou agent",
       path: ["owner_id"],
+    });
+  }
+
+  const typeIssue = requireListingFieldsByType(data);
+  if (typeIssue) {
+    ctx.addIssue({
+      code: "custom",
+      message: typeIssue.message,
+      path: [typeIssue.path],
     });
   }
 

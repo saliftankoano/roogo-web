@@ -6,6 +6,59 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How is the mobile app authorized to hit our API and Supabase?
+
+**Bottom line:** the Expo app authenticates with a Clerk **Bearer JWT** (not the web
+session cookie), so any route the mobile app calls has TWO independent gates it must
+clear, and Supabase access rides on a **single app-wide token getter**.
+
+1. **Middleware `isPublicRoute` (roogo-web/middleware.ts).** Clerk middleware runs on
+   every request and, for non-public routes, expects a session cookie. Mobile has no
+   cookie, so **every mobile-callable route must be listed in `isPublicRoute`** or the
+   request is rejected before it reaches the handler. "Public" here only means "skip the
+   cookie gate" — the handler still authorizes.
+   - This is exactly why the founder couldn't answer support from the phone: the
+     `/api/support/admin/*` routes existed and used `resolveClerkId` + CORS, but they
+     weren't in `isPublicRoute`, so mobile Bearer calls never got through. Adding
+     `/api/support/admin/(.*)` fixed it. **Lesson: a new mobile route isn't done until
+     it's in `isPublicRoute`.**
+2. **In-handler authorization.** Each such route verifies the JWT (`resolveClerkId`),
+   resolves the Supabase user (`getOrSyncUserByClerkId`), and re-checks role
+   (`isStaffLikeUserType`) — so exposing it to the cookie-less path never relaxes who can
+   actually call it.
+3. **Supabase client auth (mobile).** `lib/supabaseAuth.ts` holds ONE module-level token
+   getter that supabase-js calls for RLS-gated reads + Realtime auth. It is registered
+   **once at app root** (`app/_layout.tsx`), not per screen. Registering it per-hook was a
+   footgun: unmounting one chat screen ran `registerSupabaseTokenGetter(null)` and
+   de-authenticated any other still-mounted chat screen (silently killing its Realtime).
+
+**Consequence:** two rules for any new mobile feature — (a) list its API routes in
+`isPublicRoute` and gate them in-handler; (b) never touch the global Supabase token getter
+from a screen/hook. See [decision](./DECISIONS.md#support-console-goes-mobile--read-receipts--2026-07-06).
+
+## How do chat read receipts (✓✓ "Lu") work?
+
+**Bottom line:** a message carries a nullable `read_at`. When the *recipient* opens a
+thread, the server stamps `read_at = now()` on the other party's un-read messages; the
+*sender's* client sees that change live over Realtime and flips the bubble from
+✓ Envoyé to ✓✓ Lu.
+
+- **Write:** `markConversationRead(convTable, msgTable, id, role)` (shared by support +
+  sale via `lib/chat-read.ts`) zeroes the reader's `unread_for_*` counter and stamps
+  `read_at` on messages where `sender_type != role`. Call sites gate it on
+  `unread_for_<role> > 0` so an idle open/poll doesn't issue a no-op write + Realtime
+  broadcast.
+- **Deliver:** the chat hooks subscribe to `postgres_changes` with `event: "*"` (INSERT
+  for new messages, UPDATE for the `read_at` flip) filtered by `conversation_id`, via the
+  shared `useRealtimeMessages` hook. DELETE payloads carry no `new` row, so a `row?.id`
+  guard skips them.
+- **Render:** the shared `components/chat/ReadReceipt.tsx` shows the indicator only on the
+  sender's OWN bubbles.
+
+**Consequence / gotcha:** the live flip depends on Supabase delivering filtered UPDATE
+events. If receipts only update after a manual refocus, the message tables likely need
+`REPLICA IDENTITY FULL`. Cross-ref [decision](./DECISIONS.md#support-console-goes-mobile--read-receipts--2026-07-06).
+
 ## How do Visites 3D payment completions stay exactly-once?
 
 **Bottom line:** three code paths can observe a deposit turn COMPLETED — the
