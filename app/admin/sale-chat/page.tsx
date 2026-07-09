@@ -44,6 +44,8 @@ type Attachment = { id: string; url: string | null };
 
 type Message = {
   id: string;
+  sender_id: string | null;
+  sender_name?: string | null;
   sender_type: "user" | "staff" | "system";
   message_type:
     | "text"
@@ -61,6 +63,26 @@ type Message = {
 
 const LIST_POLL_MS = 10000;
 const THREAD_POLL_MS = 5000;
+
+// Deterministic per-sender name colors (WhatsApp-group style), readable on both
+// the terracotta staff bubble and the neutral user bubble backdrop.
+const SENDER_NAME_COLORS = [
+  "#FDE68A",
+  "#BFDBFE",
+  "#BBF7D0",
+  "#FBCFE8",
+  "#DDD6FE",
+  "#99F6E4",
+];
+
+function senderNameColor(senderId: string | null) {
+  if (!senderId) return SENDER_NAME_COLORS[0];
+  let hash = 0;
+  for (let i = 0; i < senderId.length; i++) {
+    hash = (hash * 31 + senderId.charCodeAt(i)) >>> 0;
+  }
+  return SENDER_NAME_COLORS[hash % SENDER_NAME_COLORS.length];
+}
 
 function fmtFCFA(n: unknown) {
   const v = typeof n === "number" ? n : Number(n);
@@ -488,6 +510,14 @@ function MessageRow({
             : "mr-auto bg-neutral-100 text-neutral-900",
         )}
       >
+        {isStaff && message.sender_name && (
+          <p
+            className="mb-0.5 text-xs font-bold"
+            style={{ color: senderNameColor(message.sender_id) }}
+          >
+            {message.sender_name}
+          </p>
+        )}
         {(message.attachments ?? []).map((a) =>
           a.url ? (
             <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="block mb-2">

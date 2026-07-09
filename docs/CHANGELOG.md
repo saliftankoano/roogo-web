@@ -4,6 +4,10 @@ What shipped, when. One line each, newest first. The *why* lives in
 [`DECISIONS.md`](./DECISIONS.md); the *how it works* lives in
 [`CONCEPTS.md`](./CONCEPTS.md).
 
+## 2026-07-09
+
+- **Sale chat team identity + wallpaper**: owners now see one unified Roogo identity (logo avatar + "Équipe Roogo") on all team messages, while staff and founders see WHO on the team wrote each message (first name, deterministic color) in both the mobile thread and /admin/sale-chat. Privacy is server-gated: owner API payloads never contain staff names. The thread also gets a WhatsApp-style seamless wallpaper of faint real-estate doodles on the brand sand tone. Voice notes are the agreed next block ([why](./DECISIONS.md#sale-chat-speaks-as-one-roogo--voice-notes-planned--2026-07-09)).
+
 ## 2026-07-08
 
 - **Review hardening of the sale/terrain form work** (8 verified findings fixed): the terrain special case became a per-type capability map — `commercial` no longer demands a fictional bedroom/shower (rooms hidden, vehicles kept); sale payloads and the API now strip rental-perk amenities (wifi/meuble) that survived a rental→sale toggle; the web wizard's step-2 validation got the shared per-type rule back (an untouched counter no longer dead-ends at publish); pending edits and the staff PATCH route now enforce the sale guards server-side (no tenant rules or rental `period` writable onto sales, merged-state room validation on edits); and the mobile edit flow finally maps `listing_type` when loading a property (it previously treated every edit as a rental).

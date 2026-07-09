@@ -7,6 +7,37 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Sale chat speaks as one Roogo + voice notes planned — 2026-07-09
+
+**Decision:** In seller-facing chat, the team is a single brand identity: Roogo
+logo avatar, "Équipe Roogo" label, no individual staff names. Internally (staff
+mobile view + admin console) every message shows exactly who on the team wrote
+it. The name gating happens server-side: the API only includes `sender_name`
+when the requester resolves to staff/founder, so an owner's payload never
+carries it. Any staff member can join and reply to any conversation (no
+assignment lock). The thread gets a WhatsApp-style wallpaper (faint real-estate
+doodles on brand sand).
+
+**Why:** Owners should feel they're talking to Roogo, not to a rotating cast of
+individuals; that keeps trust in the brand and lets any teammate pick up any
+thread without the owner noticing a handoff. Internally, accountability needs
+the opposite: per-message attribution.
+
+**Ruled out / alternatives:**
+- *Client-side hiding of names* — rejected; privacy must survive a curious
+  client, so the field is never emitted to owners.
+- *Per-staff avatars for owners* — rejected; individual identities invite
+  side-channel contact and make handoffs visible.
+
+**Status:** Shipped (identity + wallpaper). **Voice notes are approved and
+next**: record with playback preview before sending, AAC mono ~32 kbps, 2-minute
+cap, new `message_type: 'voice'`. Rationale: a large share of Burkinabè owners
+can't comfortably read or write; WhatsApp has already trained the gesture. A
+60-second note at that bitrate is smaller than one listing photo, so data cost
+stays respectful.
+
+---
+
 ### Conditional listing form for sales & bare land — 2026-07-08
 
 **Decision:** The listing wizard adapts to what's being listed. Sales (vendre) hide

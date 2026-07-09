@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { resolveClerkId } from "@/lib/request-auth";
 import {
+  firstNameFrom,
   getSaleConversation,
   postSaleMessage,
   resolveRole,
@@ -111,10 +112,15 @@ export async function POST(req: Request) {
       })),
     );
 
+    // Echo the sender's first name back to staff senders only; user-role senders
+    // never receive sender names (team identity stays anonymous for them).
+    const senderName =
+      role === "staff" ? { sender_name: firstNameFrom(user.full_name) } : {};
+
     return cors(
       NextResponse.json({
         success: true,
-        message: { ...message, attachments: signedAttachments },
+        message: { ...message, ...senderName, attachments: signedAttachments },
       }),
       req,
     );

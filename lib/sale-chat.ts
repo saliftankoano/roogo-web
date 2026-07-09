@@ -63,6 +63,13 @@ export function isStaffType(userType: string | null | undefined) {
   return !!userType && STAFF_TYPES.has(userType);
 }
 
+/** First name only: staff members are shown by first name to other staff. */
+export function firstNameFrom(fullName: string | null | undefined) {
+  const trimmed = (fullName ?? "").trim();
+  if (!trimmed) return null;
+  return trimmed.split(/\s+/)[0];
+}
+
 /**
  * Resolves the caller's role within a conversation. Any staff/founder resolves to
  * "staff" (the Roogo side of every thread); the thread's own user resolves to "user".
@@ -175,7 +182,15 @@ export async function withSignedSaleAttachmentUrls(
   }));
 }
 
-export async function loadSaleMessagesWithAttachments(conversationId: string) {
+/**
+ * Loads a conversation's messages. `includeSenderNames` attaches the staff sender's
+ * first name (`sender_name`) to staff messages. It must ONLY be true for staff/founder
+ * requesters: owners and buyers see one Roogo team identity, never individual names.
+ */
+export async function loadSaleMessagesWithAttachments(
+  conversationId: string,
+  options?: { includeSenderNames?: boolean },
+) {
   const { data: messages, error: messagesError } = await supabaseAdmin
     .from("sale_messages")
     .select("*")
@@ -183,8 +198,38 @@ export async function loadSaleMessagesWithAttachments(conversationId: string) {
     .order("created_at", { ascending: true });
 
   if (messagesError) throw messagesError;
-  const rows = (messages ?? []) as SaleMessageRow[];
+  let rows = (messages ?? []) as (SaleMessageRow & {
+    sender_name?: string | null;
+  })[];
   if (rows.length === 0) return [];
+
+  if (options?.includeSenderNames) {
+    const staffIds = [
+      ...new Set(
+        rows
+          .filter((m) => m.sender_type === "staff" && m.sender_id)
+          .map((m) => m.sender_id as string),
+      ),
+    ];
+    if (staffIds.length > 0) {
+      const { data: senders, error: sendersError } = await supabaseAdmin
+        .from("users")
+        .select("id, full_name")
+        .in("id", staffIds);
+      if (sendersError) throw sendersError;
+      const nameById = new Map(
+        (senders ?? []).map((u) => [
+          u.id as string,
+          firstNameFrom(u.full_name as string | null),
+        ]),
+      );
+      rows = rows.map((m) =>
+        m.sender_type === "staff" && m.sender_id
+          ? { ...m, sender_name: nameById.get(m.sender_id) ?? null }
+          : m,
+      );
+    }
+  }
 
   const { data: attachments, error: attachmentsError } = await supabaseAdmin
     .from("sale_message_attachments")

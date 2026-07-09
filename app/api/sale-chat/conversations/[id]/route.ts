@@ -34,7 +34,11 @@ export async function GET(
     });
     if (!role) return errorResponse("Forbidden", 403, req);
 
-    const messages = await loadSaleMessagesWithAttachments(id);
+    // Staff see who on the team wrote each message; owners and buyers only ever
+    // see the Roogo team identity, so sender names are never included for them.
+    const messages = await loadSaleMessagesWithAttachments(id, {
+      includeSenderNames: role === "staff",
+    });
 
     // Best-effort read receipt; don't fail the request on a counter update error.
     markSaleConversationRead(id, role).catch((e) =>
