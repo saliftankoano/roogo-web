@@ -161,6 +161,8 @@ NEXT_PUBLIC_POSTHOG_HOST
 
 Tailwind 4 with shadcn component library and Radix primitives under `components/ui/`. Primary typeface is **Urbanist** (matches the mobile app). Brand tokens (Terracotta Ember, Clay Brown, Sahel Sky) live in `app/globals.css` and `tailwind.config` equivalent inside the Tailwind v4 `@theme` block. Keep parity with `roogo/theme/tokens.ts` when introducing new tokens.
 
+**Before designing any screen that asks the user to decide, pay, sign up, or trust us, consult [`docs/UX-CORAN.md`](./docs/UX-CORAN.md)** — Roogo's living psychology-of-UX reference (smart defaults, goal gradient, reciprocity, endowment, honest loss framing, anchoring). When a principle ships in a real screen, record it there.
+
 ### Configuration notes
 
 - `next.config.ts` — image `remotePatterns` whitelists Supabase + Clerk image hosts. The `experimental.middlewareClientMaxBodySize` **must stay ≥ 25mb** as long as upload routes accept base64-in-JSON payloads (see principles below). `serverActions.bodySizeLimit` mirrors the same number.
