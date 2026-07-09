@@ -401,19 +401,47 @@ export async function postSaleMessage(params: {
   }
 
   if (attachments.length > 0) {
-    const { error: attachmentError } = await supabaseAdmin
+    // file_name is only included when present so that voice notes and images
+    // keep working on databases where migration 048 has not been applied yet
+    // (PostgREST rejects the whole insert if any row carries an unknown column).
+    const rows = attachments.map((a) => {
+      const row: Record<string, unknown> = {
+        message_id: message.id,
+        storage_path: a.storagePath,
+        mime_type: a.mimeType ?? null,
+        size_bytes: a.sizeBytes ?? null,
+        width: a.width ?? null,
+        height: a.height ?? null,
+      };
+      if (a.fileName != null) row.file_name = a.fileName;
+      return row;
+    });
+
+    let { error: attachmentError } = await supabaseAdmin
       .from("sale_message_attachments")
-      .insert(
-        attachments.map((a) => ({
-          message_id: message.id,
-          storage_path: a.storagePath,
-          mime_type: a.mimeType ?? null,
-          size_bytes: a.sizeBytes ?? null,
-          width: a.width ?? null,
-          height: a.height ?? null,
-          file_name: a.fileName ?? null,
-        })),
+      .insert(rows);
+
+    // Pre-048 fallback: if the column does not exist yet, retry without it so a
+    // document still sends (the bubble then shows the generic "Document" label).
+    if (
+      attachmentError &&
+      rows.some((r) => "file_name" in r) &&
+      /file_name/.test(attachmentError.message ?? "")
+    ) {
+      console.warn(
+        "sale_message_attachments.file_name missing (run migration 048); retrying without file names",
       );
+      const retry = await supabaseAdmin
+        .from("sale_message_attachments")
+        .insert(
+          rows.map((r) =>
+            Object.fromEntries(
+              Object.entries(r).filter(([key]) => key !== "file_name"),
+            ),
+          ),
+        );
+      attachmentError = retry.error;
+    }
     if (attachmentError) throw attachmentError;
   }
 
