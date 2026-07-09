@@ -20,6 +20,7 @@ import { useAuth } from "@clerk/nextjs";
 import {
   listingBaseSchema,
   listingSchema,
+  requireListingFieldsByType,
   PROPERTY_TYPES,
   CITY_OPTIONS,
   type CityId,
@@ -855,6 +856,20 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
     const result = schema.safeParse(stepFields);
     const nextErrors = collectErrors(result);
+    if (step === 2) {
+      // Field-level floors are 0 (terrain/commercial); the per-type ≥1-room /
+      // required-superficie rule must run at step level or an untouched
+      // counter ("" → 0) sails through and only errors at publish time.
+      const typeIssue = requireListingFieldsByType({
+        type: formData.type,
+        chambres: Number(formData.chambres),
+        sdb: Number(formData.sdb),
+        superficie: optionalNumber(formData.superficie),
+      });
+      if (typeIssue && !nextErrors[typeIssue.path]) {
+        nextErrors[typeIssue.path] = typeIssue.message;
+      }
+    }
     if (step === 2 && isStaffOrFounder) {
       const virtualTourError = getVirtualTourError(formData.virtualTourUrl);
       if (virtualTourError) {

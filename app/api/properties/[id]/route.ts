@@ -5,6 +5,7 @@ import {
 } from "@/lib/property-storage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
+import { requireListingFieldsByType } from "@/lib/validations";
 import {
   getAuthenticatedUser,
   isOwnerAgentStaffOrFounder,
@@ -210,6 +211,53 @@ export async function PATCH(
           },
           { status: 400 },
         );
+      }
+    }
+
+    // Guard edits against states the create route would reject: run the
+    // per-type field rule on the merged post-edit state whenever rooms, area,
+    // or the type change, and never write a rental period onto a sale.
+    const touchesTypeRuleFields =
+      updates.bedrooms !== undefined ||
+      updates.bathrooms !== undefined ||
+      updates.area !== undefined ||
+      updates.propertyType !== undefined;
+    if (touchesTypeRuleFields || updates.period !== undefined) {
+      const { data: current, error: currentError } = await supabaseAdmin
+        .from("properties")
+        .select("listing_type, property_type, bedrooms, bathrooms, area")
+        .eq("id", propertyId)
+        .maybeSingle();
+
+      if (currentError || !current) {
+        return NextResponse.json(
+          { error: currentError?.message ?? "Property not found" },
+          { status: currentError ? 500 : 404 },
+        );
+      }
+
+      if (current.listing_type === "vendre") {
+        // A sale has no rental period; older clients send one unconditionally.
+        delete dbUpdates.period;
+      }
+
+      if (touchesTypeRuleFields) {
+        const merged = {
+          type: (updates.propertyType ?? current.property_type) as string,
+          chambres: Number(updates.bedrooms ?? current.bedrooms ?? 0),
+          sdb: Number(updates.bathrooms ?? current.bathrooms ?? 0),
+          superficie:
+            updates.area !== undefined
+              ? Number(updates.area)
+              : (current.area as number | null),
+        };
+        const typeIssue = requireListingFieldsByType(merged);
+        if (typeIssue) {
+          return NextResponse.json(
+            { error: "Données invalides: " + typeIssue.message },
+            { status: 400 },
+          );
+        }
       }
     }
 

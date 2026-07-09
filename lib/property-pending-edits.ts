@@ -195,6 +195,19 @@ export async function applyPendingEdit(
   try {
     const { amenities, ...dbFields } = payload;
 
+    // Interdictions and house rules are tenant concepts — never write them
+    // onto a sale, mirroring the create route's guard (a pending edit staged
+    // by an older app build can still carry them for a vendre listing).
+    const { data: listingTypeRow } = await supabaseAdmin
+      .from("properties")
+      .select("listing_type")
+      .eq("id", propertyId)
+      .maybeSingle();
+    if (listingTypeRow?.listing_type === "vendre") {
+      delete dbFields.interdictions;
+      delete dbFields.dos_and_donts;
+    }
+
     // Build the properties update object
     const dbUpdate: Record<string, unknown> = { ...dbFields };
 

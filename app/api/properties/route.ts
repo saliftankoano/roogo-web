@@ -19,6 +19,7 @@ import {
   listingBaseSchema,
   MAX_LISTING_PHOTOS,
   requireListingFieldsByType,
+  SALE_EQUIPEMENT_IDS,
 } from "@/lib/validations";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
@@ -721,17 +722,20 @@ export async function POST(req: Request) {
       }
     }
 
-    // 11. Link amenities
-    if (
-      parsedListingData.equipements &&
-      Array.isArray(parsedListingData.equipements) &&
-      parsedListingData.equipements.length > 0
-    ) {
-      console.log("Linking amenities:", parsedListingData.equipements);
+    // 11. Link amenities. Sales only carry physical-asset amenities — rental
+    // perks (wifi, meuble) selected before a client toggled to "vendre" are
+    // stripped here, mirroring the interdictions/dos_and_donts guards above.
+    const effectiveEquipements = isSaleListing
+      ? (parsedListingData.equipements ?? []).filter((e) =>
+          (SALE_EQUIPEMENT_IDS as readonly string[]).includes(e),
+        )
+      : (parsedListingData.equipements ?? []);
+    if (effectiveEquipements.length > 0) {
+      console.log("Linking amenities:", effectiveEquipements);
       const { data: amenities, error: amenitiesError } = await supabase
         .from("amenities")
         .select("id, name")
-        .in("name", parsedListingData.equipements);
+        .in("name", effectiveEquipements);
 
       if (!amenitiesError && amenities && amenities.length > 0) {
         const propertyAmenities = amenities.map((amenity) => ({

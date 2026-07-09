@@ -114,10 +114,46 @@ export const listingBaseSchema = z.object({
 });
 
 /**
+ * Per-type field capabilities. Rooms (chambres/sdb) only make sense for
+ * residential types; bare land and commercial premises are exempt. Terrain is
+ * additionally sold/rented by surface, so superficie becomes required there.
+ */
+export const LISTING_TYPE_CAPABILITIES: Record<
+  string,
+  { roomsApply: boolean; superficieRequired: boolean }
+> = {
+  terrain: { roomsApply: false, superficieRequired: true },
+  commercial: { roomsApply: false, superficieRequired: false },
+};
+
+const DEFAULT_TYPE_CAPABILITIES = {
+  roomsApply: true,
+  superficieRequired: false,
+};
+
+export function getListingTypeCapabilities(type: string) {
+  return LISTING_TYPE_CAPABILITIES[type] ?? DEFAULT_TYPE_CAPABILITIES;
+}
+
+// Amenities that describe the physical property (relevant on a sale). The
+// rest (wifi, meuble) are rental perks and are stripped from sale listings.
+export const SALE_EQUIPEMENT_IDS = [
+  "jardin",
+  "piscine",
+  "solaires",
+  "securite",
+] as const;
+
+/**
  * Type-conditional field rules shared by the web form (via listingSchema's
  * superRefine) and the API route (which parses listingBaseSchema.omit({photos})
  * and therefore can't use a schema-level superRefine). Returns French error
  * messages, or null when valid.
+ *
+ * DUPLICATED BY HAND in the mobile repo (roogo/forms/listingSchema.ts,
+ * requireListingFieldsByType + the capability map) — the repos share no
+ * package. Any change here MUST be mirrored there, including the exact
+ * French messages.
  */
 export function requireListingFieldsByType(data: {
   type: string;
@@ -125,21 +161,20 @@ export function requireListingFieldsByType(data: {
   sdb: number;
   superficie?: number | null;
 }): { path: "chambres" | "sdb" | "superficie"; message: string } | null {
-  if (data.type === "terrain") {
-    // Bare land: rooms are meaningless, but surface area is the headline fact.
-    if (!data.superficie || data.superficie < 1) {
-      return {
-        path: "superficie",
-        message: "La superficie est requise pour un terrain",
-      };
+  const caps = getListingTypeCapabilities(data.type);
+  if (caps.superficieRequired && (!data.superficie || data.superficie < 1)) {
+    return {
+      path: "superficie",
+      message: "La superficie est requise pour un terrain",
+    };
+  }
+  if (caps.roomsApply) {
+    if (data.chambres < 1) {
+      return { path: "chambres", message: "Au moins 1 chambre requise" };
     }
-    return null;
-  }
-  if (data.chambres < 1) {
-    return { path: "chambres", message: "Au moins 1 chambre requise" };
-  }
-  if (data.sdb < 1) {
-    return { path: "sdb", message: "Au moins 1 douche requise" };
+    if (data.sdb < 1) {
+      return { path: "sdb", message: "Au moins 1 douche requise" };
+    }
   }
   return null;
 }

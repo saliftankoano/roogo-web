@@ -24,7 +24,10 @@ computed from the asking price. Real seller feedback surfaced both.
 
 **Ruled out / alternatives:**
 - *Conditioning the counters on listing_type instead of property type* — rejected;
-  a terrain rental has the same problem, so the rule keys off `type === "terrain"`.
+  a terrain rental has the same problem. A follow-up review (2026-07-08) generalized
+  the terrain `if` into a per-type capability map (`LISTING_TYPE_CAPABILITIES`):
+  `commercial` premises are also rooms-exempt (a shop has no bedrooms) but keep the
+  vehicles counter (parking matters) and don't require superficie.
 - *Clearing stale rental values on type-switch* — rejected in favor of stripping
   them at payload build, which also survives restored drafts.
 - *One schema-level superRefine* — not possible as-is: both repos `pick()`/`omit()`
