@@ -60,6 +60,45 @@ export type SaleMessageRow = {
 
 const STAFF_TYPES = new Set(["staff", "founder"]);
 
+/**
+ * Property fields embedded in conversation payloads, including the joined photos
+ * used to resolve the cover. `property_images.url` is a public "listing"-bucket URL.
+ */
+export const SALE_CONVERSATION_PROPERTY_SELECT =
+  "id, property_type, price, quartier, city, property_images ( url, is_primary )";
+
+type JoinedPropertyImage = {
+  url: string | null;
+  is_primary: boolean | null;
+};
+
+export type JoinedConversationProperty = {
+  id: string;
+  property_type: string;
+  price: number | null;
+  quartier: string | null;
+  city: string | null;
+  property_images?: JoinedPropertyImage[] | null;
+};
+
+/**
+ * Collapses the joined `property_images` into a single `cover_url`. Mirrors the
+ * mobile feed's cover resolution (propertyFetchService.transformProperty): the
+ * `is_primary` photo, else the first one. Null-safe: properties without photos
+ * (or a null property join) yield `cover_url: null`.
+ */
+export function withPropertyCover<
+  T extends { property_images?: JoinedPropertyImage[] | null },
+>(property: T | null): (Omit<T, "property_images"> & { cover_url: string | null }) | null {
+  if (!property) return null;
+  const { property_images, ...rest } = property;
+  const images = Array.isArray(property_images) ? property_images : [];
+  const cover =
+    images.find((img) => img?.is_primary && img.url) ??
+    images.find((img) => !!img?.url);
+  return { ...rest, cover_url: cover?.url ?? null };
+}
+
 export function isStaffType(userType: string | null | undefined) {
   return !!userType && STAFF_TYPES.has(userType);
 }
@@ -159,6 +198,27 @@ export async function getSaleConversation(conversationId: string) {
     .maybeSingle();
   if (error) throw error;
   return (data as SaleConversationRow) ?? null;
+}
+
+/**
+ * Conversation + embedded property (type, quartier, price, cover_url) for display
+ * payloads. Auth-only callers should keep using getSaleConversation.
+ */
+export async function getSaleConversationWithProperty(conversationId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("sale_conversations")
+    .select(`*, property:property_id ( ${SALE_CONVERSATION_PROPERTY_SELECT} )`)
+    .eq("id", conversationId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!data) return null;
+  const { property, ...conversation } = data as unknown as SaleConversationRow & {
+    property: JoinedConversationProperty | null;
+  };
+  return {
+    ...(conversation as SaleConversationRow),
+    property: withPropertyCover(property),
+  };
 }
 
 export async function withSignedSaleAttachmentUrls(

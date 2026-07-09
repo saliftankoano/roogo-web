@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { resolveClerkId } from "@/lib/request-auth";
 import {
-  getSaleConversation,
+  getSaleConversationWithProperty,
   loadSaleMessagesWithAttachments,
   markSaleConversationRead,
   resolveRole,
@@ -25,7 +25,9 @@ export async function GET(
     if (!user) return errorResponse("User not found", 404, req);
 
     const { id } = await params;
-    const conversation = await getSaleConversation(id);
+    // Includes the property join (type, quartier, price, cover_url) so the mobile
+    // chat header can anchor the thread to the property it is about.
+    const conversation = await getSaleConversationWithProperty(id);
     if (!conversation) return errorResponse("Conversation not found", 404, req);
 
     const role = resolveRole(conversation, {

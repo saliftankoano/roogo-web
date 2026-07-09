@@ -7,6 +7,7 @@ import {
   PaperPlaneRightIcon,
   FileTextIcon,
   BankIcon,
+  HouseSimpleIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ type ConvProperty = {
   price: number | null;
   quartier: string | null;
   city: string | null;
+  cover_url: string | null;
 };
 
 type ConversationSummary = {
@@ -298,34 +300,52 @@ export default function AdminSaleChatPage() {
                   selected?.id === c.id && "bg-neutral-50",
                 )}
               >
-                <div className="flex items-center justify-between gap-2">
-                  <span className="font-semibold text-neutral-900 truncate">
-                    {convTitle(c)}
-                  </span>
-                  {c.unread_for_staff > 0 && (
-                    <span className="shrink-0 bg-[#C96A2E] text-white text-xs font-bold rounded-full px-2 py-0.5">
-                      {c.unread_for_staff}
+                <div className="flex items-start gap-3">
+                  {c.property?.cover_url ? (
+                    <Image
+                      src={c.property.cover_url}
+                      alt=""
+                      width={40}
+                      height={40}
+                      className="shrink-0 h-10 w-10 rounded-lg object-cover"
+                      unoptimized
+                    />
+                  ) : (
+                    <span className="shrink-0 h-10 w-10 rounded-lg bg-neutral-100 flex items-center justify-center">
+                      <HouseSimpleIcon size={18} className="text-neutral-400" />
                     </span>
                   )}
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-semibold text-neutral-900 truncate">
+                        {convTitle(c)}
+                      </span>
+                      {c.unread_for_staff > 0 && (
+                        <span className="shrink-0 bg-[#C96A2E] text-white text-xs font-bold rounded-full px-2 py-0.5">
+                          {c.unread_for_staff}
+                        </span>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 mt-0.5">
+                      <span
+                        className={cn(
+                          "text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5",
+                          c.kind === "seller"
+                            ? "bg-amber-100 text-amber-700"
+                            : "bg-sky-100 text-sky-700",
+                        )}
+                      >
+                        {c.kind === "seller" ? "Vendeur" : "Acheteur"}
+                      </span>
+                      <span className="text-xs text-neutral-500 truncate">
+                        {c.user?.full_name || "—"}
+                      </span>
+                    </div>
+                    <p className="text-sm text-neutral-500 truncate mt-0.5">
+                      {c.last_message_preview || "—"}
+                    </p>
+                  </div>
                 </div>
-                <div className="flex items-center gap-2 mt-0.5">
-                  <span
-                    className={cn(
-                      "text-[10px] font-bold uppercase tracking-wide rounded px-1.5 py-0.5",
-                      c.kind === "seller"
-                        ? "bg-amber-100 text-amber-700"
-                        : "bg-sky-100 text-sky-700",
-                    )}
-                  >
-                    {c.kind === "seller" ? "Vendeur" : "Acheteur"}
-                  </span>
-                  <span className="text-xs text-neutral-500 truncate">
-                    {c.user?.full_name || "—"}
-                  </span>
-                </div>
-                <p className="text-sm text-neutral-500 truncate mt-0.5">
-                  {c.last_message_preview || "—"}
-                </p>
               </button>
             ))
           )}

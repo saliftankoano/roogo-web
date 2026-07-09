@@ -5,6 +5,9 @@ import {
   getOrCreateBuyerConversation,
   getOrCreateSellerConversation,
   isStaffType,
+  SALE_CONVERSATION_PROPERTY_SELECT,
+  withPropertyCover,
+  type JoinedConversationProperty,
 } from "@/lib/sale-chat";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
@@ -25,7 +28,7 @@ export async function GET(req: Request) {
       id, property_id, kind, user_id, staff_id, status,
       last_message_at, last_message_preview,
       unread_for_user, unread_for_staff,
-      property:property_id ( id, property_type, price, quartier, city ),
+      property:property_id ( ${SALE_CONVERSATION_PROPERTY_SELECT} ),
       user:user_id ( id, full_name, avatar_url, user_type )
     `;
 
@@ -45,8 +48,13 @@ export async function GET(req: Request) {
       return errorResponse("Failed to load conversations", 500, req);
     }
 
+    // Collapse each joined property's photos into a single cover_url.
+    const conversations = ((data ?? []) as unknown as {
+      property: JoinedConversationProperty | null;
+    }[]).map((c) => ({ ...c, property: withPropertyCover(c.property) }));
+
     return cors(
-      NextResponse.json({ success: true, conversations: data ?? [] }),
+      NextResponse.json({ success: true, conversations }),
       req,
     );
   } catch (error) {
