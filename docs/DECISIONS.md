@@ -7,6 +7,50 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Roogo Sell economics v2: base commission + 50/50 surplus split — 2026-07-09
+
+**Decision (direction agreed, details open):** Replace the pure two-price-spread
+model with a transparent commission model, inspired by how démarcheurs already
+work in Ouagadougou (the "reçu" settlement ritual):
+
+- The listing keeps the SELLER'S desired price `D` ("on maintient le prix
+  désiré par le vendeur").
+- Roogo's commission has two parts: a base percentage of `D` (10% in the field
+  anecdote; final rate TBD), plus 50% of any surplus when the final sale price
+  `P` exceeds `D`.
+- Seller nets `D × (1 − base%) + (P − D) / 2`. Worked example from the team
+  discussion: parcelle desired at 3M, sold at 10M with a 10% base → Roogo gets
+  300k + 3.5M = 3.8M; the seller walks away with 6.2M instead of 3M.
+- The same structure applies to individual owners AND real-estate agencies.
+- The commission must be made explicit to sellers up front ("what we want to
+  make clear is that we'll be taking a percentage of the sale").
+
+**Why:** The spread model hides Roogo's take and gives the seller zero upside,
+which reads as the exact trick informal middlemen pull (sell at 10M, hand the
+owner his 3M, pocket 7M silently). Splitting the upside 50/50 aligns
+incentives: the seller WANTS Roogo to negotiate hard, and the disclosed base
+percentage buys trust. It also matches the settlement culture buyers/sellers
+already know (receipts on the table, split the surplus, everyone shakes hands).
+
+**Ruled out / alternatives:**
+- *Pure spread (status quo, migrations 039–043)* — rejected by the team as
+  "pas rentable / ça nous arrange pas" and opaque to sellers.
+- *Keeping 100% of the surplus* — that's the démarcheur move the model
+  deliberately breaks with.
+
+**Status:** Open. Settles when these are decided: (1) the base % value and
+whether staff can vary it per mandate / per seller type (owner vs agency,
+terrain vs house); (2) whether the public listing price is exactly `D` or
+staff may still list above it (and if so, whether that spread counts as
+surplus); (3) how the final sale price `P` is evidenced (notary act) for the
+surplus calculation; (4) a minimum fee for low-value parcelles; (5) treatment
+of mandates already signed under the spread model; (6) where the disclosure
+appears (listing wizard, mandate card, both). Implementation will touch
+`property_mandates` (new columns), the mandate send/sign flows, the mandate
+card copy on mobile + `/admin/sale-chat`, and the "Vendre avec Roogo" copy.
+
+---
+
 ### Sale chat surfaces anchor on the property, not people — 2026-07-09
 
 **Decision:** Every sale conversation is visually identified by the property's
