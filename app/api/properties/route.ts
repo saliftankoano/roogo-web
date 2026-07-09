@@ -640,8 +640,10 @@ export async function POST(req: Request) {
             senderType: "system",
             messageType: "text",
             body:
-              "Votre annonce a bien été reçue. L'équipe Roogo vérifie vos documents " +
-              "et reviendra vers vous ici avec une proposition de prix et de mandat.",
+              "Votre annonce a bien été reçue. L'équipe Roogo reviendra vers vous ici " +
+              "avec une proposition de prix et de mandat. Vous pouvez aussi envoyer vos " +
+              "documents de propriété (PUH, titre foncier…) directement dans cette " +
+              "conversation — nous vous les demanderons si besoin.",
           });
         }
       } catch (chatError) {
