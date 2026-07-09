@@ -63,7 +63,7 @@ export async function POST(
     }
 
     return cors(
-      NextResponse.json({ success: true, listPrice: result.listPrice }),
+      NextResponse.json({ success: true, publishedPrice: result.publishedPrice }),
       req,
     );
   } catch (error) {

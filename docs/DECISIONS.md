@@ -38,16 +38,21 @@ already know (receipts on the table, split the surplus, everyone shakes hands).
 - *Keeping 100% of the surplus* — that's the démarcheur move the model
   deliberately breaks with.
 
-**Status:** Open. Settles when these are decided: (1) the base % value and
-whether staff can vary it per mandate / per seller type (owner vs agency,
-terrain vs house); (2) whether the public listing price is exactly `D` or
-staff may still list above it (and if so, whether that spread counts as
-surplus); (3) how the final sale price `P` is evidenced (notary act) for the
-surplus calculation; (4) a minimum fee for low-value parcelles; (5) treatment
-of mandates already signed under the spread model; (6) where the disclosure
-appears (listing wizard, mandate card, both). Implementation will touch
-`property_mandates` (new columns), the mandate send/sign flows, the mandate
-card copy on mobile + `/admin/sale-chat`, and the "Vendre avec Roogo" copy.
+**Status:** Settled 2026-07-09, shipped as migration 050 + full-stack v2. The six
+open points were resolved: (1) base % fixed at 10% but modular — a founder-editable
+platform setting on `listing_config` (like the rent commission), read live by web
+and mobile, snapshotted per mandate at send time; (2) staff/founders list at
+whatever price they establish and adjust it freely; everything above the desired
+price is surplus, and the seller is never shown or notified of the listing price;
+(3) the notary works from the owner's desired amount for now, stored as a
+switchable setting `sale_notary_price_basis` (`desired`|`list`); (4) no minimum
+fee (the adjustable 10% suffices); (5) pre-050 signed mandates are test data,
+ignored beyond non-crashing legacy card rendering; (6) disclosure appears BOTH in
+the "Vendre avec Roogo" step before listing and itemized on the mandate card the
+owner signs (percentage plus concrete FCFA amounts). How it works:
+[CONCEPTS](./CONCEPTS.md#how-does-roogo-sell-the-broker-model-work). Settlement
+tooling (recording the real sale price and computing the final split) is the next
+block; `sale_notary_price_basis` is stored now and consumed then.
 
 ---
 

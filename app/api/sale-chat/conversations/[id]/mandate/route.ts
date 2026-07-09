@@ -56,13 +56,11 @@ export async function POST(
     if (!conversation) return errorResponse("Conversation not found", 404, req);
 
     const payload = (await req.json()) as {
-      sellerNetPrice?: unknown;
-      listPrice?: unknown;
+      desiredPrice?: unknown;
       exclusivityDays?: unknown;
       notes?: unknown;
     };
-    const sellerNetPrice = Number(payload.sellerNetPrice);
-    const listPrice = Number(payload.listPrice);
+    const desiredPrice = Number(payload.desiredPrice);
     const exclusivityDays =
       Number.isFinite(Number(payload.exclusivityDays)) &&
       Number(payload.exclusivityDays) > 0
@@ -73,19 +71,16 @@ export async function POST(
     const result = await sendMandate({
       propertyId: conversation.property_id,
       staffId: user.id,
-      sellerNetPrice,
-      listPrice,
+      desiredPrice,
       exclusivityDays,
       notes,
     });
 
     if (!result.ok) {
       const status =
-        result.reason === "invalid_price" || result.reason === "list_below_net"
+        result.reason === "invalid_price" || result.reason === "not_a_sale"
           ? 400
-          : result.reason === "not_a_sale"
-            ? 400
-            : 404;
+          : 404;
       return errorResponse(result.reason, status, req);
     }
 

@@ -131,17 +131,33 @@ a blocker. Full flow reference: [visites-3d.md](./visites-3d.md).
 ## How does Roogo Sell (the broker model) work?
 
 **Bottom line:** Roogo is the sole intermediary between sellers and buyers — they
-never talk to each other. Roogo buys low (the seller's net price) and sells higher
-(its public price), keeping the spread instead of a commission.
+never talk to each other. Since economics v2 (2026-07-09, migration 050), Roogo
+earns a **disclosed commission**: a base percentage (default 10%) of the seller's
+desired price, plus a share (default 50%) of any surplus when the sale closes above
+that price. The old buy-low/sell-high spread model is retired.
+
+**Economics (v2):** seller nets `D × (1 − base%) + (P − D) × (1 − split)` where `D`
+is their desired price and `P` the final sale price. Example at 10%/50%: desired 3M,
+sold 10M → seller walks away with 6.2M, Roogo earns 3.8M. The percentages are
+platform settings on `listing_config` (founder-editable in `/admin/parametres`,
+read live by web and mobile) and are **snapshotted onto each mandate at send time**,
+so changing a setting never rewrites an agreed mandate. `sale_notary_price_basis`
+records which amount the notary act uses (`desired` for now; switchable). Notary
+fees are paid by Roogo. See
+[the decision](./DECISIONS.md#roogo-sell-economics-v2-base-commission--5050-surplus-split--2026-07-09).
 
 **Seller flow:**
-1. Owner submits a `vendre` listing with a **net price** they want to walk away with,
-   plus ownership proof — primarily the **PUH** (*Permis Urbain d'Habiter*).
+1. Owner submits a `vendre` listing with the **amount they want to receive**
+   (their desired price), plus ownership proof — primarily the **PUH** (*Permis
+   Urbain d'Habiter*). The commission model is disclosed before they submit.
 2. A seller↔Roogo chat (one thread per property) opens automatically. Roogo reviews
    the ownership docs.
-3. Roogo sends a **mandate** (net price + Roogo's public sale price + an exclusivity
-   period). The owner **signs it in-app** (tap-to-confirm + typed name).
-4. Only then is the listing publishable and photographed by Roogo.
+3. Roogo sends a **mandate** (desired price + commission percentages + an
+   exclusivity period). The owner **signs it in-app** (tap-to-confirm + typed name).
+   Signing publishes the listing at the desired price.
+4. Only then is the listing publishable and photographed by Roogo. Staff may then
+   adjust the public price (`properties.price`) freely to experiment; the seller is
+   deliberately NOT shown or notified of Roogo's listing price.
 
 **Buyer flow:**
 1. Buyer browses listed properties and opens a buyer↔Roogo chat (not the owner).

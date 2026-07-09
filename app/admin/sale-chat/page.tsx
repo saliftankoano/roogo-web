@@ -119,9 +119,11 @@ export default function AdminSaleChatPage() {
 
   // Action panels
   const [showMandate, setShowMandate] = useState(false);
-  const [net, setNet] = useState("");
-  const [list, setList] = useState("");
+  const [desired, setDesired] = useState("");
   const [days, setDays] = useState("90");
+  // Live sale commission (decimal fractions) for the computed preview line.
+  const [saleBasePct, setSaleBasePct] = useState<number | null>(null);
+  const [saleSplitPct, setSaleSplitPct] = useState<number | null>(null);
   const [showNotary, setShowNotary] = useState(false);
   const [notaryAt, setNotaryAt] = useState("");
   const [notaryName, setNotaryName] = useState("");
@@ -155,6 +157,21 @@ export default function AdminSaleChatPage() {
     const interval = setInterval(loadConversations, LIST_POLL_MS);
     return () => clearInterval(interval);
   }, [loadConversations]);
+
+  // Current sale commission settings (null until migration 050 has run).
+  useEffect(() => {
+    fetch("/api/pricing")
+      .then((r) => (r.ok ? r.json() : null))
+      .then((d) => {
+        if (typeof d?.saleBaseCommissionPercentage === "number") {
+          setSaleBasePct(d.saleBaseCommissionPercentage);
+        }
+        if (typeof d?.saleSurplusSplitPercentage === "number") {
+          setSaleSplitPct(d.saleSurplusSplitPercentage);
+        }
+      })
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     if (!selected) return;
@@ -231,14 +248,12 @@ export default function AdminSaleChatPage() {
 
   const handleSendMandate = async () => {
     const ok = await postAction("mandate", {
-      sellerNetPrice: Number(net),
-      listPrice: Number(list),
+      desiredPrice: Number(desired),
       exclusivityDays: Number(days) || 90,
     });
     if (ok) {
       setShowMandate(false);
-      setNet("");
-      setList("");
+      setDesired("");
       setDays("90");
     }
   };
@@ -407,14 +422,43 @@ export default function AdminSaleChatPage() {
                 </div>
               </div>
 
-              {/* Mandate form */}
+              {/* Mandate form (v2: commission on the seller's desired price) */}
               {showMandate && (
-                <div className="px-5 py-3 border-b border-neutral-100 bg-neutral-50 grid grid-cols-3 gap-2 items-end">
-                  <Field label="Net vendeur" value={net} onChange={setNet} />
-                  <Field label="Prix de vente" value={list} onChange={setList} />
-                  <Field label="Exclusivité (j)" value={days} onChange={setDays} />
-                  <div className="col-span-3 flex justify-end">
-                    <Button onClick={handleSendMandate}>Envoyer le mandat</Button>
+                <div className="px-5 py-3 border-b border-neutral-100 bg-neutral-50 space-y-2">
+                  <div className="grid grid-cols-2 gap-2 items-end">
+                    <Field
+                      label="Prix désiré (FCFA)"
+                      value={desired}
+                      onChange={setDesired}
+                    />
+                    <Field
+                      label="Exclusivité (j)"
+                      value={days}
+                      onChange={setDays}
+                    />
+                  </div>
+                  {saleBasePct != null && Number(desired) > 0 && (
+                    <p className="text-xs text-neutral-600">
+                      Commission Roogo: {(saleBasePct * 100).toFixed(1)}% ={" "}
+                      {fmtFCFA(Number(desired) * saleBasePct)} · Le vendeur
+                      reçoit au minimum{" "}
+                      {fmtFCFA(Number(desired) * (1 - saleBasePct))}
+                      {saleSplitPct != null &&
+                        ` · Surplus au-dessus du prix désiré: ${(
+                          saleSplitPct * 100
+                        ).toFixed(0)}% Roogo / ${(
+                          (1 - saleSplitPct) *
+                          100
+                        ).toFixed(0)}% vendeur`}
+                    </p>
+                  )}
+                  <div className="flex justify-end">
+                    <Button
+                      onClick={handleSendMandate}
+                      disabled={!(Number(desired) > 0)}
+                    >
+                      Envoyer le mandat
+                    </Button>
                   </div>
                 </div>
               )}
@@ -655,17 +699,47 @@ function MessageRow({
         </p>
       )}
 
-      {message.message_type === "mandate_offer" && (
-        <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
-          <p>Net vendeur : {fmtFCFA(meta.seller_net_price)}</p>
-          <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
-          <p>Exclusivité : {String(meta.exclusivity_days ?? 90)} jours</p>
-        </div>
-      )}
+      {message.message_type === "mandate_offer" &&
+        (typeof meta.desired_price === "number" ? (
+          <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
+            <p>Prix désiré : {fmtFCFA(meta.desired_price)}</p>
+            {typeof meta.base_commission_pct === "number" && (
+              <>
+                <p>
+                  Commission Roogo : {(meta.base_commission_pct * 100).toFixed(1)}
+                  % = {fmtFCFA(meta.desired_price * meta.base_commission_pct)}
+                </p>
+                <p>
+                  Minimum vendeur :{" "}
+                  {fmtFCFA(meta.desired_price * (1 - meta.base_commission_pct))}
+                </p>
+              </>
+            )}
+            {typeof meta.surplus_split_pct === "number" && (
+              <p>
+                Surplus au-dessus du prix désiré :{" "}
+                {(meta.surplus_split_pct * 100).toFixed(0)}% Roogo /{" "}
+                {((1 - meta.surplus_split_pct) * 100).toFixed(0)}% vendeur
+              </p>
+            )}
+            <p>Exclusivité : {String(meta.exclusivity_days ?? 90)} jours</p>
+          </div>
+        ) : (
+          // Legacy spread-model card (pre-050 test mandates).
+          <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
+            <p>Net vendeur : {fmtFCFA(meta.seller_net_price)}</p>
+            <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
+            <p>Exclusivité : {String(meta.exclusivity_days ?? 90)} jours</p>
+          </div>
+        ))}
 
       {message.message_type === "mandate_signed" && (
         <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
-          <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
+          {typeof meta.desired_price === "number" ? (
+            <p>Prix désiré : {fmtFCFA(meta.desired_price)}</p>
+          ) : (
+            <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
+          )}
           {typeof meta.signed_typed_name === "string" && (
             <p>Signé par : {meta.signed_typed_name}</p>
           )}

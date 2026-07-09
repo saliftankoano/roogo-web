@@ -83,6 +83,16 @@ export async function GET() {
       .eq("id", "default")
       .single();
 
+    // Sale (Roogo Sell v2) knobs, selected separately and best-effort so this
+    // endpoint keeps working on databases where migration 050 has not run yet.
+    const { data: saleConfigData } = await supabaseAdmin
+      .from("listing_config")
+      .select(
+        "sale_base_commission_percentage, sale_surplus_split_percentage, sale_notary_price_basis",
+      )
+      .eq("id", "default")
+      .maybeSingle();
+
     if (configError) {
       console.error("Error fetching listing config:", configError);
       return NextResponse.json({ error: configError.message }, { status: 500 });
@@ -107,6 +117,17 @@ export async function GET() {
       addons: addons || [],
       commissionPercentage,
       dailyOwnerCommissionPercentage,
+      // Sale (Roogo Sell v2) knobs; null until migration 050 runs.
+      saleBaseCommissionPercentage:
+        typeof saleConfigData?.sale_base_commission_percentage === "number"
+          ? saleConfigData.sale_base_commission_percentage
+          : null,
+      saleSurplusSplitPercentage:
+        typeof saleConfigData?.sale_surplus_split_percentage === "number"
+          ? saleConfigData.sale_surplus_split_percentage
+          : null,
+      saleNotaryPriceBasis:
+        saleConfigData?.sale_notary_price_basis === "list" ? "list" : "desired",
     });
   } catch (error) {
     console.error("API error:", error);
@@ -139,6 +160,9 @@ export async function PUT(request: NextRequest) {
       addons,
       commissionPercentage,
       dailyOwnerCommissionPercentage,
+      saleBaseCommissionPercentage,
+      saleSurplusSplitPercentage,
+      saleNotaryPriceBasis,
     } = body;
 
     const results: {
@@ -146,6 +170,9 @@ export async function PUT(request: NextRequest) {
       addons: Addon[];
       commissionPercentage?: number;
       dailyOwnerCommissionPercentage?: number;
+      saleBaseCommissionPercentage?: number;
+      saleSurplusSplitPercentage?: number;
+      saleNotaryPriceBasis?: string;
       errors: ErrorItem[];
     } = { tiers: [], addons: [], errors: [] };
 
@@ -297,6 +324,60 @@ export async function PUT(request: NextRequest) {
         results.commissionPercentage = data.commission_percentage;
         results.dailyOwnerCommissionPercentage =
           data.daily_owner_commission_percentage;
+      }
+    }
+
+    // Update the sale (Roogo Sell v2) knobs if provided. Percentages are decimal
+    // fractions; already-sent mandates keep their snapshots, only new mandates
+    // pick these up.
+    if (
+      saleBaseCommissionPercentage !== undefined ||
+      saleSurplusSplitPercentage !== undefined ||
+      saleNotaryPriceBasis !== undefined
+    ) {
+      const salePayload: Record<string, unknown> = {
+        updated_at: new Date().toISOString(),
+      };
+      if (
+        typeof saleBaseCommissionPercentage === "number" &&
+        saleBaseCommissionPercentage >= 0 &&
+        saleBaseCommissionPercentage <= 1
+      ) {
+        salePayload.sale_base_commission_percentage = saleBaseCommissionPercentage;
+      }
+      if (
+        typeof saleSurplusSplitPercentage === "number" &&
+        saleSurplusSplitPercentage >= 0 &&
+        saleSurplusSplitPercentage <= 1
+      ) {
+        salePayload.sale_surplus_split_percentage = saleSurplusSplitPercentage;
+      }
+      if (saleNotaryPriceBasis === "desired" || saleNotaryPriceBasis === "list") {
+        salePayload.sale_notary_price_basis = saleNotaryPriceBasis;
+      }
+
+      const { data: saleData, error: saleError } = await supabaseAdmin
+        .from("listing_config")
+        .update(salePayload)
+        .eq("id", "default")
+        .select(
+          "sale_base_commission_percentage, sale_surplus_split_percentage, sale_notary_price_basis",
+        )
+        .single();
+
+      if (saleError) {
+        console.error("Error updating sale commission config:", saleError);
+        results.errors.push({
+          type: "config",
+          id: "default",
+          error: saleError.message,
+        });
+      } else {
+        results.saleBaseCommissionPercentage =
+          saleData.sale_base_commission_percentage;
+        results.saleSurplusSplitPercentage =
+          saleData.sale_surplus_split_percentage;
+        results.saleNotaryPriceBasis = saleData.sale_notary_price_basis;
       }
     }
 

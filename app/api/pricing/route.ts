@@ -84,11 +84,27 @@ export async function GET() {
       });
     }
 
+    // Sale (Roogo Sell v2) percentages, best-effort so this endpoint keeps
+    // working on databases where migration 050 has not run yet.
+    const { data: saleConfigData } = await supabaseAdmin
+      .from("listing_config")
+      .select("sale_base_commission_percentage, sale_surplus_split_percentage")
+      .eq("id", "default")
+      .maybeSingle();
+
     return NextResponse.json({
       tiers,
       addons,
       commissionPercentage,
       dailyOwnerCommissionPercentage,
+      saleBaseCommissionPercentage:
+        typeof saleConfigData?.sale_base_commission_percentage === "number"
+          ? saleConfigData.sale_base_commission_percentage
+          : null,
+      saleSurplusSplitPercentage:
+        typeof saleConfigData?.sale_surplus_split_percentage === "number"
+          ? saleConfigData.sale_surplus_split_percentage
+          : null,
     });
   } catch (error) {
     console.error("API error:", error);

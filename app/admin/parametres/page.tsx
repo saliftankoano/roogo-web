@@ -67,6 +67,14 @@ export default function AdminSettingsPage() {
   >(null);
   const [dailyOwnerCommissionPercentage, setDailyOwnerCommissionPercentage] =
     useState<number | null>(null);
+  // Roogo Sell (vente) knobs — decimal fractions, edited as percents.
+  const [saleBaseCommissionPercentage, setSaleBaseCommissionPercentage] =
+    useState<number | null>(null);
+  const [saleSurplusSplitPercentage, setSaleSurplusSplitPercentage] =
+    useState<number | null>(null);
+  const [saleNotaryPriceBasis, setSaleNotaryPriceBasis] = useState<
+    "desired" | "list"
+  >("desired");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -99,6 +107,18 @@ export default function AdminSettingsPage() {
           setDailyOwnerCommissionPercentage(
             data.dailyOwnerCommissionPercentage,
           );
+        }
+        if (typeof data.saleBaseCommissionPercentage === "number") {
+          setSaleBaseCommissionPercentage(data.saleBaseCommissionPercentage);
+        }
+        if (typeof data.saleSurplusSplitPercentage === "number") {
+          setSaleSurplusSplitPercentage(data.saleSurplusSplitPercentage);
+        }
+        if (
+          data.saleNotaryPriceBasis === "desired" ||
+          data.saleNotaryPriceBasis === "list"
+        ) {
+          setSaleNotaryPriceBasis(data.saleNotaryPriceBasis);
         }
       } catch (error) {
         console.error("Error loading pricing:", error);
@@ -148,6 +168,18 @@ export default function AdminSettingsPage() {
     setDailyOwnerCommissionPercentage(percentage / 100);
   };
 
+  const handleSaleBaseCommissionChange = (newPercentage: string) => {
+    const percentage = parseFloat(newPercentage);
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) return;
+    setSaleBaseCommissionPercentage(percentage / 100);
+  };
+
+  const handleSaleSurplusSplitChange = (newPercentage: string) => {
+    const percentage = parseFloat(newPercentage);
+    if (isNaN(percentage) || percentage < 0 || percentage > 100) return;
+    setSaleSurplusSplitPercentage(percentage / 100);
+  };
+
   const handleSave = async () => {
     setSaving(true);
     setMessage(null);
@@ -162,6 +194,10 @@ export default function AdminSettingsPage() {
           commissionPercentage: commissionPercentage ?? undefined,
           dailyOwnerCommissionPercentage:
             dailyOwnerCommissionPercentage ?? undefined,
+          saleBaseCommissionPercentage:
+            saleBaseCommissionPercentage ?? undefined,
+          saleSurplusSplitPercentage: saleSurplusSplitPercentage ?? undefined,
+          saleNotaryPriceBasis,
         }),
       });
 
@@ -618,6 +654,100 @@ export default function AdminSettingsPage() {
                       séjour journalier. La caution remboursable n&apos;est pas
                       commissionnée et le locataire ne paie aucun frais de
                       service.
+                    </p>
+                  </div>
+                </CardContent>
+              </Card>
+
+              {/* Sale (Roogo Sell) commission */}
+              <Card className="border-neutral-200/60 shadow-sm overflow-hidden rounded-3xl bg-[#3A2A1E] text-white border-none">
+                <CardHeader className="pb-4">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2.5 bg-white/10 text-white rounded-xl">
+                      <PercentIcon className="w-6 h-6" weight="bold" />
+                    </div>
+                    <div>
+                      <CardTitle className="text-xl text-white">
+                        Commission vente
+                      </CardTitle>
+                      <CardDescription className="text-neutral-400">
+                        Roogo Sell: mandat sur le prix désiré du vendeur
+                      </CardDescription>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-6">
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <Label className="text-neutral-300 font-medium">
+                        Commission de base
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={(
+                            (saleBaseCommissionPercentage ?? 0) * 100
+                          ).toFixed(1)}
+                          onChange={(e) =>
+                            handleSaleBaseCommissionChange(e.target.value)
+                          }
+                          className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                        />
+                        <span className="text-neutral-400 font-bold text-lg">
+                          %
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-neutral-300 font-medium">
+                        Part Roogo du surplus
+                      </Label>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          value={(
+                            (saleSurplusSplitPercentage ?? 0) * 100
+                          ).toFixed(1)}
+                          onChange={(e) =>
+                            handleSaleSurplusSplitChange(e.target.value)
+                          }
+                          className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
+                          min="0"
+                          max="100"
+                          step="0.1"
+                        />
+                        <span className="text-neutral-400 font-bold text-lg">
+                          %
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <Label className="text-neutral-300 font-medium">
+                        Base de calcul notaire
+                      </Label>
+                      <select
+                        value={saleNotaryPriceBasis}
+                        onChange={(e) =>
+                          setSaleNotaryPriceBasis(
+                            e.target.value === "list" ? "list" : "desired",
+                          )
+                        }
+                        className="h-12 rounded-xl bg-white/5 border border-white/10 text-white px-3 text-sm font-semibold"
+                      >
+                        <option value="desired">Prix désiré (vendeur)</option>
+                        <option value="list">Prix affiché (Roogo)</option>
+                      </select>
+                    </div>
+                    <Separator className="bg-white/10" />
+                    <p className="text-xs text-neutral-400 leading-relaxed italic">
+                      La commission de base est calculée sur le montant que le
+                      vendeur souhaite recevoir. Tout ce qui est vendu au-dessus
+                      de ce montant est partagé selon la part du surplus. Les
+                      mandats déjà envoyés conservent les pourcentages en
+                      vigueur au moment de l&apos;envoi.
                     </p>
                   </div>
                 </CardContent>

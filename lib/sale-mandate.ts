@@ -6,18 +6,30 @@ import {
 import { MANDATE_TERMS_VERSION } from "@/lib/sale";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-// The price + exclusivity mandate the owner signs. Roogo (staff) sends an offer with
-// the owner's agreed net price, Roogo's public sale price, and an exclusivity period;
-// the owner signs it in-app. Signing stamps properties.price = list_price and unlocks
-// publishing. The offer and signature are mirrored into the seller↔Roogo thread.
+// The price + exclusivity mandate the owner signs. Economics v2 (migration 050):
+// staff send an offer built on the owner's desired price; Roogo's commission is a
+// base percentage of that amount plus a share of any surplus above it at closing.
+// The percentages come from listing_config and are snapshotted onto the mandate so
+// later settings changes never rewrite an agreed mandate. Signing stamps
+// properties.price = desired_price and unlocks publishing; staff adjust the public
+// price afterwards without notifying the seller. The offer and signature are
+// mirrored into the seller↔Roogo thread.
 
 export type MandateRow = {
   id: string;
   property_id: string;
   seller_id: string;
   conversation_id: string | null;
-  seller_net_price: number;
-  list_price: number;
+  /** Legacy spread model (pre-050). Null on v2 mandates. */
+  seller_net_price: number | null;
+  /** Legacy spread model (pre-050). Null on v2 mandates. */
+  list_price: number | null;
+  /** v2: the amount the owner wants to receive. */
+  desired_price: number | null;
+  /** v2: snapshot of the base commission (decimal fraction) at send time. */
+  base_commission_pct: number | null;
+  /** v2: snapshot of Roogo's surplus share (decimal fraction) at send time. */
+  surplus_split_pct: number | null;
   exclusivity_days: number;
   exclusivity_start_at: string | null;
   exclusivity_end_at: string | null;
@@ -37,37 +49,50 @@ export type MandateRow = {
 };
 
 /**
+ * The live sale-commission settings (founder-editable in /admin/parametres).
+ * Decimal fractions: 0.10 = 10%.
+ */
+export async function getSaleCommissionConfig() {
+  const { data, error } = await supabaseAdmin
+    .from("listing_config")
+    .select(
+      "sale_base_commission_percentage, sale_surplus_split_percentage, sale_notary_price_basis",
+    )
+    .eq("id", "default")
+    .single();
+  if (error) throw error;
+  const base = Number(data?.sale_base_commission_percentage);
+  const split = Number(data?.sale_surplus_split_percentage);
+  if (!Number.isFinite(base) || !Number.isFinite(split)) {
+    throw new Error("Sale commission percentages are not configured");
+  }
+  return {
+    baseCommissionPct: base,
+    surplusSplitPct: split,
+    notaryPriceBasis:
+      data?.sale_notary_price_basis === "list" ? ("list" as const) : ("desired" as const),
+  };
+}
+
+/**
  * Staff sends a mandate to the property's owner. Cancels any previous live offer,
  * posts a mandate_offer card into the seller thread, and notifies the owner.
+ * The commission percentages are snapshotted from listing_config at send time.
  */
 export async function sendMandate(params: {
   propertyId: string;
   staffId: string;
-  sellerNetPrice: number;
-  listPrice: number;
+  desiredPrice: number;
   exclusivityDays: number;
   notes?: string | null;
 }) {
-  const {
-    propertyId,
-    staffId,
-    sellerNetPrice,
-    listPrice,
-    exclusivityDays,
-    notes,
-  } = params;
+  const { propertyId, staffId, desiredPrice, exclusivityDays, notes } = params;
 
-  if (
-    !Number.isFinite(sellerNetPrice) ||
-    !Number.isFinite(listPrice) ||
-    sellerNetPrice <= 0 ||
-    listPrice <= 0
-  ) {
+  if (!Number.isFinite(desiredPrice) || desiredPrice <= 0) {
     return { ok: false as const, reason: "invalid_price" as const };
   }
-  if (listPrice < sellerNetPrice) {
-    return { ok: false as const, reason: "list_below_net" as const };
-  }
+
+  const commission = await getSaleCommissionConfig();
 
   const { data: property, error: propertyError } = await supabaseAdmin
     .from("properties")
@@ -100,8 +125,9 @@ export async function sendMandate(params: {
       property_id: propertyId,
       seller_id: sellerId,
       conversation_id: conversation.id,
-      seller_net_price: sellerNetPrice,
-      list_price: listPrice,
+      desired_price: desiredPrice,
+      base_commission_pct: commission.baseCommissionPct,
+      surplus_split_pct: commission.surplusSplitPct,
       exclusivity_days: exclusivityDays,
       status: "sent",
       terms_version: MANDATE_TERMS_VERSION,
@@ -114,6 +140,8 @@ export async function sendMandate(params: {
     throw insertError ?? new Error("Failed to insert mandate");
   }
 
+  // The card the owner sees: their price, the commission on it, and the surplus
+  // clause. Deliberately no list price; the seller never sees Roogo's price.
   const { message } = await postSaleMessage({
     conversationId: conversation.id,
     senderId: staffId,
@@ -122,8 +150,9 @@ export async function sendMandate(params: {
     body: "Proposition de mandat de vente",
     metadata: {
       mandate_id: mandate.id,
-      seller_net_price: sellerNetPrice,
-      list_price: listPrice,
+      desired_price: desiredPrice,
+      base_commission_pct: commission.baseCommissionPct,
+      surplus_split_pct: commission.surplusSplitPct,
       exclusivity_days: exclusivityDays,
     },
   });
@@ -136,8 +165,8 @@ export async function sendMandate(params: {
   await notifyUser(
     sellerId,
     "messages",
-    "Proposition de mandat 📄",
-    "Roogo vous propose un prix de vente et un mandat. Ouvrez l'app pour le consulter et le signer.",
+    "Proposition de mandat",
+    "Roogo vous propose un mandat de vente. Ouvrez l'app pour le consulter et le signer.",
     { type: "mandate_offer", conversationId: conversation.id, mandateId: mandate.id },
   );
 
@@ -145,8 +174,10 @@ export async function sendMandate(params: {
 }
 
 /**
- * The owner signs a mandate. Stamps properties.price = list_price, computes the
- * exclusivity window, and posts a mandate_signed card into the seller thread.
+ * The owner signs a mandate. Stamps properties.price = desired_price (v2; legacy
+ * rows fall back to list_price), computes the exclusivity window, and posts a
+ * mandate_signed card into the seller thread. Staff adjust the public price later
+ * through the admin tools, without notifying the seller.
  */
 export async function signMandate(params: {
   mandateId: string;
@@ -186,11 +217,14 @@ export async function signMandate(params: {
     .eq("status", "sent");
   if (updateError) throw updateError;
 
-  // Lock in Roogo's public sale price.
-  await supabaseAdmin
-    .from("properties")
-    .update({ price: mandate.list_price })
-    .eq("id", mandate.property_id);
+  // Publish at the owner's desired amount; staff may re-price afterwards.
+  const publishedPrice = mandate.desired_price ?? mandate.list_price;
+  if (publishedPrice != null) {
+    await supabaseAdmin
+      .from("properties")
+      .update({ price: publishedPrice })
+      .eq("id", mandate.property_id);
+  }
 
   let conversationId = mandate.conversation_id;
   if (!conversationId) {
@@ -210,8 +244,9 @@ export async function signMandate(params: {
       body: "Mandat signé",
       metadata: {
         mandate_id: mandate.id,
-        seller_net_price: mandate.seller_net_price,
-        list_price: mandate.list_price,
+        desired_price: mandate.desired_price,
+        base_commission_pct: mandate.base_commission_pct,
+        surplus_split_pct: mandate.surplus_split_pct,
         exclusivity_end_at: end.toISOString(),
         signed_typed_name: typedName,
       },
@@ -227,13 +262,13 @@ export async function signMandate(params: {
     await notifyUser(
       mandate.sent_by,
       "messages",
-      "Mandat signé ✍️",
+      "Mandat signé",
       "Le propriétaire a signé le mandat. L'annonce peut être publiée.",
       { type: "mandate_signed", mandateId: mandate.id, conversationId },
     );
   }
 
-  return { ok: true as const, listPrice: mandate.list_price };
+  return { ok: true as const, publishedPrice };
 }
 
 /** The latest mandate for a property, or null. */
