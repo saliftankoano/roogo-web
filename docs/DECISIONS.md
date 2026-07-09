@@ -29,12 +29,16 @@ the opposite: per-message attribution.
 - *Per-staff avatars for owners* — rejected; individual identities invite
   side-channel contact and make handoffs visible.
 
-**Status:** Shipped (identity + wallpaper). **Voice notes are approved and
-next**: record with playback preview before sending, AAC mono ~32 kbps, 2-minute
-cap, new `message_type: 'voice'`. Rationale: a large share of Burkinabè owners
-can't comfortably read or write; WhatsApp has already trained the gesture. A
-60-second note at that bitrate is smaller than one listing photo, so data cost
-stays respectful.
+**Status:** Fully shipped 2026-07-09: identity, wallpaper, voice notes (record,
+mandatory playback preview, AAC mono 32 kbps, 2-minute cap, `message_type:
+'voice'` via migration 047), and the always-dark chat surface. Voice rationale:
+a large share of Burkinabè owners can't comfortably read or write; WhatsApp has
+already trained the gesture, and a 60-second note at that bitrate is smaller
+than one listing photo. Dark rationale: on a near-black surface the wallpaper's
+contrast is structural (bubbles are the only bright objects), which is why
+WhatsApp's doodle pattern works; tuning a light pattern against light bubbles
+kept failing. The chat is always dark regardless of system theme: it is a
+distinct place, and one theme means one set of legibility guarantees.
 
 ---
 

@@ -6,6 +6,8 @@ What shipped, when. One line each, newest first. The *why* lives in
 
 ## 2026-07-09
 
+- **Voice notes in sale chat** (mobile + backend + admin): mic in the composer when the field is empty, live timer with a 2 minute cap, mandatory playback preview with re-record and discard before anything uploads, AAC mono 32 kbps (a full minute costs less data than one listing photo). Playback bubbles in both mobile views and an audio player in /admin/sale-chat. Migration 047 adds message_type 'voice'. Also closed the chat screen's i18n gap (55 keys per catalog).
+- **Sale chat rebuilt as an always-dark WhatsApp-style surface**: deep earth #17120f with a light-doodle wallpaper (contrast is structural, so the pattern can breathe), Roogo-avatar header, dark incoming bubbles with glowing terracotta outgoing, HH:mm timestamps with inline read ticks inside every bubble, and day separator pills. Overlay sheets stay light by design.
 - **Sale chat team identity + wallpaper**: owners now see one unified Roogo identity (logo avatar + "Équipe Roogo") on all team messages, while staff and founders see WHO on the team wrote each message (first name, deterministic color) in both the mobile thread and /admin/sale-chat. Privacy is server-gated: owner API payloads never contain staff names. The thread also gets a WhatsApp-style seamless wallpaper of faint real-estate doodles on the brand sand tone. Voice notes are the agreed next block ([why](./DECISIONS.md#sale-chat-speaks-as-one-roogo--voice-notes-planned--2026-07-09)).
 
 ## 2026-07-08
