@@ -56,6 +56,39 @@ block; `sale_notary_price_basis` is stored now and consumed then.
 
 ---
 
+### Update delivery policy: OTA for JS, native builds when needed — 2026-07-09
+
+**Decision:** JS-and-assets-only changes ship via OTA (`eas update`, production
+channel) without touching any version field. Native changes (modules, plugins,
+permissions, SDK) ship as store builds following
+`roogo/docs/PRODUCTION_BUILD_CHECKLIST.md`, bumping `version` and
+`runtimeVersion` together. Because a runtime bump cuts old binaries off from
+all future OTAs silently, the app now checks our own `/api/app-version`
+endpoint and shows an update banner; the endpoint is bumped only once a
+release is actually live in each store (checklist step 9), never at
+submission.
+
+**Why:** Two field reports in one day exposed the gap: updates were said to
+eject sessions (telemetry now measures it: `app_updated` with
+`session_survived`), and Salif saw iOS never announce an available update.
+Store auto-update is unreliable and OTA by definition cannot reach a binary on
+an older runtime, so without our own prompt a runtime bump quietly freezes
+part of the user base on the old version forever.
+
+**Ruled out / alternatives:**
+- *Querying the stores directly from the app* (iTunes lookup / Play scraping)
+  — rejected: no reliable Play API, and store propagation lags would prompt
+  users toward pages still serving the old binary. Our endpoint is bumped by a
+  human when the release is confirmed live.
+- *Bumping runtimeVersion on every release regardless* — rejected: it would
+  needlessly cut OTA reach; JS-only releases keep the runtime.
+
+**Status:** Settled. Note: the banner and telemetry were committed after the
+1.17.0 binaries were built, so they reach 1.17.0 users via the first OTA
+published to the 1.17.0 runtime once the store release is live.
+
+---
+
 ### Sale chat surfaces anchor on the property, not people — 2026-07-09
 
 **Decision:** Every sale conversation is visually identified by the property's

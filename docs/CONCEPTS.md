@@ -85,6 +85,28 @@ zero rows through it — any consumer of that view must use the service-role
 client (the view exposes only date+slot, no PII). This also means availability
 was silently broken on the old Kazedra site.
 
+## How do app updates reach users? (OTA vs store builds, and runtimeVersion)
+
+**Bottom line:** the app updates through two pipes. OTA (expo-updates) pushes
+new JavaScript silently on next launch: instant, no review, our default for
+fixes. Store builds (EAS) ship the native binary: slow, reviewed, and the user
+must act. `runtimeVersion` is the compatibility contract between them: an OTA
+bundle is only delivered to binaries carrying the SAME runtime label.
+
+Why it matters: adding native code (like v1.17.0's audio recorder and document
+picker) means old binaries physically lack functions the new JS calls. Bumping
+`runtimeVersion` protects them from receiving JS that would crash, but the
+price is that everyone on the old binary is silently cut off from all future
+OTAs until they install the store update, and nothing from Apple or Google
+reliably tells them to. That gap is closed by the in-app update banner, fed by
+`/api/app-version` (bumped only when a release is live in stores).
+
+Rules of thumb: JS-only change, keep the runtime and ship OTA. Native change,
+bump `version` + `runtimeVersion` together per
+`roogo/docs/PRODUCTION_BUILD_CHECKLIST.md`, build both platforms, then bump
+the endpoint after approval. Never bump the runtime for an OTA-only release.
+(Decision: [update delivery policy](./DECISIONS.md#update-delivery-policy-ota-for-js-native-builds-when-needed--2026-07-09).)
+
 ## Why does migration 045 exist if the Visites 3D `bookings` table already lives in our database?
 
 **Bottom line:** the kazedra site and roogo-web have always pointed at the **same
