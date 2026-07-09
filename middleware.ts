@@ -111,6 +111,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/careers/apply",
   // API routes that need to be public (webhooks, health)
   "/api/health",
+  "/api/app-version", // Public: mobile update-available check, no auth
   "/api/pawapay/callback",
   // Visites 3D self-serve booking — anonymous public flow
   "/api/visites-3d/(.*)",
