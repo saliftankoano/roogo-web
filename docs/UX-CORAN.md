@@ -35,6 +35,7 @@ the CTA carry information ("Voir 12 propriétés" beats "Rechercher").
 **At Roogo today.**
 - Listing wizard defaults: `mensuel` frequency, `louer` intent, chambres/sdb
   pre-set to 1 (or 0 for terrain/commercial — the default itself is type-aware).
+- Ville pre-selected to Ouagadougou on new listings (shipped 2026-07-08).
 - Visites 3D payment modal pre-fills the Mobile Money number from the contact
   phone.
 
@@ -64,13 +65,13 @@ bars never start at 0%. Reframe account creation as "step 1 — done" instead of
 a gate before the journey begins.
 
 **At Roogo today.**
-- The listing wizard has a 3-step stepper — but step 1 only lights up as the
-  user works. Creating an account / arriving with a draft counts for nothing
-  visually.
+- Listing wizard stepper opens with "Votre compte ✓" as a pre-completed step 0
+  on new listings — nobody starts at zero — and the disabled next button reads
+  "Plus que N champs" (progress framing) instead of "Compléter N champs requis"
+  (debt framing). Shipped 2026-07-08.
 
 **Do next.**
-- Wizard stepper: show account + restored draft as progress already earned
-  ("Étape 1 sur 4 — votre compte ✓").
+- Draft restore: surface earned progress explicitly ("Vous êtes à 60%").
 - Owner profile: a LinkedIn-style "annonce strength" meter that never reads 0%
   (photos added, GPS pinned, identity badge — each one visible progress toward
   "annonce prête à publier").
