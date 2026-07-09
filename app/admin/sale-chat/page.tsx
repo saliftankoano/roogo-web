@@ -42,7 +42,17 @@ type ConversationSummary = {
   user: ConvUser | null;
 };
 
-type Attachment = { id: string; url: string | null };
+type Attachment = {
+  id: string;
+  url: string | null;
+  mime_type?: string | null;
+  file_name?: string | null;
+};
+
+// A non-image attachment on a text message is a document (PDF, Word, ...).
+function isDocumentAttachment(a: Attachment) {
+  return !!a.mime_type && !a.mime_type.startsWith("image/");
+}
 
 type Message = {
   id: string;
@@ -564,8 +574,28 @@ function MessageRow({
             </p>
           </div>
         ) : (
-          (message.attachments ?? []).map((a) =>
-            a.url ? (
+          (message.attachments ?? []).map((a) => {
+            if (!a.url) return null;
+            if (isDocumentAttachment(a)) {
+              return (
+                <a
+                  key={a.id}
+                  href={a.url}
+                  target="_blank"
+                  rel="noreferrer"
+                  className={cn(
+                    "mb-2 flex items-center gap-2 rounded-lg px-3 py-2",
+                    isStaff ? "bg-white/15" : "bg-white border border-neutral-200",
+                  )}
+                >
+                  <FileTextIcon size={20} className="shrink-0" />
+                  <span className="truncate text-sm font-semibold underline">
+                    {a.file_name || "Document"}
+                  </span>
+                </a>
+              );
+            }
+            return (
               <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="block mb-2">
                 <Image
                   src={a.url}
@@ -576,8 +606,8 @@ function MessageRow({
                   unoptimized
                 />
               </a>
-            ) : null,
-          )
+            );
+          })
         )}
         {message.body && (
           <p className="whitespace-pre-wrap text-sm">{message.body}</p>

@@ -22,6 +22,7 @@ type AttachmentInput = {
   sizeBytes?: unknown;
   width?: unknown;
   height?: unknown;
+  fileName?: unknown;
 };
 
 // Send a message in a sale conversation. Roogo is the only counterparty, so the
@@ -65,6 +66,11 @@ export async function POST(req: Request) {
         sizeBytes: typeof a.sizeBytes === "number" ? a.sizeBytes : null,
         width: typeof a.width === "number" ? a.width : null,
         height: typeof a.height === "number" ? a.height : null,
+        // Original document file name (display only). Trimmed to a sane length.
+        fileName:
+          typeof a.fileName === "string" && a.fileName.trim()
+            ? a.fileName.trim().slice(0, 200)
+            : null,
       }))
       .filter((a) => a.storagePath);
 
@@ -139,6 +145,7 @@ export async function POST(req: Request) {
         size_bytes: a.sizeBytes,
         width: a.width,
         height: a.height,
+        file_name: a.fileName,
       })),
     );
 

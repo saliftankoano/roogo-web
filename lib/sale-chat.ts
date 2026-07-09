@@ -9,6 +9,30 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export const SALE_CHAT_ATTACHMENTS_BUCKET = "sale-chat-attachments";
 
+/**
+ * Document types accepted as sale-chat attachments (mime -> storage extension).
+ * PDF plus the office formats land titles, plans and receipts circulate in.
+ */
+export const SALE_CHAT_DOCUMENT_TYPES: Record<string, string> = {
+  "application/pdf": "pdf",
+  "application/msword": "doc",
+  "application/vnd.openxmlformats-officedocument.wordprocessingml.document":
+    "docx",
+  "application/vnd.ms-excel": "xls",
+  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": "xlsx",
+  "application/vnd.ms-powerpoint": "ppt",
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation":
+    "pptx",
+  "text/plain": "txt",
+  "text/csv": "csv",
+};
+
+/** Storage extension for an accepted document mime type; null when unsupported. */
+export function saleDocumentExtensionForMime(mime: string | null | undefined) {
+  if (!mime) return null;
+  return SALE_CHAT_DOCUMENT_TYPES[mime] ?? null;
+}
+
 const ATTACHMENT_URL_TTL_SECONDS = 60 * 60; // 1 hour
 
 export type SaleConversationKind = "seller" | "buyer";
@@ -44,6 +68,8 @@ export type SaleAttachmentRow = {
   size_bytes: number | null;
   width: number | null;
   height: number | null;
+  /** Original file name for document attachments; null for images and voice notes. */
+  file_name: string | null;
 };
 
 export type SaleMessageRow = {
@@ -316,7 +342,7 @@ export async function loadSaleMessagesWithAttachments(
 function previewFromMessage(
   body: string | null,
   messageType: SaleMessageType,
-  hasAttachment: boolean,
+  attachments: { mimeType?: string | null }[],
 ) {
   if (messageType === "visit_request") return "📅 Demande de visite";
   if (messageType === "visit_confirmation") return "✅ Visite confirmée";
@@ -326,7 +352,11 @@ function previewFromMessage(
   if (messageType === "voice") return "Note vocale";
   const trimmed = (body ?? "").trim();
   if (trimmed) return trimmed.slice(0, 140);
-  return hasAttachment ? "📷 Image" : "";
+  if (attachments.length === 0) return "";
+  const mime = attachments[0]?.mimeType ?? "";
+  // A non-image attachment on a text message is a document (PDF, Word, ...).
+  if (mime && !mime.startsWith("image/")) return "Document";
+  return "📷 Image";
 }
 
 /**
@@ -347,6 +377,7 @@ export async function postSaleMessage(params: {
     sizeBytes?: number | null;
     width?: number | null;
     height?: number | null;
+    fileName?: string | null;
   }[];
 }) {
   const messageType = params.messageType ?? "text";
@@ -380,16 +411,13 @@ export async function postSaleMessage(params: {
           size_bytes: a.sizeBytes ?? null,
           width: a.width ?? null,
           height: a.height ?? null,
+          file_name: a.fileName ?? null,
         })),
       );
     if (attachmentError) throw attachmentError;
   }
 
-  const preview = previewFromMessage(
-    params.body,
-    messageType,
-    attachments.length > 0,
-  );
+  const preview = previewFromMessage(params.body, messageType, attachments);
   const now = new Date().toISOString();
 
   const { data: conv } = await supabaseAdmin
