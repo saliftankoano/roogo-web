@@ -7,6 +7,69 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Sale chat surfaces anchor on the property, not people — 2026-07-09
+
+**Decision:** Every sale conversation is visually identified by the property's
+cover photo (marketplace-app pattern): inbox rows, the thread header, and the
+admin console rows. The cover is resolved exactly like the public feed does
+(`property_images` row with `is_primary`, else the first photo, public
+`listing`-bucket URL), collapsed server-side into a single `property.cover_url`
+on both conversation payloads. When a property has no photos, the fallback is a
+neutral house-icon placeholder — never a user avatar and never the Roogo logo.
+The Roogo team identity stays where it means something: on the in-thread
+message bubbles.
+
+**Why:** Roogo Sell threads are per-property, so two conversations with the
+same counterpart about different properties looked identical in the inbox. The
+property is the real subject of the thread; a face (or our logo) answers "who"
+when the user is asking "which one". A wrong identity is worse than a
+placeholder, hence the hard no-avatar-fallback rule.
+
+**Ruled out / alternatives:**
+- *Falling back to the other party's avatar* — rejected; it re-introduces the
+  ambiguity the change removes and leaks person-identity into a
+  brand-mediated chat.
+- *Keeping the Roogo logo in the thread header* — rejected; the header names
+  the subject (the property), bubbles carry the team identity.
+- *Resolving covers client-side* — rejected; the join + collapse lives once in
+  the API (`withPropertyCover`), so mobile and admin cannot drift.
+
+**Status:** Settled. Shipped 2026-07-09 across mobile inbox, mobile thread
+header, and /admin/sale-chat.
+
+---
+
+### Sale chat documents ride the attachment pipe, allowlisted — 2026-07-09
+
+**Decision:** Documents (PDF, doc/docx, xls/xlsx, ppt/pptx, txt, csv) are
+ordinary `text` sale messages with one attachment, reusing the exact signed-URL
+transport images and voice notes use. The mime allowlist is enforced
+server-side when the signed upload URL is created (an unlisted type never gets
+a URL), the client caps size at 20 MB (documents are not compressed, unlike
+images), and the original filename is stored in a new
+`sale_message_attachments.file_name` column (migration 048) so bubbles show
+"Titre foncier.pdf" instead of a UUID.
+
+**Why:** Land titles, plans, mandates and receipts already circulate as PDFs
+and office files in Burkina deals; forcing photos of documents loses fidelity.
+Reusing the attachment pipe means no new bucket, no new message type, and old
+clients simply ignore the new field. Server-side allowlisting matters because
+a signed URL would otherwise accept any bytes (APK/executable risk in a chat
+users trust).
+
+**Ruled out / alternatives:**
+- *A new `document` message_type* — rejected; `mime_type` on the attachment
+  already discriminates rendering, and migration 047's CHECK list stays small.
+- *Accepting arbitrary file types* — rejected (malware surface, unopenable
+  files on low-end Androids).
+- *Compressing/converting documents server-side* — rejected; unlike photos,
+  document bytes are the artifact. The 20 MB cap bounds the data cost instead.
+
+**Status:** Settled. Shipped 2026-07-09; requires migration 048 (filenames are
+display-only until it runs, sending works regardless).
+
+---
+
 ### Sale chat speaks as one Roogo + voice notes planned — 2026-07-09
 
 **Decision:** In seller-facing chat, the team is a single brand identity: Roogo
