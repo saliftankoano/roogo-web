@@ -49,6 +49,7 @@ type Message = {
   sender_type: "user" | "staff" | "system";
   message_type:
     | "text"
+    | "voice"
     | "visit_request"
     | "visit_confirmation"
     | "mandate_offer"
@@ -491,7 +492,8 @@ function MessageRow({
 }) {
   const meta = (message.metadata ?? {}) as Record<string, unknown>;
 
-  if (message.message_type === "text") {
+  if (message.message_type === "text" || message.message_type === "voice") {
+    const isVoice = message.message_type === "voice";
     const isStaff = message.sender_type === "staff";
     const isSystem = message.sender_type === "system";
     if (isSystem) {
@@ -501,6 +503,8 @@ function MessageRow({
         </div>
       );
     }
+    const voiceDuration =
+      typeof meta.duration_seconds === "number" ? meta.duration_seconds : null;
     return (
       <div
         className={cn(
@@ -518,19 +522,42 @@ function MessageRow({
             {message.sender_name}
           </p>
         )}
-        {(message.attachments ?? []).map((a) =>
-          a.url ? (
-            <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="block mb-2">
-              <Image
-                src={a.url}
-                alt="pièce jointe"
-                width={200}
-                height={200}
-                className="rounded-lg object-cover"
-                unoptimized
-              />
-            </a>
-          ) : null,
+        {isVoice ? (
+          <div className="py-1">
+            {(message.attachments ?? []).map((a) =>
+              a.url ? (
+                <audio key={a.id} controls preload="metadata" src={a.url} className="max-w-full" />
+              ) : (
+                <p key={a.id} className="text-sm italic opacity-80">
+                  Note vocale indisponible
+                </p>
+              ),
+            )}
+            <p
+              className={cn(
+                "mt-1 text-[11px]",
+                isStaff ? "text-white/70" : "text-neutral-500",
+              )}
+            >
+              Note vocale
+              {voiceDuration != null ? ` · ${fmtDuration(voiceDuration)}` : ""}
+            </p>
+          </div>
+        ) : (
+          (message.attachments ?? []).map((a) =>
+            a.url ? (
+              <a key={a.id} href={a.url} target="_blank" rel="noreferrer" className="block mb-2">
+                <Image
+                  src={a.url}
+                  alt="pièce jointe"
+                  width={200}
+                  height={200}
+                  className="rounded-lg object-cover"
+                  unoptimized
+                />
+              </a>
+            ) : null,
+          )
         )}
         {message.body && (
           <p className="whitespace-pre-wrap text-sm">{message.body}</p>
@@ -607,6 +634,12 @@ function MessageRow({
       )}
     </div>
   );
+}
+
+function fmtDuration(totalSeconds: number) {
+  const s = Math.max(0, Math.round(totalSeconds));
+  const m = Math.floor(s / 60);
+  return `${m}:${String(s % 60).padStart(2, "0")}`;
 }
 
 function cardTitle(type: Message["message_type"]) {

@@ -9,8 +9,9 @@ export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
 
-// Signed upload URL for a sale-chat image. Files live under the caller's user id
-// so the messages route can validate ownership before recording the attachment.
+// Signed upload URL for a sale-chat attachment (image by default, or a voice
+// note when the body asks for kind "audio"). Files live under the caller's user
+// id so the messages route can validate ownership before recording the attachment.
 export async function POST(req: Request) {
   try {
     const clerkUserId = await resolveClerkId(req);
@@ -18,7 +19,17 @@ export async function POST(req: Request) {
     const user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) return errorResponse("User not found", 404, req);
 
-    const path = `${user.id}/${crypto.randomUUID()}.jpg`;
+    // The historical mobile client sends no body; treat that as an image upload.
+    let kind: "image" | "audio" = "image";
+    try {
+      const payload = (await req.json()) as { kind?: unknown };
+      if (payload?.kind === "audio") kind = "audio";
+    } catch {
+      // No/invalid JSON body: keep the image default.
+    }
+
+    const ext = kind === "audio" ? "m4a" : "jpg";
+    const path = `${user.id}/${crypto.randomUUID()}.${ext}`;
     const { data, error } = await supabaseAdmin.storage
       .from(SALE_CHAT_ATTACHMENTS_BUCKET)
       .createSignedUploadUrl(path);

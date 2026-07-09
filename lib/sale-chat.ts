@@ -16,6 +16,7 @@ export type SaleRole = "user" | "staff";
 export type SaleSenderType = SaleRole | "system";
 export type SaleMessageType =
   | "text"
+  | "voice"
   | "visit_request"
   | "visit_confirmation"
   | "mandate_offer"
@@ -262,6 +263,7 @@ function previewFromMessage(
   if (messageType === "mandate_offer") return "📄 Proposition de mandat";
   if (messageType === "mandate_signed") return "✍️ Mandat signé";
   if (messageType === "notary_meeting") return "🏛 Rendez-vous notaire";
+  if (messageType === "voice") return "Note vocale";
   const trimmed = (body ?? "").trim();
   if (trimmed) return trimmed.slice(0, 140);
   return hasAttachment ? "📷 Image" : "";

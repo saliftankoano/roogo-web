@@ -37,6 +37,8 @@ export async function POST(req: Request) {
       conversationId?: unknown;
       body?: unknown;
       attachments?: unknown;
+      messageType?: unknown;
+      durationSeconds?: unknown;
     };
     const conversationId =
       typeof payload.conversationId === "string" ? payload.conversationId : "";
@@ -66,8 +68,24 @@ export async function POST(req: Request) {
       }))
       .filter((a) => a.storagePath);
 
+    // Only 'text' and 'voice' can be posted through this route; structured cards
+    // (visit_request, mandate_offer, ...) have their own endpoints.
+    const messageType = payload.messageType === "voice" ? "voice" : "text";
+
     if (!body && attachments.length === 0) {
       return errorResponse("Message is empty", 400, req);
+    }
+
+    if (messageType === "voice") {
+      const isAudio = (mime: string | null) =>
+        !!mime && mime.startsWith("audio/");
+      if (attachments.length !== 1 || !isAudio(attachments[0].mimeType)) {
+        return errorResponse(
+          "A voice message requires exactly one audio attachment",
+          400,
+          req,
+        );
+      }
     }
 
     const invalid = attachments.find(
@@ -75,11 +93,23 @@ export async function POST(req: Request) {
     );
     if (invalid) return errorResponse("Invalid attachment path", 400, req);
 
+    const durationSeconds =
+      typeof payload.durationSeconds === "number" &&
+      Number.isFinite(payload.durationSeconds) &&
+      payload.durationSeconds > 0
+        ? Math.round(payload.durationSeconds)
+        : null;
+
     const { message } = await postSaleMessage({
       conversationId,
       senderId: user.id,
       senderType: role,
+      messageType,
       body: body || null,
+      metadata:
+        messageType === "voice" && durationSeconds != null
+          ? { duration_seconds: durationSeconds }
+          : null,
       attachments,
     });
 
