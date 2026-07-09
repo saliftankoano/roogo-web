@@ -221,6 +221,10 @@ Principles above are universal; these are ours, earned locally:
 - **Never spend trust to buy conversion.** Every principle in this doc has a
   manipulative twin. The test: would we be comfortable explaining the mechanism
   to the user, in French, to their face? If yes, ship it.
+- **Copy discipline (2026-07-09).** No em dashes between words mid-sentence in
+  user-facing copy: restructure into two sentences, or use a comma or colon. No
+  emoji in product copy; it reads as cheap. Polished copy is itself a trust
+  signal in this market.
 
 ---
 

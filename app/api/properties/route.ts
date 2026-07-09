@@ -643,7 +643,7 @@ export async function POST(req: Request) {
               "Votre annonce a bien été reçue. L'équipe Roogo reviendra vers vous ici " +
               "avec une proposition de prix et de mandat. Vous pouvez aussi envoyer vos " +
               "documents de propriété (PUH, titre foncier…) directement dans cette " +
-              "conversation — nous vous les demanderons si besoin.",
+              "conversation. Nous vous les demanderons si besoin.",
           });
         }
       } catch (chatError) {

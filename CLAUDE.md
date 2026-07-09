@@ -163,6 +163,8 @@ Tailwind 4 with shadcn component library and Radix primitives under `components/
 
 **Before designing any screen that asks the user to decide, pay, sign up, or trust us, consult [`docs/UX-CORAN.md`](./docs/UX-CORAN.md)** — Roogo's living psychology-of-UX reference (smart defaults, goal gradient, reciprocity, endowment, honest loss framing, anchoring). When a principle ships in a real screen, record it there.
 
+**Copy rules (user-facing strings, both languages):** never use an em dash (—) between words mid-sentence — restructure into two sentences or use a comma/colon instead. Never use emoji in product copy (it reads as cheap). These apply to page copy, API-generated messages (chat welcome messages, SMS), notifications, and error strings.
+
 ### Configuration notes
 
 - `next.config.ts` — image `remotePatterns` whitelists Supabase + Clerk image hosts. The `experimental.middlewareClientMaxBodySize` **must stay ≥ 25mb** as long as upload routes accept base64-in-JSON payloads (see principles below). `serverActions.bodySizeLimit` mirrors the same number.
