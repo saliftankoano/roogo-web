@@ -191,6 +191,16 @@ When only user X fails and user Y on the same code works, the differentiator is 
 - iPhone originals are HEIC by default. Detect via magic bytes (`isHeic(file)` from `heic-to`) _and_ filename regex — iOS sometimes sets the MIME type to empty.
 - Always route new upload flows through `lib/clientImageCompression.ts::compressImageToBase64()`. Don't reinvent a `fileToBase64` helper locally.
 
+### Signed upload URLs don't validate anything — the bucket does, at PUT time
+
+`createSignedUploadUrl()` succeeds no matter what the bucket's `allowed_mime_types`
+or `file_size_limit` say; enforcement happens only when the client PUTs the bytes
+(415/413 on the storage host, invisible in our API logs). So a "200 on
+/upload-url, then the send silently fails" symptom means: check the bucket
+config first. When adding a new attachment type to a chat (voice, documents),
+the bucket allowlist is part of the feature — migrate `storage.buckets` in the
+same change (see 049, which fixed voice notes that had never once uploaded).
+
 ### Base64-in-JSON is a bad transport for binary data
 
 Base64 adds ~33% overhead and every body-size limit in the stack will blindside you:
