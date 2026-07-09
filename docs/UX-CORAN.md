@@ -128,6 +128,10 @@ choosing, naming, and assembling. The CTA after building is "Continuer" — neve
 "S'inscrire" — because leaving must feel like abandoning their work.
 
 **At Roogo today.**
+- Live listing preview (shipped 2026-07-08): step 2 of the wizard opens with a
+  compact property card that assembles itself from the owner's inputs — photo,
+  "{Villa} à {Koulouba}", live price — under the kicker "Votre annonce prend
+  forme". The form stops being a form and becomes their annonce being born.
 - Listing draft autosave: an owner's half-built annonce survives interruptions —
   their investment is protected, and returning feels like resuming *their*
   project.
