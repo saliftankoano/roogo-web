@@ -8,6 +8,7 @@ import { unescapeText } from "./text-sanitize";
 
 export type Property = {
   id: string;
+  slug?: string | null;
   owner_id?: string;
   location: string;
   address: string;
@@ -65,6 +66,7 @@ export type Property = {
 
 interface DBProperty {
   id: string;
+  slug?: string | null;
   owner_id: string | null;
   quartier: string;
   city: string;
@@ -126,6 +128,7 @@ function mapProperty(p: DBProperty): Property {
 
   return {
     id: p.id,
+    slug: p.slug || null,
     owner_id: p.owner_id || undefined,
     location: unescapeText(`${p.quartier}, ${p.city}`),
     address: unescapeText(p.address),
@@ -264,6 +267,62 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
   property.videoUrl = videos?.[0]?.url || undefined;
   return property;
 }
+
+export async function fetchPropertyBySlug(
+  slug: string,
+): Promise<Property | null> {
+  const { data, error } = await supabase
+    .from("property_details")
+    .select("*")
+    .eq("slug", slug)
+    .maybeSingle();
+
+  if (error) {
+    console.error("Error fetching property by slug:", error);
+    return null;
+  }
+  if (!data) return null;
+
+  const p = data as DBProperty;
+  const property = mapProperty(p);
+  const { data: videos } = await supabase
+    .from("property_videos")
+    .select("url")
+    .eq("property_id", p.id)
+    .limit(1);
+  property.videoUrl = videos?.[0]?.url || undefined;
+  return property;
+}
+
+// Full list of live listings for the sitemap. fetchProperties caps at one
+// page, so we page through everything here (Supabase caps a single range at
+// 1000 rows).
+export async function fetchAllOnlineProperties(): Promise<Property[]> {
+  const pageSize = 1000;
+  const all: Property[] = [];
+
+  for (let offset = 0; ; offset += pageSize) {
+    const { data, error } = await supabase
+      .from("property_details")
+      .select("*")
+      .eq("status", "en_ligne")
+      .eq("is_test", false)
+      .order("created_at", { ascending: false })
+      .range(offset, offset + pageSize - 1);
+
+    if (error) {
+      console.error("Error fetching all online properties:", error);
+      break;
+    }
+
+    const batch = ((data as DBProperty[]) || []).map(mapProperty);
+    all.push(...batch);
+    if (batch.length < pageSize) break;
+  }
+
+  return all;
+}
+
 export type Transaction = {
   id: string;
   deposit_id: string;

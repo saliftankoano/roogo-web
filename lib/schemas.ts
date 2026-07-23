@@ -1,5 +1,6 @@
 import { Property } from "./data";
 import { homeFaqItems } from "./home-content";
+import { getPropertyPath, getPropertyTypeLabel } from "./property-url";
 import { isDailyRental } from "./rental-period";
 import { PRICE_PER_ROOM, formatFCFA } from "./visites-3d";
 
@@ -53,7 +54,7 @@ function graph(nodes: JsonLdNode[]) {
 }
 
 function propertyUrl(property: Property) {
-  return `${SITE_URL}/proprietes/${property.id}`;
+  return `${SITE_URL}${getPropertyPath(property)}`;
 }
 
 function propertyName(property: Property) {
@@ -74,27 +75,13 @@ function numericValue(value?: string | number | null) {
   return Number.isFinite(parsed) ? parsed : undefined;
 }
 
-function getPropertyTypeLabel(type?: string) {
-  const key = (type || "").trim().toLowerCase();
-  const labels: Record<string, string> = {
-    appartement: "Appartement",
-    studio: "Studio",
-    "célibatorium": "Célibatorium",
-    celibatorium: "Célibatorium",
-    maison: "Maison",
-    villa: "Villa",
-    commercial: "Local commercial",
-    terrain: "Terrain",
-  };
-  return labels[key] || type || "";
-}
-
 function getPropertyThingType(propertyType?: string) {
   const key = (propertyType || "").trim().toLowerCase();
   if (["appartement", "studio"].includes(key)) return "Apartment";
   if (["célibatorium", "celibatorium"].includes(key)) return "Accommodation";
   if (key === "villa") return "SingleFamilyResidence";
   if (key === "maison") return "House";
+  if (key === "hotel") return "Hotel";
   return "Place";
 }
 

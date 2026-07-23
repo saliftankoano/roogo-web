@@ -8,6 +8,7 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import Link from "next/link";
 import { PropertyCard } from "../../components/PropertyCard";
 import { Property, fetchProperties } from "../../lib/data";
+import { getPropertyPath } from "../../lib/property-url";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   DotsThreeVerticalIcon,
@@ -130,9 +131,9 @@ export default function MyPropertiesPage() {
     });
   }, [properties, searchQuery, statusFilter, sortBy]);
 
-  // Get property route - /proprietes/[id] shows the unified detail page
+  // Get property route - the public slug URL shows the unified detail page
   const getPropertyRoute = (property: Property) => {
-    return `/proprietes/${property.id}`;
+    return getPropertyPath(property);
   };
 
   if (!isLoaded || !isSignedIn) {

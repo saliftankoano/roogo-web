@@ -7,6 +7,28 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Property URLs are ID-free SEO slugs, immutable after creation — 2026-07-23
+
+**Decision:** Public property pages move from `/proprietes/<uuid>` to a stored
+descriptive slug (`/proprietes/villa-3-chambres-a-louer-ouaga-2000-ouagadougou`),
+column `properties.slug` (migration 056), generated once at listing creation and
+never regenerated. Legacy uuid URLs permanently redirect (308) to the slug URL,
+so nothing shared or indexed before the change breaks. Meta descriptions are now
+composed from real listing data (type, chambres, quartier, prix, owner text)
+instead of the generic display description.
+
+**Why:** Listing pages are our highest-intent SEO surface; random uuids waste
+the URL signal for queries like "villa à louer Ouaga 2000". Immutability keeps
+every shared link alive even if the owner later edits quartier or type — the
+uuid stays the internal key, the slug is only an address.
+
+**Ruled out:** (a) Zillow-style slug + visible id in the URL (works without a DB
+column, but Salif wanted fully clean URLs); (b) regenerating slugs on edit with
+a redirect-history table (permanence complexity for marginal freshness).
+
+**Status:** Settled. Would reopen only if slug collisions or renamed quartiers
+become a real problem at scale.
+
 ### Roogo Sell economics v2: base commission + 50/50 surplus split — 2026-07-09
 
 **Decision (direction agreed, details open):** Replace the pure two-price-spread

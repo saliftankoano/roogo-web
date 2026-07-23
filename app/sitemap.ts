@@ -1,5 +1,6 @@
 import { MetadataRoute } from "next";
-import { fetchProperties } from "../lib/data";
+import { fetchAllOnlineProperties } from "../lib/data";
+import { getPropertyPath } from "../lib/property-url";
 
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://www.roogobf.com";
@@ -56,17 +57,14 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
   ];
 
-  // Try to fetch properties for future-proofing
   try {
-    const { properties } = await fetchProperties();
-    const propertyPages: MetadataRoute.Sitemap = properties
-      .filter((p) => p.status === "en_ligne")
-      .map((p) => ({
-        url: `${baseUrl}/proprietes/${p.id}`,
-        lastModified: p.created_at ? new Date(p.created_at) : new Date(),
-        changeFrequency: "weekly",
-        priority: 0.7,
-      }));
+    const properties = await fetchAllOnlineProperties();
+    const propertyPages: MetadataRoute.Sitemap = properties.map((p) => ({
+      url: `${baseUrl}${getPropertyPath(p)}`,
+      lastModified: p.created_at ? new Date(p.created_at) : new Date(),
+      changeFrequency: "weekly",
+      priority: 0.7,
+    }));
 
     return [...staticPages, ...propertyPages];
   } catch (error) {

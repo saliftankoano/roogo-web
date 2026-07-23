@@ -35,6 +35,8 @@ import {
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { sanitizeForStorage } from "@/lib/text-sanitize";
+import { getMembershipsForUser } from "@/lib/hotel-auth";
+import { buildPropertyBaseSlug } from "@/lib/property-url";
 
 const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
 const FREE_LISTING_DEFAULT_TIER_ID = "premium";
@@ -54,6 +56,34 @@ const sanitizeString = (str: string) => {
   if (typeof str !== "string") return str;
   return sanitizeForStorage(str);
 };
+
+// SEO slug (migration 056): generated once at creation, never regenerated,
+// so public URLs stay permanent. Uniqueness via -2/-3 suffixes.
+async function generateUniquePropertySlug(
+  supabase: ReturnType<typeof getSupabaseClient>,
+  fields: Parameters<typeof buildPropertyBaseSlug>[0],
+): Promise<string> {
+  const base = buildPropertyBaseSlug(fields);
+  const { data, error } = await supabase
+    .from("properties")
+    .select("slug")
+    .like("slug", `${base}%`);
+
+  if (error) {
+    console.error("Error checking slug uniqueness:", error);
+    // Fall back to a random suffix rather than failing the listing creation.
+    return `${base}-${Math.random().toString(36).slice(2, 6)}`;
+  }
+
+  const taken = new Set(
+    ((data as { slug: string | null }[]) || []).map((r) => r.slug),
+  );
+  if (!taken.has(base)) return base;
+  for (let n = 2; ; n++) {
+    const candidate = `${base}-${n}`;
+    if (!taken.has(candidate)) return candidate;
+  }
+}
 
 const normalizeAmenityName = (value: string) =>
   value
@@ -234,6 +264,33 @@ export async function POST(req: Request) {
     const typeIssue = requireListingFieldsByType(parsedListingData);
     if (typeIssue) {
       return errorResponse("Données invalides: " + typeIssue.message, 400, req);
+    }
+
+    // Hotel listings must be created by the admin of a hotel and are linked
+    // to it: earnings key off the creator, and hotel members act on bookings
+    // through this link.
+    let hotelId: string | null = null;
+    if (parsedListingData.type === "hotel") {
+      const memberships = await getMembershipsForUser(user.id);
+      const adminMembership = memberships.find((m) => m.role === "admin");
+      if (!adminMembership) {
+        return errorResponse(
+          "Seul le gérant d'un hôtel peut publier une annonce d'hôtel",
+          403,
+          req,
+        );
+      }
+      hotelId = adminMembership.hotelId;
+      if (parsedListingData.listing_type !== "louer") {
+        return errorResponse("Un hôtel ne peut pas être mis en vente", 400, req);
+      }
+      if (parsedListingData.frequence !== "journalier") {
+        return errorResponse(
+          "Un hôtel doit être en location journalière",
+          400,
+          req,
+        );
+      }
     }
 
     let virtualTourUrl: string | null = null;
@@ -443,9 +500,14 @@ export async function POST(req: Request) {
     // until ownership documents are staff-approved, even for staff/founder authors.
     const listingType = isSaleListing ? "vendre" : "louer";
 
-    // Staff listings are automatically verified (en_ligne), owner/agent listings need approval
+    // Staff listings are automatically verified (en_ligne), owner/agent listings need approval.
+    // Hotels always start en_attente regardless of author: room types are created
+    // AFTER the property, and a hotel cannot go live with zero bookable rooms
+    // (the status route enforces >= 1 active room type at publication).
     const propertyStatus =
-      isStaffOrFounder && !isSaleListing ? "en_ligne" : "en_attente";
+      isStaffOrFounder && !isSaleListing && parsedListingData.type !== "hotel"
+        ? "en_ligne"
+        : "en_attente";
     const isTestListing = isStaffOrFounder
       ? parsedListingData.is_test === true
       : false;
@@ -502,8 +564,18 @@ export async function POST(req: Request) {
       return cautionValue;
     })();
 
+    const propertySlug = await generateUniquePropertySlug(supabase, {
+      propertyType: parsedListingData.type,
+      bedrooms: parsedListingData.chambres || null,
+      listingType,
+      quartier: sanitizeString(parsedListingData.quartier),
+      city: parsedListingData.ville,
+    });
+
     const propertyData = {
       agent_id: parsedListingData.owner_id || user.id,
+      hotel_id: hotelId,
+      slug: propertySlug,
       description: sanitizeString(parsedListingData.description) || null,
       // For a sale, the wizard price is the owner's NET asking price; Roogo's public
       // sale price is set later from the signed mandate. We seed `price` with the
@@ -577,10 +649,11 @@ export async function POST(req: Request) {
       translations: {},
       translated_at: null,
       translation_error: null,
-      // Set published_at for staff listings since they go live immediately
-      // (sales never auto-publish — they wait on ownership verification).
+      // published_at tracks actual publication: only set when the listing
+      // really starts en_ligne (sales wait on ownership verification, hotels
+      // wait on room types regardless of author).
       published_at:
-        isStaffOrFounder && !isSaleListing ? new Date().toISOString() : null,
+        propertyStatus === "en_ligne" ? new Date().toISOString() : null,
       // Only staff/founder may mark a listing as test (hidden from public)
       is_test: isTestListing,
       virtual_tour_url: isStaffOrFounder ? virtualTourUrl : null,
@@ -591,11 +664,26 @@ export async function POST(req: Request) {
       "Inserting property into database...",
       isStaffOrFounder ? "(Staff listing - auto-verified)" : "",
     );
-    const { data: property, error: propertyError } = await supabase
+    let { data: property, error: propertyError } = await supabase
       .from("properties")
       .insert(propertyData)
       .select()
       .single();
+
+    // Slug race: two identical listings created at the same time. Retry once
+    // with a random suffix instead of failing the whole creation.
+    if (propertyError?.code === "23505" && propertyError.message.includes("slug")) {
+      const retry = await supabase
+        .from("properties")
+        .insert({
+          ...propertyData,
+          slug: `${propertySlug}-${Math.random().toString(36).slice(2, 6)}`,
+        })
+        .select()
+        .single();
+      property = retry.data;
+      propertyError = retry.error;
+    }
 
     if (propertyError || !property) {
       console.error(
@@ -783,7 +871,8 @@ export async function POST(req: Request) {
       NextResponse.json({
         success: true,
         propertyId,
-        isVerified: isStaffOrFounder,
+        // "Verified" means live: hotels start en_attente even for staff.
+        isVerified: propertyStatus === "en_ligne",
         transactionId: parsedListingData.payment_id || null,
         listingPaymentMode,
         deferredSuccessFeeAmount,

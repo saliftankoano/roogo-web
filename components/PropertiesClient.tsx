@@ -7,6 +7,7 @@ import Link from "next/link";
 import { PropertyCard } from "./PropertyCard";
 import { Footer } from "./Footer";
 import { Property } from "../lib/data";
+import { getPropertyPath } from "../lib/property-url";
 import { motion, AnimatePresence } from "framer-motion";
 import posthog from "posthog-js";
 import {
@@ -323,7 +324,7 @@ function PropertiesPageContent({
     if (isStaffOrFounder) {
       return `/admin/annonces/${property.id}`;
     }
-    return `/proprietes/${property.id}`;
+    return getPropertyPath(property);
   };
 
   return (

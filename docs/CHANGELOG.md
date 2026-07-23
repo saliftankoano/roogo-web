@@ -4,6 +4,10 @@ What shipped, when. One line each, newest first. The *why* lives in
 [`DECISIONS.md`](./DECISIONS.md); the *how it works* lives in
 [`CONCEPTS.md`](./CONCEPTS.md).
 
+## 2026-07-23
+
+- **SEO property URLs + real meta descriptions** (web): listing pages now live at descriptive French slugs (`/proprietes/villa-3-chambres-a-louer-ouaga-2000-ouagadougou`) stored in `properties.slug` (migration 056, backfilled), with legacy uuid URLs 308-redirecting so old shares keep working; meta/OG descriptions are built from the listing's own data (type, chambres, quartier, prix, owner text, ≤160 chars); canonical, Open Graph, and all JSON-LD urls follow the slug; the sitemap now emits ALL en_ligne listings (previously silently capped at the first 20). Requires migration 056 applied before deploy. ([why](./DECISIONS.md#property-urls-are-id-free-seo-slugs-immutable-after-creation--2026-07-23))
+
 ## 2026-07-09
 
 - **v1.17.0 (build 62) built and submitted to both stores** following the production checklist (runtimeVersion bumped with the native modules; earlier mis-bumped builds cancelled). Release kit under `releases/v1.17.0/`: staff note, marketing angles, and store texts (App Store promo + What's New in FR and EN, Play notes in fr-FR/en-US tags), now a standing convention for every release.
