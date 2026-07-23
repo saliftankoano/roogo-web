@@ -319,11 +319,9 @@ function PropertiesPageContent({
     return property.owner_id === user?.id;
   };
 
-  // Get the appropriate route for a property
+  // One canonical URL per listing: staff get the admin view rendered at the
+  // same public slug URL (see app/proprietes/[slug]).
   const getPropertyRoute = (property: Property) => {
-    if (isStaffOrFounder) {
-      return `/admin/annonces/${property.id}`;
-    }
     return getPropertyPath(property);
   };
 

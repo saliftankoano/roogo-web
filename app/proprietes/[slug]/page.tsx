@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
+import { currentUser } from "@clerk/nextjs/server";
 import { notFound, permanentRedirect } from "next/navigation";
 import JsonLd from "@/components/JsonLd";
+import AdminListingDetail from "@/components/admin/AdminListingDetail";
 import { PropertyDetailClient } from "@/components/PropertyDetailClient";
 import {
   fetchPropertyById,
@@ -8,6 +10,7 @@ import {
   type Property,
 } from "@/lib/data";
 import { getPropertyMetaDescription, isUuid } from "@/lib/property-url";
+import { isStaffLikeMetadata } from "@/lib/user-types";
 import {
   getPropertyCanonicalUrl,
   getPropertyDisplayName,
@@ -20,6 +23,16 @@ type PropertyPageProps = {
 
 export const dynamic = "force-dynamic";
 
+// One canonical URL per listing for EVERY viewer: staff/founders get the
+// admin management view rendered at the same public slug URL, so the link
+// in their address bar is always the shareable public one. The render gate
+// here is UX; the real security boundary is the staff checks in the API
+// mutation routes.
+async function isStaffViewer(): Promise<boolean> {
+  const user = await currentUser().catch(() => null);
+  return isStaffLikeMetadata(user?.publicMetadata);
+}
+
 type ResolvedProperty = {
   property: Property | null;
   // Set when the request used a legacy /proprietes/<uuid> URL and the row has
@@ -29,6 +42,7 @@ type ResolvedProperty = {
 
 async function resolveProperty(
   params: PropertyPageProps["params"],
+  viewerIsStaff: boolean,
 ): Promise<ResolvedProperty> {
   const { slug } = await params;
   const segment = decodeURIComponent(slug);
@@ -37,7 +51,8 @@ async function resolveProperty(
     ? await fetchPropertyById(segment.toLowerCase())
     : await fetchPropertyBySlug(segment);
 
-  if (!property || property.is_test) {
+  // Staff can open test listings at their public URL; everyone else 404s.
+  if (!property || (property.is_test && !viewerIsStaff)) {
     return { property: null, redirectToSlug: null };
   }
 
@@ -50,7 +65,8 @@ async function resolveProperty(
 export async function generateMetadata({
   params,
 }: PropertyPageProps): Promise<Metadata> {
-  const { property } = await resolveProperty(params);
+  const viewerIsStaff = await isStaffViewer();
+  const { property } = await resolveProperty(params, viewerIsStaff);
 
   if (!property) {
     return {
@@ -66,7 +82,7 @@ export async function generateMetadata({
   const description = getPropertyMetaDescription(property);
   const canonical = getPropertyCanonicalUrl(property);
   const image = property.image || property.images?.[0] || "/hero-bg.jpg";
-  const indexable = property.status === "en_ligne";
+  const indexable = property.status === "en_ligne" && !property.is_test;
 
   return {
     title,
@@ -100,7 +116,11 @@ export async function generateMetadata({
 }
 
 export default async function PropertyPage({ params }: PropertyPageProps) {
-  const { property, redirectToSlug } = await resolveProperty(params);
+  const viewerIsStaff = await isStaffViewer();
+  const { property, redirectToSlug } = await resolveProperty(
+    params,
+    viewerIsStaff,
+  );
 
   if (!property) {
     notFound();
@@ -108,6 +128,10 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
 
   if (redirectToSlug) {
     permanentRedirect(`/proprietes/${redirectToSlug}`);
+  }
+
+  if (viewerIsStaff) {
+    return <AdminListingDetail propertyId={property.id} />;
   }
 
   return (

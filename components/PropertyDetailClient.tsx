@@ -142,14 +142,7 @@ export function PropertyDetailClient({
     isSignedIn && (userType === "renter" || (!userType && isLoaded)),
   );
   const isOwnerOrAgent = userType === "owner" || userType === "agent";
-  const isStaffOrFounder = userType === "staff" || userType === "founder" || userType === "admin";
   const isPropertyOwner = isOwnerOrAgent && listing?.owner_id === user?.id;
-
-  useEffect(() => {
-    if (isLoaded && isStaffOrFounder && id) {
-      router.replace(`/admin/annonces/${id}`);
-    }
-  }, [isLoaded, isStaffOrFounder, id, router]);
 
   useEffect(() => {
     if (!isLoaded || !user || !listing) return;
