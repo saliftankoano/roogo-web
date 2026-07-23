@@ -5,6 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { getPropertyLabel } from "@/lib/daily-bookings";
+import { getHotelBookingActor } from "@/lib/hotel-auth";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -40,7 +41,13 @@ export async function POST(
 
     if (fetchError) throw fetchError;
     if (!requestRow) return errorResponse("Request not found", 404, req);
-    if (requestRow.renter_id !== user.id) return errorResponse("Forbidden", 403, req);
+    if (requestRow.renter_id !== user.id) {
+      // Hotel desk staff and admins can register a guest's arrival.
+      const actor = requestRow.room_type_id
+        ? await getHotelBookingActor(user.id, requestRow.property_id, "check_in")
+        : null;
+      if (!actor) return errorResponse("Forbidden", 403, req);
+    }
     if (requestRow.status !== "confirmed") {
       return errorResponse("This booking cannot be checked in", 409, req);
     }

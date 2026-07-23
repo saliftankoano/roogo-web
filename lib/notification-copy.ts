@@ -31,6 +31,8 @@ export type NotificationCopyKey =
   | "payments.listingPublished"
   | "payments.propertyReserved"
   | "payments.stayReserved"
+  | "payments.stayPaymentNeedsSupport"
+  | "dailyBookings.latePaymentConflictStaff"
   | "dailyBookings.requestSubmittedOwner"
   | "dailyBookings.requestSubmittedRenter"
   | "dailyBookings.requestApprovedRenter"
@@ -39,6 +41,7 @@ export type NotificationCopyKey =
   | "dailyBookings.requestExpiredRenter"
   | "dailyBookings.paymentExpiredRenter"
   | "dailyBookings.paymentConfirmedRenter"
+  | "dailyBookings.paymentConfirmedRenterHotel"
   | "dailyBookings.paymentConfirmedOwner"
   | "dailyBookings.checkinReminderRenter"
   | "dailyBookings.checkinConfirmedOwner"
@@ -449,6 +452,36 @@ const notificationCopy: Record<
     en: {
       title: "Stay confirmed",
       body: "Your payment is confirmed for {propertyLabel}.",
+    },
+  },
+  "payments.stayPaymentNeedsSupport": {
+    fr: {
+      title: "Paiement reçu, séjour à confirmer",
+      body: "Votre paiement pour {propertyLabel} est arrivé après le délai et les dates ne sont plus libres. Le support Roogo vous contacte pour un remboursement ou de nouvelles dates.",
+    },
+    en: {
+      title: "Payment received, stay to confirm",
+      body: "Your payment for {propertyLabel} arrived after the deadline and the dates are no longer free. Roogo support will contact you about a refund or new dates.",
+    },
+  },
+  "dailyBookings.latePaymentConflictStaff": {
+    fr: {
+      title: "Action requise: paiement en conflit",
+      body: "Un paiement pour {propertyLabel} est arrivé après le délai et la réservation ne peut pas être confirmée. Ouvrez le dossier et contactez le client pour un remboursement.",
+    },
+    en: {
+      title: "Action required: payment conflict",
+      body: "A payment for {propertyLabel} arrived after the deadline and the booking cannot be confirmed. Open the case and contact the guest about a refund.",
+    },
+  },
+  "dailyBookings.paymentConfirmedRenterHotel": {
+    fr: {
+      title: "Réservation confirmée",
+      body: "Votre paiement est confirmé pour {propertyLabel}. Code de réservation: {bookingCode}. Présentez-le à la réception.",
+    },
+    en: {
+      title: "Booking confirmed",
+      body: "Your payment is confirmed for {propertyLabel}. Booking code: {bookingCode}. Show it at the front desk.",
     },
   },
   "dailyBookings.paymentConfirmedOwner": {

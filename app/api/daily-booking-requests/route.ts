@@ -11,8 +11,10 @@ import {
   addHoursIso,
   computeDailyBookingQuote,
   fetchDailyProperty,
+  fetchRoomType,
   getPropertyLabel,
   hasDailyDateConflict,
+  isHotelProperty,
   toDailyCheckinAt,
   toDailyCheckoutAt,
 } from "@/lib/daily-bookings";
@@ -22,6 +24,7 @@ const createDailyBookingSchema = z.object({
   startDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   guestCount: z.number().int().positive().max(50).optional(),
+  roomTypeId: z.uuid().optional(),
 });
 
 export async function OPTIONS(req: Request) {
@@ -51,7 +54,7 @@ export async function POST(req: Request) {
       return errorResponse("Invalid request data", 400, req);
     }
 
-    const { propertyId, startDate, endDate } = parsed.data;
+    const { propertyId, startDate, endDate, roomTypeId } = parsed.data;
     const guestCount = parsed.data.guestCount ?? 1;
     const property = await fetchDailyProperty(propertyId);
     if (!property) return errorResponse("Property not found", 404, req);
@@ -61,23 +64,58 @@ export async function POST(req: Request) {
     if (property.agent_id === user.id) {
       return errorResponse("Owners cannot request their own property", 400, req);
     }
-    if (property.capacite_max && guestCount > Number(property.capacite_max)) {
-      return errorResponse("Guest count exceeds property capacity", 400, req);
-    }
 
-    const conflict = await hasDailyDateConflict({
-      propertyId,
-      startDate,
-      endDate,
-    });
-    if (conflict) {
-      return errorResponse("These dates are not available", 409, req);
+    const isHotel = isHotelProperty(property);
+    let roomType = null;
+    if (isHotel) {
+      if (!roomTypeId) {
+        return errorResponse("A room type is required for hotel bookings", 400, req);
+      }
+      roomType = await fetchRoomType(roomTypeId);
+      if (
+        !roomType ||
+        !roomType.is_active ||
+        roomType.property_id !== propertyId
+      ) {
+        return errorResponse("Room type not found", 404, req);
+      }
+      if (guestCount > roomType.capacity) {
+        return errorResponse("Guest count exceeds room capacity", 400, req);
+      }
+
+      // Count-based inventory: a request only needs a room free right now;
+      // the hard re-check happens under lock at approval time.
+      const { data: available, error: availabilityError } =
+        await supabaseAdmin.rpc("room_type_available", {
+          p_room_type_id: roomTypeId,
+          p_start: startDate,
+          p_end: endDate,
+          p_exclude_request_id: null,
+        });
+      if (availabilityError) throw availabilityError;
+      if (!available) {
+        return errorResponse("These dates are not available", 409, req);
+      }
+    } else {
+      if (property.capacite_max && guestCount > Number(property.capacite_max)) {
+        return errorResponse("Guest count exceeds property capacity", 400, req);
+      }
+
+      const conflict = await hasDailyDateConflict({
+        propertyId,
+        startDate,
+        endDate,
+      });
+      if (conflict) {
+        return errorResponse("These dates are not available", 409, req);
+      }
     }
 
     const quote = await computeDailyBookingQuote({
       property,
       startDate,
       endDate,
+      roomType,
     });
     const now = new Date();
     const expiresAt = addHoursIso(now, DAILY_REQUEST_APPROVAL_HOURS);
@@ -110,10 +148,12 @@ export async function POST(req: Request) {
         total_amount: quote.totalAmount,
         currency: "XOF",
         expires_at: expiresAt,
+        room_type_id: roomType?.id ?? null,
         metadata: {
           cautionType: quote.cautionType,
           cautionValeur: quote.cautionValeur,
           minimumNights: property.sejour_minimum ?? 1,
+          ...(roomType ? { roomTypeName: roomType.name } : {}),
         },
       })
       .select("*")

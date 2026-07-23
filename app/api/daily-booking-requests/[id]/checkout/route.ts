@@ -8,6 +8,7 @@ import {
   getDailyCompletionEligibleAt,
   getPropertyLabel,
 } from "@/lib/daily-bookings";
+import { getHotelBookingActor } from "@/lib/hotel-auth";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -43,7 +44,13 @@ export async function POST(
 
     if (fetchError) throw fetchError;
     if (!requestRow) return errorResponse("Request not found", 404, req);
-    if (requestRow.renter_id !== user.id) return errorResponse("Forbidden", 403, req);
+    if (requestRow.renter_id !== user.id) {
+      // Hotel desk staff and admins can register a guest's departure.
+      const actor = requestRow.room_type_id
+        ? await getHotelBookingActor(user.id, requestRow.property_id, "checkout")
+        : null;
+      if (!actor) return errorResponse("Forbidden", 403, req);
+    }
     if (!["confirmed", "checked_in", "post_checkout_review"].includes(requestRow.status)) {
       return errorResponse("This booking cannot be checked out", 409, req);
     }

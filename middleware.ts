@@ -131,6 +131,10 @@ const isPublicRoute = createRouteMatcher([
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates
   "/api/properties/(.*)/availability",
+  // Hotel room types + count-based availability — guests browse anonymously;
+  // write methods authenticate with Bearer JWT inside the route handlers.
+  "/api/properties/(.*)/room-types",
+  "/api/room-types/(.*)",
   // Pending-edits — mobile authenticates with Bearer JWT
   "/api/properties/(.*)/pending-edits",
   // Ownership documents (Roogo Sell) — mobile authenticates with Bearer JWT

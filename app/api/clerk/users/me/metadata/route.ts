@@ -226,7 +226,15 @@ export async function POST(req: Request) {
     // Validations
     if (
       userType &&
-      !["agent", "regular", "owner", "renter", "staff", "founder"].includes(
+      ![
+        "agent",
+        "regular",
+        "owner",
+        "renter",
+        "staff",
+        "founder",
+        "hotel",
+      ].includes(
         userType as string,
       )
     ) {

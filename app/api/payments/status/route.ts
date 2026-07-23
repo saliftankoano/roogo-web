@@ -10,7 +10,10 @@ import { creditOwnerEarningForSchedule } from "@/lib/owner-wallet";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import { voidPendingReferralForTransaction } from "@/lib/referrals";
 import { unescapeText } from "@/lib/text-sanitize";
-import { finalizeDailyBookingAfterPayment } from "@/lib/daily-bookings";
+import {
+  finalizeDailyBookingAfterPayment,
+  isBlockedDailyFinalize,
+} from "@/lib/daily-bookings";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -223,7 +226,19 @@ export async function POST(req: Request) {
             .maybeSingle();
 
           if (propertyRecord?.period === "day") {
-            await finalizeDailyBookingAfterPayment(transaction.id);
+            // Escalation (support issue + renter notification) for a blocked
+            // late payment lives inside finalize and fires exactly once, so
+            // this poll-repeated path only needs the structured log.
+            const finalizeResult = await finalizeDailyBookingAfterPayment(
+              transaction.id,
+            );
+            if (isBlockedDailyFinalize(finalizeResult)) {
+              log("post-payment-daily-booking-unconfirmed", {
+                depositId,
+                propertyId: transaction.property_id,
+                reason: finalizeResult.reason,
+              });
+            }
           }
         }
 
@@ -410,6 +425,7 @@ export async function POST(req: Request) {
           propertyId: transaction.property_id,
         });
 
+        let suppressPaymentNotification = false;
         let notificationCopyKey: NotificationCopyKey =
           "payments.genericCompleted";
         let notificationParams: Record<string, string | number> = {};
@@ -443,13 +459,24 @@ export async function POST(req: Request) {
             .eq("id", transaction.property_id)
             .maybeSingle();
 
+          let dailyFinalizeBlocked = false;
           if (propertyRecord?.period !== "day") {
             await supabase
               .from("properties")
               .update({ status: "locked" })
               .eq("id", transaction.property_id);
           } else {
-            await finalizeDailyBookingAfterPayment(transaction.id);
+            const finalizeResult = await finalizeDailyBookingAfterPayment(
+              transaction.id,
+            );
+            dailyFinalizeBlocked = isBlockedDailyFinalize(finalizeResult);
+            if (dailyFinalizeBlocked) {
+              log("post-payment-daily-booking-unconfirmed", {
+                depositId,
+                propertyId: transaction.property_id,
+                reason: finalizeResult.reason,
+              });
+            }
           }
 
           if (propertyLabel) {
@@ -458,6 +485,12 @@ export async function POST(req: Request) {
                 ? "payments.stayReserved"
                 : "payments.propertyReserved";
             notificationParams = { propertyLabel };
+          }
+          // Never announce a reserved stay when the late-payment guard
+          // refused to confirm; finalize already notified the renter and
+          // opened a support issue.
+          if (dailyFinalizeBlocked) {
+            suppressPaymentNotification = true;
           }
         } else if (
           transaction.type === "listing_submission" &&
@@ -495,7 +528,7 @@ export async function POST(req: Request) {
         }
 
         // Send payment confirmation notification
-        if (transaction.user_id) {
+        if (transaction.user_id && !suppressPaymentNotification) {
           log("sending-payment-notification", {
             userId: transaction.user_id,
             depositId,

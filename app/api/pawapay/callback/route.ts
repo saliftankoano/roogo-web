@@ -10,7 +10,10 @@ import {
 } from "@/lib/owner-wallet";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import { updateDepositRefundFromPawaPayStatus } from "@/lib/pawapay-payouts";
-import { finalizeDailyBookingAfterPayment } from "@/lib/daily-bookings";
+import {
+  finalizeDailyBookingAfterPayment,
+  isBlockedDailyFinalize,
+} from "@/lib/daily-bookings";
 import { handleVisit3dDepositCallback } from "@/lib/visit3d-callback";
 
 // PawaPay IPs to whitelist
@@ -332,6 +335,7 @@ export async function POST(req: Request) {
       let notificationCopyKey: NotificationCopyKey =
         "payments.genericCompleted";
       let notificationParams: Record<string, string | number> = {};
+      let suppressPaymentNotification = false;
       const getPropertyLabel = async (propertyId: string) => {
         const { data: property } = await supabase
           .from("properties")
@@ -371,12 +375,25 @@ export async function POST(req: Request) {
             } else {
               log("post-payment-lock-success", { transactionId, propertyId });
             }
-          } else {
+          }
+
+          let dailyFinalizeBlocked = false;
+          if (propertyRecord?.period === "day") {
             log("post-payment-daily-booking-success", {
               transactionId,
               propertyId,
             });
-            await finalizeDailyBookingAfterPayment(transaction.id);
+            const finalizeResult = await finalizeDailyBookingAfterPayment(
+              transaction.id,
+            );
+            dailyFinalizeBlocked = isBlockedDailyFinalize(finalizeResult);
+            if (dailyFinalizeBlocked) {
+              log("post-payment-daily-booking-unconfirmed", {
+                transactionId,
+                propertyId,
+                reason: finalizeResult.reason,
+              });
+            }
           }
 
           if (propertyLabel) {
@@ -385,6 +402,12 @@ export async function POST(req: Request) {
                 ? "payments.stayReserved"
                 : "payments.propertyReserved";
             notificationParams = { propertyLabel };
+          }
+          // A late payment for a room re-sold in the meantime must never be
+          // announced as a reserved stay; finalize already sent the renter
+          // the needs-support notification and opened a support issue.
+          if (dailyFinalizeBlocked) {
+            suppressPaymentNotification = true;
           }
         }
       } else if (transaction.type === "boost") {
@@ -462,7 +485,7 @@ export async function POST(req: Request) {
       }
 
       // Send payment confirmation notification
-      if (transaction.user_id) {
+      if (transaction.user_id && !suppressPaymentNotification) {
         log("sending-payment-notification", {
           userId: transaction.user_id,
           transactionId,

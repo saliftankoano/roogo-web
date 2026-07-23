@@ -8,6 +8,7 @@ import {
   getPropertyLabel,
   releaseSoftHoldForDailyRequest,
 } from "@/lib/daily-bookings";
+import { getHotelBookingActor } from "@/lib/hotel-auth";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -46,7 +47,13 @@ export async function POST(
 
     if (fetchError) throw fetchError;
     if (!requestRow) return errorResponse("Request not found", 404, req);
-    if (requestRow.owner_id !== user.id) return errorResponse("Forbidden", 403, req);
+    if (requestRow.owner_id !== user.id) {
+      // Hotel bookings may also be declined by an admin of the property's hotel.
+      const actor = requestRow.room_type_id
+        ? await getHotelBookingActor(user.id, requestRow.property_id, "decline")
+        : null;
+      if (!actor) return errorResponse("Forbidden", 403, req);
+    }
     if (!["requested", "approved_awaiting_payment"].includes(requestRow.status)) {
       return errorResponse("This request cannot be declined", 409, req);
     }

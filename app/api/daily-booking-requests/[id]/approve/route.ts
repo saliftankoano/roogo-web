@@ -12,6 +12,7 @@ import {
   hasDailyDateConflict,
   type DailyBookingRequestRow,
 } from "@/lib/daily-bookings";
+import { getHotelBookingActor } from "@/lib/hotel-auth";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -52,7 +53,15 @@ export async function POST(
 
     if (fetchError) throw fetchError;
     if (!requestRow) return errorResponse("Request not found", 404, req);
-    if (requestRow.owner_id !== user.id) return errorResponse("Forbidden", 403, req);
+
+    const isHotelBooking = !!requestRow.room_type_id;
+    if (requestRow.owner_id !== user.id) {
+      // Hotel bookings may also be approved by an admin of the property's hotel.
+      const actor = isHotelBooking
+        ? await getHotelBookingActor(user.id, requestRow.property_id, "approve")
+        : null;
+      if (!actor) return errorResponse("Forbidden", 403, req);
+    }
 
     if (requestRow.status === "approved_awaiting_payment") {
       return cors(NextResponse.json({ success: true, request: requestRow }), req);
@@ -69,33 +78,59 @@ export async function POST(
       return errorResponse("This request has expired", 409, req);
     }
 
-    const conflict = await hasDailyDateConflict({
-      propertyId: requestRow.property_id,
-      startDate: requestRow.start_date,
-      endDate: requestRow.end_date,
-      excludeRequestId: id,
-    });
-    if (conflict) {
-      return errorResponse("These dates are no longer available", 409, req);
-    }
-
     const approvedAt = new Date();
     const paymentExpiresAt = addHoursIso(approvedAt, DAILY_PAYMENT_WINDOW_HOURS);
-    const { data: updated, error: updateError } = await supabaseAdmin
-      .from("daily_booking_requests")
-      .update({
-        status: "approved_awaiting_payment",
-        approved_at: approvedAt.toISOString(),
-        payment_expires_at: paymentExpiresAt,
-      })
-      .eq("id", id)
-      .eq("status", "requested")
-      .select("*")
-      .single();
+    let updated: DailyBookingRequestRow;
 
-    if (updateError) throw updateError;
+    if (isHotelBooking) {
+      // Atomic approval under an advisory lock on the room type: prevents two
+      // concurrent approvals from overselling the last room. Never approve
+      // hotel bookings via check-then-update.
+      const { data: approvedRows, error: approveError } =
+        await supabaseAdmin.rpc("approve_hotel_booking_request", {
+          p_request_id: id,
+          p_approved_at: approvedAt.toISOString(),
+          p_payment_expires_at: paymentExpiresAt,
+        });
+      if (approveError) throw approveError;
 
-    await createSoftHoldForDailyRequest(updated as DailyBookingRequestRow);
+      const approved = Array.isArray(approvedRows)
+        ? approvedRows[0]
+        : approvedRows;
+      if (!approved) {
+        return errorResponse("These dates are no longer available", 409, req);
+      }
+      updated = approved as DailyBookingRequestRow;
+    } else {
+      const conflict = await hasDailyDateConflict({
+        propertyId: requestRow.property_id,
+        startDate: requestRow.start_date,
+        endDate: requestRow.end_date,
+        excludeRequestId: id,
+      });
+      if (conflict) {
+        return errorResponse("These dates are no longer available", 409, req);
+      }
+
+      const { data: updatedRow, error: updateError } = await supabaseAdmin
+        .from("daily_booking_requests")
+        .update({
+          status: "approved_awaiting_payment",
+          approved_at: approvedAt.toISOString(),
+          payment_expires_at: paymentExpiresAt,
+        })
+        .eq("id", id)
+        .eq("status", "requested")
+        .select("*")
+        .single();
+
+      if (updateError) throw updateError;
+      updated = updatedRow as DailyBookingRequestRow;
+
+      // Hotel inventory is count-based via the request row itself; the
+      // whole-property soft hold is only for regular daily rentals.
+      await createSoftHoldForDailyRequest(updated);
+    }
 
     const propertyLabel = getPropertyLabel(requestRow.properties || {});
     const deadline = new Date(paymentExpiresAt).toLocaleString("fr-BF", {

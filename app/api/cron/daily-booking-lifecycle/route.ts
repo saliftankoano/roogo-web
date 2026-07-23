@@ -73,11 +73,15 @@ async function expirePaymentWindows(nowIso: string) {
       if (transaction?.status === "completed") continue;
     }
 
+    // Re-check the expiry in the UPDATE itself: reclaim_late_hotel_payment
+    // can refresh payment_expires_at between this batch's SELECT and now, and
+    // a just-reclaimed hold must not be expired out from under its finalize.
     const { data: updated, error: updateError } = await supabaseAdmin
       .from("daily_booking_requests")
       .update({ status: "payment_expired" })
       .eq("id", request.id)
       .in("status", ["approved_awaiting_payment", "payment_pending"])
+      .lt("payment_expires_at", nowIso)
       .select("id")
       .maybeSingle();
 

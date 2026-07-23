@@ -8,6 +8,7 @@ import {
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { reserveNotificationDelivery } from "@/lib/notification-deliveries";
 import { unescapeText } from "@/lib/text-sanitize";
+import { generateBookingCode } from "@/lib/booking-codes";
 
 export const DAILY_REQUEST_APPROVAL_HOURS = 12;
 export const DAILY_PAYMENT_WINDOW_HOURS = 2;
@@ -82,6 +83,9 @@ export interface DailyBookingRequestRow {
   completed_at: string | null;
   metadata: Record<string, unknown> | null;
   created_at: string;
+  room_type_id?: string | null;
+  booking_code?: string | null;
+  event_id?: string | null;
 }
 
 interface PropertyForDailyBooking {
@@ -91,6 +95,8 @@ interface PropertyForDailyBooking {
   quartier: string | null;
   price: number;
   period: string | null;
+  property_type: string | null;
+  hotel_id: string | null;
   caution_type: CautionType;
   caution_valeur: number | null;
   sejour_minimum: number | null;
@@ -99,6 +105,33 @@ interface PropertyForDailyBooking {
   loyer_avance_mois?: number | null;
   interdictions?: string[] | null;
   dos_and_donts?: string[] | null;
+}
+
+export interface RoomTypeRow {
+  id: string;
+  property_id: string;
+  name: string;
+  nightly_rate: number;
+  capacity: number;
+  total_count: number;
+  is_active: boolean;
+}
+
+export function isHotelProperty(
+  property: Pick<PropertyForDailyBooking, "property_type">,
+) {
+  return property.property_type === "hotel";
+}
+
+export async function fetchRoomType(roomTypeId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("room_types")
+    .select("id, property_id, name, nightly_rate, capacity, total_count, is_active")
+    .eq("id", roomTypeId)
+    .maybeSingle();
+
+  if (error) throw error;
+  return data as RoomTypeRow | null;
 }
 
 export function addHoursIso(date: Date, hours: number) {
@@ -132,7 +165,7 @@ export async function fetchDailyProperty(propertyId: string) {
   const { data, error } = await supabaseAdmin
     .from("properties")
     .select(
-      "id, agent_id, address, quartier, price, period, caution_type, caution_valeur, sejour_minimum, capacite_max, caution_mois, loyer_avance_mois, interdictions, dos_and_donts",
+      "id, agent_id, address, quartier, price, period, property_type, hotel_id, caution_type, caution_valeur, sejour_minimum, capacite_max, caution_mois, loyer_avance_mois, interdictions, dos_and_donts",
     )
     .eq("id", propertyId)
     .maybeSingle();
@@ -181,10 +214,12 @@ export async function computeDailyBookingQuote({
   property,
   startDate,
   endDate,
+  roomType,
 }: {
   property: PropertyForDailyBooking;
   startDate: string;
   endDate: string;
+  roomType?: RoomTypeRow | null;
 }) {
   const nights = nightsBetween(startDate, endDate);
   if (nights <= 0) {
@@ -196,26 +231,35 @@ export async function computeDailyBookingQuote({
     throw new Error(`Minimum stay is ${minimumNights} night(s)`);
   }
 
+  const isHotel = isHotelProperty(property);
+  if (isHotel && !roomType) {
+    throw new Error("Hotel bookings require a room type");
+  }
+
   const { data: listingConfig, error: listingConfigError } = await supabaseAdmin
     .from("listing_config")
-    .select("daily_owner_commission_percentage")
+    .select("daily_owner_commission_percentage, hotel_owner_commission_percentage")
     .eq("id", "default")
     .single();
 
   if (listingConfigError) throw listingConfigError;
 
   const commissionPercentage = Number(
-    listingConfig?.daily_owner_commission_percentage,
+    isHotel
+      ? listingConfig?.hotel_owner_commission_percentage
+      : listingConfig?.daily_owner_commission_percentage,
   );
   if (!Number.isFinite(commissionPercentage)) {
     throw new Error("Daily owner commission is not configured");
   }
 
+  // Hotels: price comes from the room type and no caution is collected — the
+  // guest pays the room price and nothing else.
   return computeJournalierPricing({
-    nightlyRate: property.price,
+    nightlyRate: isHotel ? roomType!.nightly_rate : property.price,
     nights,
-    cautionType: property.caution_type,
-    cautionValeur: property.caution_valeur,
+    cautionType: isHotel ? "aucune" : property.caution_type,
+    cautionValeur: isHotel ? null : property.caution_valeur,
     ownerCommissionPercentage: commissionPercentage,
   });
 }
@@ -446,6 +490,148 @@ async function ensureDailyOwnerEarning({
   if (error && error.code !== "23505") throw error;
 }
 
+/**
+ * Assigns a unique front-desk booking code (RG-XXXXXX) to a request.
+ * Retries on the partial-unique-index collision; returns the stored code.
+ */
+async function assignBookingCode(
+  requestId: string,
+  client: SupabaseLike = supabaseAdmin,
+): Promise<string | null> {
+  for (let attempt = 0; attempt < 5; attempt++) {
+    const code = generateBookingCode();
+    const { data, error } = await client
+      .from("daily_booking_requests")
+      .update({ booking_code: code })
+      .eq("id", requestId)
+      .is("booking_code", null)
+      .select("booking_code")
+      .maybeSingle();
+
+    if (!error) {
+      if (data?.booking_code) return data.booking_code;
+      // No row updated: another writer already set a code; read it back.
+      const { data: existing } = await client
+        .from("daily_booking_requests")
+        .select("booking_code")
+        .eq("id", requestId)
+        .maybeSingle();
+      return existing?.booking_code ?? null;
+    }
+    if (error.code !== "23505") throw error;
+  }
+  console.error("Failed to assign booking code after retries:", requestId);
+  return null;
+}
+
+/**
+ * A payment completed for a hotel booking that cannot be confirmed (room
+ * resold after the window lapsed, or the request reached a terminal status):
+ * money was collected, so a human must arrange a refund or new dates.
+ * Escalates EXACTLY ONCE even under concurrent callback + poll finalizes:
+ * the metadata flag is claimed with an atomic conditional update, and only
+ * the winner files the support issue and sends the notifications.
+ */
+async function escalateHotelPaymentConflict(
+  request: DailyBookingRequestRow,
+  transactionId: string,
+  client: SupabaseLike = supabaseAdmin,
+) {
+  const { data: claimed, error: claimError } = await client
+    .from("daily_booking_requests")
+    .update({
+      metadata: {
+        ...(request.metadata ?? {}),
+        lateFinalizeConflict: true,
+        lateFinalizeTransactionId: transactionId,
+      },
+    })
+    .eq("id", request.id)
+    .is("metadata->lateFinalizeConflict", null)
+    .select("id")
+    .maybeSingle();
+  if (claimError) {
+    console.error(
+      "Failed to claim late-payment escalation:",
+      request.id,
+      claimError,
+    );
+    return;
+  }
+  if (!claimed) return; // another finalize already escalated
+
+  console.error(
+    "Late payment cannot be confirmed; escalating to support:",
+    request.id,
+  );
+
+  // File into the existing support queue (admin list + resolve routes,
+  // pauses payout/auto-completion).
+  const { error: issueError } = await client.from("daily_booking_issues").insert({
+    booking_request_id: request.id,
+    property_id: request.property_id,
+    reporter_id: request.renter_id,
+    reporter_role: "renter",
+    issue_type: "late_payment_conflict",
+    reason:
+      "Paiement arrivé après le délai pour une réservation qui ne peut plus être confirmée. Remboursement ou nouvelles dates à organiser.",
+    status: "open",
+    metadata: { transactionId },
+  });
+  if (issueError) {
+    console.error("Failed to open late-payment issue:", request.id, issueError);
+  }
+
+  try {
+    const { data: property } = await client
+      .from("properties")
+      .select("quartier, address")
+      .eq("id", request.property_id)
+      .maybeSingle();
+    const propertyLabel = getPropertyLabel(property || {});
+
+    await notifyUserWithTemplate(
+      request.renter_id,
+      "payments",
+      "payments.stayPaymentNeedsSupport",
+      { propertyLabel },
+      {
+        type: "daily_booking_late_payment_conflict",
+        dailyBookingRequestId: request.id,
+        propertyId: request.property_id,
+      },
+    );
+
+    // The issues queue has no dashboard yet: alert the founders directly so
+    // the refund promise made to the renter is acted on.
+    const { data: founders } = await client
+      .from("users")
+      .select("id")
+      .eq("user_type", "founder");
+    await Promise.allSettled(
+      (founders ?? []).map((founder) =>
+        notifyUserWithTemplate(
+          founder.id,
+          "payments",
+          "dailyBookings.latePaymentConflictStaff",
+          { propertyLabel },
+          {
+            type: "daily_booking_late_payment_conflict_staff",
+            dailyBookingRequestId: request.id,
+            propertyId: request.property_id,
+          },
+        ),
+      ),
+    );
+  } catch (notifyError) {
+    console.error(
+      "Failed to send late-payment conflict notifications:",
+      request.id,
+      notifyError,
+    );
+  }
+}
+
 export async function finalizeDailyBookingAfterPayment(
   transactionId: string,
   client: SupabaseLike = supabaseAdmin,
@@ -503,18 +689,51 @@ export async function finalizeDailyBookingAfterPayment(
     throw new Error("Daily booking request does not match transaction");
   }
 
+  // Hotel bookings consume count-based room inventory directly from their own
+  // request row: a whole-property blocked-dates row would block every other
+  // room, and hotels never collect a caution.
+  const isHotelBooking = !!request.room_type_id;
+
+  if (isHotelBooking) {
+    // Reclaim runs UNCONDITIONALLY, not just after expiry: a payment that
+    // finalizes seconds before the window lapses would otherwise run the
+    // multi-step confirmation with no lock and no counted hold, and a
+    // concurrent last-room approval could double-book. The RPC refreshes the
+    // hold under the same advisory lock approvals use, whitelists payable
+    // statuses (a declined/cancelled/refunded request is never resurrected),
+    // and returns false when the request is not payable or the room is gone.
+    const { data: reclaimed, error: reclaimError } = await client.rpc(
+      "reclaim_late_hotel_payment",
+      { p_request_id: request.id },
+    );
+    if (reclaimError) throw reclaimError;
+    if (!reclaimed) {
+      const PAYABLE_STATUSES = new Set<DailyBookingRequestStatus>([
+        "approved_awaiting_payment",
+        "payment_pending",
+        "payment_expired",
+      ]);
+      const reason = PAYABLE_STATUSES.has(request.status)
+        ? "room_unavailable_late_payment"
+        : "request_not_payable";
+      await escalateHotelPaymentConflict(request, transaction.id, client);
+      return { finalized: false, reason };
+    }
+  }
+
   const agreementId = await createDailyAgreementForRequest(
     request,
     transaction.id,
   );
-
-  await convertSoftHoldToBooked(request, agreementId);
-  await ensureDailyDepositHold({
-    request,
-    transactionId: transaction.id,
-    agreementId,
-    transactionMetadata: metadata,
-  });
+  if (!isHotelBooking) {
+    await convertSoftHoldToBooked(request, agreementId);
+    await ensureDailyDepositHold({
+      request,
+      transactionId: transaction.id,
+      agreementId,
+      transactionMetadata: metadata,
+    });
+  }
   await ensureDailyOwnerEarning({
     request,
     transactionId: transaction.id,
@@ -522,7 +741,11 @@ export async function finalizeDailyBookingAfterPayment(
   });
 
   const paidAt = new Date().toISOString();
-  const { error: updateError } = await client
+  const bookingCode = request.booking_code ?? (await assignBookingCode(request.id, client));
+  // Status-guarded confirm: if the request reached a terminal state while the
+  // confirmation steps ran (declined, cancelled, refunded), do not overwrite
+  // it; escalate for support instead.
+  const { data: confirmedRow, error: updateError } = await client
     .from("daily_booking_requests")
     .update({
       status: "confirmed",
@@ -530,9 +753,28 @@ export async function finalizeDailyBookingAfterPayment(
       agreement_id: agreementId,
       paid_at: paidAt,
     })
-    .eq("id", request.id);
+    .eq("id", request.id)
+    .in("status", [
+      "approved_awaiting_payment",
+      "payment_pending",
+      "payment_expired",
+      "confirmed",
+    ])
+    .select("id")
+    .maybeSingle();
 
   if (updateError) throw updateError;
+  if (!confirmedRow) {
+    console.error(
+      "Daily booking reached a terminal status during finalize; not confirming:",
+      request.id,
+    );
+    if (isHotelBooking) {
+      await escalateHotelPaymentConflict(request, transaction.id, client);
+    }
+    return { finalized: false, reason: "status_conflict" };
+  }
+  request.booking_code = bookingCode;
 
   try {
     const { data: property } = await client
@@ -546,8 +788,12 @@ export async function finalizeDailyBookingAfterPayment(
       notifyUserWithTemplate(
         request.renter_id,
         "payments",
-        "dailyBookings.paymentConfirmedRenter",
-        { propertyLabel },
+        isHotelBooking && request.booking_code
+          ? "dailyBookings.paymentConfirmedRenterHotel"
+          : "dailyBookings.paymentConfirmedRenter",
+        isHotelBooking && request.booking_code
+          ? { propertyLabel, bookingCode: request.booking_code }
+          : { propertyLabel },
         {
           type: "daily_booking_payment_confirmed",
           dailyBookingRequestId: request.id,
@@ -573,6 +819,23 @@ export async function finalizeDailyBookingAfterPayment(
   }
 
   return { finalized: true, requestId, agreementId };
+}
+
+/**
+ * True when a finalize result means "payment completed but the booking was
+ * NOT confirmed and the renter was told support will follow up" — callers
+ * must suppress their own success notification in that case.
+ */
+export function isBlockedDailyFinalize(result: {
+  finalized: boolean;
+  reason?: string;
+}) {
+  return (
+    !result.finalized &&
+    (result.reason === "room_unavailable_late_payment" ||
+      result.reason === "request_not_payable" ||
+      result.reason === "status_conflict")
+  );
 }
 
 export async function finalizeDailyBookingAfterPaymentDepositId(

@@ -124,6 +124,8 @@ export const LISTING_TYPE_CAPABILITIES: Record<
 > = {
   terrain: { roomsApply: false, superficieRequired: true },
   commercial: { roomsApply: false, superficieRequired: false },
+  // Hotel rooms live in room_types, not on the property row.
+  hotel: { roomsApply: false, superficieRequired: false },
 };
 
 const DEFAULT_TYPE_CAPABILITIES = {
@@ -234,6 +236,7 @@ export const PROPERTY_TYPES = [
   { id: "terrain", label: "Terrain" },
   { id: "commercial", label: "Commercial" },
   { id: "célibatorium", label: "Célibatorium" },
+  { id: "hotel", label: "Hôtel" },
 ];
 
 export const EQUIPEMENTS = [

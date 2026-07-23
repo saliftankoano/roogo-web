@@ -6,6 +6,7 @@ export const PROPERTY_TYPE_IDS = [
   "terrain",
   "commercial",
   "célibatorium",
+  "hotel",
 ] as const;
 export type PropertyTypeId = (typeof PROPERTY_TYPE_IDS)[number];
 

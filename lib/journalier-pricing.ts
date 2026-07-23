@@ -2,6 +2,7 @@ export type CautionType = "aucune" | "pourcentage" | "fixe" | null;
 
 export const JOURNALIER_RENTER_SERVICE_FEE_BPS = 0;
 export const DEFAULT_JOURNALIER_OWNER_COMMISSION_BPS = 1000;
+export const DEFAULT_HOTEL_OWNER_COMMISSION_BPS = 700;
 export const JOURNALIER_CAUTION_CAP_BPS = 5000;
 export const JOURNALIER_CAUTION_ABSOLUTE_CAP = 50_000;
 export const JOURNALIER_LISTING_PUBLICATION_FEE = 0;

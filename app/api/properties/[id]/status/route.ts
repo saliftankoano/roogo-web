@@ -33,7 +33,7 @@ export async function PATCH(
     const { data: existingProperty, error: propertyError } = await supabaseAdmin
       .from("properties")
       .select(
-        "agent_id, is_boosted, status, is_test, listing_type, ownership_verification_status",
+        "agent_id, is_boosted, status, is_test, listing_type, property_type, ownership_verification_status",
       )
       .eq("id", propertyId)
       .maybeSingle();
@@ -84,6 +84,34 @@ export async function PATCH(
         );
       }
     }
+    // Bookability gate: a live hotel must have at least one active room type,
+    // mirroring the guard that blocks deleting the last one. Without this, an
+    // approved hotel would advertise a price with zero bookable inventory.
+    if (isGoingLive && existingProperty.property_type === "hotel") {
+      const { count: activeRoomTypes, error: roomTypesError } =
+        await supabaseAdmin
+          .from("room_types")
+          .select("id", { count: "exact", head: true })
+          .eq("property_id", propertyId)
+          .eq("is_active", true);
+      if (roomTypesError) {
+        console.error("Error counting room types before publish:", roomTypesError);
+        return NextResponse.json(
+          { error: "Room types check failed" },
+          { status: 500 },
+        );
+      }
+      if ((activeRoomTypes ?? 0) === 0) {
+        return NextResponse.json(
+          {
+            error:
+              "Un hôtel doit avoir au moins un type de chambre avant la mise en ligne.",
+          },
+          { status: 409 },
+        );
+      }
+    }
+
     const wasAlreadyLive = existingProperty?.status === "en_ligne";
 
     // Post-approval logic: set published_at and refresh boost expiration
