@@ -1,4 +1,8 @@
 import { MetadataRoute } from "next";
+
+// Rebuild hourly so new listings (and any slug changes) reach Google without
+// waiting for the next deploy.
+export const revalidate = 3600;
 import { fetchAllOnlineProperties } from "../lib/data";
 import { getPropertyPath } from "../lib/property-url";
 
