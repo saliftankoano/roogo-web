@@ -7,6 +7,26 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### City stays an id in the DB; labels applied at display/slug level — 2026-07-23
+
+**Decision:** `properties.city` keeps storing the picker id (`"ouaga"`) that both
+apps filter on; translation to "Ouagadougou" happens only in `getCityLabel`
+(slugs, meta descriptions, location strings). Quartier free text is normalized
+at write time (whitespace, ALL-CAPS to title case) but never reshaped further.
+Slugs were regenerated ONCE (migration 057) to absorb these fixes while they
+were hours old and unindexed; the immutability rule from the entry below holds
+from now on.
+
+**Why:** Rewriting city values in the DB would break every filter and form
+default keyed on the id across web and mobile. Mapping at the edge fixes the
+user-visible problem with zero migration risk.
+
+**Ruled out:** storing display names in a new column (duplication that will
+drift); constraining quartier to a picker (the free field is how owners express
+real micro-locations like "Karpala quatre yaar").
+
+**Status:** Settled.
+
 ### Property URLs are ID-free SEO slugs, immutable after creation — 2026-07-23
 
 **Decision:** Public property pages move from `/proprietes/<uuid>` to a stored
