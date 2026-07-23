@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { sanitizeForStorage } from "@/lib/text-sanitize";
+import { normalizeQuartier } from "@/lib/property-url";
 import { convertIdsToLabels } from "@/lib/interdictions";
 import {
   buildStalePropertyTranslationUpdate,
@@ -74,7 +75,7 @@ function sanitizePendingPayload(
   if (out.description !== undefined)
     out.description = sanitizeForStorage(out.description);
   if (out.quartier !== undefined)
-    out.quartier = sanitizeForStorage(out.quartier);
+    out.quartier = normalizeQuartier(sanitizeForStorage(out.quartier));
   if (out.dos_and_donts !== undefined)
     out.dos_and_donts = out.dos_and_donts.map(sanitizeForStorage);
 

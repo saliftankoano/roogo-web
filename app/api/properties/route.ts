@@ -36,7 +36,7 @@ import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-noti
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { sanitizeForStorage } from "@/lib/text-sanitize";
 import { getMembershipsForUser } from "@/lib/hotel-auth";
-import { buildPropertyBaseSlug } from "@/lib/property-url";
+import { buildPropertyBaseSlug, normalizeQuartier } from "@/lib/property-url";
 
 const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
 const FREE_LISTING_DEFAULT_TIER_ID = "premium";
@@ -564,11 +564,15 @@ export async function POST(req: Request) {
       return cautionValue;
     })();
 
+    const cleanQuartier = normalizeQuartier(
+      sanitizeString(parsedListingData.quartier),
+    );
+
     const propertySlug = await generateUniquePropertySlug(supabase, {
       propertyType: parsedListingData.type,
       bedrooms: parsedListingData.chambres || null,
       listingType,
-      quartier: sanitizeString(parsedListingData.quartier),
+      quartier: cleanQuartier,
       city: parsedListingData.ville,
     });
 
@@ -589,9 +593,9 @@ export async function POST(req: Request) {
       bathrooms: parsedListingData.sdb || null,
       area: parsedListingData.superficie ?? null,
       parking_spaces: parsedListingData.vehicules || null,
-      address: `${sanitizeString(parsedListingData.quartier)}, ${sanitizeString(parsedListingData.ville)}`,
+      address: `${cleanQuartier}, ${sanitizeString(parsedListingData.ville)}`,
       city: parsedListingData.ville,
-      quartier: sanitizeString(parsedListingData.quartier),
+      quartier: cleanQuartier,
       latitude: parsedListingData.latitude || null,
       longitude: parsedListingData.longitude || null,
       caution_mois: isSaleListing

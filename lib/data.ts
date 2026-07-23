@@ -5,6 +5,7 @@ import {
   type RentalFrequency,
 } from "./rental-period";
 import { unescapeText } from "./text-sanitize";
+import { getCityLabel } from "./property-url";
 
 export type Property = {
   id: string;
@@ -130,7 +131,7 @@ function mapProperty(p: DBProperty): Property {
     id: p.id,
     slug: p.slug || null,
     owner_id: p.owner_id || undefined,
-    location: unescapeText(`${p.quartier}, ${p.city}`),
+    location: unescapeText(`${p.quartier}, ${getCityLabel(p.city)}`),
     address: unescapeText(p.address),
     price: p.price.toString(),
     bedrooms: p.bedrooms || 0,

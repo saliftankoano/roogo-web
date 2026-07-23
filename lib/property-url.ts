@@ -1,10 +1,32 @@
 import type { Property } from "./data";
 import { isDailyRental } from "./rental-period";
+import { CITY_OPTIONS } from "./validations";
 
 // Slug + SEO helpers for property pages. The slug is stored on
-// properties.slug (migration 056), generated once at creation and never
-// regenerated so public URLs stay permanent. Keep buildPropertyBaseSlug in
-// sync with the SQL backfill in 056_property_slugs.sql.
+// properties.slug (migration 056, regenerated once in 057), generated at
+// creation and never regenerated so public URLs stay permanent. Keep
+// buildPropertyBaseSlug in sync with the SQL backfill in 057.
+
+// properties.city stores the picker id ("ouaga"), not a display name; both
+// apps filter on the id, so translation to a label happens only at
+// display/slug level, never in the DB.
+export function getCityLabel(city?: string | null): string {
+  const key = (city || "").trim().toLowerCase();
+  return CITY_OPTIONS.find((c) => c.id === key)?.label || (city || "").trim();
+}
+
+// Free-text quartier hygiene at write time: collapse whitespace and tame
+// ALL-CAPS entries ("TOEYIBIN" reads as shouting in URLs and descriptions).
+export function normalizeQuartier(quartier?: string | null): string {
+  const cleaned = (quartier || "").replace(/\s+/g, " ").trim();
+  const letters = cleaned.replace(/[^a-zA-ZÀ-ÿ]/g, "");
+  if (letters.length > 3 && letters === letters.toUpperCase()) {
+    return cleaned
+      .toLowerCase()
+      .replace(/(^|[\s'-])\p{L}/gu, (m) => m.toUpperCase());
+  }
+  return cleaned;
+}
 
 export function getPropertyTypeLabel(type?: string) {
   const key = (type || "").trim().toLowerCase();
@@ -39,9 +61,11 @@ type SlugFields = {
   city?: string | null;
 };
 
+const SLUG_MAX = 80;
+
 export function buildPropertyBaseSlug(fields: SlugFields): string {
   const quartier = (fields.quartier || "").trim();
-  const city = (fields.city || "").trim();
+  const city = getCityLabel(fields.city);
   const parts = [
     getPropertyTypeLabel(fields.propertyType || undefined) || "Propriete",
     fields.bedrooms && fields.bedrooms > 0
@@ -53,7 +77,13 @@ export function buildPropertyBaseSlug(fields: SlugFields): string {
     quartier,
     city.toLowerCase() !== quartier.toLowerCase() ? city : "",
   ];
-  return slugify(parts.filter(Boolean).join(" ")) || "propriete";
+  const slug = slugify(parts.filter(Boolean).join(" ")) || "propriete";
+  if (slug.length <= SLUG_MAX) return slug;
+  // Sentence-length quartiers happen (free-text field): cut at a word
+  // boundary so URLs stay sane.
+  const cut = slug.slice(0, SLUG_MAX);
+  const lastHyphen = cut.lastIndexOf("-");
+  return lastHyphen > 0 ? cut.slice(0, lastHyphen) : cut;
 }
 
 export function getPropertyPath(property: Property): string {
@@ -80,7 +110,7 @@ export function getPropertyMetaDescription(property: Property): string {
   const typeLabel = getPropertyTypeLabel(property.propertyType) || "Propriété";
   const action = property.listingType === "vendre" ? "à vendre" : "à louer";
   const quartier = (property.quartier || "").trim();
-  const city = (property.city || "").trim();
+  const city = getCityLabel(property.city);
   const place =
     quartier && city && quartier.toLowerCase() !== city.toLowerCase()
       ? `${quartier}, ${city}`
