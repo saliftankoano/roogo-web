@@ -4,6 +4,7 @@ import { useUser } from "@clerk/nextjs";
 import { useState, useEffect, useRef } from "react";
 import { PropertyDetailSkeleton } from "@/components/admin/skeletons";
 import { createPortal } from "react-dom";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
   UsersIcon,
@@ -305,6 +306,11 @@ export default function AdminListingDetail({
     }
   };
   const [statusModalOpen, setStatusModalOpen] = useState(false);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [statusError, setStatusError] = useState<{
+    message: string;
+    code?: string;
+  } | null>(null);
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
@@ -380,33 +386,48 @@ export default function AdminListingDetail({
   };
 
   const handleStatusChange = async (newStatus: string) => {
-    if (!listing) return;
-    const oldStatus = listing.status;
+    if (!listing) return false;
 
-    // Optimistic update
-    setListing({ ...listing, status: newStatus });
+    setIsUpdatingStatus(true);
+    setStatusError(null);
+    try {
+      const result = await updatePropertyStatus(listing.id, newStatus);
+      if (!result.success) {
+        setStatusError({ message: result.error, code: result.code });
+        return false;
+      }
 
-    const success = await updatePropertyStatus(listing.id, newStatus);
-
-    if (!success) {
-      // Revert if failed
-      setListing({ ...listing, status: oldStatus });
-      alert("Erreur lors de la mise à jour du statut");
+      setListing((current) =>
+        current ? { ...current, status: newStatus } : current,
+      );
+      return true;
+    } finally {
+      setIsUpdatingStatus(false);
     }
   };
 
   const initiateStatusChange = (newStatus: string) => {
     if (newStatus === listing?.status) return;
     setPendingStatus(newStatus);
+    setStatusError(null);
     setIsStatusDropdownOpen(false);
     setStatusModalOpen(true);
   };
 
+  const closeStatusModal = () => {
+    if (isUpdatingStatus) return;
+    setStatusModalOpen(false);
+    setPendingStatus(null);
+    setStatusError(null);
+  };
+
   const confirmStatusChange = async () => {
-    if (pendingStatus) {
-      await handleStatusChange(pendingStatus);
+    if (pendingStatus && !isUpdatingStatus) {
+      const success = await handleStatusChange(pendingStatus);
+      if (!success) return;
       setStatusModalOpen(false);
       setPendingStatus(null);
+      setStatusError(null);
     }
   };
 
@@ -480,7 +501,7 @@ export default function AdminListingDetail({
                 animate={{ opacity: 1 }}
                 exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm"
-                onClick={() => setStatusModalOpen(false)}
+                onClick={closeStatusModal}
               />
               <motion.div
                 initial={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -507,19 +528,39 @@ export default function AdminListingDetail({
                     ?
                   </p>
 
+                  {statusError && (
+                    <div
+                      role="alert"
+                      className="w-full rounded-xl border border-red-200 bg-red-50 p-3 text-left text-sm text-red-700"
+                    >
+                      <p>{statusError.message}</p>
+                      {statusError.code === "sale_mandate_required" && (
+                        <Link
+                          href="/admin/sale-chat"
+                          className="mt-2 inline-flex font-semibold text-[#A84F1C] underline underline-offset-2"
+                        >
+                          Ouvrir les conversations ventes
+                        </Link>
+                      )}
+                    </div>
+                  )}
+
                   <div className="flex gap-3 w-full mt-6">
                     <Button
                       variant="ghost"
-                      onClick={() => setStatusModalOpen(false)}
-                      className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700"
+                      onClick={closeStatusModal}
+                      disabled={isUpdatingStatus}
+                      className="flex-1 bg-neutral-100 hover:bg-neutral-200 text-neutral-700 disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       Annuler
                     </Button>
                     <Button
                       onClick={confirmStatusChange}
-                      className="flex-1 bg-primary text-white hover:bg-primary/90"
+                      disabled={isUpdatingStatus}
+                      aria-busy={isUpdatingStatus}
+                      className="flex-1 bg-primary text-white hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-60"
                     >
-                      Confirmer
+                      {isUpdatingStatus ? "Mise à jour…" : "Confirmer"}
                     </Button>
                   </div>
                 </div>

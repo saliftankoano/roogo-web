@@ -58,6 +58,7 @@ export async function PATCH(
     ) {
       return NextResponse.json(
         {
+          code: "sale_ownership_verification_required",
           error:
             "Les documents de propriété doivent être vérifiés avant la mise en ligne.",
         },
@@ -77,6 +78,7 @@ export async function PATCH(
       if (!signedMandate) {
         return NextResponse.json(
           {
+            code: "sale_mandate_required",
             error:
               "Le mandat de vente doit être signé par le propriétaire avant la mise en ligne.",
           },
@@ -104,6 +106,7 @@ export async function PATCH(
       if ((activeRoomTypes ?? 0) === 0) {
         return NextResponse.json(
           {
+            code: "hotel_room_type_required",
             error:
               "Un hôtel doit avoir au moins un type de chambre avant la mise en ligne.",
           },
