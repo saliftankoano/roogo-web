@@ -493,10 +493,17 @@ export const properties: Property[] = [
   },
 ];
 
+export type PropertyStatusUpdateResult =
+  | { success: true }
+  | { success: false; error: string; code?: string };
+
+const PROPERTY_STATUS_UPDATE_FALLBACK_ERROR =
+  "Impossible de mettre à jour le statut. Veuillez réessayer.";
+
 export async function updatePropertyStatus(
   id: string,
   status: string,
-): Promise<boolean> {
+): Promise<PropertyStatusUpdateResult> {
   try {
     const response = await fetch(`/api/properties/${id}/status`, {
       method: "PATCH",
@@ -507,13 +514,31 @@ export async function updatePropertyStatus(
     });
 
     if (!response.ok) {
-      console.error("Error updating property status:", await response.text());
-      return false;
+      const payload = (await response.json().catch(() => null)) as {
+        error?: unknown;
+        code?: unknown;
+      } | null;
+      const error =
+        typeof payload?.error === "string"
+          ? payload.error
+          : PROPERTY_STATUS_UPDATE_FALLBACK_ERROR;
+      const code =
+        typeof payload?.code === "string" ? payload.code : undefined;
+
+      console.error("Error updating property status:", {
+        status: response.status,
+        code,
+        error,
+      });
+      return { success: false, error, code };
     }
-    return true;
+    return { success: true };
   } catch (error) {
     console.error("Error updating property status:", error);
-    return false;
+    return {
+      success: false,
+      error: PROPERTY_STATUS_UPDATE_FALLBACK_ERROR,
+    };
   }
 }
 
