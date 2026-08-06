@@ -4,6 +4,11 @@ What shipped, when. One line each, newest first. The *why* lives in
 [`DECISIONS.md`](./DECISIONS.md); the *how it works* lives in
 [`CONCEPTS.md`](./CONCEPTS.md).
 
+## 2026-08-06
+
+- **Simplified staff and founder navigation** (web): the back office now keeps listings prominent and groups related destinations under Messages, Operations, Development, and Management, while preserving founder-only finance and settings access. ([why](./DECISIONS.md#staff-navigation-groups-work-by-task-instead-of-exposing-every-destination--2026-08-06))
+- **Direct sale intake and later owner linking** (web + data): staff can prepare a pending sale for an owner without an account, privately retain their contact and WhatsApp details, then manually link the listing to the owner's future account before documents, mandate, and publication can proceed. Every public sale now hides seller identity and presents Roogo as the sole contact. ([why](./DECISIONS.md#direct-sale-intake-is-provisional-contact-data-not-provisional-ownership--2026-08-06), [how](./CONCEPTS.md#how-does-a-direct-sale-intake-become-an-owner-linked-listing))
+
 ## 2026-07-23
 
 - **SEO follow-up: real city names + clean quartiers in slugs and descriptions** (web + data): slugs and meta descriptions now translate the stored city id to its display label ("ouaga" becomes "Ouagadougou") via `getCityLabel`, quartier free text is normalized at write time (ALL-CAPS becomes title case), slugs are capped at 80 chars, and migration 057 fixed bad quartier data (KARPALA/Kaarpala, TOEYIBIN, legacy `&#x27;` entities, one sentence-long quartier) then regenerated all slugs once while they were hours old. Mobile share handlers now build `https://www.roogobf.com/proprietes/<slug>` links (code ready in the roogo repo, ships with the next release). Discovery: the hardcoded `roogo.bf` share domain was NEVER owned by Roogo, so every share link the app ever sent was dead; historic shares are unrecoverable, the fix stops the bleeding. The apex `roogobf.com` → www redirect was also upgraded from 307 to 308 permanent in Vercel.
