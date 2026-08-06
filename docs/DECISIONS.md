@@ -7,6 +7,31 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Direct sale intake is provisional contact data, not provisional ownership — 2026-08-06
+
+**Decision:** Staff may prepare a sale for an owner who has no Roogo account by
+recording private contact details in a one-to-one `sale_intakes` record and
+leaving `properties.agent_id` empty. A staff member must later select an actual
+owner or agent account; one atomic operation links the listing and creates the
+seller conversation. Until then, documents, mandates, and publication remain
+blocked. Every public sale presents Roogo as the contact and omits seller
+identity, regardless of who originally created it.
+
+**Why:** Some owners contact Roogo directly and cannot complete the digital
+listing flow themselves. Staff needs to prepare their property without
+misrepresenting Ablassé or another staff member as its owner. Manual,
+single-use linking preserves a clear chain of ownership and the existing signed
+mandate protection.
+
+**Ruled out / alternatives:** Fake owner accounts and temporary staff ownership
+were rejected because they corrupt authorship and mandate history; automatic
+phone-number matching was rejected because a match is not proof of ownership;
+reassignment after linking was excluded from v1 because it could move an active
+dossier or mandate to the wrong account.
+
+**Status:** Settled. Implementation is tracked in PR #7. See
+[how direct sale intake works](./CONCEPTS.md#how-does-a-direct-sale-intake-become-an-owner-linked-listing).
+
 ### City stays an id in the DB; labels applied at display/slug level — 2026-07-23
 
 **Decision:** `properties.city` keeps storing the picker id (`"ouaga"`) that both
