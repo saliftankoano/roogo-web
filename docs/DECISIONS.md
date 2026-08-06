@@ -7,6 +7,23 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Staff navigation groups work by task instead of exposing every destination — 2026-08-06
+
+**Decision:** Staff and founders keep `Annonces` as the primary direct action,
+while related destinations are grouped under `Messages`, `Opérations`,
+`Développement`, and `Pilotage`. Founder-only finance and settings remain
+permission-gated inside `Pilotage`.
+
+**Why:** The flat navigation exposed too many equally weighted choices and made
+routine property work harder to scan. Task-oriented groups preserve access
+without presenting the entire back office as one long menu.
+
+**Ruled out / alternatives:** Removing low-frequency destinations entirely was
+rejected because staff still needs them; role-specific duplicate navigation
+implementations were rejected because they would drift.
+
+**Status:** Settled. Implementation is tracked in PR #8.
+
 ### City stays an id in the DB; labels applied at display/slug level — 2026-07-23
 
 **Decision:** `properties.city` keeps storing the picker id (`"ouaga"`) that both
