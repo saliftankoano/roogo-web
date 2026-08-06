@@ -30,13 +30,30 @@ export type AdminNavGroupItem = {
 
 export type AdminNavEntry = AdminNavItem | AdminNavGroupItem;
 
-const demandesNavItems: AdminNavItem[] = [
+const messageNavItems: AdminNavItem[] = [
   {
     type: "link",
-    label: "Talent",
-    href: "/admin/talent",
-    id: "admin-nav-talent",
-    icon: ClipboardTextIcon,
+    label: "Ventes",
+    href: "/admin/sale-chat",
+    id: "admin-nav-sale-chat",
+    icon: HandshakeIcon,
+  },
+  {
+    type: "link",
+    label: "Support",
+    href: "/admin/support",
+    id: "admin-nav-support",
+    icon: ChatCircleTextIcon,
+  },
+];
+
+const operationsNavItems: AdminNavItem[] = [
+  {
+    type: "link",
+    label: "Modifications",
+    href: "/admin/modifications",
+    id: "admin-nav-modifications",
+    icon: PencilSimpleLineIcon,
   },
   {
     type: "link",
@@ -47,7 +64,7 @@ const demandesNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
-    label: "Vérifications",
+    label: "Identités",
     href: "/admin/verifications",
     id: "admin-nav-verifications",
     icon: IdentificationCardIcon,
@@ -66,6 +83,16 @@ const demandesNavItems: AdminNavItem[] = [
     id: "admin-nav-visit-requests",
     icon: CalendarCheckIcon,
   },
+];
+
+const developmentNavItems: AdminNavItem[] = [
+  {
+    type: "link",
+    label: "Talent",
+    href: "/admin/talent",
+    id: "admin-nav-talent",
+    icon: ClipboardTextIcon,
+  },
   {
     type: "link",
     label: "Parrainage",
@@ -75,7 +102,7 @@ const demandesNavItems: AdminNavItem[] = [
   },
 ];
 
-const baseAdminNavItems: AdminNavEntry[] = [
+const pilotageNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Analyses",
@@ -83,44 +110,9 @@ const baseAdminNavItems: AdminNavEntry[] = [
     id: "admin-nav-analyses",
     icon: ChartLineUpIcon,
   },
-  {
-    type: "link",
-    label: "Annonces",
-    href: "/admin/annonces",
-    id: "admin-nav-annonces",
-    icon: BuildingsIcon,
-  },
-  {
-    type: "link",
-    label: "Modifications",
-    href: "/admin/modifications",
-    id: "admin-nav-modifications",
-    icon: PencilSimpleLineIcon,
-  },
-  {
-    type: "link",
-    label: "Support",
-    href: "/admin/support",
-    id: "admin-nav-support",
-    icon: ChatCircleTextIcon,
-  },
-  {
-    type: "link",
-    label: "Ventes",
-    href: "/admin/sale-chat",
-    id: "admin-nav-sale-chat",
-    icon: HandshakeIcon,
-  },
-  {
-    type: "group",
-    label: "Demandes",
-    id: "admin-nav-demandes",
-    icon: ClipboardTextIcon,
-    children: demandesNavItems,
-  },
 ];
 
-const founderOnlyAdminNavItems: AdminNavEntry[] = [
+const founderPilotageNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Finances",
@@ -138,9 +130,43 @@ const founderOnlyAdminNavItems: AdminNavEntry[] = [
 ];
 
 export function getAdminNavItems(isFounder: boolean): AdminNavEntry[] {
-  if (isFounder) {
-    return [...baseAdminNavItems, ...founderOnlyAdminNavItems];
-  }
-
-  return baseAdminNavItems;
+  return [
+    {
+      type: "link",
+      label: "Annonces",
+      href: "/admin/annonces",
+      id: "admin-nav-annonces",
+      icon: BuildingsIcon,
+    },
+    {
+      type: "group",
+      label: "Messages",
+      id: "admin-nav-messages",
+      icon: ChatCircleTextIcon,
+      children: messageNavItems,
+    },
+    {
+      type: "group",
+      label: "Opérations",
+      id: "admin-nav-operations",
+      icon: ClipboardTextIcon,
+      children: operationsNavItems,
+    },
+    {
+      type: "group",
+      label: "Développement",
+      id: "admin-nav-development",
+      icon: HandshakeIcon,
+      children: developmentNavItems,
+    },
+    {
+      type: "group",
+      label: "Pilotage",
+      id: "admin-nav-pilotage",
+      icon: ChartLineUpIcon,
+      children: isFounder
+        ? [...pilotageNavItems, ...founderPilotageNavItems]
+        : pilotageNavItems,
+    },
+  ];
 }
