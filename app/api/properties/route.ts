@@ -34,6 +34,7 @@ import {
 } from "@/lib/referrals";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
+import { isValidStoredPhone } from "@/lib/phone";
 import { sanitizeForStorage } from "@/lib/text-sanitize";
 import { getMembershipsForUser } from "@/lib/hotel-auth";
 import { buildPropertyBaseSlug, normalizeQuartier } from "@/lib/property-url";
@@ -314,8 +315,43 @@ export async function POST(req: Request) {
       );
     }
 
-    // 5c. owner_id: only staff/founder may set it; validate user exists and is owner/agent
+    // 5c. Existing-account and direct-owner attribution are staff-only and
+    // mutually exclusive. A direct owner is supported only for sale listings.
     const ownerId = parsedListingData.owner_id;
+    const directOwner = parsedListingData.direct_owner;
+    if (ownerId && directOwner) {
+      return errorResponse(
+        "owner_id and direct_owner are mutually exclusive",
+        400,
+        req,
+      );
+    }
+    if (directOwner) {
+      if (!isStaffOrFounder) {
+        return errorResponse(
+          "direct_owner is only allowed for staff or founder",
+          403,
+          req,
+        );
+      }
+      if (!isSaleListing) {
+        return errorResponse(
+          "direct_owner is only allowed for sale listings",
+          400,
+          req,
+        );
+      }
+      if (!isValidStoredPhone(directOwner.phone)) {
+        return errorResponse("direct_owner.phone is invalid", 400, req);
+      }
+    }
+    if (isStaffOrFounder && isSaleListing && !ownerId && !directOwner) {
+      return errorResponse(
+        "A staff-created sale must identify an existing or direct owner",
+        400,
+        req,
+      );
+    }
     if (ownerId) {
       if (!isStaffOrFounder) {
         return errorResponse(
@@ -577,7 +613,7 @@ export async function POST(req: Request) {
     });
 
     const propertyData = {
-      agent_id: parsedListingData.owner_id || user.id,
+      agent_id: directOwner ? null : parsedListingData.owner_id || user.id,
       hotel_id: hotelId,
       slug: propertySlug,
       description: sanitizeString(parsedListingData.description) || null,
@@ -708,6 +744,23 @@ export async function POST(req: Request) {
       isStaffOrFounder ? "(Verified)" : "(Pending)",
     );
 
+    if (directOwner) {
+      const { error: intakeError } = await supabase.from("sale_intakes").insert({
+        property_id: propertyId,
+        owner_first_name: sanitizeString(directOwner.first_name),
+        owner_last_name: sanitizeString(directOwner.last_name),
+        owner_phone: directOwner.phone,
+        phone_has_whatsapp: directOwner.phone_has_whatsapp,
+        created_by: user.id,
+        status: "unlinked",
+      });
+      if (intakeError) {
+        console.error("Error creating sale intake:", intakeError);
+        await supabase.from("properties").delete().eq("id", propertyId);
+        return errorResponse("Failed to create direct sale intake", 500, req);
+      }
+    }
+
     if (propertyStatus === "en_ligne" && propertyData.is_test === false) {
       await translatePropertyIfNeeded(propertyId).catch((error) => {
         console.error(
@@ -719,7 +772,7 @@ export async function POST(req: Request) {
 
     // For a sale, open the owner's seller↔Roogo thread with a welcome card so they
     // have a place to talk to the team while their listing is reviewed. Best-effort.
-    if (isSaleListing) {
+    if (isSaleListing && propertyData.agent_id) {
       try {
         const { conversation } = await getOrCreateSellerConversation({
           propertyId,

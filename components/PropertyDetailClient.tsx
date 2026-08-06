@@ -45,6 +45,7 @@ import {
   getPriceTitle,
   isDailyRental,
 } from "@/lib/rental-period";
+import { ROOGO_CONTACT } from "@/lib/roogo-contact";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -300,7 +301,7 @@ export function PropertyDetailClient({
 
   return (
     <>
-      {!isDailyListing && (
+      {!isDailyListing && !isSaleListing && (
         <PropertyPaymentModal
           isOpen={showPaymentModal}
           onClose={() => setShowPaymentModal(false)}
@@ -611,18 +612,36 @@ export function PropertyDetailClient({
                   <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
                     Acheter ce bien
                   </p>
+                  <div>
+                    <p className="font-black text-neutral-950">
+                      {ROOGO_CONTACT.name}
+                    </p>
+                    <p className="text-xs font-bold uppercase tracking-wider text-primary">
+                      {ROOGO_CONTACT.role}
+                    </p>
+                  </div>
                   <p className="text-sm font-medium text-neutral-500">
                     Les documents de propriété sont vérifiés par Roogo. Roogo
                     gère toute la transaction&nbsp;: échangez avec notre équipe,
                     organisez la visite et signez chez le notaire depuis
                     l&apos;application Roogo.
                   </p>
-                  <a
-                    href="https://roogo.bf"
-                    className="block w-full rounded-2xl bg-primary py-4 text-center font-black text-white hover:bg-primary/90"
-                  >
-                    Discuter avec Roogo dans l&apos;app
-                  </a>
+                  <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                    <a
+                      href={ROOGO_CONTACT.phoneHref}
+                      className="rounded-2xl border border-neutral-200 py-3 text-center text-sm font-black text-neutral-800"
+                    >
+                      {ROOGO_CONTACT.phone}
+                    </a>
+                    <a
+                      href={ROOGO_CONTACT.whatsappHref}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="rounded-2xl bg-primary py-3 text-center text-sm font-black text-white hover:bg-primary/90"
+                    >
+                      Discuter avec Roogo
+                    </a>
+                  </div>
                 </section>
               )}
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Image from "next/image";
 import { BedIcon, BathtubIcon, RulerIcon, LightningIcon, SealCheckIcon } from "@phosphor-icons/react";
 import { Property } from "@/lib/data";
@@ -14,21 +15,24 @@ interface PropertyCardProps {
 }
 
 export function PropertyCard({ property, onClick, showStatus = false, className }: PropertyCardProps) {
-  
-  const formatTimeAgo = (dateString?: string) => {
-    if (!dateString) return "";
-    const now = new Date();
-    const past = new Date(dateString);
-    const diffInMs = now.getTime() - past.getTime();
-    const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
-    const diffInDays = Math.floor(diffInHours / 24);
+  const [timePosted, setTimePosted] = useState("");
 
-    if (diffInHours < 1) return "À l'instant";
-    if (diffInHours < 24) return `Il y a ${diffInHours}h`;
-    return `Il y a ${diffInDays} jours`;
-  };
+  useEffect(() => {
+    const formatTimeAgo = (dateString?: string) => {
+      if (!dateString) return "";
+      const now = new Date();
+      const past = new Date(dateString);
+      const diffInMs = now.getTime() - past.getTime();
+      const diffInHours = Math.floor(diffInMs / (1000 * 60 * 60));
+      const diffInDays = Math.floor(diffInHours / 24);
 
-  const timePosted = formatTimeAgo(property.created_at);
+      if (diffInHours < 1) return "À l'instant";
+      if (diffInHours < 24) return `Il y a ${diffInHours}h`;
+      return `Il y a ${diffInDays} jours`;
+    };
+
+    setTimePosted(formatTimeAgo(property.created_at));
+  }, [property.created_at]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -147,9 +151,11 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
               ? "À vendre"
               : getPricePeriodLabel(property)}
           </span>
-          <span className="text-xs text-neutral-400 font-medium">
-            • {timePosted}
-          </span>
+          {timePosted && (
+            <span className="text-xs text-neutral-400 font-medium">
+              • {timePosted}
+            </span>
+          )}
         </div>
 
         <h3 className="text-lg font-bold text-neutral-900 mb-2 line-clamp-1">

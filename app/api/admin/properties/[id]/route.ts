@@ -56,6 +56,8 @@ function mapAdminProperty(row: PropertyDetailsRow) {
     transaction_id: asString(row.transaction_id) || null,
     is_test: Boolean(row.is_test),
     virtualTourUrl: asString(row.virtual_tour_url),
+    listingType: asString(row.listing_type),
+    agentId: asString(row.agent_id) || null,
     agent: {
       full_name: asString(row.agent_name) || "Utilisateur inconnu",
       phone: asString(row.agent_phone),
@@ -98,9 +100,98 @@ export async function GET(
 
     if (!data) return errorResponse("Property not found", 404, req);
 
-    return cors(NextResponse.json({ property: mapAdminProperty(data) }), req);
+    const { data: intake, error: intakeError } = await supabaseAdmin
+      .from("sale_intakes")
+      .select(
+        "id, owner_first_name, owner_last_name, owner_phone, phone_has_whatsapp, status, linked_user_id, linked_at, created_at, created_by_user:created_by(full_name, email)",
+      )
+      .eq("property_id", id)
+      .maybeSingle();
+    if (intakeError) {
+      console.error("Error fetching direct sale intake:", intakeError);
+      return errorResponse("Failed to fetch sale intake", 500, req);
+    }
+
+    return cors(
+      NextResponse.json({
+        property: {
+          ...mapAdminProperty(data),
+          saleIntake: intake ?? null,
+        },
+      }),
+      req,
+    );
   } catch (error) {
     console.error("Error in GET /api/admin/properties/[id]:", error);
+    return errorResponse("Internal server error", 500, req);
+  }
+}
+
+const LINK_ERROR_STATUS: Record<string, number> = {
+  already_linked: 409,
+  invalid_owner_type: 400,
+  owner_not_found: 404,
+  not_direct_sale: 404,
+};
+const LINK_ERROR_MESSAGE: Record<string, string> = {
+  already_linked: "Cette annonce est déjà rattachée à un compte.",
+  invalid_owner_type: "Le compte sélectionné doit être propriétaire ou agent.",
+  owner_not_found: "Le compte sélectionné est introuvable.",
+  not_direct_sale: "Cette annonce n'est pas une vente en entrée directe.",
+};
+
+export async function PATCH(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const user = await getStaffOrFounder(req);
+    if (!user) return errorResponse("Forbidden", 403, req);
+
+    const { id } = await params;
+    const body = (await req.json()) as { user_id?: unknown };
+    const targetUserId =
+      typeof body.user_id === "string" ? body.user_id.trim() : "";
+    if (!targetUserId) {
+      return cors(
+        NextResponse.json(
+          { error: "user_id is required", code: "owner_not_found" },
+          { status: 400 },
+        ),
+        req,
+      );
+    }
+
+    const { data, error } = await supabaseAdmin.rpc("link_sale_intake_owner", {
+      p_property_id: id,
+      p_target_user_id: targetUserId,
+      p_actor_user_id: user.id,
+    });
+    if (error) {
+      console.error("Direct sale owner link failed:", error);
+      return errorResponse("Failed to link owner", 500, req);
+    }
+
+    const result = data as {
+      ok?: boolean;
+      code?: string;
+      owner_id?: string;
+      conversation_id?: string;
+    } | null;
+    if (!result?.ok) {
+      const code = result?.code || "not_direct_sale";
+      return cors(
+        NextResponse.json(
+          { error: LINK_ERROR_MESSAGE[code] ?? "Rattachement impossible.", code },
+          { status: LINK_ERROR_STATUS[code] ?? 400 },
+        ),
+        req,
+      );
+    }
+
+    return cors(NextResponse.json({ success: true, ...result }), req);
+  } catch (error) {
+    console.error("PATCH /api/admin/properties/[id]:", error);
     return errorResponse("Internal server error", 500, req);
   }
 }

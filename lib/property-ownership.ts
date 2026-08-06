@@ -22,7 +22,7 @@ export function canSubmitOwnership(userType: string | null | undefined) {
 
 type SellerProperty = {
   id: string;
-  agent_id: string;
+  agent_id: string | null;
   listing_type: string;
   ownership_verification_status: string;
   status: string;
@@ -30,7 +30,10 @@ type SellerProperty = {
 
 type LoadSellerPropertyResult =
   | { property: SellerProperty; reason: null }
-  | { property: null; reason: "not_found" | "forbidden" | "not_a_sale" };
+  | {
+      property: null;
+      reason: "not_found" | "forbidden" | "not_a_sale" | "owner_not_linked";
+    };
 
 // Confirms the caller is the property's lister (agent_id) and that it's a sale.
 export async function loadSellerProperty(
@@ -45,6 +48,7 @@ export async function loadSellerProperty(
 
   if (error) throw error;
   if (!data) return { property: null, reason: "not_found" };
+  if (!data.agent_id) return { property: null, reason: "owner_not_linked" };
   if (data.agent_id !== userId)
     return { property: null, reason: "forbidden" };
   if (data.listing_type !== "vendre")

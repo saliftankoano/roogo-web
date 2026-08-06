@@ -49,6 +49,21 @@ export async function PATCH(
 
     const isGoingLive = status === "en_ligne";
 
+    if (
+      isGoingLive &&
+      existingProperty.listing_type === "vendre" &&
+      !existingProperty.agent_id
+    ) {
+      return NextResponse.json(
+        {
+          code: "sale_owner_link_required",
+          error:
+            "Rattachez d'abord l'annonce au compte du propriétaire avant la mise en ligne.",
+        },
+        { status: 409 },
+      );
+    }
+
     // Compliance gate: a sale listing cannot go live until its ownership documents
     // have been staff-approved. This is the core anti-scam guarantee.
     if (

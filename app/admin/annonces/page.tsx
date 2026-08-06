@@ -11,7 +11,7 @@ import {
 } from "@phosphor-icons/react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
-import { Property, fetchProperties } from "@/lib/data";
+import { Property } from "@/lib/data";
 import { PropertyCard } from "@/components/PropertyCard";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -32,8 +32,11 @@ export default function AdminListingsPage() {
   const { user } = useUser();
   const { getToken } = useAuth();
   const searchParams = useSearchParams();
-  const [properties, setProperties] = useState<Property[]>([]);
+  const [properties, setProperties] = useState<
+    Array<Property & { saleIntake?: { status?: string } | null }>
+  >([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -201,8 +204,21 @@ export default function AdminListingsPage() {
         } else if (pending.pendingPhotosOverflow) {
         }
 
-        const { properties: data } = await fetchProperties();
-        setProperties(data);
+        const adminResponse = await fetch("/api/admin/properties?status=all", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const adminPayload = await adminResponse.json();
+        if (!adminResponse.ok) throw new Error(adminPayload.error);
+        setProperties(
+          (adminPayload.properties ?? []).map(
+            (property: Property & { price: number; area: number }) => ({
+              ...property,
+              price: String(property.price ?? 0),
+              area: String(property.area ?? ""),
+              category: "Residential",
+            }),
+          ),
+        );
       } catch {
       } finally {
         if (finalizingKey) window.sessionStorage.removeItem(finalizingKey);
@@ -214,12 +230,42 @@ export default function AdminListingsPage() {
 
   useEffect(() => {
     async function loadProperties() {
-      const { properties: data } = await fetchProperties();
-      setProperties(data);
-      setLoading(false);
+      setLoadError(null);
+      try {
+        const token = await getToken();
+        if (!token) throw new Error("Session administrateur indisponible.");
+        const adminResponse = await fetch("/api/admin/properties?status=all", {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const adminPayload = await adminResponse.json();
+        if (!adminResponse.ok) {
+          throw new Error(
+            adminPayload.error || "Impossible de charger les annonces.",
+          );
+        }
+        setProperties(
+          (adminPayload.properties ?? []).map(
+            (property: Property & { price: number; area: number }) => ({
+              ...property,
+              price: String(property.price ?? 0),
+              area: String(property.area ?? ""),
+              category: "Residential",
+            }),
+          ),
+        );
+      } catch (error) {
+        setProperties([]);
+        setLoadError(
+          error instanceof Error
+            ? error.message
+            : "Impossible de charger les annonces.",
+        );
+      } finally {
+        setLoading(false);
+      }
     }
     loadProperties();
-  }, []);
+  }, [getToken]);
 
   const filteredListings = useMemo(() => {
     return properties.filter((listing) => {
@@ -377,7 +423,7 @@ export default function AdminListingsPage() {
 
       {loading ? (
         <PropertyGridSkeleton />
-      ) : (
+      ) : !loadError ? (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
           {filteredListings.map((listing) => (
             <Link
@@ -412,13 +458,38 @@ export default function AdminListingsPage() {
                             : listing.status}
                 </span>
               </div>
+              {listing.saleIntake?.status === "unlinked" && (
+                <div className="absolute left-7 top-7 z-10">
+                  <span className="rounded-full border border-amber-300 bg-amber-100 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-900 shadow-sm">
+                    Propriétaire à rattacher
+                  </span>
+                </div>
+              )}
               <PropertyCard property={listing} />
             </Link>
           ))}
         </div>
+      ) : null}
+
+      {!loading && loadError && (
+        <div className="flex flex-col items-center justify-center rounded-[40px] border border-red-100 bg-white py-24 text-center shadow-sm">
+          <h3 className="text-xl font-bold text-neutral-900">
+            Chargement impossible
+          </h3>
+          <p className="mt-2 max-w-md font-medium text-neutral-500">
+            {loadError}
+          </p>
+          <button
+            type="button"
+            onClick={() => window.location.reload()}
+            className="mt-5 rounded-full bg-primary px-6 py-3 text-sm font-black text-white"
+          >
+            Réessayer
+          </button>
+        </div>
       )}
 
-      {!loading && filteredListings.length === 0 && (
+      {!loading && !loadError && filteredListings.length === 0 && (
         <div className="flex flex-col items-center justify-center py-32 text-center bg-white rounded-[40px] border border-neutral-100 shadow-sm">
           <div className="w-20 h-20 bg-neutral-50 rounded-full flex items-center justify-center mb-6">
             <MagnifyingGlassIcon size={40} className="text-neutral-300" />

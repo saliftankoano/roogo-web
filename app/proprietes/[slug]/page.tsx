@@ -52,7 +52,11 @@ async function resolveProperty(
     : await fetchPropertyBySlug(segment);
 
   // Staff can open test listings at their public URL; everyone else 404s.
-  if (!property || (property.is_test && !viewerIsStaff)) {
+  if (
+    !property ||
+    (!viewerIsStaff &&
+      (property.is_test || property.status !== "en_ligne"))
+  ) {
     return { property: null, redirectToSlug: null };
   }
 
