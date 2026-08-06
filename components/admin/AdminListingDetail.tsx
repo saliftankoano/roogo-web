@@ -1,5 +1,5 @@
 "use client";
-import { useUser } from "@clerk/nextjs";
+import { useAuth, useUser } from "@clerk/nextjs";
 
 import { useState, useEffect, useRef } from "react";
 import { PropertyDetailSkeleton } from "@/components/admin/skeletons";
@@ -30,12 +30,13 @@ import {
   BathtubIcon,
   SquaresFourIcon,
   CarIcon,
+  WhatsappLogoIcon,
+  MagnifyingGlassIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import {
-  fetchPropertyById,
   updatePropertyStatus,
   updateProperty,
   deleteProperty,
@@ -111,6 +112,27 @@ interface TransactionMetadata {
   totalMoveInAmount?: number;
 }
 
+type SaleIntake = {
+  id: string;
+  owner_first_name: string;
+  owner_last_name: string;
+  owner_phone: string;
+  phone_has_whatsapp: boolean;
+  status: "unlinked" | "linked" | "cancelled";
+  linked_user_id: string | null;
+  linked_at: string | null;
+  created_at: string;
+};
+
+type OwnerSearchResult = {
+  id: string;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
+  user_type: string;
+};
+
 // Property type mapping to French
 const PROPERTY_TYPE_MAP: Record<string, string> = {
   villa: "Villa",
@@ -138,6 +160,7 @@ export default function AdminListingDetail({
   const id = propertyId;
   const router = useRouter();
   const [listing, setListing] = useState<Property | null>(null);
+  const [saleIntake, setSaleIntake] = useState<SaleIntake | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -145,6 +168,12 @@ export default function AdminListingDetail({
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
   // Edit Management
   const { user: clerkUser } = useUser();
+  const { getToken } = useAuth();
+  const [ownerSearch, setOwnerSearch] = useState("");
+  const [ownerResults, setOwnerResults] = useState<OwnerSearchResult[]>([]);
+  const [isSearchingOwners, setIsSearchingOwners] = useState(false);
+  const [isLinkingOwner, setIsLinkingOwner] = useState(false);
+  const [ownerLinkError, setOwnerLinkError] = useState<string | null>(null);
   const [isEditing, setIsEditing] = useState(false);
   const [editForm, setEditForm] = useState<Partial<Property>>({});
   const [confirmEditModalOpen, setConfirmEditModalOpen] = useState(false);
@@ -331,8 +360,18 @@ export default function AdminListingDetail({
 
       try {
         // Fetch property
-        const propertyData = await fetchPropertyById(id);
+        const propertyResponse = await fetch(`/api/admin/properties/${id}`);
+        const propertyPayload = await propertyResponse.json();
+        if (!propertyResponse.ok || !propertyPayload.property) {
+          throw new Error(propertyPayload.error || "Property not found");
+        }
+        const propertyData = {
+          ...propertyPayload.property,
+          price: String(propertyPayload.property.price ?? 0),
+          area: String(propertyPayload.property.area ?? ""),
+        } as Property;
         setListing(propertyData);
+        setSaleIntake(propertyPayload.property.saleIntake ?? null);
 
         // Fetch pending edit for banner
         const pendingRes = await fetch(`/api/properties/${id}/pending-edits`);
@@ -372,6 +411,63 @@ export default function AdminListingDetail({
       document.removeEventListener("mousedown", handleClickOutside);
     };
   }, [id]);
+
+  useEffect(() => {
+    if (!saleIntake || saleIntake.status !== "unlinked" || !ownerSearch.trim()) {
+      setOwnerResults([]);
+      return;
+    }
+    const timer = window.setTimeout(async () => {
+      setIsSearchingOwners(true);
+      setOwnerLinkError(null);
+      try {
+        const token = await getToken();
+        const response = await fetch(
+          `/api/users/owners-agents?q=${encodeURIComponent(ownerSearch.trim())}`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        const payload = await response.json();
+        if (!response.ok) throw new Error(payload.error || "Recherche impossible");
+        setOwnerResults(Array.isArray(payload.users) ? payload.users : []);
+      } catch (error) {
+        setOwnerLinkError(
+          error instanceof Error ? error.message : "Recherche impossible",
+        );
+      } finally {
+        setIsSearchingOwners(false);
+      }
+    }, 300);
+    return () => window.clearTimeout(timer);
+  }, [getToken, ownerSearch, saleIntake]);
+
+  const linkOwner = async (owner: OwnerSearchResult) => {
+    if (!saleIntake || isLinkingOwner) return;
+    if (
+      !window.confirm(
+        `Rattacher définitivement cette annonce à ${owner.full_name || owner.email} ?`,
+      )
+    ) {
+      return;
+    }
+    setIsLinkingOwner(true);
+    setOwnerLinkError(null);
+    try {
+      const response = await fetch(`/api/admin/properties/${id}/owner`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ user_id: owner.id }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Rattachement impossible");
+      window.location.reload();
+    } catch (error) {
+      setOwnerLinkError(
+        error instanceof Error ? error.message : "Rattachement impossible",
+      );
+    } finally {
+      setIsLinkingOwner(false);
+    }
+  };
 
   const handleDelete = async () => {
     if (!listing) return;
@@ -1148,7 +1244,86 @@ export default function AdminListingDetail({
             </div>
           </section>
 
+          {saleIntake?.status === "unlinked" && (
+            <section className="rounded-[32px] border border-amber-200 bg-amber-50 p-6">
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <span className="inline-flex rounded-full bg-amber-200 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-900">
+                    Propriétaire à rattacher
+                  </span>
+                  <h3 className="mt-3 text-lg font-black text-neutral-950">
+                    {saleIntake.owner_first_name} {saleIntake.owner_last_name}
+                  </h3>
+                  <p className="mt-1 flex items-center gap-2 text-sm font-semibold text-neutral-700">
+                    <PhoneIcon size={16} weight="bold" />
+                    {saleIntake.owner_phone}
+                    {saleIntake.phone_has_whatsapp && (
+                      <WhatsappLogoIcon
+                        size={18}
+                        weight="fill"
+                        className="text-green-600"
+                      />
+                    )}
+                  </p>
+                </div>
+              </div>
+
+              <div className="mt-5">
+                <label className="text-xs font-black uppercase tracking-wider text-neutral-600">
+                  Rattacher un propriétaire ou agent
+                </label>
+                <div className="mt-2 flex items-center gap-2 rounded-2xl border border-amber-200 bg-white px-4 py-3">
+                  <MagnifyingGlassIcon size={18} className="text-neutral-400" />
+                  <input
+                    value={ownerSearch}
+                    onChange={(event) => setOwnerSearch(event.target.value)}
+                    placeholder="Nom, email, téléphone ou WhatsApp"
+                    className="min-w-0 flex-1 bg-transparent text-sm outline-none"
+                  />
+                  {isSearchingOwners && (
+                    <span className="text-xs font-bold text-neutral-400">
+                      Recherche…
+                    </span>
+                  )}
+                </div>
+                {ownerResults.length > 0 && (
+                  <div className="mt-2 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+                    {ownerResults.map((owner) => (
+                      <button
+                        key={owner.id}
+                        type="button"
+                        disabled={isLinkingOwner}
+                        onClick={() => linkOwner(owner)}
+                        className="flex w-full items-center justify-between gap-3 border-b border-neutral-100 px-4 py-3 text-left last:border-0 hover:bg-neutral-50 disabled:opacity-50"
+                      >
+                        <div className="min-w-0">
+                          <p className="truncate text-sm font-black text-neutral-900">
+                            {owner.full_name || owner.email}
+                          </p>
+                          <p className="truncate text-xs font-semibold text-neutral-500">
+                            {[owner.email, owner.phone || owner.whatsapp]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        </div>
+                        <span className="rounded-full bg-neutral-100 px-2 py-1 text-[10px] font-black uppercase text-neutral-600">
+                          {owner.user_type}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                )}
+                {ownerLinkError && (
+                  <p className="mt-2 text-xs font-bold text-red-600">
+                    {ownerLinkError}
+                  </p>
+                )}
+              </div>
+            </section>
+          )}
+
           {/* Agent Card */}
+          {saleIntake?.status !== "unlinked" && (
           <section className="bg-white overflow-hidden rounded-[32px] border border-neutral-100 shadow-sm">
             <div className="p-8 space-y-6">
               <div className="flex items-center gap-4">
@@ -1227,6 +1402,7 @@ export default function AdminListingDetail({
               </div>
             </div>
           </section>
+          )}
         </div>
       </div>
 

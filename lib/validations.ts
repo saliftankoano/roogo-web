@@ -111,6 +111,14 @@ export const listingBaseSchema = z.object({
   // Staff/founder: listing on behalf of client
   on_behalf_of_client: z.boolean().optional(),
   owner_id: z.uuid().optional(),
+  direct_owner: z
+    .object({
+      first_name: z.string().trim().min(1).max(100),
+      last_name: z.string().trim().min(1).max(100),
+      phone: z.string().trim().min(8).max(32),
+      phone_has_whatsapp: z.boolean(),
+    })
+    .optional(),
 });
 
 /**
@@ -182,7 +190,7 @@ export function requireListingFieldsByType(data: {
 }
 
 export const listingSchema = listingBaseSchema.superRefine((data, ctx) => {
-  if (data.on_behalf_of_client && !data.owner_id) {
+  if (data.on_behalf_of_client && !data.owner_id && !data.direct_owner) {
     ctx.addIssue({
       code: "custom",
       message: "Sélectionnez un propriétaire ou agent",

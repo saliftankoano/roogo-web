@@ -14,6 +14,7 @@ import {
   PlusCircleIcon,
   UploadSimpleIcon,
   XCircleIcon,
+  WhatsappLogoIcon,
 } from "@phosphor-icons/react";
 import { Loader2 } from "lucide-react";
 import { useAuth } from "@clerk/nextjs";
@@ -44,6 +45,8 @@ import {
   isDevelopment,
 } from "@/lib/mockData";
 import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
+import { PhoneNumberInput } from "@/components/ui/PhoneNumberInput";
+import { normalizePhone } from "@/lib/phone";
 
 const DAILY_LISTING_PUBLICATION_FEE = 0;
 const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
@@ -57,6 +60,8 @@ interface OwnersAgentsUser {
   id: string;
   full_name: string | null;
   email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
   user_type: string;
 }
 
@@ -89,6 +94,7 @@ type RentalFrequency = "mensuel" | "journalier";
 type CautionType = "aucune" | "pourcentage" | "fixe";
 
 interface PropertyFormData {
+  listing_type: "louer" | "vendre";
   type: PropertyTypeId;
   frequence: RentalFrequency;
   prixMensuel: string;
@@ -114,6 +120,7 @@ interface PropertyFormData {
 }
 
 const DEFAULT_FORM_DATA: PropertyFormData = {
+  listing_type: "louer",
   type: "villa",
   frequence: "mensuel",
   prixMensuel: "",
@@ -451,6 +458,16 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [freeTermsAccepted, setFreeTermsAccepted] = useState(false);
 
   const [onBehalfOfClient, setOnBehalfOfClient] = useState(false);
+  const [ownerEntryMode, setOwnerEntryMode] = useState<"existing" | "direct">(
+    "existing",
+  );
+  const [directOwner, setDirectOwner] = useState({
+    firstName: "",
+    lastName: "",
+    phoneIso: "BF",
+    phoneNational: "",
+    phoneHasWhatsapp: false,
+  });
   const [selectedOwner, setSelectedOwner] = useState<OwnersAgentsUser | null>(
     null,
   );
@@ -461,9 +478,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [showOwnerDropdown, setShowOwnerDropdown] = useState(false);
   const ownerComboboxRef = useRef<HTMLDivElement>(null);
   const selectedOwnerId = selectedOwner?.id ?? null;
-  const isDailyListing = formData.frequence === "journalier";
+  const isSaleListing = formData.listing_type === "vendre";
+  const isDailyListing =
+    !isSaleListing && formData.frequence === "journalier";
 
-  const isFreeMonthlyListing = !isDailyListing && paymentChoice === "free";
+  const isFreeMonthlyListing =
+    !isSaleListing && !isDailyListing && paymentChoice === "free";
   const isFurnishedListing = formData.equipements.includes("meuble");
 
   useEffect(() => {
@@ -628,7 +648,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   }, []);
 
   useEffect(() => {
-    if (!onBehalfOfClient || !isStaffOrFounder || ownerSearch.length < 1) {
+    if (
+      !onBehalfOfClient ||
+      ownerEntryMode !== "existing" ||
+      !isStaffOrFounder ||
+      ownerSearch.length < 1
+    ) {
       setOwnerResults([]);
       setOwnerSearchError(null);
       setShowOwnerDropdown(false);
@@ -666,7 +691,13 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     }, 300);
 
     return () => clearTimeout(timer);
-  }, [ownerSearch, onBehalfOfClient, isStaffOrFounder, getToken]);
+  }, [
+    ownerSearch,
+    onBehalfOfClient,
+    ownerEntryMode,
+    isStaffOrFounder,
+    getToken,
+  ]);
 
   useEffect(() => {
     const handleMouseDown = (e: MouseEvent) => {
@@ -731,6 +762,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     const isFreeMonthly = listingPaymentMode === "free_success_fee";
     return {
       ...formData,
+      frequence: isSaleListing ? undefined : formData.frequence,
       prixMensuel: Number(formData.prixMensuel),
       chambres: Number(formData.chambres),
       sdb: Number(formData.sdb),
@@ -763,7 +795,23 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           : undefined,
       payment_id: paymentId,
       on_behalf_of_client: onBehalfOfClient,
-      owner_id: onBehalfOfClient ? (selectedOwnerId ?? undefined) : undefined,
+      owner_id:
+        onBehalfOfClient && ownerEntryMode === "existing"
+          ? (selectedOwnerId ?? undefined)
+          : undefined,
+      direct_owner:
+        onBehalfOfClient && ownerEntryMode === "direct"
+          ? {
+              first_name: directOwner.firstName.trim(),
+              last_name: directOwner.lastName.trim(),
+              phone:
+                normalizePhone(
+                  directOwner.phoneNational,
+                  directOwner.phoneIso,
+                ) ?? directOwner.phoneNational,
+              phone_has_whatsapp: directOwner.phoneHasWhatsapp,
+            }
+          : undefined,
       is_test: isStaffOrFounder ? isTestListing : false,
     };
   };
@@ -784,6 +832,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const validateFull = () => {
     const result = listingSchema.safeParse(buildListingData());
     const nextErrors = collectErrors(result);
+    if (isStaffOrFounder && isSaleListing && !onBehalfOfClient) {
+      nextErrors.owner_id =
+        "Indiquez le propriétaire existant ou saisissez un propriétaire sans compte";
+    }
     if (videoFile && isFreeMonthlyListing && !hasVideoEntitlement) {
       nextErrors.video = "Choisissez un pack ou une option incluant la vidéo.";
     }
@@ -795,7 +847,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     }
     setErrors(nextErrors);
     return {
-      ok: result.success && !virtualTourError && !nextErrors.video,
+      ok:
+        result.success &&
+        !virtualTourError &&
+        !nextErrors.video &&
+        !nextErrors.owner_id,
       errors: nextErrors,
     };
   };
@@ -876,10 +932,35 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         nextErrors.virtualTourUrl = virtualTourError;
       }
     }
-    if (step === 3 && onBehalfOfClient && !selectedOwnerId) {
+    if (
+      step === 3 &&
+      onBehalfOfClient &&
+      ownerEntryMode === "existing" &&
+      !selectedOwnerId
+    ) {
       nextErrors.owner_id = "Sélectionnez un propriétaire ou agent";
     }
-    if (step === 3 && !isDailyListing && paymentChoice === "pay" && !selectedTier) {
+    if (step === 3 && onBehalfOfClient && ownerEntryMode === "direct") {
+      if (!isSaleListing) {
+        nextErrors.direct_owner =
+          "L'entrée sans compte est réservée aux biens à vendre";
+      } else if (!directOwner.firstName.trim()) {
+        nextErrors.direct_owner_first_name = "Prénom requis";
+      } else if (!directOwner.lastName.trim()) {
+        nextErrors.direct_owner_last_name = "Nom requis";
+      } else if (
+        !normalizePhone(directOwner.phoneNational, directOwner.phoneIso)
+      ) {
+        nextErrors.direct_owner_phone = "Numéro de téléphone invalide";
+      }
+    }
+    if (
+      step === 3 &&
+      !isSaleListing &&
+      !isDailyListing &&
+      paymentChoice === "pay" &&
+      !selectedTier
+    ) {
       nextErrors.tier_id = "Choisissez un pack";
     }
     setErrors((current) => ({ ...current, ...nextErrors }));
@@ -1192,8 +1273,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       return;
     }
 
-    if (isFreeMonthlyListing) {
-      if (!isFurnishedListing && !freeTermsAccepted) {
+    if (isSaleListing || isFreeMonthlyListing) {
+      if (
+        isFreeMonthlyListing &&
+        !isFurnishedListing &&
+        !freeTermsAccepted
+      ) {
         setShowFreeTermsModal(true);
         return;
       }
@@ -1251,6 +1336,30 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         title="Le bien"
       />
 
+      {isStaffOrFounder && (
+        <div className="space-y-3">
+          <label className="text-sm font-extrabold text-neutral-800">
+            Type d&apos;annonce
+          </label>
+          <SegmentedButton
+            value={formData.listing_type}
+            options={[
+              { id: "louer", label: "À louer" },
+              { id: "vendre", label: "À vendre" },
+            ]}
+            onChange={(listing_type) => {
+              updateField(
+                "listing_type",
+                listing_type as PropertyFormData["listing_type"],
+              );
+              if (listing_type !== "vendre" && ownerEntryMode === "direct") {
+                setOwnerEntryMode("existing");
+              }
+            }}
+          />
+        </div>
+      )}
+
       <div className="space-y-3">
         <label className="text-sm font-extrabold text-neutral-800">
           Type de bien <span className="text-red-500">*</span>
@@ -1276,7 +1385,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <FieldError message={errors.type} />
       </div>
 
-      <div className="space-y-3">
+      {!isSaleListing && <div className="space-y-3">
         <label className="text-sm font-extrabold text-neutral-800">
           Fréquence de location <span className="text-red-500">*</span>
         </label>
@@ -1289,12 +1398,14 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           onChange={updateFrequency}
         />
         <FieldError message={errors.frequence} />
-      </div>
+      </div>}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="space-y-2">
           <label className="text-sm font-extrabold text-neutral-800">
-            {formData.frequence === "journalier"
+            {isSaleListing
+              ? "Prix souhaité par le vendeur (FCFA)"
+              : formData.frequence === "journalier"
               ? "Prix (FCFA / nuit)"
               : "Prix de location (FCFA / mois)"}{" "}
             <span className="text-red-500">*</span>
@@ -1695,6 +1806,106 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
       {onBehalfOfClient && (
         <div className="space-y-2">
+          {isSaleListing && (
+            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+              <button
+                type="button"
+                onClick={() => setOwnerEntryMode("existing")}
+                className={`rounded-2xl border px-4 py-3 text-sm font-extrabold ${
+                  ownerEntryMode === "existing"
+                    ? "border-primary bg-white text-primary"
+                    : "border-neutral-200 text-neutral-600"
+                }`}
+              >
+                Propriétaire déjà inscrit
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setOwnerEntryMode("direct");
+                  setSelectedOwner(null);
+                }}
+                className={`rounded-2xl border px-4 py-3 text-sm font-extrabold ${
+                  ownerEntryMode === "direct"
+                    ? "border-primary bg-white text-primary"
+                    : "border-neutral-200 text-neutral-600"
+                }`}
+              >
+                Propriétaire pas encore inscrit
+              </button>
+            </div>
+          )}
+          {ownerEntryMode === "direct" && isSaleListing ? (
+            <div className="space-y-4 rounded-2xl border border-neutral-200 bg-white p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div>
+                  <label className="text-xs font-extrabold text-neutral-600">
+                    Prénom *
+                  </label>
+                  <input
+                    value={directOwner.firstName}
+                    onChange={(event) =>
+                      setDirectOwner((current) => ({
+                        ...current,
+                        firstName: event.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-3"
+                  />
+                  <FieldError message={errors.direct_owner_first_name} />
+                </div>
+                <div>
+                  <label className="text-xs font-extrabold text-neutral-600">
+                    Nom *
+                  </label>
+                  <input
+                    value={directOwner.lastName}
+                    onChange={(event) =>
+                      setDirectOwner((current) => ({
+                        ...current,
+                        lastName: event.target.value,
+                      }))
+                    }
+                    className="mt-1 w-full rounded-xl border border-neutral-200 px-4 py-3"
+                  />
+                  <FieldError message={errors.direct_owner_last_name} />
+                </div>
+              </div>
+              <PhoneNumberInput
+                iso={directOwner.phoneIso}
+                national={directOwner.phoneNational}
+                onIsoChange={(phoneIso) =>
+                  setDirectOwner((current) => ({ ...current, phoneIso }))
+                }
+                onNationalChange={(phoneNational) =>
+                  setDirectOwner((current) => ({
+                    ...current,
+                    phoneNational,
+                  }))
+                }
+                label="Téléphone"
+                required
+                error={errors.direct_owner_phone}
+              />
+              <label className="flex cursor-pointer items-center gap-3 rounded-xl bg-green-50 px-4 py-3 text-sm font-bold text-green-800">
+                <input
+                  type="checkbox"
+                  checked={directOwner.phoneHasWhatsapp}
+                  onChange={(event) =>
+                    setDirectOwner((current) => ({
+                      ...current,
+                      phoneHasWhatsapp: event.target.checked,
+                    }))
+                  }
+                  className="h-5 w-5 rounded border-green-300 text-green-600"
+                />
+                <WhatsappLogoIcon size={22} weight="fill" />
+                Ce numéro est disponible sur WhatsApp
+              </label>
+              <FieldError message={errors.direct_owner} />
+            </div>
+          ) : (
+            <>
           <label className="text-sm font-extrabold text-neutral-700">
             Propriétaire ou agent <span className="text-red-500">*</span>
           </label>
@@ -1750,7 +1961,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   onFocus={() =>
                     ownerResults.length > 0 && setShowOwnerDropdown(true)
                   }
-                  placeholder="Rechercher par nom ou email..."
+                  placeholder="Nom, email, téléphone ou WhatsApp..."
                   className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
                 />
               </div>
@@ -1774,7 +1985,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                         {user.full_name || user.email}
                       </p>
                       <p className="truncate text-xs font-semibold text-neutral-400">
-                        {user.email}
+                        {[user.email, user.phone || user.whatsapp]
+                          .filter(Boolean)
+                          .join(" · ")}
                       </p>
                     </div>
                     <span className="ml-3 shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-bold capitalize text-neutral-600">
@@ -1791,6 +2004,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             </p>
           )}
           <FieldError message={errors.owner_id} />
+            </>
+          )}
         </div>
       )}
     </div>
@@ -1817,7 +2032,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             </p>
             <p className="text-sm font-semibold text-neutral-500">
               {propertyTypeLabel} · {cityLabel} ·{" "}
-              {formData.frequence === "journalier" ? "par nuit" : "par mois"}
+              {isSaleListing
+                ? "à vendre"
+                : formData.frequence === "journalier"
+                  ? "par nuit"
+                  : "par mois"}
             </p>
           </div>
           {showFullPreview ? (
@@ -1884,7 +2103,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                   {formData.virtualTourUrl.trim() || "Aucune"}
                 </p>
               )}
-              {formData.frequence === "journalier" ? (
+              {isSaleListing ? null : formData.frequence === "journalier" ? (
                 <>
                   <p>
                     <span className="font-extrabold">Séjour min.:</span>{" "}
@@ -1914,7 +2133,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         )}
       </div>
 
-      {!isDailyListing && (
+      {!isSaleListing && !isDailyListing && (
         <div className="space-y-4 rounded-3xl border border-neutral-200 bg-white p-5">
           <h4 className="text-lg font-extrabold text-neutral-950">
             Mode de publication
@@ -1944,7 +2163,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         </div>
       )}
 
-      <div className="space-y-4">
+      {!isSaleListing && <div className="space-y-4">
         <h4 className="text-lg font-extrabold text-neutral-950">
           {isDailyListing
             ? "Publication journalière"
@@ -2058,7 +2277,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             {commissionConfigError}
           </p>
         )}
-      </div>
+      </div>}
 
       {isStaffOrFounder && (
         <div className="space-y-5 rounded-3xl border border-primary/20 bg-primary/5 p-5">
@@ -2080,7 +2299,18 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         </div>
       )}
 
-      <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
+      {isSaleListing ? (
+        <div className="rounded-3xl border border-amber-200 bg-amber-50 p-5">
+          <h4 className="text-lg font-extrabold text-amber-950">
+            Vente soumise à vérification
+          </h4>
+          <p className="mt-2 text-sm font-semibold leading-6 text-amber-800">
+            L&apos;annonce sera enregistrée en attente. Elle ne pourra être mise
+            en ligne qu&apos;après rattachement du propriétaire, vérification
+            des documents et signature du mandat.
+          </p>
+        </div>
+      ) : <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
         <h4 className="text-lg font-extrabold text-neutral-950">
           {isFreeMonthlyListing ? "Récapitulatif" : "Récapitulatif du paiement"}
         </h4>
@@ -2176,7 +2406,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             </span>
           </div>
         </div>
-      </div>
+      </div>}
     </div>
   );
 

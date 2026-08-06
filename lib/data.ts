@@ -127,10 +127,11 @@ function mapProperty(p: DBProperty): Property {
   });
   const frequence = getRentalFrequency({ period, frequence: p.frequence });
 
+  const isSale = p.listing_type === "vendre";
   return {
     id: p.id,
     slug: p.slug || null,
-    owner_id: p.owner_id || undefined,
+    owner_id: isSale ? undefined : p.owner_id || undefined,
     location: unescapeText(`${p.quartier}, ${getCityLabel(p.city)}`),
     address: unescapeText(p.address),
     price: p.price.toString(),
@@ -173,7 +174,7 @@ function mapProperty(p: DBProperty): Property {
     ownershipVerified: p.ownership_verified ?? false,
     latitude: p.latitude ?? null,
     longitude: p.longitude ?? null,
-    agent: {
+    agent: isSale ? undefined : {
       full_name: p.agent_name || "Agent Inconnu",
       phone: p.agent_phone || "",
       email: p.agent_email || undefined,
@@ -198,7 +199,7 @@ export async function fetchProperties(options?: {
   const offset = (page - 1) * limit;
 
   let query = supabase
-    .from("property_details")
+    .from("public_property_details")
     .select("*", { count: "exact" })
     .eq("is_test", false)
     .order("created_at", { ascending: false })
@@ -248,7 +249,7 @@ export async function fetchFeaturedProperties(
 
 export async function fetchPropertyById(id: string): Promise<Property | null> {
   const { data, error } = await supabase
-    .from("property_details")
+    .from("public_property_details")
     .select("*")
     .eq("id", id)
     .single();
@@ -273,7 +274,7 @@ export async function fetchPropertyBySlug(
   slug: string,
 ): Promise<Property | null> {
   const { data, error } = await supabase
-    .from("property_details")
+    .from("public_property_details")
     .select("*")
     .eq("slug", slug)
     .maybeSingle();
@@ -304,7 +305,7 @@ export async function fetchAllOnlineProperties(): Promise<Property[]> {
 
   for (let offset = 0; ; offset += pageSize) {
     const { data, error } = await supabase
-      .from("property_details")
+      .from("public_property_details")
       .select("*")
       .eq("status", "en_ligne")
       .eq("is_test", false)

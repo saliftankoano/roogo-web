@@ -64,6 +64,8 @@ function mapAdminProperty(row: PropertyDetailsRow) {
     transaction_id: asString(row.transaction_id) || null,
     is_test: Boolean(row.is_test),
     virtualTourUrl: asString(row.virtual_tour_url),
+    listingType: asString(row.listing_type),
+    agentId: asString(row.agent_id) || null,
     agent: {
       full_name: asString(row.agent_name) || "Utilisateur inconnu",
       phone: asString(row.agent_phone),
@@ -126,11 +128,30 @@ export async function GET(req: Request) {
       return errorResponse("Failed to fetch properties", 500, req);
     }
 
+    const rows = (data as PropertyDetailsRow[] | null) ?? [];
+    const propertyIds = rows.map((row) => asString(row.id)).filter(Boolean);
+    const { data: intakes, error: intakesError } = propertyIds.length
+      ? await supabaseAdmin
+          .from("sale_intakes")
+          .select(
+            "property_id, owner_first_name, owner_last_name, owner_phone, phone_has_whatsapp, status",
+          )
+          .in("property_id", propertyIds)
+      : { data: [], error: null };
+    if (intakesError) {
+      console.error("Error fetching direct sale intakes:", intakesError);
+      return errorResponse("Failed to fetch sale intakes", 500, req);
+    }
+    const intakeByProperty = new Map(
+      (intakes ?? []).map((intake) => [intake.property_id, intake]),
+    );
+
     return cors(
       NextResponse.json({
-        properties: ((data as PropertyDetailsRow[] | null) ?? []).map(
-          mapAdminProperty,
-        ),
+        properties: rows.map((row) => ({
+          ...mapAdminProperty(row),
+          saleIntake: intakeByProperty.get(asString(row.id)) ?? null,
+        })),
         counts: {
           en_attente: enAttente,
           en_ligne: enLigne,

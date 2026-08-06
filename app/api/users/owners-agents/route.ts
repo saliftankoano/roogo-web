@@ -8,19 +8,26 @@ export interface OwnersAgentsUser {
   id: string;
   full_name: string | null;
   email: string | null;
+  phone: string | null;
+  whatsapp: string | null;
   user_type: string;
 }
 
-const CACHE_KEY = "owners-agents:all";
+const CACHE_KEY = "owners-agents:v2";
 const CACHE_TTL_S = 300; // 5 minutes
 
 function filterUsers(users: OwnersAgentsUser[], q: string): OwnersAgentsUser[] {
   if (!q) return users;
   const lower = q.toLowerCase();
+  const digits = q.replace(/\D/g, "");
   return users.filter(
     (u) =>
       u.full_name?.toLowerCase().includes(lower) ||
-      u.email?.toLowerCase().includes(lower),
+      u.email?.toLowerCase().includes(lower) ||
+      (digits.length > 0 &&
+        [u.phone, u.whatsapp].some((value) =>
+          value?.replace(/\D/g, "").includes(digits),
+        )),
   );
 }
 
@@ -68,7 +75,7 @@ export async function GET(req: Request) {
     const supabase = getSupabaseClient();
     const { data: users, error } = await supabase
       .from("users")
-      .select("id, full_name, email, user_type")
+      .select("id, full_name, email, phone, whatsapp, user_type")
       .in("user_type", ["owner", "agent"])
       .order("full_name", { ascending: true, nullsFirst: false });
 
@@ -81,6 +88,8 @@ export async function GET(req: Request) {
       id: u.id,
       full_name: u.full_name ?? null,
       email: u.email ?? null,
+      phone: u.phone ?? null,
+      whatsapp: u.whatsapp ?? null,
       user_type: u.user_type ?? "owner",
     }));
 

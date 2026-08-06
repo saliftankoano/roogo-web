@@ -104,6 +104,9 @@ export async function sendMandate(params: {
   if (property.listing_type !== "vendre")
     return { ok: false as const, reason: "not_a_sale" as const };
 
+  if (!property.agent_id) {
+    return { ok: false as const, reason: "owner_not_linked" as const };
+  }
   const sellerId = property.agent_id as string;
   const { conversation } = await getOrCreateSellerConversation({
     propertyId,

@@ -28,6 +28,8 @@ export async function GET(
     const { id: propertyId } = await params;
     const { property, reason } = await loadSellerProperty(propertyId, user.id);
     if (!property) {
+      if (reason === "owner_not_linked")
+        return errorResponse("sale_owner_link_required", 409, req);
       if (reason === "forbidden")
         return errorResponse("Not your property", 403, req);
       return errorResponse("Property not found", 404, req);
@@ -63,6 +65,8 @@ export async function POST(
     const { id: propertyId } = await params;
     const { property, reason } = await loadSellerProperty(propertyId, user.id);
     if (!property) {
+      if (reason === "owner_not_linked")
+        return errorResponse("sale_owner_link_required", 409, req);
       if (reason === "forbidden")
         return errorResponse("Not your property", 403, req);
       if (reason === "not_a_sale")
