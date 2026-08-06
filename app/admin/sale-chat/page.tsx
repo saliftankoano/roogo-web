@@ -8,6 +8,8 @@ import {
   FileTextIcon,
   BankIcon,
   HouseSimpleIcon,
+  CircleNotchIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
@@ -108,6 +110,17 @@ function convTitle(c: ConversationSummary | null) {
   return `${c.property.property_type} · ${c.property.quartier ?? ""}`;
 }
 
+function mandateFailureMessage(error: unknown) {
+  if (typeof error !== "string") return "Impossible d’envoyer le mandat.";
+  if (error === "invalid_price") return "Saisissez un prix désiré valide.";
+  if (error === "owner_not_linked")
+    return "Rattachez d’abord un propriétaire à cette annonce.";
+  if (error === "no_conversation")
+    return "La conversation vendeur n’est pas encore disponible.";
+  if (error === "not_a_sale") return "Cette annonce n’est pas une vente.";
+  return error || "Impossible d’envoyer le mandat.";
+}
+
 export default function AdminSaleChatPage() {
   const [conversations, setConversations] = useState<ConversationSummary[]>([]);
   const [filter, setFilter] = useState<"all" | "seller" | "buyer">("all");
@@ -121,6 +134,8 @@ export default function AdminSaleChatPage() {
   const [showMandate, setShowMandate] = useState(false);
   const [desired, setDesired] = useState("");
   const [days, setDays] = useState("90");
+  const [mandateSending, setMandateSending] = useState(false);
+  const [mandateError, setMandateError] = useState<string | null>(null);
   // Live sale commission (decimal fractions) for the computed preview line.
   const [saleBasePct, setSaleBasePct] = useState<number | null>(null);
   const [saleSplitPct, setSaleSplitPct] = useState<number | null>(null);
@@ -184,10 +199,22 @@ export default function AdminSaleChatPage() {
     threadRef.current?.scrollTo({ top: threadRef.current.scrollHeight });
   }, [messages]);
 
+  useEffect(() => {
+    if (!showMandate) return;
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !mandateSending) {
+        setShowMandate(false);
+      }
+    };
+    window.addEventListener("keydown", handleEscape);
+    return () => window.removeEventListener("keydown", handleEscape);
+  }, [showMandate, mandateSending]);
+
   const handleSelect = (c: ConversationSummary) => {
     setSelected(c);
     setMessages([]);
     setShowMandate(false);
+    setMandateError(null);
     setShowNotary(false);
     setConversations((prev) =>
       prev.map((x) => (x.id === c.id ? { ...x, unread_for_staff: 0 } : x)),
@@ -246,15 +273,60 @@ export default function AdminSaleChatPage() {
     [selected, loadThread, loadConversations],
   );
 
+  const handleOpenMandate = () => {
+    if (!selected) return;
+    const propertyPrice = Number(selected.property?.price);
+    setDesired(
+      Number.isFinite(propertyPrice) && propertyPrice > 0
+        ? String(Math.round(propertyPrice))
+        : "",
+    );
+    setDays("90");
+    setMandateError(null);
+    setShowNotary(false);
+    setShowMandate(true);
+  };
+
   const handleSendMandate = async () => {
-    const ok = await postAction("mandate", {
-      desiredPrice: Number(desired),
-      exclusivityDays: Number(days) || 90,
-    });
-    if (ok) {
+    if (!selected || mandateSending) return;
+    const desiredPrice = Number(desired);
+    if (!Number.isFinite(desiredPrice) || desiredPrice <= 0) {
+      setMandateError("Saisissez un prix désiré valide.");
+      return;
+    }
+
+    setMandateSending(true);
+    setMandateError(null);
+    try {
+      const res = await fetch(
+        `/api/sale-chat/conversations/${selected.id}/mandate`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            desiredPrice,
+            exclusivityDays: Number(days) || 90,
+          }),
+        },
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(mandateFailureMessage(data.error));
+      }
+
+      await loadThread(selected.id);
+      await loadConversations();
       setShowMandate(false);
       setDesired("");
       setDays("90");
+    } catch (err) {
+      setMandateError(
+        err instanceof Error
+          ? err.message
+          : "Impossible d’envoyer le mandat.",
+      );
+    } finally {
+      setMandateSending(false);
     }
   };
 
@@ -398,10 +470,7 @@ export default function AdminSaleChatPage() {
                   {selected.kind === "seller" && (
                     <Button
                       variant="outline"
-                      onClick={() => {
-                        setShowMandate((v) => !v);
-                        setShowNotary(false);
-                      }}
+                      onClick={handleOpenMandate}
                       className="gap-1.5"
                     >
                       <FileTextIcon size={16} /> Mandat
@@ -421,47 +490,6 @@ export default function AdminSaleChatPage() {
                   )}
                 </div>
               </div>
-
-              {/* Mandate form (v2: commission on the seller's desired price) */}
-              {showMandate && (
-                <div className="px-5 py-3 border-b border-neutral-100 bg-neutral-50 space-y-2">
-                  <div className="grid grid-cols-2 gap-2 items-end">
-                    <Field
-                      label="Prix désiré (FCFA)"
-                      value={desired}
-                      onChange={setDesired}
-                    />
-                    <Field
-                      label="Exclusivité (j)"
-                      value={days}
-                      onChange={setDays}
-                    />
-                  </div>
-                  {saleBasePct != null && Number(desired) > 0 && (
-                    <p className="text-xs text-neutral-600">
-                      Commission Roogo: {(saleBasePct * 100).toFixed(1)}% ={" "}
-                      {fmtFCFA(Number(desired) * saleBasePct)} · Le vendeur
-                      reçoit au minimum{" "}
-                      {fmtFCFA(Number(desired) * (1 - saleBasePct))}
-                      {saleSplitPct != null &&
-                        ` · Surplus au-dessus du prix désiré: ${(
-                          saleSplitPct * 100
-                        ).toFixed(0)}% Roogo / ${(
-                          (1 - saleSplitPct) *
-                          100
-                        ).toFixed(0)}% vendeur`}
-                    </p>
-                  )}
-                  <div className="flex justify-end">
-                    <Button
-                      onClick={handleSendMandate}
-                      disabled={!(Number(desired) > 0)}
-                    >
-                      Envoyer le mandat
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               {/* Notary form */}
               {showNotary && (
@@ -528,6 +556,118 @@ export default function AdminSaleChatPage() {
           )}
         </div>
       </div>
+
+      {showMandate && selected?.kind === "seller" && (
+        <div className="fixed inset-0 z-100 flex items-center justify-center bg-neutral-950/50 p-4 backdrop-blur-sm">
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="mandate-dialog-title"
+            className="w-full max-w-lg overflow-hidden rounded-3xl border border-neutral-200 bg-white shadow-2xl"
+          >
+            <div className="flex items-start justify-between gap-4 border-b border-neutral-100 bg-neutral-50 px-6 py-5">
+              <div className="flex items-start gap-3">
+                <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-[#C96A2E]/10 text-[#C96A2E]">
+                  <FileTextIcon size={24} weight="bold" />
+                </span>
+                <div>
+                  <h2
+                    id="mandate-dialog-title"
+                    className="text-xl font-bold text-neutral-900"
+                  >
+                    Envoyer un mandat
+                  </h2>
+                  <p className="mt-1 text-sm text-neutral-500">
+                    {convTitle(selected)} ·{" "}
+                    {selected.user?.full_name || "Propriétaire"}
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                aria-label="Fermer"
+                onClick={() => setShowMandate(false)}
+                disabled={mandateSending}
+                className="rounded-xl p-2 text-neutral-400 transition hover:bg-neutral-200 hover:text-neutral-900 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <XIcon size={22} weight="bold" />
+              </button>
+            </div>
+
+            <div className="space-y-5 px-6 py-6">
+              <p className="text-sm leading-relaxed text-neutral-600">
+                Vérifiez les conditions avant l’envoi. Le propriétaire recevra
+                le mandat dans son application pour le consulter et le signer.
+              </p>
+
+              <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+                <Field
+                  label="Prix désiré (FCFA)"
+                  value={desired}
+                  onChange={setDesired}
+                  autoFocus
+                />
+                <Field
+                  label="Exclusivité (jours)"
+                  value={days}
+                  onChange={setDays}
+                />
+              </div>
+
+              {saleBasePct != null && Number(desired) > 0 && (
+                <div className="rounded-2xl border border-[#C96A2E]/20 bg-[#C96A2E]/5 p-4 text-sm text-neutral-700">
+                  <p className="font-semibold text-neutral-900">
+                    Résumé des conditions
+                  </p>
+                  <p className="mt-1 leading-relaxed">
+                    Commission Roogo : {(saleBasePct * 100).toFixed(1)}% ={" "}
+                    {fmtFCFA(Number(desired) * saleBasePct)}. Le vendeur reçoit
+                    au minimum{" "}
+                    {fmtFCFA(Number(desired) * (1 - saleBasePct))}
+                    {saleSplitPct != null &&
+                      ` · Surplus : ${(saleSplitPct * 100).toFixed(
+                        0,
+                      )}% Roogo / ${((1 - saleSplitPct) * 100).toFixed(
+                        0,
+                      )}% vendeur.`}
+                  </p>
+                </div>
+              )}
+
+              {mandateError && (
+                <p
+                  role="alert"
+                  className="rounded-2xl border border-red-200 bg-red-50 px-4 py-3 text-sm font-medium text-red-700"
+                >
+                  {mandateError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex flex-col-reverse gap-3 border-t border-neutral-100 bg-neutral-50 px-6 py-4 sm:flex-row sm:justify-end">
+              <Button
+                type="button"
+                variant="ghost"
+                onClick={() => setShowMandate(false)}
+                disabled={mandateSending}
+              >
+                Annuler
+              </Button>
+              <Button
+                type="button"
+                onClick={handleSendMandate}
+                disabled={mandateSending || !(Number(desired) > 0)}
+                className="gap-2"
+              >
+                {mandateSending && (
+                  <CircleNotchIcon size={18} className="animate-spin" />
+                )}
+                {mandateSending ? "Envoi en cours…" : "Envoyer le mandat"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -536,10 +676,12 @@ function Field({
   label,
   value,
   onChange,
+  autoFocus = false,
 }: {
   label: string;
   value: string;
   onChange: (v: string) => void;
+  autoFocus?: boolean;
 }) {
   return (
     <label className="flex flex-col text-xs font-semibold text-neutral-500">
@@ -548,7 +690,8 @@ function Field({
         value={value}
         onChange={(e) => onChange(e.target.value)}
         inputMode="numeric"
-        className="mt-1 rounded-lg border border-neutral-200 px-3 py-2 text-sm"
+        autoFocus={autoFocus}
+        className="mt-1 rounded-xl border border-neutral-200 px-3 py-2.5 text-base text-neutral-900 outline-none transition focus:border-[#C96A2E] focus:ring-2 focus:ring-[#C96A2E]/20"
       />
     </label>
   );
