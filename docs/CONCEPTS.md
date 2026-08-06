@@ -6,6 +6,35 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How does a direct sale intake become an owner-linked listing?
+
+**Bottom line:** a direct intake lets staff prepare a private, pending sale
+before the owner has a Roogo account, but it does not make staff the owner and
+does not weaken any publication gate.
+
+1. Staff creates a `vendre` listing with the owner's first name, last name,
+   normalized phone number, and WhatsApp availability. Those provisional
+   details live privately in `sale_intakes`; `properties.agent_id` remains
+   empty and no seller conversation is created.
+2. The future owner creates a normal owner or agent account. Staff searches by
+   name, email, phone, or WhatsApp and explicitly confirms the match. Matching
+   data never links an account automatically.
+3. The owner-link operation locks the intake, sets `properties.agent_id`,
+   records who performed the link, and creates exactly one seller conversation
+   in a single database transaction. The v1 interface does not offer
+   reassignment.
+4. Only after linking can the normal sale workflow continue: ownership
+   documents, review, mandate delivery, the owner's own signature, and
+   publication.
+
+An unlinked sale returns the stable `sale_owner_link_required` publication
+block before document and mandate checks. Public sale data never includes the
+seller's account identifiers or profile fields; buyers see Roogo as the sole
+interlocutor. Rentals retain their existing owner presentation.
+
+See the
+[direct intake decision](./DECISIONS.md#direct-sale-intake-is-provisional-contact-data-not-provisional-ownership--2026-08-06).
+
 ## How is the mobile app authorized to hit our API and Supabase?
 
 **Bottom line:** the Expo app authenticates with a Clerk **Bearer JWT** (not the web
