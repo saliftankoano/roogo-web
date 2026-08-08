@@ -61,10 +61,23 @@ export async function GET(
       .maybeSingle();
 
     if (!lockTransaction) {
-      return cors(
-        NextResponse.json({ renter: null, lockTransaction: null }),
-        req
-      );
+      const { data: agreement } = await supabaseAdmin
+        .from("rental_agreements")
+        .select("id, renter_id, start_date, end_date, monthly_rent, signature_source")
+        .eq("property_id", propertyId)
+        .eq("status", "active")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!agreement) {
+        return cors(NextResponse.json({ renter: null, lockTransaction: null, agreement: null }), req);
+      }
+      const { data: renter } = await supabaseAdmin
+        .from("users")
+        .select("id, full_name, phone, email, profile_image_url")
+        .eq("id", agreement.renter_id)
+        .single();
+      return cors(NextResponse.json({ renter, lockTransaction: null, agreement }), req);
     }
 
     // Fetch renter profile

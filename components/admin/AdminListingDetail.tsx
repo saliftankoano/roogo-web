@@ -36,6 +36,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
+import ImportExistingLeaseWizard from "@/components/admin/ImportExistingLeaseWizard";
 import {
   updatePropertyStatus,
   updateProperty,
@@ -163,6 +164,7 @@ export default function AdminListingDetail({
   const [saleIntake, setSaleIntake] = useState<SaleIntake | null>(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [importLeaseOpen, setImportLeaseOpen] = useState(false);
 
   // Status Management
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -914,6 +916,15 @@ export default function AdminListingDetail({
         <div className="flex gap-3 items-center">
           {isStaffOrFounder && (
             <>
+              {listing.listingType === "louer" && !isDailyRental(listing) && (
+                <Button
+                  variant="ghost"
+                  className="text-primary hover:bg-orange-50 text-xs font-bold uppercase tracking-wider"
+                  onClick={() => setImportLeaseOpen(true)}
+                >
+                  Importer un bail
+                </Button>
+              )}
               {isEditing ? (
                 <div className="flex gap-2">
                   <Button
@@ -1628,6 +1639,12 @@ export default function AdminListingDetail({
           )}
         </div>
       </section>
+      <ImportExistingLeaseWizard
+        open={importLeaseOpen}
+        onClose={() => setImportLeaseOpen(false)}
+        preselectedProperty={{ id }}
+        onSuccess={() => router.refresh()}
+      />
     </div>
   );
 }

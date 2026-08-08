@@ -36,6 +36,7 @@ import {
 import Image from "next/image";
 import { motion, AnimatePresence } from "framer-motion";
 import { Button } from "@/components/ui/Button";
+import ImportExistingLeaseWizard from "@/components/admin/ImportExistingLeaseWizard";
 import {
   format,
   startOfMonth,
@@ -477,6 +478,7 @@ export default function AdminUsersPage() {
   const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedUser, setSelectedUser] = useState<UserProfile | null>(null);
+  const [importLeaseUser, setImportLeaseUser] = useState<UserProfile | null>(null);
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const [userTypeFilter, setUserTypeFilter] = useState<string>("all");
@@ -2217,6 +2219,15 @@ export default function AdminUsersPage() {
 
                 {/* Modal Footer */}
                 <div className="p-8 border-t border-neutral-100 bg-neutral-50/30 flex gap-3">
+                  {["owner", "agent", "renter"].includes(selectedUser.user_type) && (
+                    <Button
+                      className="h-12 rounded-2xl bg-orange-600 px-5 font-bold text-white"
+                      onClick={() => setImportLeaseUser(selectedUser)}
+                    >
+                      <HandshakeIcon size={16} weight="bold" className="mr-2" />
+                      Importer un bail
+                    </Button>
+                  )}
                   <Button
                     className="flex-1 h-12 rounded-2xl bg-neutral-900 font-bold uppercase tracking-wider text-xs shadow-xl shadow-black/10"
                     onClick={() => {
@@ -2244,6 +2255,12 @@ export default function AdminUsersPage() {
           );
         })()}
       </AnimatePresence>
+
+      <ImportExistingLeaseWizard
+        open={Boolean(importLeaseUser)}
+        onClose={() => setImportLeaseUser(null)}
+        preselectedUser={importLeaseUser}
+      />
 
       {/* Copy phone toast */}
       <AnimatePresence>
