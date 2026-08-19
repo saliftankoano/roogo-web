@@ -7,7 +7,26 @@ export const OWNERSHIP_DOCUMENTS_BUCKET = "ownership-documents";
 // Signed-URL TTL for staff to view submitted documents in the admin panel.
 export const OWNERSHIP_SIGNED_URL_TTL_SECONDS = 60 * 10; // 10 minutes
 
-export type OwnershipDocument = { label: string; storage_path: string };
+export const OWNERSHIP_DOCUMENT_MAX_BYTES = 10 * 1024 * 1024;
+export const OWNERSHIP_DOCUMENT_MAX_FILES_PER_UPLOAD = 10;
+export const OWNERSHIP_DOCUMENT_MAX_FILES_PER_SUBMISSION = 20;
+
+export const OWNERSHIP_DOCUMENT_EXTENSIONS: Record<string, string> = {
+  "application/pdf": "pdf",
+  "image/jpeg": "jpg",
+  "image/png": "png",
+  "image/webp": "webp",
+};
+
+export type OwnershipDocument = {
+  label: string;
+  storage_path: string;
+  file_name?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  source?: "seller" | "staff";
+  uploaded_by?: string;
+};
 
 export type OwnershipVerificationStatus =
   | "unsubmitted"

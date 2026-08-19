@@ -6,6 +6,91 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How does staff add ownership evidence to a review?
+
+**Bottom line:** staff appends files to the selected pending ownership
+submission, so seller-provided and team-provided evidence reaches one approval
+or rejection decision.
+
+The admin review page accepts up to ten files at a time and twenty files across
+the submission. PDF files are uploaded unchanged; browser-supported images and
+iPhone HEIC/HEIF photos pass through the shared client image normalizer before
+becoming JPEG. Each stored file is capped at 10 MB.
+
+The browser asks a staff-only API for signed upload slots and then sends bytes
+directly to the private `ownership-documents` bucket. A second staff-only call
+attaches the resulting storage paths and metadata to the JSON document array.
+Both calls confirm that the submission is still pending, and attachment paths
+must live under the selected seller, property, and current staff member's
+namespace. Admin previews use short-lived signed read URLs; PDFs render as an
+openable document card instead of being passed to the image renderer.
+
+The approve/reject route remains the only operation that changes the review
+status and the property's ownership-verification gate. Staff cannot append
+evidence through this flow after a decision has been recorded.
+
+See the
+[staff evidence decision](./DECISIONS.md#staff-added-ownership-evidence-stays-on-the-pending-seller-submission--2026-08-19).
+
+## How do we recover a hard-deleted property listing?
+
+**Bottom line:** recover one listing without rewinding production. If no backup
+from before deletion still exists, recreate the verified facts as an
+`en_attente` property under the real owner, leave it private, and have staff
+restore the photos and missing terms before publication.
+
+Deletion is intentionally comprehensive: the property row is removed, linked
+rows cascade, and `property_storage_cleanup_queue` purges the public
+`listing/{propertyId}` folder. A successful cleanup row is therefore evidence
+that the original image objects no longer exist, even if other folders remain
+in the same bucket. Supabase database backups also exclude Storage object bytes.
+
+Before reconstructing anything, staff should verify the owner account, search
+the live database for a duplicate, inspect cleanup history, and separate any
+surviving photos belonging to another listing. Recovered descriptions or search
+indexes can help rebuild facts, but uncertain contractual fields must remain
+unset until staff confirms them. The replacement receives a new property id and
+starts private so it cannot be mistaken for a complete live listing.
+
+For the 2026-08-11 Rimkieta recovery, the deleted row fell outside Supabase's
+seven-day scheduled-backup window and Point-in-Time Recovery had not been
+enabled. The safe path was therefore to recreate the monthly rental under the
+verified owner, wait for Ablassé to upload its photos, and then use the existing
+offline-lease importer to connect the renter.
+
+See the
+[targeted recovery decision](./DECISIONS.md#hard-deleted-listings-are-recreated-selectively-never-recovered-by-rolling-production-backward--2026-08-11).
+
+## How does an existing offline lease enter Roogo?
+
+**Bottom line:** staff imports a signed, property-specific relationship. Roogo
+starts managing future rent from the first upcoming schedule, while past cash
+stays visibly and financially outside the platform.
+
+1. The property must be an available `en_ligne` monthly rental with a real owner
+   or agent and no draft or active monthly agreement.
+2. Staff or a founder opens **Importer un bail existant** from the property,
+   owner, or renter admin view and selects the registered renter.
+3. Staff enters the actual contractual rent, lease dates, caution, rent months
+   already covered, offline payment details, exact commission received, and a
+   required signed lease PDF or image.
+4. `import_existing_monthly_lease` locks the property transactionally, creates
+   one active `rental_agreement`, writes the immutable
+   `rental_agreement_imports` audit row, marks covered schedules
+   `payment_source = offline_import`, and leaves future schedules `upcoming` for
+   the normal online flow.
+5. Both users are notified and can see the imported agreement. The owner wallet
+   remains unchanged because Roogo did not process the earlier money.
+
+The operation uses an advisory transaction lock, so simultaneous submissions
+cannot create two active agreements. Signed files live in the private
+`rental-agreement-imports` bucket and download URLs are restricted to staff and
+the agreement's two parties. The relationship is attached to this property, not
+to a permanent global owner-renter pairing.
+
+See the
+[offline import decision](./DECISIONS.md#offline-leases-become-audited-roogo-relationships-not-retroactive-platform-payments--2026-08-07).
+
 ## How does a direct sale intake become an owner-linked listing?
 
 **Bottom line:** a direct intake lets staff prepare a private, pending sale
