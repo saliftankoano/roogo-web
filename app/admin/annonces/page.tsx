@@ -315,7 +315,7 @@ export default function AdminListingsPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative overflow-hidden">
+      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
@@ -366,12 +366,15 @@ export default function AdminListingsPage() {
 
         <AnimatePresence initial={false}>
           {isFiltersVisible && (
-            <motion.div 
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
+            <motion.div
+              initial={{ height: 0, opacity: 0, overflow: "hidden" }}
+              animate={{
+                height: "auto",
+                opacity: 1,
+                transitionEnd: { overflow: "visible" },
+              }}
+              exit={{ height: 0, opacity: 0, overflow: "hidden" }}
               transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              className="overflow-hidden"
             >
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pt-2">
                 <div className="space-y-3">
