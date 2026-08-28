@@ -117,6 +117,11 @@ export function Footer() {
                   Parrainage
                 </Link>
               </li>
+              <li>
+                <Link href="/blog" className="hover:text-white">
+                  Blog &amp; conseils
+                </Link>
+              </li>
             </ul>
           </div>
 

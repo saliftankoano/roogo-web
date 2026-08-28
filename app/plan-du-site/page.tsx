@@ -124,6 +124,38 @@ export default function SitemapPage() {
               </h2>
               <ul className="space-y-2">
                 <li>
+                  <Link
+                    href="/blog"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Blog Roogo
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/blog/tutoriels"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Catégorie Tutoriels
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/blog/comment-s-inscrire-roogo-proprietaire"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Créer un compte propriétaire Roogo
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/blog/comment-mettre-bien-en-vente-roogo"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Mettre un bien en vente sur Roogo
+                  </Link>
+                </li>
+                <li>
                   <a
                     href="/sitemap.xml"
                     className="text-primary-600 hover:text-primary-700 hover:underline"
