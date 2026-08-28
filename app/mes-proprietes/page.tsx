@@ -158,7 +158,7 @@ export default function MyPropertiesPage() {
               {filteredProperties.length !== 1 ? "s" : ""}
             </p>
             <Link
-              href="/tutoriels/comment-mettre-bien-en-vente-roogo"
+              href="/blog/comment-mettre-bien-en-vente-roogo"
               className="mt-3 inline-flex text-sm font-bold text-primary hover:text-primary-hover hover:underline"
             >
               Comment mettre un bien en vente sur Roogo ?

@@ -23,11 +23,11 @@ export const metadata: Metadata = {
   title: "Tutoriels et aide pour les propriétaires",
   description:
     "Apprenez à créer votre compte propriétaire et à mettre un bien en vente sur Roogo grâce à nos vidéos et guides en français.",
-  alternates: { canonical: "/tutoriels" },
+  alternates: { canonical: "/blog/tutoriels" },
   openGraph: {
     type: "website",
     locale: "fr_BF",
-    url: `${SITE_URL}/tutoriels`,
+    url: `${SITE_URL}/blog/tutoriels`,
     title: "Tutoriels Roogo pour les propriétaires",
     description:
       "Deux guides pratiques pour créer votre compte et proposer un bien immobilier à la vente depuis votre téléphone.",
@@ -63,7 +63,13 @@ const breadcrumbSchema = {
       "@type": "ListItem",
       position: 2,
       name: "Tutoriels",
-      item: `${SITE_URL}/tutoriels`,
+      item: `${SITE_URL}/blog`,
+    },
+    {
+      "@type": "ListItem",
+      position: 3,
+      name: "Tutoriels",
+      item: `${SITE_URL}/blog/tutoriels`,
     },
   ],
 };
@@ -71,7 +77,7 @@ const breadcrumbSchema = {
 export default function TutorialsPage() {
   return (
     <div className="min-h-screen bg-[#fbf7f2]">
-      <TutorialAnalytics event="tutorial_list_viewed" sourceScreen="tutorial_index" />
+      <TutorialAnalytics event="tutorial_list_viewed" sourceScreen="blog_tutorial_category" />
       <JsonLd schema={breadcrumbSchema} />
 
       <main>
@@ -80,16 +86,18 @@ export default function TutorialsPage() {
             <nav aria-label="Fil d'Ariane" className="text-sm font-bold text-neutral-500">
               <Link href="/" className="hover:text-primary">Accueil</Link>
               <span aria-hidden="true" className="mx-2">/</span>
+              <Link href="/blog" className="hover:text-primary">Blog</Link>
+              <span aria-hidden="true" className="mx-2">/</span>
               <span aria-current="page" className="text-neutral-900">Tutoriels</span>
             </nav>
 
             <div className="mt-12 max-w-3xl">
               <div className="inline-flex items-center gap-2 rounded-full border border-primary/20 bg-white px-4 py-2 text-sm font-black text-primary shadow-sm">
                 <BookOpenTextIcon size={20} weight="fill" />
-                Centre d&apos;aide Roogo
+                Catégorie · Tutoriels
               </div>
               <h1 className="mt-6 text-4xl font-black leading-tight tracking-tight text-neutral-900 sm:text-6xl">
-                Comprendre Roogo, une étape à la fois
+                Apprendre à utiliser Roogo, une étape à la fois
               </h1>
               <p className="mt-6 max-w-2xl text-lg font-medium leading-8 text-neutral-600 sm:text-xl">
                 Retrouvez ici les vidéos et guides pratiques pour créer votre compte propriétaire et proposer un bien à la vente depuis votre téléphone.

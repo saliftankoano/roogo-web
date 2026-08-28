@@ -77,8 +77,9 @@ function buildSchemas(tutorial: NonNullable<ReturnType<typeof getTutorial>>) {
         "@type": "BreadcrumbList",
         itemListElement: [
           { "@type": "ListItem", position: 1, name: "Accueil", item: SITE_URL },
-          { "@type": "ListItem", position: 2, name: "Tutoriels", item: `${SITE_URL}/tutoriels` },
-          { "@type": "ListItem", position: 3, name: tutorial.title, item: pageUrl },
+          { "@type": "ListItem", position: 2, name: "Blog", item: `${SITE_URL}/blog` },
+          { "@type": "ListItem", position: 3, name: "Tutoriels", item: `${SITE_URL}/blog/tutoriels` },
+          { "@type": "ListItem", position: 4, name: tutorial.title, item: pageUrl },
         ],
       },
       {
@@ -139,12 +140,14 @@ export default async function TutorialArticlePage({ params }: TutorialPageProps)
             <nav aria-label="Fil d'Ariane" className="flex flex-wrap items-center gap-2 text-sm font-bold text-neutral-500">
               <Link href="/" className="hover:text-primary">Accueil</Link>
               <span aria-hidden="true">/</span>
-              <Link href="/tutoriels" className="hover:text-primary">Tutoriels</Link>
+              <Link href="/blog" className="hover:text-primary">Blog</Link>
+              <span aria-hidden="true">/</span>
+              <Link href="/blog/tutoriels" className="hover:text-primary">Tutoriels</Link>
               <span aria-hidden="true">/</span>
               <span aria-current="page" className="text-neutral-900">{tutorial.eyebrow}</span>
             </nav>
 
-            <Link href="/tutoriels" className="mt-10 inline-flex items-center gap-2 text-sm font-black text-primary hover:text-primary-hover">
+            <Link href="/blog/tutoriels" className="mt-10 inline-flex items-center gap-2 text-sm font-black text-primary hover:text-primary-hover">
               <ArrowLeftIcon size={17} weight="bold" />
               Tous les tutoriels
             </Link>

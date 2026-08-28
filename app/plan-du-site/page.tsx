@@ -125,15 +125,23 @@ export default function SitemapPage() {
               <ul className="space-y-2">
                 <li>
                   <Link
-                    href="/tutoriels"
+                    href="/blog"
                     className="text-primary-600 hover:text-primary-700 hover:underline"
                   >
-                    Aide &amp; tutoriels propriétaires
+                    Blog Roogo
                   </Link>
                 </li>
                 <li>
                   <Link
-                    href="/tutoriels/comment-s-inscrire-roogo-proprietaire"
+                    href="/blog/tutoriels"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Catégorie Tutoriels
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/blog/comment-s-inscrire-roogo-proprietaire"
                     className="text-primary-600 hover:text-primary-700 hover:underline"
                   >
                     Créer un compte propriétaire Roogo
@@ -141,7 +149,7 @@ export default function SitemapPage() {
                 </li>
                 <li>
                   <Link
-                    href="/tutoriels/comment-mettre-bien-en-vente-roogo"
+                    href="/blog/comment-mettre-bien-en-vente-roogo"
                     className="text-primary-600 hover:text-primary-700 hover:underline"
                   >
                     Mettre un bien en vente sur Roogo

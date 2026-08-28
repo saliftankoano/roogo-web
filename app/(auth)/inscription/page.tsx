@@ -33,7 +33,7 @@ export default function SignUpPage() {
         forceRedirectUrl="/onboarding"
       />
       <Link
-        href="/tutoriels/comment-s-inscrire-roogo-proprietaire"
+        href="/blog/comment-s-inscrire-roogo-proprietaire"
         className="mt-6 max-w-sm text-center text-sm font-bold text-primary hover:text-primary-hover hover:underline"
       >
         Besoin d&apos;aide ? Voir comment créer un compte propriétaire avec Google

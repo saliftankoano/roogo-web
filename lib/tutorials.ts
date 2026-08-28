@@ -346,7 +346,7 @@ export function getTutorial(slug: string) {
 }
 
 export function getTutorialPath(tutorial: Pick<Tutorial, "slug">) {
-  return `/tutoriels/${tutorial.slug}`;
+  return `/blog/${tutorial.slug}`;
 }
 
 export function getYouTubeThumbnail(videoId: string) {
