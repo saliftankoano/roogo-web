@@ -117,6 +117,11 @@ export function Footer() {
                   Parrainage
                 </Link>
               </li>
+              <li>
+                <Link href="/tutoriels" className="hover:text-white">
+                  Aide &amp; tutoriels
+                </Link>
+              </li>
             </ul>
           </div>
 
