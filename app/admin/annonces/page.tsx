@@ -41,6 +41,9 @@ export default function AdminListingsPage() {
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [listingTypeFilter, setListingTypeFilter] = useState<
+    "all" | "louer" | "vendre"
+  >("all");
   const [isFiltersVisible, setIsFiltersVisible] = useState(true);
   const finalizeOnceRef = useRef(false);
 
@@ -215,7 +218,11 @@ export default function AdminListingsPage() {
               ...property,
               price: String(property.price ?? 0),
               area: String(property.area ?? ""),
-              category: "Residential",
+              category:
+                property.category ??
+                (property.propertyType.toLowerCase() === "commercial"
+                  ? "Business"
+                  : "Residential"),
             }),
           ),
         );
@@ -249,7 +256,11 @@ export default function AdminListingsPage() {
               ...property,
               price: String(property.price ?? 0),
               area: String(property.area ?? ""),
-              category: "Residential",
+              category:
+                property.category ??
+                (property.propertyType.toLowerCase() === "commercial"
+                  ? "Business"
+                  : "Residential"),
             }),
           ),
         );
@@ -281,10 +292,26 @@ export default function AdminListingsPage() {
         listing.propertyType.toLowerCase() === typeFilter.toLowerCase();
       const matchesCategory =
         categoryFilter === "all" || listing.category === categoryFilter;
+      const matchesListingType =
+        listingTypeFilter === "all" ||
+        (listing.listingType ?? "louer") === listingTypeFilter;
 
-      return matchesSearch && matchesLocation && matchesType && matchesCategory;
+      return (
+        matchesSearch &&
+        matchesLocation &&
+        matchesType &&
+        matchesCategory &&
+        matchesListingType
+      );
     });
-  }, [properties, searchQuery, locationFilter, typeFilter, categoryFilter]);
+  }, [
+    properties,
+    searchQuery,
+    locationFilter,
+    typeFilter,
+    categoryFilter,
+    listingTypeFilter,
+  ]);
 
   const locations = useMemo(
     () =>
@@ -315,13 +342,14 @@ export default function AdminListingsPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative overflow-hidden">
+      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
               Filtres des propriétés
             </h2>
-            <button 
+            <button
+              type="button"
               onClick={() => setIsFiltersVisible(!isFiltersVisible)}
               className="text-[11px] font-bold text-neutral-400 uppercase tracking-widest hover:text-primary transition-colors flex items-center gap-1.5"
             >
@@ -367,12 +395,44 @@ export default function AdminListingsPage() {
         <AnimatePresence initial={false}>
           {isFiltersVisible && (
             <motion.div
-              initial={{ height: 0, opacity: 0 }}
-              animate={{ height: "auto", opacity: 1 }}
-              exit={{ height: 0, opacity: 0 }}
+              initial={{ height: 0, opacity: 0, overflow: "hidden" }}
+              animate={{
+                height: "auto",
+                opacity: 1,
+                transitionEnd: { overflow: "visible" },
+              }}
+              exit={{ height: 0, opacity: 0, overflow: "hidden" }}
               transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
-              className="overflow-hidden"
             >
+              <fieldset className="mb-7 border-0 p-0">
+                <legend className="ml-4 text-[13px] font-bold uppercase tracking-wider text-neutral-900 opacity-60">
+                  Type d&apos;annonce
+                </legend>
+                <div className="mt-3 inline-flex rounded-full border border-neutral-100 bg-neutral-50 p-1">
+                  {(
+                    [
+                      { value: "all", label: "Toutes" },
+                      { value: "louer", label: "Locations" },
+                      { value: "vendre", label: "À vendre" },
+                    ] as const
+                  ).map((option) => (
+                    <button
+                      key={option.value}
+                      type="button"
+                      aria-pressed={listingTypeFilter === option.value}
+                      onClick={() => setListingTypeFilter(option.value)}
+                      className={`rounded-full px-5 py-2.5 text-sm font-black transition-colors ${
+                        listingTypeFilter === option.value
+                          ? "bg-primary text-white shadow-sm"
+                          : "text-neutral-500 hover:bg-white hover:text-neutral-900"
+                      }`}
+                    >
+                      {option.label}
+                    </button>
+                  ))}
+                </div>
+              </fieldset>
+
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pt-2">
                 <div className="space-y-3">
                   <label className="text-[13px] font-bold text-neutral-900 ml-4 uppercase tracking-wider opacity-60">
@@ -545,6 +605,7 @@ function FilterSelect({
       </label>
       <div className="relative group">
         <button
+          type="button"
           onClick={() => setIsOpen(!isOpen)}
           className={`w-full flex items-center justify-between pl-6 pr-5 py-4 bg-neutral-50/50 rounded-full border transition-all text-[15px] font-bold text-left ${
             isOpen
@@ -571,6 +632,7 @@ function FilterSelect({
               className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 max-h-[300px] overflow-y-auto"
             >
               <button
+                type="button"
                 onClick={() => {
                   onChange("all");
                   setIsOpen(false);
@@ -587,6 +649,7 @@ function FilterSelect({
               <div className="h-px bg-neutral-50 my-1 mx-2" />
               {options.map((opt) => (
                 <button
+                  type="button"
                   key={opt}
                   onClick={() => {
                     onChange(opt);
