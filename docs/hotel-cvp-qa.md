@@ -23,8 +23,10 @@ schema contract above is the deployment evidence available from this checkout.
 ## Automated coverage
 
 Run `npm test` for booking/invite-code normalization and generation, reception
-desk paid-state handling, and the guest/room/payment payload used by the mobile
-desk. Run `npm run lint`, `npx tsc --noEmit`, and `npm run build` before release.
+desk paid-state handling, operations and payout normalization, booking chat and
+RCCM validation, event codes, pledged inventory, negotiated rates, and event
+dashboard totals. Run `npm run lint`, `npx tsc --noEmit`, and `npm run build`
+before release.
 
 ## Device end-to-end release gate
 
@@ -38,6 +40,14 @@ checklist. Use separate hotel-admin, receptionist, and traveler accounts.
 - Receptionist finds the paid booking by code and phone, then checks in/out.
 - Traveler opens and shares the receipt containing hotel, room, dates and code.
 - Hotel earnings show the 7% fee and become withdrawable at the configured time.
+- Hotel admin saves payout defaults and verifies 7/30/90-day revenue and occupancy.
+- Traveler and hotel exchange booking-scoped messages and verify unread/deep-link behavior.
+- Hotel admin submits an RCCM document; staff approves and rejects separate submissions.
+- Staff creates an event; a matching-city hotel pledges rooms below the per-diem ceiling.
+- Traveler applies the event code and verifies the negotiated rate in the server quote.
+- Two concurrent requests cannot exceed the pledged event inventory.
+- Staff event dashboard totals pledged, confirmed, remaining, gross, and hotel net correctly.
+- One hotel creates a group; a second hotel joins by code and both see the member list.
 - Empty, offline, expired-code, unavailable-room, and failed-payment states are checked.
 
 Do not mark a release accepted until the completed record (screenshots or screen

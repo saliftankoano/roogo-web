@@ -85,6 +85,13 @@ const operationsNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
+    label: "Événements hôtels",
+    href: "/admin/hotel-events",
+    id: "admin-nav-hotel-events",
+    icon: CalendarCheckIcon,
+  },
+  {
+    type: "link",
     label: "Visites",
     href: "/admin/visit-requests",
     id: "admin-nav-visit-requests",

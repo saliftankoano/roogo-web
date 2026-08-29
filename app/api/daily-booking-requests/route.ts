@@ -18,6 +18,7 @@ import {
   toDailyCheckinAt,
   toDailyCheckoutAt,
 } from "@/lib/daily-bookings";
+import { normalizeEventCode } from "@/lib/hotel-events";
 
 const createDailyBookingSchema = z.object({
   propertyId: z.uuid(),
@@ -25,6 +26,7 @@ const createDailyBookingSchema = z.object({
   endDate: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
   guestCount: z.number().int().positive().max(50).optional(),
   roomTypeId: z.uuid().optional(),
+  eventCode: z.string().max(24).optional(),
 });
 
 export async function OPTIONS(req: Request) {
@@ -62,14 +64,26 @@ export async function POST(req: Request) {
       return errorResponse("This property is not a daily rental", 400, req);
     }
     if (property.agent_id === user.id) {
-      return errorResponse("Owners cannot request their own property", 400, req);
+      return errorResponse(
+        "Owners cannot request their own property",
+        400,
+        req,
+      );
     }
 
     const isHotel = isHotelProperty(property);
     let roomType = null;
+    let eventId: string | null = null;
+    let eventName: string | null = null;
+    let eventCode: string | null = null;
+    let eventNightlyRate: number | null = null;
     if (isHotel) {
       if (!roomTypeId) {
-        return errorResponse("A room type is required for hotel bookings", 400, req);
+        return errorResponse(
+          "A room type is required for hotel bookings",
+          400,
+          req,
+        );
       }
       roomType = await fetchRoomType(roomTypeId);
       if (
@@ -96,6 +110,59 @@ export async function POST(req: Request) {
       if (!available) {
         return errorResponse("These dates are not available", 409, req);
       }
+
+      if (parsed.data.eventCode) {
+        eventCode = normalizeEventCode(parsed.data.eventCode);
+        if (!eventCode) return errorResponse("Invalid event code", 400, req);
+        const { data: event } = await supabaseAdmin
+          .from("events")
+          .select("id, name, start_date, end_date, status")
+          .ilike("code", eventCode)
+          .eq("status", "open")
+          .maybeSingle();
+        if (
+          !event ||
+          startDate < event.start_date ||
+          endDate > event.end_date
+        ) {
+          return errorResponse("Booking dates are outside the event", 400, req);
+        }
+        const { data: block } = await supabaseAdmin
+          .from("event_room_blocks")
+          .select("count_pledged, event_nightly_rate")
+          .eq("event_id", event.id)
+          .eq("room_type_id", roomTypeId)
+          .eq("hotel_id", property.hotel_id)
+          .eq("status", "pledged")
+          .maybeSingle();
+        if (!block)
+          return errorResponse("Room is not pledged to this event", 400, req);
+        const { count: eventBookings, error: countError } = await supabaseAdmin
+          .from("daily_booking_requests")
+          .select("id", { count: "exact", head: true })
+          .eq("event_id", event.id)
+          .eq("room_type_id", roomTypeId)
+          .in("status", [
+            "requested",
+            "approved_awaiting_payment",
+            "payment_pending",
+            "confirmed",
+            "checked_in",
+            "checkin_issue",
+            "checkout_reported",
+            "post_checkout_review",
+            "issue_open",
+          ])
+          .lt("start_date", endDate)
+          .gt("end_date", startDate);
+        if (countError) throw countError;
+        if ((eventBookings || 0) >= block.count_pledged) {
+          return errorResponse("The event room block is full", 409, req);
+        }
+        eventId = event.id;
+        eventName = event.name;
+        eventNightlyRate = block.event_nightly_rate;
+      }
     } else {
       if (property.capacite_max && guestCount > Number(property.capacite_max)) {
         return errorResponse("Guest count exceeds property capacity", 400, req);
@@ -115,7 +182,10 @@ export async function POST(req: Request) {
       property,
       startDate,
       endDate,
-      roomType,
+      roomType:
+        roomType && eventNightlyRate != null
+          ? { ...roomType, nightly_rate: eventNightlyRate }
+          : roomType,
     });
     const now = new Date();
     const expiresAt = addHoursIso(now, DAILY_REQUEST_APPROVAL_HOURS);
@@ -149,11 +219,20 @@ export async function POST(req: Request) {
         currency: "XOF",
         expires_at: expiresAt,
         room_type_id: roomType?.id ?? null,
+        event_id: eventId,
         metadata: {
           cautionType: quote.cautionType,
           cautionValeur: quote.cautionValeur,
           minimumNights: property.sejour_minimum ?? 1,
           ...(roomType ? { roomTypeName: roomType.name } : {}),
+          ...(eventId
+            ? {
+                eventName,
+                eventCode,
+                standardNightlyRate: roomType?.nightly_rate,
+                negotiatedNightlyRate: eventNightlyRate,
+              }
+            : {}),
         },
       })
       .select("*")
@@ -161,6 +240,12 @@ export async function POST(req: Request) {
 
     if (error) {
       console.error("Error creating daily booking request:", error);
+      if (String(error.message).includes("EVENT_ROOM_BLOCK_FULL")) {
+        return errorResponse("The event room block is full", 409, req);
+      }
+      if (String(error.message).includes("EVENT_ROOM_BLOCK_UNAVAILABLE")) {
+        return errorResponse("Room is not pledged to this event", 409, req);
+      }
       return errorResponse("Failed to create booking request", 500, req);
     }
 
@@ -205,11 +290,18 @@ export async function POST(req: Request) {
     ]);
 
     return cors(
-      NextResponse.json({ success: true, request: requestRow }, { status: 201 }),
+      NextResponse.json(
+        { success: true, request: requestRow },
+        { status: 201 },
+      ),
       req,
     );
   } catch (error) {
     console.error("Error in POST /api/daily-booking-requests:", error);
-    return errorResponse(safeError(error, "Failed to create request"), 500, req);
+    return errorResponse(
+      safeError(error, "Failed to create request"),
+      500,
+      req,
+    );
   }
 }
