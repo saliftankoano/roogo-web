@@ -296,9 +296,17 @@ export function PropertyDetailClient({
     loyerAvanceMois: advanceRentMonths,
   });
   const canApply =
-    !isDailyListing && isRenter && listing.status === "en_ligne" && !hasApplied;
+    !isSaleListing &&
+    !isDailyListing &&
+    isRenter &&
+    listing.status === "en_ligne" &&
+    !hasApplied;
   const canPay =
-    !isDailyListing && isRenter && listing.status === "en_ligne" && rentAmount > 0;
+    !isSaleListing &&
+    !isDailyListing &&
+    isRenter &&
+    listing.status === "en_ligne" &&
+    rentAmount > 0;
 
   return (
     <>
@@ -317,7 +325,7 @@ export function PropertyDetailClient({
 
       <Portal>
         <AnimatePresence>
-          {!isDailyListing && showLockConfirm && (
+          {!isSaleListing && !isDailyListing && showLockConfirm && (
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLockConfirm(false)} />

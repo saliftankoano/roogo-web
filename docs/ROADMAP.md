@@ -15,6 +15,9 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Recently completed
 
+- [x] **Sale details use sale pricing semantics** — verified on 2026-08-29
+  across staff, owner, and public detail surfaces; see the
+  [changelog](./CHANGELOG.md#2026-08-29).
 - [x] **Admin rental/sale filtering restored** — verified and merged on
   2026-08-29 in [PR #16](https://github.com/saliftankoano/roogo-web/pull/16).
   See the [changelog](./CHANGELOG.md#2026-08-29).

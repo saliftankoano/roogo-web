@@ -48,11 +48,13 @@ terrain, and from its Residential or Business category.
 `properties.listing_type`.
 
 **Why it matters for building:** Rental/sale filters, price units, forms, and
-publication gates must read listing intent directly. Inferring it from a price
-label or property shape creates incorrect results.
+publication gates must read listing intent directly. A sale remains a sale even
+when a legacy row still contains a monthly period, caution, or advance-rent
+default. Inferring intent from those fields, a price label, or property shape
+creates incorrect results.
 
 **Evidence:** See
-[how admin listing filters compose](./SYSTEM.md#how-do-admin-listing-filters-compose).
+[how listing intent composes](./SYSTEM.md#how-do-listing-intent-and-admin-filters-compose).
 
 ### Soumission de documents de propriété
 

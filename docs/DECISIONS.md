@@ -7,31 +7,38 @@ out. Newest first. For what shipped and when, see
 
 ---
 
-### Listing intent, property shape, and audience category stay separate in admin filters — 2026-08-29
+### Listing intent stays separate and controls sale/rental behavior — 2026-08-29
 
-**Decision:** The admin listings page filters rental versus sale intent with a
-dedicated `Type d'annonce` control sourced from `listing_type`. Property shape
-(`maison`, `villa`, `terrain`, and similar values) and audience category
-(`Residential` or `Business`) remain independent filters. The admin API emits
-the category from `property_type`, and expandable filter panels expose dropdown
-overlays only after their height animation completes.
+**Decision:** `listing_type` is the authoritative source for rental versus sale
+intent everywhere on the web. The admin listings page exposes that intent with a
+dedicated `Type d'annonce` filter. Expanded listing surfaces use it to choose
+sale or rental price language and to suppress rental-only conditions and actions
+for sales. Property shape (`maison`, `villa`, `terrain`, and similar values) and
+audience category (`Residential` or `Business`) remain independent dimensions.
+The admin API emits category from `property_type`, and expandable filter panels
+expose dropdown overlays only after their height animation completes.
 
 **Why:** Rental/sale intent disappeared when the page treated the remaining
 property-type dropdown as if it covered every classification. At the same time,
 the client overwrote every category as residential and an animated
-`overflow-hidden` wrapper clipped otherwise-functional dropdown menus. Keeping
-the three dimensions explicit makes combined filtering predictable and keeps
-presentation motion from changing control behavior.
+`overflow-hidden` wrapper clipped otherwise-functional dropdown menus. A second
+failure treated every non-daily listing as monthly, so a sale detail showed
+`Prix du loyer`, `FCFA / mois`, caution, and advance rent even though its card
+correctly said `À vendre`. Keeping intent explicit makes filters and pricing
+predictable and keeps residual rental-shaped fields from changing sale meaning.
 
-**Ruled out / alternatives:** Inferring rental versus sale from price suffixes
-was rejected because display copy is not source data; folding sale/rental into
+**Ruled out / alternatives:** Inferring rental versus sale from price suffixes or
+`period` was rejected because display copy and legacy rental defaults are not
+source data; clearing every residual rental field was not treated as the display
+fix because old sale rows must still render safely; folding sale/rental into
 property type was rejected because a villa can be either; raising dropdown
 `z-index` alone was rejected because descendants cannot escape a clipping
 ancestor.
 
 **Status:** Settled and shipped in
-[PR #16](https://github.com/saliftankoano/roogo-web/pull/16). See
-[how the admin filters compose](./SYSTEM.md#how-do-admin-listing-filters-compose).
+[PR #16](https://github.com/saliftankoano/roogo-web/pull/16), with sale-detail
+pricing enforcement verified on 2026-08-29. See
+[how listing intent composes](./SYSTEM.md#how-do-listing-intent-and-admin-filters-compose).
 
 ### Mebo is a host-aware Roogo surface with gated advertiser onboarding — 2026-08-29
 
