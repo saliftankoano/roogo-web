@@ -8,9 +8,16 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## How does staff add ownership evidence to a review?
 
-**Bottom line:** staff appends files to the selected pending ownership
-submission, so seller-provided and team-provided evidence reaches one approval
-or rejection decision.
+**Bottom line:** staff can append files to a pending ownership submission or
+bootstrap one for an owner-linked sale that never completed the mobile document
+step, so seller-provided and team-provided evidence reaches one approval or
+rejection decision.
+
+For an owner-linked sale whose ownership status is `unsubmitted` or `rejected`,
+staff and founders can use **Ajouter un dossier** on the admin review page. The
+server creates (or reuses) the property's pending submission under the real
+seller, never under the staff account, and changes only the private ownership
+review status. The listing gallery is not involved.
 
 The admin review page accepts up to ten files at a time and twenty files across
 the submission. PDF files are uploaded unchanged; browser-supported images and
@@ -20,6 +27,8 @@ becoming JPEG. Each stored file is capped at 10 MB.
 The browser asks a staff-only API for signed upload slots and then sends bytes
 directly to the private `ownership-documents` bucket. A second staff-only call
 attaches the resulting storage paths and metadata to the JSON document array.
+Team-uploaded entries record `source = staff` and the uploader's Supabase user
+id, including when the team bootstrapped the submission on the seller's behalf.
 Both calls confirm that the submission is still pending, and attachment paths
 must live under the selected seller, property, and current staff member's
 namespace. Admin previews use short-lived signed read URLs; PDFs render as an
