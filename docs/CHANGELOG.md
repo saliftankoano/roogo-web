@@ -4,6 +4,17 @@ What shipped, when. One line each, newest first. The *why* lives in
 [`DECISIONS.md`](./DECISIONS.md); the *how it works* lives in
 [`SYSTEM.md`](./SYSTEM.md).
 
+## 2026-08-29
+
+- **Admin listing filters restored** (web + backend): staff can again switch between all listings, rentals, and homes for sale; property-type and location dropdowns are no longer clipped by the animated panel, and commercial inventory keeps its Business category instead of being forced to Residential. ([PR #16](https://github.com/saliftankoano/roogo-web/pull/16), [why](./DECISIONS.md#listing-intent-property-shape-and-audience-category-stay-separate-in-admin-filters--2026-08-29), [how](./SYSTEM.md#how-do-admin-listing-filters-compose))
+- **Roogo Mebo foundation** (web + backend + data): the Mebo host now receives its own landing shell, metadata, navigation, and production Clerk satellite configuration while sharing Roogo accounts and infrastructure; gated advertiser profile, package, proof-upload, and submission APIs support controlled staff/founder testing before broad onboarding is enabled. ([PR #15](https://github.com/saliftankoano/roogo-web/pull/15), [why](./DECISIONS.md#mebo-is-a-host-aware-roogo-surface-with-gated-advertiser-onboarding--2026-08-29), [how](./SYSTEM.md#how-does-mebo-share-roogo-web-without-becoming-the-immobilier-site))
+- **Unified motion system across Roogo Web** (web): public, account, onboarding, payment, Mebo, and staff routes now share restrained route, navigation, menu, and feedback motion with stable landmarks and reduced-motion support; `npm run motion:audit` runs before production builds to prevent regressions. ([PR #15](https://github.com/saliftankoano/roogo-web/pull/15), [why](./DECISIONS.md#motion-explains-state-changes-instead-of-decorating-the-interface--2026-08-29), [how](./SYSTEM.md#how-does-motion-work-across-roogo-web))
+- **Staff-assisted ownership dossier creation** (web + backend): staff and founders can create or reuse the pending dossier for an owner-linked sale, add private PDF or image evidence on the seller's behalf, and review it through the existing approval flow; empty dossiers cannot be approved and documents never enter the public property gallery. ([PR #14](https://github.com/saliftankoano/roogo-web/pull/14), [why](./DECISIONS.md#staff-may-bootstrap-a-missing-ownership-dossier-only-for-the-real-sellers-sale--2026-08-29), [how](./SYSTEM.md#how-does-staff-add-ownership-evidence-to-a-review))
+
+## 2026-08-28
+
+- **Public Blog and tutorial help center** (web): Roogo now has a searchable Blog foundation with a Tutoriels category and two owner guides for signup and sale listing; articles include privacy-enhanced videos, step-by-step instructions, SEO/structured data, analytics, contextual help links, and permanent redirects from legacy tutorial URLs. ([PR #13](https://github.com/saliftankoano/roogo-web/pull/13), [why](./DECISIONS.md#tutorials-live-in-the-public-blog-not-behind-onboarding--2026-08-28))
+
 ## 2026-08-19
 
 - **Staff ownership-document uploads** (web + backend): staff and founders can add PDF or image evidence directly from a pending property-ownership review; images, including HEIC, are normalized before direct upload to the private bucket, PDFs open from the review card, and staff additions stay on the same auditable approve/reject submission. ([why](./DECISIONS.md#staff-added-ownership-evidence-stays-on-the-pending-seller-submission--2026-08-19), [how](./SYSTEM.md#how-does-staff-add-ownership-evidence-to-a-review))

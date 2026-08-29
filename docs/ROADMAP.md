@@ -13,9 +13,33 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ---
 
+## Recently completed
+
+- [x] **Admin rental/sale filtering restored** — verified and merged on
+  2026-08-29 in [PR #16](https://github.com/saliftankoano/roogo-web/pull/16).
+  See the [changelog](./CHANGELOG.md#2026-08-29).
+- [x] **Roogo Mebo host and gated advertiser foundation** — merged on
+  2026-08-29 in [PR #15](https://github.com/saliftankoano/roogo-web/pull/15).
+  Broad advertiser onboarding remains feature-controlled; see the
+  [changelog](./CHANGELOG.md#2026-08-29).
+- [x] **Unified, reduced-motion-aware web motion baseline** — merged on
+  2026-08-29 in [PR #15](https://github.com/saliftankoano/roogo-web/pull/15),
+  including the prebuild motion audit. See the
+  [changelog](./CHANGELOG.md#2026-08-29).
+- [x] **Staff-assisted ownership dossier workflow** — merged on 2026-08-29 in
+  [PR #14](https://github.com/saliftankoano/roogo-web/pull/14). See the
+  [changelog](./CHANGELOG.md#2026-08-29).
+- [x] **Public Blog and owner tutorial help center** — merged on 2026-08-28 in
+  [PR #13](https://github.com/saliftankoano/roogo-web/pull/13). See the
+  [changelog](./CHANGELOG.md#2026-08-28).
+
 ## Shipped
 
 ### For visitors & renters — discover, apply, and rent in the browser
+
+- [x] **Blog and owner tutorials** — public, onboarding-exempt guides explain
+      owner signup and sale-listing workflows with video, structured data, and
+      contextual links from the relevant product surfaces.
 
 - [x] **Public, shareable marketplace** — browse listings at `/proprietes` and open
       any home at `/p/[id]` or `/proprietes/[id]` without an account. Pages are
@@ -68,6 +92,11 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 ### For staff & founders — operate the marketplace (`/admin`)
 
 - [x] **Listing moderation** — review and act on annonces before they go live.
+- [x] **Composable listing filters** — combine keyword, location, physical
+      property type, Residential/Business category, and rental/sale intent.
+- [x] **Staff-assisted ownership dossiers** — create or reuse a pending dossier
+      for an owner-linked sale and append private evidence without exposing it in
+      the listing gallery.
 - [x] **Owner edit moderation** — review staged changesets from `/admin/modifications`
       (approve applies diff to `properties`; reject notifies owner with optional note).
 - [x] **Applications & locks desk** — manage applications, locks, and spontaneous
@@ -87,6 +116,11 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 - [x] **Single backend for web + mobile** — every authenticated mobile mutation hits
       these `/api/*` routes (Bearer-JWT auth, CORS, rate limiting via Upstash).
+- [x] **Host-aware Mebo foundation** — Roogo Mebo has a distinct host shell and
+      gated advertiser profile/proof APIs while reusing Roogo identity and
+      backend infrastructure.
+- [x] **Shared motion baseline** — route, navigation, menu, and feedback motion
+      use one reduced-motion-aware system enforced by a prebuild audit.
 - [x] **Payments integration** — PawaPay initiate / status-poll / callback webhook for
       multi-country mobile money (8 correspondents across BFA, CIV, SEN); legacy
       `ORANGE_MONEY` / `MOOV_MONEY` requests still map to Burkina Faso for older mobile
