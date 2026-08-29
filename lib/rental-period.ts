@@ -5,6 +5,10 @@ type RentalPeriodInput = {
   frequence?: string | null;
 };
 
+type ListingPriceInput = RentalPeriodInput & {
+  listingType?: string | null;
+};
+
 type DailyConditionInput = RentalPeriodInput & {
   cautionType?: string | null;
   cautionValeur?: number | null;
@@ -17,6 +21,10 @@ const MONTHLY_PERIOD_VALUES = new Set(["month", "monthly", "mois"]);
 
 function normalize(value?: string | null) {
   return (value || "").trim().toLowerCase();
+}
+
+function isSaleListing(input: ListingPriceInput) {
+  return normalize(input.listingType) === "vendre";
 }
 
 export function isDailyRental(input: RentalPeriodInput) {
@@ -42,7 +50,8 @@ export function normalizeRentalPeriod(input: RentalPeriodInput) {
   return input.period || "month";
 }
 
-export function getPricePeriodLabel(input: RentalPeriodInput) {
+export function getPricePeriodLabel(input: ListingPriceInput) {
+  if (isSaleListing(input)) return "FCFA";
   return isDailyRental(input) ? "FCFA / nuit" : "FCFA / mois";
 }
 
@@ -50,7 +59,8 @@ export function getPricePeriodUnitLabel(input: RentalPeriodInput) {
   return isDailyRental(input) ? "nuit" : "mois";
 }
 
-export function getPriceTitle(input: RentalPeriodInput) {
+export function getPriceTitle(input: ListingPriceInput) {
+  if (isSaleListing(input)) return "Prix de vente";
   return isDailyRental(input) ? "Tarif par nuit" : "Prix du loyer";
 }
 

@@ -49,7 +49,7 @@ delivery lifecycle.
 
 See the [Mebo site-context decision](./DECISIONS.md#mebo-is-a-host-aware-roogo-surface-with-gated-advertiser-onboarding--2026-08-29).
 
-## How do admin listing filters compose?
+## How do listing intent and admin filters compose?
 
 **Bottom line:** every filter represents one independent property dimension,
 and a listing must match all active dimensions. Keyword and location filter
@@ -64,12 +64,24 @@ and selecting `Locations` or `À vendre` compares the underlying `listingType`
 directly. Missing legacy listing types retain the rental fallback used elsewhere
 in the admin surface.
 
+Expanded property surfaces use the same intent before considering rental period:
+
+| Listing state | Price title and unit | Conditions and actions |
+|---|---|---|
+| Sale (`vendre`) | `Prix de vente`, amount in FCFA | No monthly/nightly suffix, caution, advance rent, rental application, or rental payment |
+| Daily rental | `Tarif par nuit`, FCFA per night | Daily-stay conditions |
+| Monthly rental | `Prix du loyer`, FCFA per month | Caution, advance rent, and eligible rental actions |
+
+This ordering matters for legacy data. A sale row may still contain `period =
+month`, caution, or advance-rent defaults, but those fields never override
+`listing_type = vendre` in the UI.
+
 The filter card's expand/collapse animation hides overflow only while its height
 is changing. Once expanded, overflow becomes visible so absolutely positioned
 dropdowns can escape the animated wrapper. This is why increasing a menu's
 `z-index` is not the fix for a clipped menu.
 
-See the [filter-taxonomy decision](./DECISIONS.md#listing-intent-property-shape-and-audience-category-stay-separate-in-admin-filters--2026-08-29).
+See the [listing-intent decision](./DECISIONS.md#listing-intent-stays-separate-and-controls-salerental-behavior--2026-08-29).
 
 ## How does motion work across Roogo Web?
 
