@@ -11,6 +11,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import { useExpandableScreen } from "@/components/ui/expandable-screen";
 import { hustleApplicationSchema } from "@/lib/validations";
+import { roogoMotion } from "@/lib/motion";
 
 const CAPTCHA_CHARS = "ABCDEFGHJKMNPQRSTUVWXYZ23456789";
 const CAPTCHA_LENGTH = 5;
@@ -237,9 +238,9 @@ export function HustleApplicationModal() {
   };
 
   const stepVariants = {
-    initial: { opacity: 0, x: 20 },
+    initial: { opacity: 0, x: 10 },
     animate: { opacity: 1, x: 0 },
-    exit: { opacity: 0, x: -20 },
+    exit: { opacity: 0, x: -10 },
   };
 
   return (
@@ -249,8 +250,9 @@ export function HustleApplicationModal() {
           {submitSuccess ? (
             <motion.div
               key="success"
-              initial={{ opacity: 0, scale: 0.9 }}
+              initial={{ opacity: 0, scale: 0.985 }}
               animate={{ opacity: 1, scale: 1 }}
+              transition={roogoMotion.standard}
               className="flex flex-col items-center text-center"
             >
               <div className="mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-50 text-green-500">
@@ -539,7 +541,7 @@ export function HustleApplicationModal() {
                         <button
                           type="button"
                           onClick={regenerateCaptcha}
-                          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-primary shadow-sm transition-transform hover:scale-110 active:scale-95"
+                          className="flex h-12 w-12 items-center justify-center rounded-full bg-white text-primary shadow-sm transition-transform active:scale-[0.985]"
                         >
                           <ArrowLeftIcon
                             size={20}

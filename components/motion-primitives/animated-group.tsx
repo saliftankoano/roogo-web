@@ -1,7 +1,8 @@
 "use client";
 import { ReactNode } from "react";
-import { motion, Variants } from "framer-motion";
+import { motion, useReducedMotion, Variants } from "framer-motion";
 import React from "react";
+import { roogoEase } from "@/lib/motion";
 
 export type PresetType =
   | "fade"
@@ -30,7 +31,8 @@ export type AnimatedGroupProps = {
 const defaultContainerVariants: Variants = {
   visible: {
     transition: {
-      staggerChildren: 0.1,
+      delayChildren: 0.02,
+      staggerChildren: 0.06,
     },
   },
 };
@@ -43,61 +45,50 @@ const defaultItemVariants: Variants = {
 const presetVariants: Record<PresetType, Variants> = {
   fade: {},
   slide: {
-    hidden: { y: 20 },
+    hidden: { y: 12 },
     visible: { y: 0 },
   },
   scale: {
-    hidden: { scale: 0.8 },
+    hidden: { scale: 0.985 },
     visible: { scale: 1 },
   },
   blur: {
-    hidden: { filter: "blur(4px)" },
+    hidden: { filter: "blur(6px)" },
     visible: { filter: "blur(0px)" },
   },
   "blur-slide": {
-    hidden: { filter: "blur(4px)", y: 20 },
+    hidden: { filter: "blur(6px)", y: 10 },
     visible: { filter: "blur(0px)", y: 0 },
   },
   zoom: {
-    hidden: { scale: 0.5 },
-    visible: {
-      scale: 1,
-      transition: { type: "spring", stiffness: 300, damping: 20 },
-    },
+    hidden: { scale: 0.985, y: 8 },
+    visible: { scale: 1, y: 0 },
   },
   flip: {
-    hidden: { rotateX: -90 },
-    visible: {
-      rotateX: 0,
-      transition: { type: "spring", stiffness: 300, damping: 20 },
-    },
+    hidden: { y: 12 },
+    visible: { y: 0 },
   },
   bounce: {
-    hidden: { y: -50 },
-    visible: {
-      y: 0,
-      transition: { type: "spring", stiffness: 400, damping: 10 },
-    },
+    hidden: { y: 12 },
+    visible: { y: 0 },
   },
   rotate: {
-    hidden: { rotate: -180 },
-    visible: {
-      rotate: 0,
-      transition: { type: "spring", stiffness: 200, damping: 15 },
-    },
+    hidden: { scale: 0.98, y: 8 },
+    visible: { scale: 1, y: 0 },
   },
   swing: {
-    hidden: { rotate: -10 },
-    visible: {
-      rotate: 0,
-      transition: { type: "spring", stiffness: 300, damping: 8 },
-    },
+    hidden: { x: -8 },
+    visible: { x: 0 },
   },
 };
 
 const addDefaultVariants = (variants: Variants) => ({
   hidden: { ...defaultItemVariants.hidden, ...variants.hidden },
-  visible: { ...defaultItemVariants.visible, ...variants.visible },
+  visible: {
+    ...defaultItemVariants.visible,
+    ...variants.visible,
+    transition: { duration: 0.32, ease: roogoEase },
+  },
 });
 
 function AnimatedGroup({
@@ -108,6 +99,7 @@ function AnimatedGroup({
   as = "div",
   asChild = "div",
 }: AnimatedGroupProps) {
+  const reduceMotion = useReducedMotion();
   const selectedVariants = {
     item: addDefaultVariants(preset ? presetVariants[preset] : {}),
     container: addDefaultVariants(defaultContainerVariants),
@@ -130,7 +122,7 @@ function AnimatedGroup({
 
   return (
     <MotionComponent
-      initial="hidden"
+      initial={reduceMotion ? false : "hidden"}
       animate="visible"
       variants={containerVariants}
       className={className}

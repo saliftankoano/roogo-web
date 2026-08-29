@@ -31,6 +31,7 @@ import {
 import { useState, useEffect, useRef } from "react";
 import { usePropertyEngagement } from "@/hooks/usePropertyEngagement";
 import { KuulaEmbed } from "@/components/virtual-tour/KuulaEmbed";
+import { roogoMotion } from "@/lib/motion";
 
 interface PropertyDetailsModalProps {
   isOpen: boolean;
@@ -121,9 +122,10 @@ export default function PropertyDetailsModal({
         {isOpen && (
           <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
             <motion.div
-              initial={{ opacity: 0, scale: 0.95, y: 20 }}
+              initial={{ opacity: 0, scale: 0.985, y: 8 }}
               animate={{ opacity: 1, scale: 1, y: 0 }}
-              exit={{ opacity: 0, scale: 0.95, y: 20 }}
+              exit={{ opacity: 0, scale: 0.985, y: 8 }}
+              transition={roogoMotion.standard}
               className="bg-white w-full max-w-5xl max-h-[90vh] rounded-[40px] shadow-2xl border border-neutral-200 overflow-hidden flex flex-col"
             >
               {/* Header */}
@@ -162,7 +164,7 @@ export default function PropertyDetailsModal({
                         src={images[currentImageIndex]}
                         alt={`Propriété à ${property.location}`}
                         fill
-                        className="object-cover transition-transform group-hover:scale-105"
+                        className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
                       />
                       {/* Hover overlay to indicate clickability */}
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors flex items-center justify-center">
@@ -192,7 +194,7 @@ export default function PropertyDetailsModal({
                               setCurrentImageIndex(idx);
                               openFullscreen(idx);
                             }}
-                            className={`relative flex-shrink-0 w-24 h-24 rounded-2xl overflow-hidden border-2 transition-all hover:scale-105 cursor-pointer ${
+                            className={`relative flex-shrink-0 w-24 h-24 rounded-2xl overflow-hidden border-2 transition-colors cursor-pointer ${
                               idx === currentImageIndex
                                 ? "border-primary ring-2 ring-primary/20"
                                 : "border-neutral-200 hover:border-neutral-300"
@@ -527,10 +529,10 @@ export default function PropertyDetailsModal({
               {/* Image */}
               <motion.div
                 key={fullscreenImageIndex}
-                initial={{ opacity: 0, scale: 0.9 }}
+                initial={{ opacity: 0, scale: 0.985 }}
                 animate={{ opacity: 1, scale: 1 }}
-                exit={{ opacity: 0, scale: 0.9 }}
-                transition={{ duration: 0.2 }}
+                exit={{ opacity: 0, scale: 0.985 }}
+                transition={roogoMotion.standard}
                 className="relative w-[90%] h-[90%]"
               >
                 <Image

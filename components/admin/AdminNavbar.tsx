@@ -8,8 +8,6 @@ import Image from "next/image";
 import { cn } from "../../lib/utils";
 import {
   motion,
-  useScroll,
-  useMotionValueEvent,
   AnimatePresence,
 } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -18,6 +16,7 @@ import {
   type AdminNavEntry,
   type AdminNavItem,
 } from "../../lib/navigation/adminNav";
+import { roogoMotion } from "@/lib/motion";
 
 function isLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -67,7 +66,7 @@ function DesktopNavLink({
         <motion.div
           layoutId="admin-nav-active-pill"
           className="absolute inset-0 bg-white rounded-full shadow-sm"
-          transition={{ type: "spring", stiffness: 400, damping: 30 }}
+          transition={roogoMotion.spring}
         />
       )}
       <span className="relative z-10 flex items-center gap-2">
@@ -79,9 +78,6 @@ function DesktopNavLink({
 }
 
 export function AdminNavbar() {
-  const { scrollY } = useScroll();
-  const [hidden, setHidden] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [mobileOpenGroupId, setMobileOpenGroupId] = useState<string | null>(
@@ -90,16 +86,6 @@ export function AdminNavbar() {
   const desktopNavRef = useRef<HTMLDivElement>(null);
   const pathname = usePathname();
   const { isLoaded, user } = useUser();
-
-  useMotionValueEvent(scrollY, "change", (latest) => {
-    const previous = scrollY.getPrevious() || 0;
-    if (latest > previous && latest > 150) {
-      setHidden(true);
-    } else {
-      setHidden(false);
-    }
-    setIsScrolled(latest > 20);
-  });
 
   const userType = (user?.publicMetadata?.userType ||
     user?.publicMetadata?.user_type) as string | undefined;
@@ -152,23 +138,14 @@ export function AdminNavbar() {
   }, [openGroupId]);
 
   return (
-    <motion.header
-      variants={{
-        visible: { y: 0, opacity: 1 },
-        hidden: { y: "-100%", opacity: 0 },
-      }}
-      animate={hidden ? "hidden" : "visible"}
-      transition={{ duration: 0.35, ease: "easeInOut" }}
+    <header
       className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-7xl mx-auto z-50"
     >
       <div
-        className={cn(
-          "flex items-center justify-between px-4 sm:px-6 py-2 rounded-full transition-all duration-300 border bg-white/80 backdrop-blur-xl shadow-lg border-white/40",
-          isScrolled ? "h-16" : "h-20",
-        )}
+        className="flex h-16 items-center justify-between rounded-full border border-white/40 bg-white/85 px-4 py-2 shadow-lg backdrop-blur-xl sm:px-6"
       >
         <Link href="/" className="flex items-center shrink-0 group">
-          <div className="bg-primary/10 p-2 rounded-2xl mr-3 group-hover:scale-110 transition-transform duration-300">
+          <div className="mr-3 rounded-2xl bg-primary/10 p-2 transition-colors duration-200 group-hover:bg-primary/15">
             <Image
               src="/logo.png?v=2"
               alt="Roogo Logo"
@@ -226,11 +203,7 @@ export function AdminNavbar() {
                     <motion.div
                       layoutId="admin-nav-active-pill"
                       className="absolute inset-0 bg-white rounded-full shadow-sm"
-                      transition={{
-                        type: "spring",
-                        stiffness: 400,
-                        damping: 30,
-                      }}
+                      transition={roogoMotion.spring}
                     />
                   )}
                   <span className="relative z-10 flex items-center gap-2">
@@ -250,10 +223,10 @@ export function AdminNavbar() {
                 <AnimatePresence>
                   {isOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                      animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                      transition={{ duration: 0.16, ease: "easeOut" }}
+                      initial={{ opacity: 0, y: 6 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: 4 }}
+                      transition={roogoMotion.quick}
                       role="menu"
                       className="absolute left-0 top-full mt-3 w-64 overflow-hidden rounded-[24px] border border-neutral-200/70 bg-white p-2 shadow-2xl"
                     >
@@ -317,8 +290,10 @@ export function AdminNavbar() {
           )}
 
           <button
-            className="lg:hidden p-2 text-neutral-600 hover:text-primary bg-neutral-100 rounded-full transition-all ml-1"
+            className="ml-1 rounded-full bg-neutral-100 p-2 text-neutral-600 transition-colors hover:text-primary lg:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
+            aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+            aria-expanded={mobileMenuOpen}
           >
             {mobileMenuOpen ? (
               <XIcon size={22} weight="bold" />
@@ -332,9 +307,10 @@ export function AdminNavbar() {
       <AnimatePresence>
         {mobileMenuOpen && (
           <motion.div
-            initial={{ opacity: 0, y: -20, scale: 0.95 }}
-            animate={{ opacity: 1, y: 0, scale: 1 }}
-            exit={{ opacity: 0, y: -20, scale: 0.95 }}
+            initial={{ opacity: 0, y: 8 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={roogoMotion.standard}
             data-id="staff-menu"
             className="lg:hidden absolute top-full left-0 right-0 mt-4 bg-white/95 backdrop-blur-xl rounded-[32px] p-6 shadow-2xl border border-white/50 flex flex-col gap-2"
           >
@@ -439,6 +415,6 @@ export function AdminNavbar() {
           </motion.div>
         )}
       </AnimatePresence>
-    </motion.header>
+    </header>
   );
 }

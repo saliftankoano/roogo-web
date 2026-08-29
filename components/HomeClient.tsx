@@ -131,7 +131,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
   };
 
   const item = {
-    hidden: { opacity: 0, y: 22 },
+    hidden: { opacity: 0, y: 12 },
     show: { opacity: 1, y: 0 },
   };
 
@@ -167,7 +167,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                 variants={item}
                 className="group rounded-[28px] border border-[#e7dacb] bg-white/70 p-6 shadow-sm hover:shadow-xl hover:shadow-[#5a321a]/10"
               >
-                <div className="mb-7 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105">
+                <div className="mb-7 flex size-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-colors duration-300 group-hover:bg-primary/15">
                   <point.icon size={26} weight="duotone" />
                 </div>
                 <p className="text-xs font-black uppercase tracking-[0.16em] text-primary">
@@ -198,9 +198,9 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                 {roogoFlow.map((step) => (
                   <motion.div
                     key={step.step}
-                    initial={{ opacity: 0, x: -18 }}
+                    initial={{ opacity: 0, x: -10 }}
                     whileInView={{ opacity: 1, x: 0 }}
-                    whileHover={{ x: 5 }}
+                    whileHover={{ x: 2 }}
                     viewport={{ once: true, margin: "-80px" }}
                     transition={{ duration: 0.45, ease: [0.22, 1, 0.36, 1] }}
                     className="grid gap-4 rounded-[24px] border border-white/10 bg-white/[0.06] p-5 sm:grid-cols-[72px_minmax(0,1fr)]"
@@ -304,7 +304,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                     loading="lazy"
                     fill
                     sizes="(max-width: 1024px) 100vw, 380px"
-                    className="object-cover transition-transform duration-700 group-hover:scale-105"
+                    className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
                   />
                   <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/0 to-transparent" />
                 </div>
@@ -427,7 +427,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
               loading="lazy"
               fill
               sizes="100vw"
-              className="object-cover transition-transform duration-700 group-hover:scale-105"
+              className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
             />
             <div className="absolute inset-0 bg-[linear-gradient(90deg,rgba(12,9,7,0.88),rgba(12,9,7,0.45),rgba(12,9,7,0.16)),linear-gradient(180deg,rgba(12,9,7,0.12),rgba(12,9,7,0.78))]" />
             <div className="relative flex min-h-[520px] max-w-3xl flex-col justify-end px-6 py-10 sm:px-12 lg:px-16">

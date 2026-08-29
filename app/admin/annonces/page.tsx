@@ -315,7 +315,7 @@ export default function AdminListingsPage() {
 
   return (
     <div className="space-y-8 max-w-7xl mx-auto">
-      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative">
+      <div className="bg-white p-8 sm:p-10 rounded-[40px] border border-neutral-100 shadow-sm relative overflow-hidden">
         <div className="flex items-center justify-between mb-8">
           <div className="flex items-center gap-4">
             <h2 className="text-2xl font-bold text-neutral-900 tracking-tight">
@@ -340,7 +340,7 @@ export default function AdminListingsPage() {
               contentRadius="32px"
             >
               <ExpandableScreenTrigger>
-                <div className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 cursor-pointer">
+                <div className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.985] cursor-pointer">
                   <PlusIcon size={20} weight="bold" />
                   <span>Nouveau Bien</span>
                 </div>
@@ -367,14 +367,11 @@ export default function AdminListingsPage() {
         <AnimatePresence initial={false}>
           {isFiltersVisible && (
             <motion.div
-              initial={{ height: 0, opacity: 0, overflow: "hidden" }}
-              animate={{
-                height: "auto",
-                opacity: 1,
-                transitionEnd: { overflow: "visible" },
-              }}
-              exit={{ height: 0, opacity: 0, overflow: "hidden" }}
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: "auto", opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
               transition={{ duration: 0.4, ease: [0.23, 1, 0.32, 1] }}
+              className="overflow-hidden"
             >
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8 pt-2">
                 <div className="space-y-3">
@@ -568,9 +565,9 @@ function FilterSelect({
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
               className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 max-h-[300px] overflow-y-auto"
             >
               <button

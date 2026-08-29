@@ -111,7 +111,7 @@ export default function AboutPage() {
                 loading="lazy"
                 fill
                 sizes="(max-width: 1024px) 100vw, 620px"
-                className="object-cover transition-transform duration-700 group-hover:scale-105"
+                className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
             </ImagePanel>
@@ -140,7 +140,7 @@ export default function AboutPage() {
                 alt="Quartier résidentiel à Ouagadougou"
                 fill
                 sizes="(max-width: 1024px) 100vw, 560px"
-                className="object-cover transition-transform duration-700 group-hover:scale-105"
+                className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/45 via-transparent to-transparent" />
             </ImagePanel>

@@ -123,14 +123,14 @@ export default function TutorialsPage() {
                 const primary = tutorial.videos.horizontal.alimata;
 
                 return (
-                  <article key={tutorial.slug} className="group overflow-hidden rounded-[32px] border border-[#eadbc9] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+                  <article key={tutorial.slug} className="group overflow-hidden rounded-[32px] border border-[#eadbc9] bg-white shadow-sm transition hover:shadow-xl">
                     <div className="relative aspect-video overflow-hidden bg-neutral-900">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
                       <img
                         src={getYouTubeThumbnail(primary.id)}
                         alt={`Aperçu vidéo : ${tutorial.title}`}
                         loading="lazy"
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.015]"
                       />
                       <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
                       <div className="absolute bottom-5 left-5 inline-flex items-center gap-2 rounded-full bg-black/75 px-4 py-2 text-sm font-bold text-white backdrop-blur">

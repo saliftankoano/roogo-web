@@ -190,12 +190,12 @@ export default function PropertyOpenHouseManager({
             {!isAdding && (
               <button
                 onClick={() => setIsAdding(true)}
-                className="p-3.5 bg-primary text-white rounded-2xl shadow-xl shadow-primary/30 hover:scale-110 active:scale-95 transition-all group"
+                className="p-3.5 bg-primary text-white rounded-2xl shadow-xl shadow-primary/30 active:scale-[0.985] transition-all group"
               >
                 <PlusIcon
                   size={22}
                   weight="bold"
-                  className="group-hover:rotate-90 transition-transform duration-300"
+                  className="transition-colors duration-200"
                 />
               </button>
             )}
@@ -206,9 +206,9 @@ export default function PropertyOpenHouseManager({
               {isAdding ? (
                 <motion.div
                   key="adding"
-                  initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                  initial={{ opacity: 0, scale: 0.985, y: 8 }}
                   animate={{ opacity: 1, scale: 1, y: 0 }}
-                  exit={{ opacity: 0, scale: 0.95, y: -10 }}
+                  exit={{ opacity: 0, scale: 0.985, y: -8 }}
                   className="space-y-6 bg-neutral-50/50 p-8 rounded-[32px] border border-neutral-100 backdrop-blur-sm"
                 >
                   <div className="space-y-6">
@@ -317,14 +317,14 @@ export default function PropertyOpenHouseManager({
                   <div className="flex flex-col sm:flex-row gap-3 pt-2">
                     <button
                       onClick={() => setIsAdding(false)}
-                      className="flex-1 py-4 bg-white border border-neutral-100 text-neutral-500 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-95 order-2 sm:order-1 shadow-sm"
+                      className="flex-1 py-4 bg-white border border-neutral-100 text-neutral-500 rounded-2xl font-bold text-xs uppercase tracking-widest hover:bg-neutral-50 transition-all active:scale-[0.985] order-2 sm:order-1 shadow-sm"
                     >
                       Annuler
                     </button>
                     <button
                       onClick={handleConfirmAdd}
                       disabled={isSubmitting || !directions.trim() || !latitude || !longitude}
-                      className="flex-1 py-4 bg-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-95 transition-all disabled:opacity-50 order-1 sm:order-2"
+                      className="flex-1 py-4 bg-primary text-white rounded-2xl font-bold text-xs uppercase tracking-widest shadow-xl shadow-primary/20 active:scale-[0.985] transition-all disabled:opacity-50 order-1 sm:order-2"
                     >
                       {isSubmitting ? "En cours..." : "Confirmer"}
                     </button>
@@ -363,7 +363,7 @@ export default function PropertyOpenHouseManager({
                       >
                         <div className="space-y-4">
                           <div className="flex items-center gap-4 text-neutral-900">
-                            <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm text-primary group-hover:scale-110 transition-transform duration-500">
+                            <div className="w-10 h-10 rounded-2xl bg-white flex items-center justify-center shadow-sm text-primary transition-colors duration-200 group-hover:bg-primary/5">
                               <ClockIcon size={20} weight="bold" />
                             </div>
                             <div className="flex flex-col">
@@ -471,9 +471,9 @@ export default function PropertyOpenHouseManager({
             className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.985, opacity: 0, y: 8 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              exit={{ scale: 0.985, opacity: 0, y: 8 }}
               className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl p-10 text-center"
             >
               <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
@@ -506,7 +506,7 @@ export default function PropertyOpenHouseManager({
                 <button
                   onClick={handleAddSlot}
                   disabled={isSubmitting}
-                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 active:scale-[0.985] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
                 >
                   {isSubmitting ? "Confirmation..." : "Confirmer le créneau"}
                 </button>

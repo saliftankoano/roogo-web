@@ -20,6 +20,7 @@ import {
   type PaymentCorrespondent,
   type PaymentCountry,
 } from "@/lib/payment-providers";
+import { roogoMotion } from "@/lib/motion";
 
 interface PropertyPaymentModalProps {
   isOpen: boolean;
@@ -231,10 +232,10 @@ export default function PropertyPaymentModal({
         />
 
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 20 }}
+          initial={{ opacity: 0, scale: 0.985, y: 8 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 20 }}
-          transition={{ type: "spring", damping: 25, stiffness: 300 }}
+          exit={{ opacity: 0, scale: 0.985, y: 8 }}
+          transition={roogoMotion.standard}
           className="relative bg-white rounded-[32px] shadow-2xl w-full max-w-md overflow-hidden"
         >
           {/* Header */}

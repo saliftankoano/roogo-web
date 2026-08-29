@@ -62,7 +62,6 @@ export function PaymentModal({
     } else {
       setPaymentPhone(booking.phone);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, booking.phone]);
 
   useEffect(() => {
@@ -205,13 +204,13 @@ export function PaymentModal({
         />
 
         <motion.div
-          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 40, scale: 0.97 }}
+          initial={reduce ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.985 }}
           animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={reduce ? { opacity: 0 } : { opacity: 0, y: 40, scale: 0.97 }}
+          exit={reduce ? { opacity: 0 } : { opacity: 0, y: 8, scale: 0.985 }}
           transition={
             reduce
               ? { duration: 0.12 }
-              : { type: "spring", damping: 25, stiffness: 300 }
+              : { duration: 0.26, ease: [0.22, 1, 0.36, 1] }
           }
           className="relative w-full overflow-hidden rounded-t-[28px] bg-white shadow-2xl md:max-w-md md:rounded-[28px]"
         >

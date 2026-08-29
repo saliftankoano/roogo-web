@@ -145,7 +145,7 @@ export default function BlogPage() {
 
             <div className="mt-10 grid gap-8 lg:grid-cols-2">
               {blogPosts.map((post) => (
-                <article key={post.slug} className="group overflow-hidden rounded-[30px] border border-[#eadbc9] bg-white shadow-sm transition hover:-translate-y-1 hover:shadow-xl">
+                <article key={post.slug} className="group overflow-hidden rounded-[30px] border border-[#eadbc9] bg-white shadow-sm transition hover:shadow-xl">
                   <Link href={post.href} className="block">
                     <div className="relative aspect-video overflow-hidden bg-neutral-900">
                       {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -153,7 +153,7 @@ export default function BlogPage() {
                         src={post.thumbnailUrl}
                         alt={`Aperçu de l'article : ${post.title}`}
                         loading="lazy"
-                        className="h-full w-full object-cover transition duration-500 group-hover:scale-[1.03]"
+                        className="h-full w-full object-cover transition duration-300 group-hover:scale-[1.015]"
                       />
                       <span className="absolute left-5 top-5 rounded-full bg-white/95 px-4 py-2 text-xs font-black uppercase tracking-[0.12em] text-primary shadow-sm">
                         {post.category.name}

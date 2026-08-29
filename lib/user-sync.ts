@@ -213,8 +213,16 @@ export async function createUserInSupabase(
       unsafe_metadata?.userType || 
       "renter"; // Default to renter
       
-    // Valid types: 'owner', 'agent', 'renter', 'staff', 'founder'
-    const validUserTypes = ["owner", "agent", "renter", "staff", "founder"];
+    // Keep this aligned with the database constraint. Advertising is an
+    // optional capability, so it must never replace one of these primary roles.
+    const validUserTypes = [
+      "owner",
+      "agent",
+      "renter",
+      "staff",
+      "founder",
+      "hotel",
+    ];
     let userType = rawUserType.toLowerCase();
     
     // Map legacy 'admin' to 'staff' if it comes from old metadata

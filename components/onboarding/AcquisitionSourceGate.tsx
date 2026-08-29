@@ -31,6 +31,7 @@ function isGateExemptPath(pathname: string) {
     pathname.startsWith("/inscription") ||
     pathname.startsWith("/blog") ||
     pathname.startsWith("/tutoriels") ||
+    pathname.startsWith("/mebo") ||
     pathname.startsWith("/admin") ||
     pathname.startsWith("/personnel")
   );

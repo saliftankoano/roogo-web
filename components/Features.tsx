@@ -43,7 +43,7 @@ export function Features() {
         >
           {features.map((feature, index) => (
             <div key={index} className="flex flex-col items-center text-center group p-6 rounded-2xl hover:bg-neutral-50 transition-colors">
-              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 text-primary group-hover:scale-110 transition-transform duration-300">
+              <div className="w-16 h-16 bg-primary/10 rounded-2xl flex items-center justify-center mb-6 text-primary group-hover:bg-primary/15 transition-colors duration-300">
                 <feature.icon size={32} weight="duotone" />
               </div>
               <h3 className="text-xl font-bold text-neutral-900 mb-3">{feature.title}</h3>

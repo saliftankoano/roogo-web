@@ -16,6 +16,7 @@ import {
   ProofStat,
 } from "./marketing/MarketingPrimitives";
 import { marketingAssets } from "./marketing/assets";
+import { roogoMotion } from "@/lib/motion";
 
 export function Hero() {
   const router = useRouter();
@@ -45,9 +46,9 @@ export function Hero() {
         <div className="absolute inset-0">
           <motion.div
             className="absolute inset-0"
-            initial={{ scale: 1.05 }}
+            initial={{ scale: 1.02 }}
             animate={{ scale: 1 }}
-            transition={{ duration: 1.35, ease: [0.22, 1, 0.36, 1] }}
+            transition={roogoMotion.deliberate}
           >
             <MarketingImage
               src={marketingAssets.heroHome.src}
@@ -64,23 +65,22 @@ export function Hero() {
 
         <div className="relative grid min-h-[720px] items-end px-5 pb-8 pt-20 sm:px-10 lg:grid-cols-[minmax(0,1fr)_410px] lg:px-16 lg:pb-14">
           <motion.div
-            initial={{ opacity: 0, y: 28 }}
+            initial={{ opacity: 0, y: 16 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, ease: "easeOut" }}
+            transition={roogoMotion.deliberate}
             className="max-w-4xl"
           >
             <div className="mb-8 flex flex-wrap gap-3 text-[11px] font-black uppercase tracking-[0.18em] text-white/70">
               {trustBadges.map((badge, index) => (
                 <motion.span
                   key={badge}
-                  initial={{ opacity: 0, y: 10 }}
+                  initial={{ opacity: 0, y: 6 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={{
                     delay: 0.12 + index * 0.08,
-                    duration: 0.45,
-                    ease: [0.22, 1, 0.36, 1],
+                    ...roogoMotion.standard,
                   }}
-                  whileHover={{ y: -2, backgroundColor: "rgba(255,255,255,0.16)" }}
+                  whileHover={{ backgroundColor: "rgba(255,255,255,0.16)" }}
                   className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5"
                 >
                   {badge}
@@ -100,10 +100,9 @@ export function Hero() {
             <motion.form
               onSubmit={handleSearch}
               className="mt-10 max-w-3xl rounded-[28px] border border-white/15 bg-white p-2 shadow-2xl shadow-black/30 sm:flex sm:items-center sm:gap-2"
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ y: -2 }}
-              transition={{ duration: 0.75, delay: 0.15, ease: "easeOut" }}
+              transition={{ ...roogoMotion.deliberate, delay: 0.12 }}
             >
               <div className="flex h-16 flex-1 items-center px-4">
                 <MapPinIcon
@@ -138,8 +137,7 @@ export function Hero() {
                   onClick={() =>
                     router.push(`/proprietes?q=${encodeURIComponent(search)}`)
                   }
-                  whileHover={{ y: -2, scale: 1.03 }}
-                  whileTap={{ scale: 0.96 }}
+                  whileTap={{ scale: 0.985 }}
                   className="rounded-full border border-white/15 bg-white/10 px-3 py-1.5 text-white transition-colors hover:bg-white/20"
                 >
                   {search}
@@ -149,9 +147,9 @@ export function Hero() {
           </motion.div>
 
           <motion.aside
-            initial={{ opacity: 0, y: 26 }}
+            initial={{ opacity: 0, y: 12 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.75, delay: 0.25, ease: "easeOut" }}
+            transition={{ ...roogoMotion.deliberate, delay: 0.18 }}
             className="mt-10 hidden rounded-[28px] border border-white/15 bg-black/30 p-5 text-white shadow-2xl shadow-black/25 backdrop-blur-md lg:block"
           >
             <div className="flex items-center gap-3">

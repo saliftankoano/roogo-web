@@ -32,7 +32,7 @@ export function SuccessState({ date, slot }: { date: string; slot: string }) {
           strokeWidth={3}
           initial={reduce ? { pathLength: 1 } : { pathLength: 0 }}
           animate={{ pathLength: 1 }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+          transition={{ duration: 0.42, ease: "easeOut" }}
         />
         <motion.path
           d="M20 33 L29 42 L46 24"

@@ -42,6 +42,15 @@ export const authLimiter = redis
     })
   : null;
 
+export const advertisingProofUploadLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(6, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:advertising-proof-upload",
+    })
+  : null;
+
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,

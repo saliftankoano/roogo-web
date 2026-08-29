@@ -310,7 +310,7 @@ export default function AdminSettingsPage() {
       <Tabs defaultValue="pricing" className="space-y-8">
         {/* Visual Formula Header */}
         <div className="bg-blue-600 rounded-4xl p-8 text-white shadow-xl shadow-blue-200/50 relative overflow-hidden group">
-          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-110 transition-transform duration-500">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:scale-[1.015] transition-transform duration-300">
             <CalculatorIcon size={120} weight="fill" />
           </div>
           <div className="relative z-10 space-y-4">

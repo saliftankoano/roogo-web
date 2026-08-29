@@ -47,17 +47,17 @@ export function UserTypeStep({ onNext, initialType }: UserTypeStepProps) {
     <div className="space-y-8 w-full max-w-lg">
       <div className="space-y-3">
         <motion.h2
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+          transition={{ delay: 0.08, duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           className="text-3xl font-bold text-white tracking-tight"
         >
           Quel est votre profil ?
         </motion.h2>
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45, duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+          transition={{ delay: 0.12, duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
           className="text-neutral-400 leading-relaxed"
         >
           Choisissez comment vous souhaitez utiliser Roogo.
@@ -72,7 +72,7 @@ export function UserTypeStep({ onNext, initialType }: UserTypeStepProps) {
         ].map((type, idx) => (
           <motion.button
             key={type.id}
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -10 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.6 + idx * 0.1, duration: 0.5 }}
             onClick={() => handleSelect(type.id)}
@@ -99,16 +99,16 @@ export function UserTypeStep({ onNext, initialType }: UserTypeStepProps) {
       </div>
 
       <motion.div
-        initial={{ opacity: 0, y: 20, scale: 0.9 }}
+        initial={{ opacity: 0, y: 10, scale: 0.985 }}
         animate={{ opacity: 1, y: 0, scale: 1 }}
-        transition={{ delay: 1.1, duration: 0.7, ease: [0.25, 0.1, 0.25, 1] }}
+        transition={{ delay: 0.18, duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
       >
         <Button
           onClick={handleContinue}
           disabled={!selectedType || isLoading}
           variant="primary"
           size="lg"
-          className="w-full h-14 rounded-xl font-bold text-lg shadow-lg transition-all hover:scale-[1.02] active:scale-[0.98]"
+          className="w-full h-14 rounded-xl font-bold text-lg shadow-lg transition-all active:scale-[0.985]"
         >
           {isLoading ? "Chargement..." : "Continuer"}
         </Button>
