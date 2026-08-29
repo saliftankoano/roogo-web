@@ -3,6 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
+import { isHotelFinanceAdmin } from "@/lib/hotel-auth";
 
 const FALLBACK_OPTIONS = [
   {
@@ -66,7 +67,10 @@ export async function GET(req: Request) {
 
     const user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) return errorResponse("User not found", 404, req);
-    if (!["owner", "agent", "staff", "founder"].includes(user.user_type)) {
+    const canUseWallet =
+      ["owner", "agent", "staff", "founder"].includes(user.user_type) ||
+      (user.user_type === "hotel" && (await isHotelFinanceAdmin(user.id)));
+    if (!canUseWallet) {
       return errorResponse("Forbidden", 403, req);
     }
 

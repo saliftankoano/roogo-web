@@ -40,6 +40,11 @@ export async function getMembershipsForUser(
   }));
 }
 
+export async function isHotelFinanceAdmin(userId: string): Promise<boolean> {
+  const memberships = await getMembershipsForUser(userId);
+  return memberships.some((membership) => membership.role === "admin");
+}
+
 export async function getHotelMembershipForProperty(
   userId: string,
   propertyId: string,

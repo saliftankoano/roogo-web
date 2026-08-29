@@ -3,6 +3,7 @@ import { verifyToken } from "@clerk/backend";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
+import { getMembershipsForUser, isHotelFinanceAdmin } from "@/lib/hotel-auth";
 
 const ZERO_SUMMARY = {
   grossRentEarned: 0,
@@ -40,8 +41,29 @@ export async function GET(req: Request) {
 
     const user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) return errorResponse("User not found", 404, req);
-    if (!["owner", "agent", "staff", "founder"].includes(user.user_type)) {
+    const canUseWallet =
+      ["owner", "agent", "staff", "founder"].includes(user.user_type) ||
+      (user.user_type === "hotel" && (await isHotelFinanceAdmin(user.id)));
+    if (!canUseWallet) {
       return errorResponse("Forbidden", 403, req);
+    }
+
+    let hotelPayoutSettings: {
+      payout_phone: string | null;
+      payout_provider: string | null;
+    } | null = null;
+    if (user.user_type === "hotel") {
+      const membership = (await getMembershipsForUser(user.id)).find(
+        (entry) => entry.role === "admin",
+      );
+      if (membership) {
+        const { data } = await supabaseAdmin
+          .from("hotels")
+          .select("payout_phone, payout_provider")
+          .eq("id", membership.hotelId)
+          .maybeSingle();
+        hotelPayoutSettings = data;
+      }
     }
 
     const { data: summaryRow } = await supabaseAdmin
@@ -215,8 +237,9 @@ export async function GET(req: Request) {
       NextResponse.json({
         summary,
         owner: {
-          phone: user.phone || null,
+          phone: hotelPayoutSettings?.payout_phone || user.phone || null,
           whatsapp: user.whatsapp || null,
+          payoutProvider: hotelPayoutSettings?.payout_provider || null,
         },
         availableEarnings,
         earnings: hydratedEarnings,
