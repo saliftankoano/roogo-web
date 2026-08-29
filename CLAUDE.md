@@ -232,4 +232,4 @@ No Clerk tokens, PawaPay API keys, Supabase service keys, or raw user PII in `co
 
 ## Project logbook
 
-Product memory lives in `docs/DECISIONS.md` (why), `docs/SYSTEM.md` (how it works), and `docs/CHANGELOG.md` (what shipped, when). After any non-obvious decision, answered conceptual question, or shipped feature/fix, use the `logbook` skill to record it.
+Product memory lives in `docs/DECISIONS.md` (why), `docs/SYSTEM.md` (how it works), `docs/CHANGELOG.md` (what shipped, when), `docs/DOMAIN.md` (project language), and `docs/ROADMAP.md` (accepted future commitments). After any non-obvious decision, answered conceptual question, shipped feature/fix, newly coined or clarified domain term, or accepted future commitment, use the `logbook` skill to record it.

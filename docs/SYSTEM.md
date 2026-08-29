@@ -1,10 +1,75 @@
-# Concepts
+# System
 
 Reference answers to "how does X work" questions worth keeping. Organized by topic,
 not dated. For the reasoning behind these, see [`DECISIONS.md`](./DECISIONS.md); for
 what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
+
+## How does Mebo share Roogo Web without becoming the immobilier site?
+
+**Bottom line:** the request host selects a product context before the shared
+application shell renders. Mebo reuses Roogo identity, data, deployment, and API
+infrastructure, while its host receives Mebo routes, metadata, navigation, and
+authentication configuration instead of the immobilier experience.
+
+`lib/site-context.ts` normalizes forwarded hosts and classifies each request as
+`immobilier` or `mebo`. On `roogomebo.com`, middleware rewrites Mebo public paths
+to their internal `/mebo` implementations, and the root layout configures Clerk
+as a production satellite. `NavHandler` selects the Mebo header, while the
+immobilier JSON-LD, navbar, acquisition-source gate, and profile-name gate stay
+out of the Mebo shell. Direct `/mebo` routes remain available for local and
+deployment-preview testing.
+
+Advertiser onboarding reuses the authenticated Supabase user but stores a
+separate advertiser profile and business proof. Draft profiles may be saved and
+resubmitted after changes or rejection; pending, approved, and suspended states
+block unsafe edits. Submission requires all business fields plus a non-rejected
+proof. Proof can be an allowed external URL or a validated PDF/image uploaded
+through a signed slot into the private `advertiser-proofs` bucket. The public
+rollout is controlled by `ADVERTISING_ONBOARDING_ENABLED`; staff and founders
+retain access for controlled testing.
+
+```mermaid
+flowchart LR
+    H[Request host] --> C{Site context}
+    C -->|roogobf.com| I[Immobilier shell and gates]
+    C -->|roogomebo.com| M[Mebo shell and Clerk satellite]
+    M --> A{Onboarding access}
+    A -->|Flag enabled| P[Advertiser profile and proof]
+    A -->|Staff or founder| P
+    A -->|Otherwise| X[Access stopped]
+    P --> D[Draft]
+    D -->|Complete profile + proof| R[Pending review]
+```
+
+The diagram intentionally stops at pending review: it describes the shipped
+host and advertiser-submission foundation, not a future review console or ad
+delivery lifecycle.
+
+See the [Mebo site-context decision](./DECISIONS.md#mebo-is-a-host-aware-roogo-surface-with-gated-advertiser-onboarding--2026-08-29).
+
+## How do admin listing filters compose?
+
+**Bottom line:** every filter represents one independent property dimension,
+and a listing must match all active dimensions. Keyword and location filter
+descriptive data; property type filters physical shape; category separates
+residential from commercial inventory; listing type separates rentals from
+sales.
+
+The admin properties API returns `listingType`, `propertyType`, and `category`.
+Commercial property types map to `Business`; other supported types map to
+`Residential`. The page never derives sale/rental intent from formatted prices,
+and selecting `Locations` or `À vendre` compares the underlying `listingType`
+directly. Missing legacy listing types retain the rental fallback used elsewhere
+in the admin surface.
+
+The filter card's expand/collapse animation hides overflow only while its height
+is changing. Once expanded, overflow becomes visible so absolutely positioned
+dropdowns can escape the animated wrapper. This is why increasing a menu's
+`z-index` is not the fix for a clipped menu.
+
+See the [filter-taxonomy decision](./DECISIONS.md#listing-intent-property-shape-and-audience-category-stay-separate-in-admin-filters--2026-08-29).
 
 ## How does motion work across Roogo Web?
 

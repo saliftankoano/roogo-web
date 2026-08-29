@@ -7,6 +7,83 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Listing intent, property shape, and audience category stay separate in admin filters — 2026-08-29
+
+**Decision:** The admin listings page filters rental versus sale intent with a
+dedicated `Type d'annonce` control sourced from `listing_type`. Property shape
+(`maison`, `villa`, `terrain`, and similar values) and audience category
+(`Residential` or `Business`) remain independent filters. The admin API emits
+the category from `property_type`, and expandable filter panels expose dropdown
+overlays only after their height animation completes.
+
+**Why:** Rental/sale intent disappeared when the page treated the remaining
+property-type dropdown as if it covered every classification. At the same time,
+the client overwrote every category as residential and an animated
+`overflow-hidden` wrapper clipped otherwise-functional dropdown menus. Keeping
+the three dimensions explicit makes combined filtering predictable and keeps
+presentation motion from changing control behavior.
+
+**Ruled out / alternatives:** Inferring rental versus sale from price suffixes
+was rejected because display copy is not source data; folding sale/rental into
+property type was rejected because a villa can be either; raising dropdown
+`z-index` alone was rejected because descendants cannot escape a clipping
+ancestor.
+
+**Status:** Settled and shipped in
+[PR #16](https://github.com/saliftankoano/roogo-web/pull/16). See
+[how the admin filters compose](./SYSTEM.md#how-do-admin-listing-filters-compose).
+
+### Mebo is a host-aware Roogo surface with gated advertiser onboarding — 2026-08-29
+
+**Decision:** Roogo Mebo shares the Roogo Web deployment, accounts, and backend,
+but host detection gives it its own shell, metadata, navigation, and onboarding
+context. Production Mebo authentication uses Clerk satellite configuration.
+Advertiser profile and proof APIs remain behind
+`ADVERTISING_ONBOARDING_ENABLED`, with staff and founders allowed through for
+controlled testing.
+
+**Why:** Mebo needs a distinct advertising-marketplace identity without
+duplicating authentication, deployment, or user records. A feature gate lets the
+team validate business profiles, private evidence storage, and lifecycle rules
+before exposing unfinished onboarding broadly.
+
+**Ruled out / alternatives:** A separate application and account system was
+rejected because it would duplicate identity and platform infrastructure;
+showing the immobilier shell on the Mebo host was rejected because it confuses
+the product promise; unrestricted public onboarding was rejected until the
+operational review path is ready; direct staff writes to advertiser tables were
+removed in favor of the same guarded APIs.
+
+**Status:** Settled. The Mebo landing surface, host routing, profile/proof APIs,
+and staff/founder test access shipped in
+[PR #15](https://github.com/saliftankoano/roogo-web/pull/15); broad advertiser
+onboarding remains controlled by the feature flag. See
+[how Mebo shares the platform](./SYSTEM.md#how-does-mebo-share-roogo-web-without-becoming-the-immobilier-site).
+
+### Staff may bootstrap a missing ownership dossier only for the real seller's sale — 2026-08-29
+
+**Decision:** On an owner-linked sale whose ownership status is `unsubmitted` or
+`rejected`, staff and founders may create or reuse one pending ownership dossier
+for that property and seller, then add private evidence to it. The dossier cannot
+be approved while empty, and creating it does not add files to the public listing
+gallery or make the staff member the owner.
+
+**Why:** Sellers such as older or offline customers may hand documents directly
+to Roogo without ever completing the mobile submission step. Requiring a
+seller-created dossier left staff with nowhere safe to put legitimate evidence;
+bootstrapping the same canonical review object preserves the ownership chain and
+one auditable decision.
+
+**Ruled out / alternatives:** Uploading the document as a listing image was
+rejected because ownership evidence is private; assigning the sale to the staff
+member was rejected because operational help is not ownership; approving an
+empty placeholder dossier was rejected because a status alone is not evidence.
+
+**Status:** Settled and shipped in
+[PR #14](https://github.com/saliftankoano/roogo-web/pull/14). This extends the
+earlier staff-upload decision below; see
+[how staff adds ownership evidence](./SYSTEM.md#how-does-staff-add-ownership-evidence-to-a-review).
+
 ### Motion explains state changes instead of decorating the interface — 2026-08-29
 
 **Decision:** Roogo uses one restrained motion grammar across public, account,
@@ -26,14 +103,37 @@ stack already covers route, layout, and interaction feedback; removing all
 motion was rejected because navigation and state changes still benefit from a
 brief orientation signal.
 
-**Status:** Settled. The shared implementation is verified locally and awaits
-deployment. The follow-up audit also covered discovery, property detail, account,
+**Status:** Settled and shipped in
+[PR #15](https://github.com/saliftankoano/roogo-web/pull/15). The follow-up audit
+also covered discovery, property detail, account,
 careers, contact, onboarding, payment, and 3D-visit surfaces. See [how the motion
 system works](./SYSTEM.md#how-does-motion-work-across-roogo-web). A second exhaustive
 pass included all staff routes, blog/tutorial/legal/auth routes through the root
 provider, Mebo, Tailwind transform utilities, validation motion, and shared UI.
 The baseline is now executable through `npm run motion:audit` and runs before every
 production build, preventing future routes or components from silently drifting.
+
+### Tutorials live in the public Blog, not behind onboarding — 2026-08-28
+
+**Decision:** Roogo's educational guides use canonical `/blog/<slug>` URLs, with
+Tutoriels as the first Blog category. Articles, category pages, videos, and
+structured data come from shared content records; legacy `/tutoriels` URLs
+redirect permanently. Blog routes remain public and bypass profile-completion and
+acquisition-source gates.
+
+**Why:** Owners need help before and during signup and listing creation. Hiding
+instructions behind the workflow they explain defeats that purpose, while a
+single Blog structure can grow beyond tutorials without creating competing
+content systems or duplicate SEO pages.
+
+**Ruled out / alternatives:** Keeping a standalone tutorial microsite was
+rejected because it fragments discovery and metadata; duplicating article
+implementations under both URL families was rejected because content and
+analytics would drift; requiring completed onboarding was rejected because
+prospective and blocked users are a primary audience for help.
+
+**Status:** Settled and shipped in
+[PR #13](https://github.com/saliftankoano/roogo-web/pull/13).
 
 ### Staff-added ownership evidence stays on the pending seller submission — 2026-08-19
 
