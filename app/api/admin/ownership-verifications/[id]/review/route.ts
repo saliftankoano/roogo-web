@@ -7,6 +7,7 @@ type OwnershipSubmissionForReview = {
   id: string;
   property_id: string;
   user_id: string;
+  documents: unknown;
   status: string;
 };
 
@@ -47,7 +48,7 @@ export async function POST(
 
     const { data: submission, error: loadError } = await supabaseAdmin
       .from("property_ownership_submissions")
-      .select("id, property_id, user_id, status")
+      .select("id, property_id, user_id, documents, status")
       .eq("id", id)
       .maybeSingle<OwnershipSubmissionForReview>();
 
@@ -61,6 +62,15 @@ export async function POST(
     if (submission.status !== "pending") {
       return NextResponse.json(
         { error: "This submission has already been reviewed" },
+        { status: 409 },
+      );
+    }
+    if (
+      decision === "approve" &&
+      (!Array.isArray(submission.documents) || submission.documents.length === 0)
+    ) {
+      return NextResponse.json(
+        { error: "Ajoutez au moins un document avant d'approuver le dossier." },
         { status: 409 },
       );
     }

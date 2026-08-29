@@ -1,12 +1,14 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import {
   CheckCircleIcon,
   ClockIcon,
+  FilePdfIcon,
   HouseLineIcon,
   SealCheckIcon,
+  UploadSimpleIcon,
   XCircleIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
@@ -31,6 +33,11 @@ type OwnershipProperty = {
   ownership_verification_status: string;
 };
 
+type OwnershipCandidate = OwnershipProperty & {
+  agent_id: string;
+  seller: OwnershipUser | null;
+};
+
 type OwnershipSubmission = {
   id: string;
   property_id: string;
@@ -45,8 +52,41 @@ type OwnershipSubmission = {
 };
 
 type OwnershipDetail = OwnershipSubmission & {
-  documents: { label: string; storage_path: string; url: string | null }[];
+  documents: OwnershipDocument[];
 };
+
+type OwnershipDocument = {
+  label: string;
+  storage_path: string;
+  url: string | null;
+  file_name?: string;
+  mime_type?: string;
+  size_bytes?: number;
+  source?: "seller" | "staff";
+};
+
+type PreparedUpload = {
+  body: Blob;
+  file_name: string;
+  label: string;
+  mime_type: string;
+  size_bytes: number;
+};
+
+const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+const MAX_UPLOAD_FILES = 10;
+
+const fileMimeByExtension: Record<string, string> = {
+  pdf: "application/pdf",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  png: "image/png",
+  webp: "image/webp",
+  heic: "image/heic",
+  heif: "image/heif",
+};
+
+const supportedInputMimeTypes = new Set(Object.values(fileMimeByExtension));
 
 const statusTabs = [
   { value: "pending", label: "En attente" },
@@ -93,6 +133,88 @@ function propertyLabel(property: OwnershipProperty | null) {
   return `${property.property_type} · ${property.quartier}, ${property.city}`;
 }
 
+function extensionFromName(fileName: string) {
+  return fileName.split(".").pop()?.toLowerCase() ?? "";
+}
+
+function getInputMimeType(file: File) {
+  return file.type.toLowerCase() || fileMimeByExtension[extensionFromName(file.name)] || "";
+}
+
+function labelFromFileName(fileName: string) {
+  return fileName.replace(/\.[^.]+$/, "").trim() || "Document";
+}
+
+function replaceExtension(fileName: string, extension: string) {
+  const base = fileName.replace(/\.[^.]+$/, "").trim() || "document";
+  return `${base}.${extension}`;
+}
+
+function base64ToBlob(base64: string, mimeType: string) {
+  const binary = window.atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index += 1) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+async function prepareUpload(file: File): Promise<PreparedUpload> {
+  const inputMimeType = getInputMimeType(file);
+  const isImage = inputMimeType.startsWith("image/");
+
+  if (!supportedInputMimeTypes.has(inputMimeType)) {
+    throw new Error(
+      `« ${file.name} » n'est pas pris en charge. Utilisez PDF, JPG, PNG ou WebP.`,
+    );
+  }
+  if (file.size < 1 || file.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`« ${file.name} » dépasse la limite de 10 Mo.`);
+  }
+
+  if (!isImage) {
+    return {
+      body: file,
+      file_name: file.name,
+      label: labelFromFileName(file.name),
+      mime_type: "application/pdf",
+      size_bytes: file.size,
+    };
+  }
+
+  const { compressImageToBase64 } = await import("@/lib/clientImageCompression");
+  const compressed = await compressImageToBase64(file);
+  const outputMimeType = fileMimeByExtension[compressed.ext] || "";
+  if (!["image/jpeg", "image/png", "image/webp"].includes(outputMimeType)) {
+    throw new Error(`Impossible de convertir « ${file.name} » en image compatible.`);
+  }
+
+  const body = base64ToBlob(compressed.data, outputMimeType);
+  if (body.size < 1 || body.size > MAX_UPLOAD_BYTES) {
+    throw new Error(`« ${file.name} » dépasse 10 Mo après optimisation.`);
+  }
+
+  const extension = outputMimeType === "image/jpeg" ? "jpg" : compressed.ext;
+  return {
+    body,
+    file_name: replaceExtension(file.name, extension),
+    label: labelFromFileName(file.name),
+    mime_type: outputMimeType,
+    size_bytes: body.size,
+  };
+}
+
+function isImageDocument(document: OwnershipDocument) {
+  if (document.mime_type) return document.mime_type.startsWith("image/");
+  return /\.(jpe?g|png|webp)$/i.test(document.storage_path);
+}
+
+function formatFileSize(value?: number) {
+  if (!value || value < 1) return null;
+  if (value < 1024 * 1024) return `${Math.ceil(value / 1024)} Ko`;
+  return `${(value / (1024 * 1024)).toFixed(1)} Mo`;
+}
+
 export default function AdminOwnershipVerificationsPage() {
   const [status, setStatus] = useState("pending");
   const [submissions, setSubmissions] = useState<OwnershipSubmission[]>([]);
@@ -104,6 +226,15 @@ export default function AdminOwnershipVerificationsPage() {
   const [reason, setReason] = useState("");
   const [notes, setNotes] = useState("");
   const [error, setError] = useState("");
+  const [uploading, setUploading] = useState(false);
+  const [showAssistedCreate, setShowAssistedCreate] = useState(false);
+  const [candidateLoading, setCandidateLoading] = useState(false);
+  const [candidates, setCandidates] = useState<OwnershipCandidate[]>([]);
+  const [candidateSearch, setCandidateSearch] = useState("");
+  const [selectedCandidateId, setSelectedCandidateId] = useState("");
+  const [creatingAssisted, setCreatingAssisted] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const assistedFileInputRef = useRef<HTMLInputElement>(null);
 
   async function loadSubmissions(nextStatus = status) {
     setLoading(true);
@@ -167,6 +298,77 @@ export default function AdminOwnershipVerificationsPage() {
     [selectedId, submissions],
   );
 
+  const filteredCandidates = useMemo(() => {
+    const search = candidateSearch
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .toLowerCase()
+      .trim();
+    if (!search) return candidates;
+
+    return candidates.filter((property) =>
+      [
+        property.quartier,
+        property.city,
+        property.property_type,
+        property.seller?.full_name,
+        property.seller?.email,
+        property.seller?.phone,
+      ]
+        .filter(Boolean)
+        .join(" ")
+        .normalize("NFD")
+        .replace(/[\u0300-\u036f]/g, "")
+        .toLowerCase()
+        .includes(search),
+    );
+  }, [candidateSearch, candidates]);
+
+  useEffect(() => {
+    if (
+      selectedCandidateId &&
+      filteredCandidates.some((property) => property.id === selectedCandidateId)
+    ) {
+      return;
+    }
+    setSelectedCandidateId(filteredCandidates[0]?.id ?? "");
+  }, [filteredCandidates, selectedCandidateId]);
+
+  async function loadCandidates() {
+    setCandidateLoading(true);
+    setError("");
+    try {
+      const res = await fetch(
+        "/api/admin/ownership-verifications?mode=candidates",
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(
+          data.error || "Impossible de charger les ventes sans dossier.",
+        );
+      }
+      const nextCandidates = (data.properties ?? []) as OwnershipCandidate[];
+      setCandidates(nextCandidates);
+      setSelectedCandidateId((current) =>
+        nextCandidates.some((property) => property.id === current)
+          ? current
+          : (nextCandidates[0]?.id ?? ""),
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Erreur inconnue");
+    } finally {
+      setCandidateLoading(false);
+    }
+  }
+
+  async function openAssistedCreate() {
+    const nextOpen = !showAssistedCreate;
+    setShowAssistedCreate(nextOpen);
+    if (nextOpen && candidates.length === 0) {
+      await loadCandidates();
+    }
+  }
+
   async function submitReview(decision: "approve" | "reject") {
     if (!selectedId) return;
     setReviewing(decision);
@@ -188,6 +390,171 @@ export default function AdminOwnershipVerificationsPage() {
       setError(err instanceof Error ? err.message : "Erreur inconnue");
     } finally {
       setReviewing(null);
+    }
+  }
+
+  async function attachPreparedDocuments(
+    submissionId: string,
+    prepared: PreparedUpload[],
+  ) {
+    const slotResponse = await fetch(
+      `/api/admin/ownership-verifications/${submissionId}/documents/upload-url`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          files: prepared.map((file) => ({
+            file_name: file.file_name,
+            mime_type: file.mime_type,
+            size_bytes: file.size_bytes,
+          })),
+        }),
+      },
+    );
+    const slotData = await slotResponse.json().catch(() => ({}));
+    if (!slotResponse.ok) {
+      throw new Error(slotData.error || "Impossible de préparer les fichiers.");
+    }
+
+    await Promise.all(
+      prepared.map(async (file, index) => {
+        const upload = slotData.uploads?.[index];
+        if (!upload?.signed_url) {
+          throw new Error("Lien de téléversement manquant.");
+        }
+        const response = await fetch(upload.signed_url, {
+          method: "PUT",
+          headers: { "Content-Type": file.mime_type },
+          body: file.body,
+        });
+        if (!response.ok) {
+          const responseDetail = await response.text().catch(() => "");
+          throw new Error(
+            `Échec du téléversement de « ${file.file_name} » (${response.status}${responseDetail ? ` : ${responseDetail}` : ""}).`,
+          );
+        }
+      }),
+    );
+
+    const attachResponse = await fetch(
+      `/api/admin/ownership-verifications/${submissionId}/documents`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          documents: prepared.map((file, index) => ({
+            label: file.label,
+            storage_path: slotData.uploads[index].path,
+            file_name: file.file_name,
+            mime_type: file.mime_type,
+            size_bytes: file.size_bytes,
+          })),
+        }),
+      },
+    );
+    const attachData = await attachResponse.json().catch(() => ({}));
+    if (!attachResponse.ok) {
+      throw new Error(
+        attachData.error || "Impossible d'ajouter les fichiers à la soumission.",
+      );
+    }
+
+    return (attachData.documents ?? []) as OwnershipDocument[];
+  }
+
+  async function uploadDocuments(event: React.ChangeEvent<HTMLInputElement>) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!selectedId || files.length === 0) return;
+
+    if (files.length > MAX_UPLOAD_FILES) {
+      setError("Vous pouvez ajouter 10 fichiers à la fois maximum.");
+      return;
+    }
+    if ((detail?.documents.length ?? 0) + files.length > 20) {
+      setError("Une soumission ne peut pas contenir plus de 20 fichiers.");
+      return;
+    }
+
+    setUploading(true);
+    setError("");
+    try {
+      const prepared: PreparedUpload[] = [];
+      for (const file of files) {
+        prepared.push(await prepareUpload(file));
+      }
+      const documents = await attachPreparedDocuments(selectedId, prepared);
+
+      setDetail((current) =>
+        current ? { ...current, documents } : current,
+      );
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Téléversement impossible");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  async function createAssistedSubmission(
+    event: React.ChangeEvent<HTMLInputElement>,
+  ) {
+    const files = Array.from(event.target.files ?? []);
+    event.target.value = "";
+    if (!selectedCandidateId || files.length === 0) return;
+
+    if (files.length > MAX_UPLOAD_FILES) {
+      setError("Vous pouvez ajouter 10 fichiers à la fois maximum.");
+      return;
+    }
+
+    let createdSubmissionId = "";
+    setCreatingAssisted(true);
+    setError("");
+    try {
+      const prepared: PreparedUpload[] = [];
+      for (const file of files) {
+        prepared.push(await prepareUpload(file));
+      }
+
+      const createResponse = await fetch("/api/admin/ownership-verifications", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: selectedCandidateId }),
+      });
+      const createData = await createResponse.json().catch(() => ({}));
+      createdSubmissionId = createData.submission?.id || "";
+      if (!createResponse.ok || !createdSubmissionId) {
+        throw new Error(
+          createData.error || "Impossible de créer le dossier de vérification.",
+        );
+      }
+
+      await attachPreparedDocuments(createdSubmissionId, prepared);
+
+      setStatus("pending");
+      await loadSubmissions("pending");
+      setSelectedId(createdSubmissionId);
+      setShowAssistedCreate(false);
+      setCandidateSearch("");
+      setCandidates((current) =>
+        current.filter((property) => property.id !== selectedCandidateId),
+      );
+      setSelectedCandidateId("");
+    } catch (err) {
+      const message =
+        err instanceof Error ? err.message : "Téléversement impossible";
+      if (createdSubmissionId) {
+        setStatus("pending");
+        await loadSubmissions("pending");
+        setSelectedId(createdSubmissionId);
+        setError(
+          `Le dossier a été créé, mais les fichiers n'ont pas tous été ajoutés : ${message}`,
+        );
+      } else {
+        setError(message);
+      }
+    } finally {
+      setCreatingAssisted(false);
     }
   }
 
@@ -213,21 +580,31 @@ export default function AdminOwnershipVerificationsPage() {
           </div>
         </div>
 
-        <div className="flex flex-wrap gap-2 rounded-full border border-neutral-100 bg-white p-1 shadow-sm">
-          {statusTabs.map((tab) => (
-            <button
-              key={tab.value}
-              onClick={() => setStatus(tab.value)}
-              className={cn(
-                "rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider transition-all",
-                status === tab.value
-                  ? "bg-neutral-900 text-white"
-                  : "text-neutral-500 hover:bg-neutral-50",
-              )}
-            >
-              {tab.label}
-            </button>
-          ))}
+        <div className="flex flex-col items-start gap-3 md:items-end">
+          <Button
+            type="button"
+            onClick={openAssistedCreate}
+            className="h-11 rounded-2xl px-5"
+          >
+            <UploadSimpleIcon size={17} weight="bold" className="mr-2" />
+            {showAssistedCreate ? "Fermer" : "Ajouter un dossier"}
+          </Button>
+          <div className="flex flex-wrap gap-2 rounded-full border border-neutral-100 bg-white p-1 shadow-sm">
+            {statusTabs.map((tab) => (
+              <button
+                key={tab.value}
+                onClick={() => setStatus(tab.value)}
+                className={cn(
+                  "rounded-full px-4 py-2 text-xs font-black uppercase tracking-wider transition-all",
+                  status === tab.value
+                    ? "bg-neutral-900 text-white"
+                    : "text-neutral-500 hover:bg-neutral-50",
+                )}
+              >
+                {tab.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -235,6 +612,93 @@ export default function AdminOwnershipVerificationsPage() {
         <div className="rounded-2xl border border-red-100 bg-red-50 px-4 py-3 text-sm font-bold text-red-600">
           {error}
         </div>
+      )}
+
+      {showAssistedCreate && (
+        <section className="rounded-[32px] border border-primary/20 bg-primary/5 p-6 shadow-sm">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-end lg:justify-between">
+            <div className="max-w-2xl">
+              <div className="flex items-center gap-3">
+                <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
+                  <UploadSimpleIcon size={22} weight="bold" />
+                </div>
+                <div>
+                  <h2 className="text-lg font-black text-neutral-900">
+                    Soumission assistée par l’équipe
+                  </h2>
+                  <p className="mt-1 text-sm font-medium text-neutral-600">
+                    Créez le dossier d’une vente qui n’a pas encore envoyé ses
+                    justificatifs, puis ajoutez-les directement à la file de revue.
+                  </p>
+                </div>
+              </div>
+              <p className="mt-4 rounded-2xl bg-white px-4 py-3 text-xs font-bold text-neutral-600">
+                Les fichiers restent dans le stockage privé des documents de
+                propriété. Ils ne sont jamais ajoutés aux photos publiques de
+                l’annonce.
+              </p>
+            </div>
+
+            <div className="grid w-full gap-3 lg:max-w-xl">
+              <label className="text-xs font-black uppercase tracking-wider text-neutral-500">
+                Rechercher une vente
+                <input
+                  type="search"
+                  value={candidateSearch}
+                  onChange={(event) => setCandidateSearch(event.target.value)}
+                  placeholder="Quartier, propriétaire, téléphone…"
+                  className="mt-2 h-11 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-sm font-bold normal-case tracking-normal text-neutral-900 outline-none transition focus:border-primary"
+                />
+              </label>
+
+              <label className="text-xs font-black uppercase tracking-wider text-neutral-500">
+                Annonce à rattacher
+                <select
+                  value={selectedCandidateId}
+                  onChange={(event) => setSelectedCandidateId(event.target.value)}
+                  disabled={candidateLoading || filteredCandidates.length === 0}
+                  className="mt-2 h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-sm font-bold normal-case tracking-normal text-neutral-900 outline-none transition focus:border-primary disabled:text-neutral-400"
+                >
+                  {candidateLoading ? (
+                    <option value="">Chargement…</option>
+                  ) : filteredCandidates.length === 0 ? (
+                    <option value="">Aucune vente sans dossier</option>
+                  ) : (
+                    filteredCandidates.map((property) => (
+                      <option key={property.id} value={property.id}>
+                        {property.quartier}, {property.city} ·{" "}
+                        {getDisplayName(property.seller)} ·{" "}
+                        {Number(property.price || 0).toLocaleString("fr-FR")} FCFA
+                      </option>
+                    ))
+                  )}
+                </select>
+              </label>
+
+              <Button
+                type="button"
+                onClick={() => assistedFileInputRef.current?.click()}
+                disabled={
+                  creatingAssisted || candidateLoading || !selectedCandidateId
+                }
+                className="h-12 rounded-2xl"
+              >
+                <UploadSimpleIcon size={18} weight="bold" className="mr-2" />
+                {creatingAssisted
+                  ? "Création et ajout en cours…"
+                  : "Choisir les documents et créer le dossier"}
+              </Button>
+              <input
+                ref={assistedFileInputRef}
+                type="file"
+                multiple
+                hidden
+                accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif"
+                onChange={createAssistedSubmission}
+              />
+            </div>
+          </div>
+        </section>
       )}
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
@@ -349,6 +813,44 @@ export default function AdminOwnershipVerificationsPage() {
                 </div>
               </div>
 
+              {detail.status === "pending" && (
+                <div className="rounded-3xl border border-dashed border-primary/30 bg-primary/5 p-5">
+                  <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-white text-primary shadow-sm">
+                        <UploadSimpleIcon size={22} weight="bold" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-black text-neutral-900">
+                          Ajouter des documents ou des images
+                        </p>
+                        <p className="mt-1 text-xs font-medium text-neutral-500">
+                          PDF, JPG, PNG, WebP ou HEIC. 10 Mo maximum par fichier,
+                          10 fichiers à la fois.
+                        </p>
+                      </div>
+                    </div>
+                    <Button
+                      type="button"
+                      onClick={() => fileInputRef.current?.click()}
+                      disabled={uploading}
+                      className="h-11 shrink-0 rounded-2xl px-5"
+                    >
+                      <UploadSimpleIcon size={17} weight="bold" className="mr-2" />
+                      {uploading ? "Ajout en cours..." : "Choisir des fichiers"}
+                    </Button>
+                    <input
+                      ref={fileInputRef}
+                      type="file"
+                      multiple
+                      hidden
+                      accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif,application/pdf,image/jpeg,image/png,image/webp,image/heic,image/heif"
+                      onChange={uploadDocuments}
+                    />
+                  </div>
+                </div>
+              )}
+
               <div className="grid gap-4 md:grid-cols-2">
                 {detail.documents.length === 0 ? (
                   <p className="text-sm font-bold text-neutral-400">
@@ -363,7 +865,7 @@ export default function AdminOwnershipVerificationsPage() {
                       <div className="border-b border-neutral-100 bg-white px-4 py-3 text-xs font-black uppercase tracking-widest text-neutral-400">
                         {doc.label}
                       </div>
-                      {doc.url ? (
+                      {doc.url && isImageDocument(doc) ? (
                         <a
                           href={doc.url}
                           target="_blank"
@@ -378,6 +880,32 @@ export default function AdminOwnershipVerificationsPage() {
                             unoptimized
                             className="object-contain"
                           />
+                        </a>
+                      ) : doc.url ? (
+                        <a
+                          href={doc.url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex h-[360px] flex-col items-center justify-center p-8 text-center transition hover:bg-white"
+                        >
+                          <FilePdfIcon
+                            size={64}
+                            weight="duotone"
+                            className="text-red-500"
+                          />
+                          <span className="mt-4 max-w-full truncate text-sm font-black text-neutral-800">
+                            {doc.file_name || doc.label}
+                          </span>
+                          <span className="mt-1 text-xs font-bold text-neutral-400">
+                            {[formatFileSize(doc.size_bytes), "Ouvrir le document"]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </span>
+                          {doc.source === "staff" && (
+                            <span className="mt-4 rounded-full bg-primary/10 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-primary">
+                              Ajouté par l&apos;équipe
+                            </span>
+                          )}
                         </a>
                       ) : (
                         <div className="flex h-[360px] items-center justify-center text-sm font-bold text-neutral-400">

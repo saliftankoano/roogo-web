@@ -3,9 +3,80 @@
 Why we made non-obvious calls — the reasoning, the trade-offs, and what we ruled
 out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
-[`CONCEPTS.md`](./CONCEPTS.md).
+[`SYSTEM.md`](./SYSTEM.md).
 
 ---
+
+### Staff-added ownership evidence stays on the pending seller submission — 2026-08-19
+
+**Decision:** Staff and founders can append PDF or image evidence to an existing
+pending ownership submission. Images are normalized before upload, every file
+stays in the private `ownership-documents` bucket, and staff-added entries carry
+their source and uploader metadata in the submission's document array. Reviewed
+submissions remain immutable through this flow.
+
+**Why:** Owners frequently hand documents to the Roogo team outside the app, but
+the review screen previously only displayed files the owner uploaded. Keeping
+staff additions on the same pending submission preserves one decision record and
+lets reviewers compare all evidence before approving or rejecting the listing.
+
+**Ruled out / alternatives:** A second staff-only submission was rejected because
+it would split one ownership decision across competing records; the public
+listing-photo bucket was rejected because ownership evidence is private; arbitrary
+office-file uploads were rejected in favor of the formats reviewers can reliably
+open and inspect: PDF, JPEG, PNG, and WebP.
+
+**Status:** Settled and shipped 2026-08-19. See
+[how the review upload works](./SYSTEM.md#how-does-staff-add-ownership-evidence-to-a-review).
+
+### Hard-deleted listings are recreated selectively, never recovered by rolling production backward — 2026-08-11
+
+**Decision:** When a deleted listing predates every retained backup, recreate
+only that listing as private and pending under the verified owner. Staff must
+review the recovered facts, upload the original photos again, and then resume
+the normal workflow. Never restore the whole production database merely to
+recover one property.
+
+**Why:** Roogo's hard-delete path cascades through property records and queues
+its `listing/{propertyId}` Storage prefix for deletion. Supabase's seven-day
+scheduled backups cannot recover a row deleted before their retention window,
+Point-in-Time Recovery was not enabled, and database backups do not contain
+deleted Storage objects. A full rollback would also discard every legitimate
+change made after the chosen snapshot.
+
+**Ruled out / alternatives:** Restoring the oldest available production backup
+was rejected because the listing was already absent from it; reusing another
+property's surviving photos was rejected because Storage ownership is
+property-specific; publishing the reconstruction immediately was rejected
+because staff must confirm the recovered data and photos first.
+
+**Status:** Settled. The Rimkieta monthly rental was recreated in production as
+`en_attente` under its verified owner on 2026-08-11. See
+[how deleted-listing recovery works](./SYSTEM.md#how-do-we-recover-a-hard-deleted-property-listing).
+
+### Offline leases become audited Roogo relationships, not retroactive platform payments — 2026-08-07
+
+**Decision:** Staff and founders may import an already-signed monthly lease
+between an existing owner, property, and renter. The import creates a real
+active agreement, locks the listing, records the signed document and covered
+months, and generates future schedules. Money collected before the import is
+labelled `offline_import` and never creates a PawaPay transaction, owner earning,
+withdrawable balance, or Roogo-issued payment receipt.
+
+**Why:** Owners and renters already transact offline but still need Roogo for
+future rent tracking and payments. Representing the relationship as a normal
+active agreement lets both accounts continue inside the product, while a
+separate immutable audit record preserves the financial truth about what Roogo
+did and did not process.
+
+**Ruled out / alternatives:** A global owner-to-renter link was rejected because
+tenancy is property-specific; marking old cash as an ordinary Roogo payment was
+rejected because it would corrupt payout balances and receipts; owner
+self-service linking was excluded from v1 because staff must verify the signed
+lease and financial history.
+
+**Status:** Settled and shipped 2026-08-07 in commit `0bce88f`. See
+[how offline lease imports work](./SYSTEM.md#how-does-an-existing-offline-lease-enter-roogo).
 
 ### Staff navigation groups work by task instead of exposing every destination — 2026-08-06
 
@@ -47,7 +118,7 @@ reassignment after linking was excluded from v1 because it could move an active
 dossier or mandate to the wrong account.
 
 **Status:** Settled and shipped in PR #7. See
-[how direct sale intake works](./CONCEPTS.md#how-does-a-direct-sale-intake-become-an-owner-linked-listing).
+[how direct sale intake works](./SYSTEM.md#how-does-a-direct-sale-intake-become-an-owner-linked-listing).
 
 ### City stays an id in the DB; labels applied at display/slug level — 2026-07-23
 
@@ -134,7 +205,7 @@ fee (the adjustable 10% suffices); (5) pre-050 signed mandates are test data,
 ignored beyond non-crashing legacy card rendering; (6) disclosure appears BOTH in
 the "Vendre avec Roogo" step before listing and itemized on the mandate card the
 owner signs (percentage plus concrete FCFA amounts). How it works:
-[CONCEPTS](./CONCEPTS.md#how-does-roogo-sell-the-broker-model-work). Settlement
+[SYSTEM](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work). Settlement
 tooling (recording the real sale price and computing the final split) is the next
 block; `sale_notary_price_basis` is stored now and consumed then.
 
@@ -323,7 +394,7 @@ indicator across both surfaces keeps them consistent.
   on mobile" was that the existing `/api/support/admin/*` routes weren't in middleware
   `isPublicRoute`, so mobile Bearer calls were rejected. One middleware line fixed it
   (routes still gate on `isStaffLikeUserType` in-handler). See
-  [how](./CONCEPTS.md#how-is-the-mobile-app-authorized-to-hit-our-api-and-supabase).
+  [how](./SYSTEM.md#how-is-the-mobile-app-authorized-to-hit-our-api-and-supabase).
 - *Per-screen Supabase token registration* — a code review caught that each chat hook
   registered the one process-global Supabase token getter and nulled it on unmount, so
   closing one chat screen de-authenticated any other still-mounted one. Moved to a single
@@ -421,4 +492,4 @@ amounts where online payment is too costly).
 
 **Status:** Settled (v1 shipped). Open thread: whether staff need a dedicated agenda
 screen for upcoming visits/notary meetings (currently chat cards + notifications
-only). See [how it works](./CONCEPTS.md#how-does-roogo-sell-the-broker-model-work).
+only). See [how it works](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work).
