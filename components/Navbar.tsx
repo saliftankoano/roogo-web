@@ -5,8 +5,6 @@ import Image from "next/image";
 import { Button } from "./ui/Button";
 import {
   motion,
-  useScroll,
-  useMotionValueEvent,
   AnimatePresence,
 } from "framer-motion";
 import { useEffect, useMemo, useRef, useState } from "react";
@@ -31,6 +29,7 @@ import {
   type AdminNavEntry,
   type AdminNavItem,
 } from "../lib/navigation/adminNav";
+import { roogoMotion } from "@/lib/motion";
 
 function isLinkActive(pathname: string, href: string) {
   return pathname === href || (href !== "/" && pathname.startsWith(href));
@@ -54,7 +53,7 @@ function StaffDesktopNavLink({
   const Icon = item.icon;
 
   return (
-    <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}>
+    <motion.div whileTap={{ scale: 0.985 }}>
       <Link
         href={item.href}
         data-id={item.id}
@@ -71,9 +70,6 @@ function StaffDesktopNavLink({
 }
 
 export function Navbar() {
-  const { scrollY } = useScroll();
-  const [hidden, setHidden] = useState(false);
-  const [isScrolled, setIsScrolled] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [openGroupId, setOpenGroupId] = useState<string | null>(null);
   const [mobileOpenGroupId, setMobileOpenGroupId] = useState<string | null>(
@@ -82,16 +78,6 @@ export function Navbar() {
   const staffNavRef = useRef<HTMLDivElement>(null);
   const { isSignedIn, isLoaded, user } = useUser();
   const pathname = usePathname();
-
-  useMotionValueEvent(scrollY, "change", (latest) => {
-    const previous = scrollY.getPrevious() || 0;
-    if (latest > previous && latest > 150) {
-      setHidden(true);
-    } else {
-      setHidden(false);
-    }
-    setIsScrolled(latest > 20);
-  });
 
   const userType = (user?.publicMetadata?.userType ||
     user?.publicMetadata?.user_type) as string | undefined;
@@ -238,24 +224,13 @@ export function Navbar() {
 
   return (
     <>
-      <motion.header
-        variants={{
-          visible: { y: 0, opacity: 1 },
-          hidden: { y: "-100%", opacity: 0 },
-        }}
-        animate={hidden ? "hidden" : "visible"}
-        transition={{ duration: 0.35, ease: "easeInOut" }}
+      <header
         className="fixed left-1/2 top-4 z-50 mx-auto w-[calc(100%-2rem)] max-w-7xl -translate-x-1/2"
       >
-        <div
-          className={cn(
-            "flex items-center justify-between rounded-full border border-white/50 bg-white/90 px-4 py-2 shadow-xl shadow-[#5a321a]/10 backdrop-blur-xl transition-all duration-300 sm:px-5",
-            isScrolled ? "h-16" : "h-[4.35rem]",
-          )}
-        >
+        <div className="flex h-16 items-center justify-between rounded-full border border-white/50 bg-white/90 px-4 py-2 shadow-xl shadow-[#5a321a]/10 backdrop-blur-xl sm:px-5">
           {/* Logo */}
           <Link href="/" className="flex items-center shrink-0 group">
-            <div className="mr-3 rounded-2xl bg-primary/10 p-2 transition-transform duration-300 group-hover:scale-105">
+            <div className="mr-3 rounded-2xl bg-primary/10 p-2 transition-colors duration-200 group-hover:bg-primary/15">
               <Image
                 src="/logo.png?v=2"
                 alt="Logo Roogo"
@@ -309,8 +284,7 @@ export function Navbar() {
                           ? "text-primary bg-white shadow-sm"
                           : "text-neutral-500 hover:text-neutral-900",
                       )}
-                      whileHover={{ y: -2 }}
-                      whileTap={{ scale: 0.97 }}
+                      whileTap={{ scale: 0.985 }}
                     >
                       <Icon size={18} weight={isActive ? "fill" : "bold"} />
                       <span className="whitespace-nowrap">{item.label}</span>
@@ -327,10 +301,10 @@ export function Navbar() {
                     <AnimatePresence>
                       {isOpen && (
                         <motion.div
-                          initial={{ opacity: 0, y: 8, scale: 0.96 }}
-                          animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 8, scale: 0.96 }}
-                          transition={{ duration: 0.16, ease: "easeOut" }}
+                          initial={{ opacity: 0, y: 6 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          exit={{ opacity: 0, y: 4 }}
+                          transition={roogoMotion.quick}
                           role="menu"
                           className="absolute left-0 top-full mt-3 w-64 overflow-hidden rounded-[24px] border border-neutral-200/70 bg-white p-2 shadow-2xl"
                         >
@@ -342,11 +316,7 @@ export function Navbar() {
                             const ChildIcon = child.icon;
 
                             return (
-                                <motion.div
-                                  key={child.id}
-                                  whileHover={{ x: 3 }}
-                                  whileTap={{ scale: 0.98 }}
-                                >
+                                <motion.div key={child.id} whileTap={{ scale: 0.99 }}>
                                   <Link
                                     href={child.href}
                                     data-id={child.id}
@@ -380,18 +350,13 @@ export function Navbar() {
               <AnimatedBackground
                 defaultValue={pathname}
                 className="rounded-full bg-white shadow-sm"
-                transition={{
-                  type: "spring",
-                  stiffness: 400,
-                  damping: 30,
-                }}
+                transition={roogoMotion.spring}
               >
                 {navItems.map((item) => (
                   <motion.div
                     key={item.href}
                     data-id={item.href}
-                    whileHover={{ y: -2 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileTap={{ scale: 0.985 }}
                   >
                     <Link
                       href={item.href}
@@ -445,8 +410,7 @@ export function Navbar() {
               <div className="flex items-center gap-2">
                 <motion.div
                   className="hidden sm:block"
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.97 }}
+                  whileTap={{ scale: 0.985 }}
                 >
                   <Link href="/connexion">
                     <Button
@@ -458,12 +422,12 @@ export function Navbar() {
                     </Button>
                   </Link>
                 </motion.div>
-                <motion.div whileHover={{ y: -2 }} whileTap={{ scale: 0.97 }}>
+                <motion.div whileTap={{ scale: 0.985 }}>
                   <Link href="/inscription">
                     <Button
                       variant="primary"
                       size="md"
-                      className="rounded-full px-6 font-black shadow-md transition-all hover:scale-105 hover:shadow-lg"
+                      className="rounded-full px-6 font-black shadow-md transition-shadow hover:shadow-lg"
                     >
                       Rejoindre
                     </Button>
@@ -474,10 +438,11 @@ export function Navbar() {
 
             {/* Mobile Menu Toggle */}
             <motion.button
-              className="md:hidden p-2 text-neutral-600 hover:text-primary bg-neutral-100 rounded-full transition-all ml-1"
+              className="ml-1 rounded-full bg-neutral-100 p-2 text-neutral-600 transition-colors hover:text-primary md:hidden"
               onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
-              whileHover={{ scale: 1.04 }}
-              whileTap={{ scale: 0.94 }}
+              whileTap={{ scale: 0.985 }}
+              aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
+              aria-expanded={mobileMenuOpen}
             >
               {mobileMenuOpen ? (
                 <XIcon size={22} weight="bold" />
@@ -492,9 +457,10 @@ export function Navbar() {
         <AnimatePresence>
           {mobileMenuOpen && (
             <motion.div
-              initial={{ opacity: 0, y: -20, scale: 0.95 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -20, scale: 0.95 }}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: 6 }}
+              transition={roogoMotion.standard}
               className="md:hidden absolute top-full left-0 right-0 mt-4 bg-white/95 backdrop-blur-xl rounded-[32px] p-6 shadow-2xl border border-white/50 flex flex-col gap-2"
             >
               {isStaff
@@ -654,7 +620,7 @@ export function Navbar() {
             </motion.div>
           )}
         </AnimatePresence>
-      </motion.header>
+      </header>
     </>
   );
 }

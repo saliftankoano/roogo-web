@@ -12,6 +12,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "./ui/Button";
 import Image from "next/image";
+import { roogoMotion } from "@/lib/motion";
 
 interface UserTypeSelectionModalProps {
   isOpen: boolean;
@@ -72,9 +73,10 @@ export default function UserTypeSelectionModal({
       {isOpen && (
         <div className="fixed inset-0 z-[100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.985, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
+            exit={{ opacity: 0, scale: 0.985, y: 8 }}
+            transition={roogoMotion.standard}
             className="bg-white w-full max-w-md rounded-[40px] shadow-2xl border border-neutral-200 overflow-hidden"
           >
             {step === "type" ? (

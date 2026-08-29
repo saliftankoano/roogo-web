@@ -68,12 +68,12 @@ function Calendar({
         ),
         button_previous: cn(
           getButtonStyles("outline"),
-          "h-11 w-11 rounded-2xl border-neutral-100 hover:bg-neutral-50 hover:border-primary/20 transition-all p-0 shadow-sm active:scale-90",
+          "h-11 w-11 rounded-2xl border-neutral-100 hover:bg-neutral-50 hover:border-primary/20 transition-all p-0 shadow-sm active:scale-[0.985]",
           defaultClassNames.button_previous
         ),
         button_next: cn(
           getButtonStyles("outline"),
-          "h-11 w-11 rounded-2xl border-neutral-100 hover:bg-neutral-50 hover:border-primary/20 transition-all p-0 shadow-sm active:scale-90",
+          "h-11 w-11 rounded-2xl border-neutral-100 hover:bg-neutral-50 hover:border-primary/20 transition-all p-0 shadow-sm active:scale-[0.985]",
           defaultClassNames.button_next
         ),
         month_caption: cn(

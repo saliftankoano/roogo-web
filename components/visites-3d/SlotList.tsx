@@ -63,7 +63,7 @@ export function SlotList({ date, bookedSlots, selected, onSelect }: Props) {
                   <span className="inline-flex items-center gap-1.5 text-xs opacity-80">
                     {isSelected && (
                       <motion.span
-                        initial={reduce ? false : { scale: 0 }}
+                        initial={reduce ? false : { scale: 0.85 }}
                         animate={{ scale: 1 }}
                         className="inline-flex"
                       >

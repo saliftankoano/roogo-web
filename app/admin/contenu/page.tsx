@@ -44,7 +44,7 @@ export default function AdminContentPage() {
           </p>
         </div>
 
-        <button className="flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95 text-sm uppercase tracking-wider">
+        <button className="flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-[0.985] text-sm uppercase tracking-wider">
           <Plus size={20} weight="bold" />
           Nouvel Article
         </button>
@@ -131,7 +131,7 @@ export default function AdminContentPage() {
                         alt=""
                         width={56}
                         height={56}
-                        className="object-cover group-hover:scale-110 transition-transform duration-500"
+                        className="object-cover group-hover:scale-[1.015] transition-transform duration-300"
                       />
                     </div>
                     <div>

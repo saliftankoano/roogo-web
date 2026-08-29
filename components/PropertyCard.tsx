@@ -88,7 +88,7 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
             alt={`Propriété à ${property.location}`}
             fill
             sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-110"
+            className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
           />
           {/* Sponsored Badge */}
           {property.isSponsored && (

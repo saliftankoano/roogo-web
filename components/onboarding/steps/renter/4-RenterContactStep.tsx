@@ -103,9 +103,9 @@ export function RenterContactStep({
   return (
     <div className="space-y-8 w-full max-w-md">
       <motion.div
-        initial={{ scale: 0.3, opacity: 0, rotate: 180 }}
+        initial={{ scale: 0.985, opacity: 0 }}
         animate={{ scale: 1, opacity: 1, rotate: 0 }}
-        transition={{ duration: 0.9, ease: [0.34, 1.56, 0.64, 1] }}
+        transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
         className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto shadow-xl border border-primary/20"
       >
         <PhoneIcon size={40} weight="fill" className="text-primary" />
@@ -113,14 +113,14 @@ export function RenterContactStep({
 
       <div className="space-y-3 text-center">
         <motion.h2
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-3xl font-bold text-white tracking-tight"
         >
           Comment vous joindre ?
         </motion.h2>
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="text-neutral-400 leading-relaxed"
@@ -131,7 +131,7 @@ export function RenterContactStep({
       </div>
 
       <motion.form
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         onSubmit={handleSubmit}
@@ -197,7 +197,7 @@ export function RenterContactStep({
 
         <motion.div
           key={shakeKey}
-          animate={shakeKey > 0 ? { x: [0, -10, 10, -10, 10, -5, 5, 0] } : {}}
+          animate={shakeKey > 0 ? { x: [0, -3, 3, -2, 2, 0] } : {}}
           transition={{ duration: 0.45, ease: "easeInOut" }}
         >
           <Button

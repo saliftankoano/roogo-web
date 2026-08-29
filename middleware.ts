@@ -1,5 +1,14 @@
 import { clerkMiddleware, createRouteMatcher } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
+import {
+  ROOGO_MEBO_HOST,
+  ROOGO_PRIMARY_ORIGIN,
+  getForwardedRequestHost,
+  getMeboRewritePath,
+  isMeboHost,
+  isMeboPublicPath,
+  isProductionMeboHost,
+} from "./lib/site-context";
 
 type OnboardingGateState = {
   hasCompletedOnboarding: boolean;
@@ -107,6 +116,9 @@ const isPublicRoute = createRouteMatcher([
   "/tutoriels(.*)",
   "/proprietes",
   "/visites-3d",
+  "/mebo",
+  "/mebo/plans(.*)",
+  "/mebo/vendeurs(.*)",
   "/louer/residentiel",
   "/louer/commercial",
   "/publier-bien",
@@ -123,6 +135,7 @@ const isPublicRoute = createRouteMatcher([
   "/api/applications/me", // Mobile app authenticates this route with Bearer JWT
   "/api/users/me/pending-edits", // Mobile app authenticates this route with Bearer JWT
   "/api/identity-verifications/(.*)", // Mobile app authenticates these routes with Bearer JWT
+  "/api/advertising/(.*)", // Mobile app authenticates these routes with Bearer JWT
   "/api/support/conversation", // Mobile app authenticates this route with Bearer JWT
   "/api/support/upload-url", // Mobile app authenticates this route with Bearer JWT
   "/api/support/messages", // Mobile app authenticates this route with Bearer JWT
@@ -163,10 +176,24 @@ const isOnboardingGateExempt = createRouteMatcher([
 ]);
 
 export default clerkMiddleware(async (auth, req) => {
-  if (!isPublicRoute(req)) {
+  const requestHost = getForwardedRequestHost(req.headers);
+  const isMarketplaceRequest = isMeboHost(requestHost);
+  const isInternalMarketplacePublicRequest =
+    req.nextUrl.pathname === "/mebo" ||
+    req.nextUrl.pathname.startsWith("/mebo/plans") ||
+    req.nextUrl.pathname.startsWith("/mebo/vendeurs");
+  const isPublicRequest =
+    isPublicRoute(req) ||
+    isInternalMarketplacePublicRequest ||
+    (isMarketplaceRequest && isMeboPublicPath(req.nextUrl.pathname));
+
+  if (!isPublicRequest) {
     await auth.protect();
 
-    if (!isOnboardingGateExempt(req)) {
+    // Roogo Immobilier onboarding is intentionally product-specific. A user
+    // can browse or use Roogo Mêbo without being pushed into a renter/owner/
+    // agent choice that belongs to the real-estate product.
+    if (!isMarketplaceRequest && !isOnboardingGateExempt(req)) {
       const { sessionClaims, userId } = await auth();
       const sessionGateState = getOnboardingGateState(
         getSessionMetadata(sessionClaims as Record<string, unknown> | null),
@@ -187,6 +214,29 @@ export default clerkMiddleware(async (auth, req) => {
       }
     }
   }
+
+  if (isMarketplaceRequest) {
+    const internalPath = getMeboRewritePath(req.nextUrl.pathname);
+
+    if (internalPath) {
+      const rewriteUrl = req.nextUrl.clone();
+      rewriteUrl.pathname = internalPath;
+      return NextResponse.rewrite(rewriteUrl);
+    }
+  }
+}, (req) => {
+  const requestHost = getForwardedRequestHost(req.headers);
+
+  if (!isProductionMeboHost(requestHost)) {
+    return {};
+  }
+
+  return {
+    isSatellite: true,
+    domain: ROOGO_MEBO_HOST,
+    signInUrl: `${ROOGO_PRIMARY_ORIGIN}/connexion`,
+    signUpUrl: `${ROOGO_PRIMARY_ORIGIN}/inscription`,
+  };
 });
 
 export const config = {

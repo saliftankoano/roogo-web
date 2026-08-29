@@ -7,6 +7,34 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Motion explains state changes instead of decorating the interface — 2026-08-29
+
+**Decision:** Roogo uses one restrained motion grammar across public, account,
+onboarding, and staff pages: a short route fade, a continuous active-navigation
+indicator, small press feedback, and limited evidence-forming motion. Navigation
+bars remain spatially stable, ambient loops stay exceptional, and both Framer
+Motion and CSS animations honor the user's reduced-motion preference.
+
+**Why:** Competing springs, hover lifts, blur-and-zoom entrances, disappearing
+navigation, and repeated ambient loops made the interface feel less predictable.
+Stable landmarks and a shared timing curve make state changes easier to follow
+without slowing down frequent staff work.
+
+**Ruled out / alternatives:** Page-specific animation passes were rejected
+because they would drift; GSAP was not added because the existing Framer Motion
+stack already covers route, layout, and interaction feedback; removing all
+motion was rejected because navigation and state changes still benefit from a
+brief orientation signal.
+
+**Status:** Settled. The shared implementation is verified locally and awaits
+deployment. The follow-up audit also covered discovery, property detail, account,
+careers, contact, onboarding, payment, and 3D-visit surfaces. See [how the motion
+system works](./SYSTEM.md#how-does-motion-work-across-roogo-web). A second exhaustive
+pass included all staff routes, blog/tutorial/legal/auth routes through the root
+provider, Mebo, Tailwind transform utilities, validation motion, and shared UI.
+The baseline is now executable through `npm run motion:audit` and runs before every
+production build, preventing future routes or components from silently drifting.
+
 ### Staff-added ownership evidence stays on the pending seller submission — 2026-08-19
 
 **Decision:** Staff and founders can append PDF or image evidence to an existing

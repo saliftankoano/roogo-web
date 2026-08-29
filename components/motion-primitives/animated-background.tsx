@@ -1,6 +1,11 @@
 "use client";
 import { cn } from "../../lib/utils";
-import { AnimatePresence, Transition, motion } from "framer-motion";
+import {
+  AnimatePresence,
+  Transition,
+  motion,
+  useReducedMotion,
+} from "framer-motion";
 import {
   Children,
   cloneElement,
@@ -11,6 +16,7 @@ import {
   ReactNode,
   isValidElement,
 } from "react";
+import { roogoMotion } from "@/lib/motion";
 
 export type AnimatedBackgroundProps = {
   children: ReactNode;
@@ -31,6 +37,7 @@ export function AnimatedBackground({
 }: AnimatedBackgroundProps) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const uniqueId = useId();
+  const reduceMotion = useReducedMotion();
 
   const handleSetActiveId = (id: string | null) => {
     setActiveId(id);
@@ -61,6 +68,8 @@ export function AnimatedBackground({
       ? {
           onMouseEnter: () => handleSetActiveId(id ?? null),
           onMouseLeave: () => handleSetActiveId(null),
+          onFocus: () => handleSetActiveId(id ?? null),
+          onBlur: () => handleSetActiveId(null),
         }
       : {
           onClick: () => handleSetActiveId(id ?? null),
@@ -82,7 +91,11 @@ export function AnimatedBackground({
             <motion.div
               layoutId={`background-${uniqueId}`}
               className={cn("absolute inset-0", className)}
-              transition={transition}
+              transition={
+                reduceMotion
+                  ? { duration: 0 }
+                  : transition ?? roogoMotion.spring
+              }
               initial={{ opacity: defaultValue ? 1 : 0 }}
               animate={{
                 opacity: 1,

@@ -21,6 +21,10 @@
   --color-roogo-neutral-500: #6a6a6a;
   --color-roogo-neutral-100: #f8f8f8;
   --radius: 0.625rem;
+  --motion-duration-quick: 160ms;
+  --motion-duration-standard: 260ms;
+  --motion-duration-deliberate: 420ms;
+  --motion-ease-out: cubic-bezier(0.22, 1, 0.36, 1);
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -103,6 +107,39 @@
 
 body {
   font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+}
+
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: var(--motion-duration-standard);
+  animation-timing-function: var(--motion-ease-out);
+}
+
+:where(button, a, input, select, textarea):focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-roogo-primary-500) 72%, white);
+  outline-offset: 3px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html {
+    scroll-behavior: auto !important;
+  }
+
+  *,
+  *::before,
+  *::after {
+    animation-delay: 0ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    scroll-behavior: auto !important;
+    transition-delay: 0ms !important;
+    transition-duration: 1ms !important;
+  }
+
+  ::view-transition-old(root),
+  ::view-transition-new(root) {
+    animation: none !important;
+  }
 }
 
 .dark {

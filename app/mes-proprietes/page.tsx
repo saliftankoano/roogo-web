@@ -25,6 +25,7 @@ import {
   ExpandableScreenTrigger,
 } from "../../components/ui/expandable-screen";
 import { cn } from "../../lib/utils";
+import { roogoMotion } from "@/lib/motion";
 
 export default function MyPropertiesPage() {
   const { isSignedIn, isLoaded } = useAuth();
@@ -188,9 +189,10 @@ export default function MyPropertiesPage() {
             <AnimatePresence>
               {isSortOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 8, scale: 0.985 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.985 }}
+                  transition={roogoMotion.standard}
                   className="absolute top-full right-0 mt-2 w-56 bg-white rounded-2xl p-2 shadow-2xl border border-neutral-100 z-50"
                 >
                   {sortOptions.map((option) => (
@@ -230,7 +232,7 @@ export default function MyPropertiesPage() {
                 contentRadius="32px"
               >
                 <ExpandableScreenTrigger>
-                  <div className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-95 cursor-pointer">
+                  <div className="flex items-center gap-2 px-6 py-2.5 bg-primary text-white rounded-full font-bold shadow-lg shadow-primary/20 hover:bg-primary/90 transition-all active:scale-[0.985] cursor-pointer">
                     <PlusIcon size={20} weight="bold" />
                     <span>Nouveau Bien</span>
                   </div>
@@ -260,9 +262,10 @@ export default function MyPropertiesPage() {
                 <AnimatePresence>
                   {isMenuOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      initial={{ opacity: 0, y: 8, scale: 0.985 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.985 }}
+                      transition={roogoMotion.standard}
                       className="absolute top-full right-0 mt-3 w-64 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50"
                     >
                       <button
@@ -440,9 +443,10 @@ function FilterSelect({
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={roogoMotion.standard}
               className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 max-h-[300px] overflow-y-auto"
             >
               <button

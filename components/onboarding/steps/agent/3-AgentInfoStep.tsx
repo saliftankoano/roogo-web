@@ -104,9 +104,9 @@ export function AgentInfoStep({ onNext, initialValues }: AgentInfoStepProps) {
   return (
     <div className="space-y-8 w-full max-w-md">
       <motion.div
-        initial={{ scale: 0.3, opacity: 0, rotate: 180 }}
+        initial={{ scale: 0.985, opacity: 0 }}
         animate={{ scale: 1, opacity: 1, rotate: 0 }}
-        transition={{ duration: 0.9, ease: [0.34, 1.56, 0.64, 1] }}
+        transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
         className="w-20 h-20 bg-primary/10 rounded-2xl flex items-center justify-center mx-auto shadow-xl border border-primary/20"
       >
         <BriefcaseIcon size={40} weight="fill" className="text-primary" />
@@ -114,17 +114,17 @@ export function AgentInfoStep({ onNext, initialValues }: AgentInfoStepProps) {
 
       <div className="space-y-3 text-center">
         <motion.h2
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.3, duration: 0.7 }}
+          transition={{ delay: 0.08, duration: 0.26 }}
           className="text-3xl font-bold text-white tracking-tight"
         >
           Informations professionnelles
         </motion.h2>
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.45, duration: 0.7 }}
+          transition={{ delay: 0.12, duration: 0.26 }}
           className="text-neutral-400 leading-relaxed"
         >
           Dites-nous en plus sur votre activité professionnelle.
@@ -132,9 +132,9 @@ export function AgentInfoStep({ onNext, initialValues }: AgentInfoStepProps) {
       </div>
 
       <motion.form
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.6, duration: 0.7 }}
+        transition={{ delay: 0.16, duration: 0.26 }}
         onSubmit={handleSubmit}
         className="space-y-6 text-left"
       >
@@ -208,7 +208,7 @@ export function AgentInfoStep({ onNext, initialValues }: AgentInfoStepProps) {
 
         <motion.div
           key={shakeKey}
-          animate={shakeKey > 0 ? { x: [0, -10, 10, -10, 10, -5, 5, 0] } : {}}
+          animate={shakeKey > 0 ? { x: [0, -3, 3, -2, 2, 0] } : {}}
           transition={{ duration: 0.45, ease: "easeInOut" }}
         >
           <Button

@@ -17,6 +17,7 @@ import {
 } from "../../components/marketing/MarketingPrimitives";
 import { marketingAssets } from "../../components/marketing/assets";
 import { OFFICE_MAPS_URL } from "../../lib/office";
+import { roogoMotion } from "@/lib/motion";
 
 export default function ContactPage() {
   const contactHeroImage =
@@ -68,9 +69,9 @@ export default function ContactPage() {
       <main>
         <section className="relative overflow-hidden bg-[#17120f] px-3 pb-3 pt-28 sm:px-6 lg:pt-32">
           <motion.div
-            initial={{ opacity: 0, y: 18, scale: 0.99 }}
+            initial={{ opacity: 0, y: 12, scale: 0.995 }}
             animate={{ opacity: 1, y: 0, scale: 1 }}
-            transition={{ duration: 0.7, ease: [0.22, 1, 0.36, 1] }}
+            transition={roogoMotion.deliberate}
             className="relative mx-auto min-h-[620px] max-w-[1500px] overflow-hidden rounded-[30px] border border-white/10 bg-neutral-950"
           >
             <MarketingImage
@@ -112,11 +113,11 @@ export default function ContactPage() {
                   <motion.div
                     key={info.label}
                     className="rounded-[26px] border border-[#e7dacb] bg-white/75 p-6 shadow-sm"
-                    initial={{ opacity: 0, x: -18 }}
+                    initial={{ opacity: 0, x: -10 }}
                     animate={{ opacity: 1, x: 0 }}
-                    whileHover={{ x: 5, y: -2 }}
+                    whileHover={{ x: 2 }}
                     whileTap={{ scale: 0.99 }}
-                    transition={{ delay: index * 0.08 }}
+                    transition={{ ...roogoMotion.standard, delay: index * 0.06 }}
                   >
                     <div className="flex items-start gap-4">
                       <div className="flex size-12 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-primary">
@@ -138,9 +139,9 @@ export default function ContactPage() {
                 ))}
 
                 <motion.div
-                  initial={{ opacity: 0, x: -18 }}
+                  initial={{ opacity: 0, x: -10 }}
                   animate={{ opacity: 1, x: 0 }}
-                  whileHover={{ x: 5, y: -2 }}
+                  whileHover={{ x: 2 }}
                   whileTap={{ scale: 0.99 }}
                   transition={{ delay: contactInfo.length * 0.08 }}
                   className="rounded-[26px] border border-[#e7dacb] bg-white/75 p-6 shadow-sm"
@@ -175,9 +176,8 @@ export default function ContactPage() {
 
             <motion.div
               className="rounded-[34px] border border-neutral-200 bg-white p-6 shadow-2xl shadow-[#5a321a]/10 sm:p-8 lg:p-10"
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              whileHover={{ y: -4 }}
               transition={{ delay: 0.2 }}
             >
               <h2 className="text-3xl font-black text-neutral-950">
@@ -258,7 +258,7 @@ export default function ContactPage() {
                   variant="primary"
                   size="lg"
                   fullWidth
-                  className="rounded-full py-4 text-base font-black transition-transform hover:-translate-y-0.5 active:translate-y-0"
+                  className="rounded-full py-4 text-base font-black"
                 >
                   <PaperPlaneTiltIcon size={22} weight="bold" className="mr-2" />
                   Envoyer le message

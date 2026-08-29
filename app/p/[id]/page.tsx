@@ -108,7 +108,7 @@ export default function PropertyDeepLinkPage() {
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="w-2 h-2 rounded-full bg-[#C96A2E] animate-bounce"
+                className="h-2 w-2 animate-pulse rounded-full bg-[#C96A2E]"
                 style={{ animationDelay: `${i * 150}ms` }}
               />
             ))}
@@ -129,7 +129,7 @@ export default function PropertyDeepLinkPage() {
             {[0, 1, 2].map((i) => (
               <span
                 key={i}
-                className="w-2 h-2 rounded-full bg-[#C96A2E] animate-bounce"
+                className="h-2 w-2 animate-pulse rounded-full bg-[#C96A2E]"
                 style={{ animationDelay: `${i * 150}ms` }}
               />
             ))}

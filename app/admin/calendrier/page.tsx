@@ -271,12 +271,12 @@ export default function AdminCalendarPage() {
     : [];
 
   const containerVariants = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0, y: 10 },
     visible: {
       opacity: 1,
       y: 0,
       transition: {
-        duration: 0.6,
+        duration: 0.26,
         staggerChildren: 0.05,
       },
     },
@@ -301,7 +301,7 @@ export default function AdminCalendarPage() {
 
         <button
           onClick={() => openAddModal()}
-          className="flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95 text-sm uppercase tracking-wider"
+          className="flex items-center justify-center gap-2 bg-primary text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 transition-all active:scale-[0.985] text-sm uppercase tracking-wider"
         >
           <PlusIcon size={20} weight="bold" />
           Nouveau Créneau
@@ -424,7 +424,7 @@ export default function AdminCalendarPage() {
                     {selectedDaySlots.map((slot) => (
                       <motion.div
                         layout
-                        initial={{ opacity: 0, scale: 0.95 }}
+                        initial={{ opacity: 0, scale: 0.985 }}
                         animate={{ opacity: 1, scale: 1 }}
                         key={slot.id}
                         className="p-5 rounded-[32px] border border-neutral-100 bg-neutral-50/50 flex justify-between items-start group hover:border-primary/20 transition-all"
@@ -535,7 +535,7 @@ export default function AdminCalendarPage() {
               upcomingSlots.map((slot, index) => (
                 <motion.div
                   key={slot.id}
-                  initial={{ opacity: 0, x: 20 }}
+                  initial={{ opacity: 0, x: 10 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ delay: index * 0.1 }}
                   className="bg-white p-6 rounded-[40px] border border-neutral-100 shadow-sm hover:shadow-md hover:border-primary/20 transition-all group cursor-pointer"
@@ -663,9 +663,9 @@ export default function AdminCalendarPage() {
             className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.985, opacity: 0, y: 8 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              exit={{ scale: 0.985, opacity: 0, y: 8 }}
               transition={{ type: "spring", damping: 25, stiffness: 300 }}
               className="bg-white rounded-[32px] w-full max-w-md overflow-hidden shadow-2xl"
             >
@@ -715,9 +715,9 @@ export default function AdminCalendarPage() {
                     <AnimatePresence>
                       {isPropSelectOpen && (
                         <motion.div
-                          initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                          initial={{ opacity: 0, y: 8, scale: 0.985 }}
                           animate={{ opacity: 1, y: 0, scale: 1 }}
-                          exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                          exit={{ opacity: 0, y: 8, scale: 0.985 }}
                           className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 max-h-[240px] overflow-y-auto"
                         >
                           {properties.map((p) => (
@@ -869,7 +869,7 @@ export default function AdminCalendarPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting || !directions.trim() || !latitude || !longitude}
-                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 disabled:hover:scale-100 uppercase tracking-widest text-sm"
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg shadow-primary/20 active:scale-[0.985] transition-all disabled:opacity-50 uppercase tracking-widest text-sm"
                 >
                   {isSubmitting ? "Création..." : "Créer le créneau"}
                 </button>
@@ -889,9 +889,9 @@ export default function AdminCalendarPage() {
             className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.985, opacity: 0, y: 8 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              exit={{ scale: 0.985, opacity: 0, y: 8 }}
               className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl p-10 text-center"
             >
               <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
@@ -925,7 +925,7 @@ export default function AdminCalendarPage() {
                 <button
                   onClick={handleAddSlot}
                   disabled={isSubmitting}
-                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 active:scale-[0.985] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
                 >
                   {isSubmitting ? "Confirmation..." : "Confirmer la création"}
                 </button>

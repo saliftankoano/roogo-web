@@ -959,7 +959,7 @@ export default function AdminUsersPage() {
                 className={`
                   relative h-14 sm:h-20 rounded-2xl flex flex-col items-center justify-center transition-all group
                   ${getIntensity(day)}
-                  ${isSelected ? "ring-4 ring-primary/20 scale-95 z-10" : "hover:scale-105"}
+                  ${isSelected ? "ring-4 ring-primary/20 scale-[0.99] z-10" : "hover:scale-[1.01]"}
                   ${isToday(day) ? "border-2 border-primary/30" : "border border-transparent"}
                 `}
               >
@@ -1397,7 +1397,7 @@ export default function AdminUsersPage() {
                 <motion.div
                   key={user.id}
                   {...sharedMotionProps}
-                  className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 group flex flex-col"
+                  className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-200 group flex flex-col"
                 >
                   {cardHeader("Locataire")}
 
@@ -1478,7 +1478,7 @@ export default function AdminUsersPage() {
                 <motion.div
                   key={user.id}
                   {...sharedMotionProps}
-                  className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 group flex flex-col"
+                  className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-200 group flex flex-col"
                 >
                   {cardHeader("Propriétaire")}
 
@@ -1560,7 +1560,7 @@ export default function AdminUsersPage() {
               <motion.div
                 key={user.id}
                 {...sharedMotionProps}
-                className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-1 transition-all duration-200 group flex flex-col"
+                className="rounded-2xl overflow-hidden cursor-pointer shadow-[0_2px_8px_rgba(0,0,0,0.07),0_8px_24px_rgba(0,0,0,0.05)] hover:shadow-[0_8px_32px_rgba(0,0,0,0.12),0_20px_48px_rgba(0,0,0,0.08)] hover:-translate-y-0.5 transition-all duration-200 group flex flex-col"
               >
                 {cardHeader(userTypeLabels[user.user_type] || user.user_type)}
 
@@ -1613,9 +1613,9 @@ export default function AdminUsersPage() {
           return (
             <div className="fixed inset-0 z-100 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 20 }}
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 20 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
                 className="bg-white w-full max-w-3xl max-h-[90vh] rounded-[40px] shadow-2xl border border-neutral-200 overflow-hidden flex flex-col"
               >
                 {/* Modal Header */}
@@ -2266,9 +2266,9 @@ export default function AdminUsersPage() {
       <AnimatePresence>
         {copiedUserId && (
           <motion.div
-            initial={{ opacity: 0, y: 16 }}
+            initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: 16 }}
+            exit={{ opacity: 0, y: 8 }}
             className="fixed bottom-8 left-1/2 -translate-x-1/2 z-[200] flex items-center gap-2.5 px-5 py-3 bg-neutral-900 text-white text-sm font-bold rounded-2xl shadow-2xl pointer-events-none"
           >
             <CheckCircleIcon size={16} weight="fill" className="text-green-400 shrink-0" />

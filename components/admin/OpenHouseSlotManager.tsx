@@ -197,7 +197,7 @@ export default function OpenHouseSlotManager({
         {!isAdding && slots.length < limit && (
           <Button
             onClick={() => setIsAdding(true)}
-            className="bg-primary text-white text-xs font-bold uppercase tracking-wider px-6 h-11 rounded-xl shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95"
+            className="bg-primary text-white text-xs font-bold uppercase tracking-wider px-6 h-11 rounded-xl shadow-lg shadow-primary/20 transition-all active:scale-[0.985]"
           >
             <PlusIcon size={18} weight="bold" className="mr-2" />
             Nouveau Créneau
@@ -208,9 +208,9 @@ export default function OpenHouseSlotManager({
       <AnimatePresence mode="wait">
         {isAdding ? (
           <motion.div
-            initial={{ opacity: 0, y: 20 }}
+            initial={{ opacity: 0, y: 10 }}
             animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -20 }}
+            exit={{ opacity: 0, y: -10 }}
             className="p-8 border-2 border-primary/10 rounded-[32px] bg-primary/5 space-y-6 relative overflow-hidden"
           >
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -255,9 +255,9 @@ export default function OpenHouseSlotManager({
                   <AnimatePresence>
                     {isDatePickerOpen && (
                       <motion.div
-                        initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                        initial={{ opacity: 0, y: 8, scale: 0.985 }}
                         animate={{ opacity: 1, y: 0, scale: 1 }}
-                        exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                        exit={{ opacity: 0, y: 8, scale: 0.985 }}
                         className="absolute top-full left-0 mt-3 bg-white rounded-[24px] p-4 shadow-2xl border border-neutral-100 z-50"
                       >
                         <Calendar
@@ -386,7 +386,7 @@ export default function OpenHouseSlotManager({
                   !longitude
                 }
                 onClick={handleConfirmAdd}
-                className="bg-primary text-white text-xs font-bold uppercase tracking-wider px-8 h-12 rounded-full shadow-lg shadow-primary/20 hover:scale-105 transition-all active:scale-95 disabled:opacity-50"
+                className="bg-primary text-white text-xs font-bold uppercase tracking-wider px-8 h-12 rounded-full shadow-lg shadow-primary/20 transition-all active:scale-[0.985] disabled:opacity-50"
               >
                 {isSubmitting ? "Enregistrement..." : "Enregistrer"}
               </Button>
@@ -411,7 +411,7 @@ export default function OpenHouseSlotManager({
                     className="p-6 border border-neutral-100 rounded-[32px] bg-neutral-50/50 flex items-center justify-between group hover:border-primary/20 transition-all"
                   >
                     <div className="flex items-center gap-5">
-                      <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm text-primary group-hover:scale-110 transition-transform">
+                      <div className="w-12 h-12 rounded-2xl bg-white flex items-center justify-center shadow-sm text-primary transition-colors group-hover:bg-primary/5">
                         <CalendarIcon size={24} weight="bold" />
                       </div>
                       <div>
@@ -550,9 +550,9 @@ export default function OpenHouseSlotManager({
             className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
           >
             <motion.div
-              initial={{ scale: 0.9, opacity: 0, y: 20 }}
+              initial={{ scale: 0.985, opacity: 0, y: 8 }}
               animate={{ scale: 1, opacity: 1, y: 0 }}
-              exit={{ scale: 0.9, opacity: 0, y: 20 }}
+              exit={{ scale: 0.985, opacity: 0, y: 8 }}
               className="bg-white rounded-[40px] w-full max-w-sm overflow-hidden shadow-2xl p-10 text-center"
             >
               <div className="w-20 h-20 bg-primary/10 rounded-3xl flex items-center justify-center mx-auto mb-8">
@@ -583,7 +583,7 @@ export default function OpenHouseSlotManager({
                 <button
                   onClick={handleAddSlot}
                   disabled={isSubmitting}
-                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 hover:scale-[1.02] active:scale-[0.98] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
+                  className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-xl shadow-primary/20 active:scale-[0.985] transition-all disabled:opacity-50 uppercase tracking-widest text-xs"
                 >
                   {isSubmitting ? "Confirmation..." : "Confirmer la création"}
                 </button>

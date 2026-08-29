@@ -14,6 +14,7 @@ import {
 } from "@phosphor-icons/react";
 import { TrustpilotReviewCollector } from "./TrustpilotReviewCollector";
 import { OFFICE_MAPS_URL } from "@/lib/office";
+import { roogoMotion } from "@/lib/motion";
 
 export function Footer() {
   return (
@@ -49,8 +50,8 @@ export function Footer() {
                   key={item.label}
                   href="#"
                   aria-label={item.label}
-                  whileHover={{ y: -3, scale: 1.04 }}
-                  whileTap={{ scale: 0.94 }}
+                  whileTap={{ scale: 0.985 }}
+                  transition={roogoMotion.quick}
                   className="flex size-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/60 transition-colors hover:bg-primary hover:text-white"
                 >
                   <item.icon size={20} weight="fill" />

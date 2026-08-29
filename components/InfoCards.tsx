@@ -51,7 +51,7 @@ export function InfoCards() {
   };
 
   const item = {
-    hidden: { opacity: 0, y: 20 },
+    hidden: { opacity: 0, y: 10 },
     show: { opacity: 1, y: 0 },
   };
 
@@ -75,10 +75,10 @@ export function InfoCards() {
               key={index}
               className="group bg-white p-8 rounded-[32px] shadow-sm hover:shadow-xl transition-all duration-300 flex flex-col items-center text-center border border-transparent hover:border-primary/10 relative overflow-hidden"
               variants={item}
-              whileHover={{ y: -5 }}
+              whileHover={{ y: -2 }}
             >
               <div
-                className="relative w-full h-56 mb-8 transition-transform duration-500 group-hover:scale-105"
+                className="relative w-full h-56 mb-8 transition-transform duration-300 group-hover:scale-[1.015]"
               >
                 <Image
                   src={card.image}

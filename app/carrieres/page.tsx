@@ -26,6 +26,7 @@ import {
   SectionHeader,
 } from "@/components/marketing/MarketingPrimitives";
 import { marketingAssets } from "@/components/marketing/assets";
+import { roogoMotion } from "@/lib/motion";
 
 const hiringSignals = [
   "Opérations terrain et vérification des biens",
@@ -94,9 +95,9 @@ export default function CareersPage() {
 
           <div className="relative mx-auto grid min-h-[720px] w-full max-w-7xl items-end gap-12 px-6 pb-16 md:grid-cols-[1.15fr_0.85fr] md:pb-24">
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
+              transition={roogoMotion.deliberate}
             >
               <Kicker className="border-white/20 bg-white/10 text-white/80">
                 Carrières Roogo
@@ -115,8 +116,8 @@ export default function CareersPage() {
                 >
                   <ExpandableScreenTrigger>
                   <motion.div
-                    whileHover={{ y: -2, scale: 1.02 }}
-                    whileTap={{ scale: 0.97 }}
+                    whileTap={{ scale: 0.985 }}
+                    transition={roogoMotion.quick}
                     className="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-7 py-4 text-sm font-black text-white shadow-2xl shadow-primary/25 transition hover:bg-primary-hover"
                   >
                     <EnvelopeSimpleIcon size={20} weight="bold" />
@@ -145,9 +146,9 @@ export default function CareersPage() {
             </motion.div>
 
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
+              initial={{ opacity: 0, y: 12 }}
               animate={{ opacity: 1, y: 0 }}
-              transition={{ delay: 0.15, duration: 0.6 }}
+              transition={{ ...roogoMotion.deliberate, delay: 0.12 }}
               className="rounded-[2rem] border border-white/10 bg-white/10 p-6 shadow-2xl backdrop-blur-md"
             >
               <p className="text-xs font-black uppercase tracking-[0.2em] text-white/50">
@@ -157,8 +158,9 @@ export default function CareersPage() {
                 {hiringSignals.map((signal) => (
                   <motion.div
                     key={signal}
-                    whileHover={{ x: 4, backgroundColor: "rgba(255,255,255,0.14)" }}
+                    whileHover={{ x: 2, backgroundColor: "rgba(255,255,255,0.14)" }}
                     whileTap={{ scale: 0.99 }}
+                    transition={roogoMotion.quick}
                     className="flex items-start gap-3 rounded-2xl bg-white/10 p-4 text-sm font-bold text-white/80"
                   >
                     <CheckCircleIcon
@@ -195,7 +197,7 @@ export default function CareersPage() {
                     key={principle.title}
                     className="rounded-[1.75rem] border border-black/10 bg-white p-7 shadow-sm hover:shadow-xl hover:shadow-[#5a321a]/10"
                   >
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-transform duration-300 group-hover:-rotate-3 group-hover:scale-105">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-primary/10 text-primary transition-colors duration-300 group-hover:bg-primary/15">
                       <Icon size={25} weight="duotone" />
                     </div>
                     <h2 className="mt-6 text-xl font-black">
@@ -220,7 +222,7 @@ export default function CareersPage() {
                 alt="Équipe Roogo organisant un workflow propriétaire"
                 fill
                 sizes="(min-width: 1024px) 45vw, 100vw"
-                className="object-cover transition-transform duration-700 group-hover:scale-105"
+                className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
               />
               <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-transparent" />
               <div className="absolute bottom-6 left-6 right-6 rounded-3xl border border-white/10 bg-black/40 p-5 backdrop-blur-md">
@@ -310,8 +312,8 @@ export default function CareersPage() {
                   >
                     <ExpandableScreenTrigger>
                       <motion.div
-                        whileHover={{ y: -2, scale: 1.02 }}
-                        whileTap={{ scale: 0.97 }}
+                        whileTap={{ scale: 0.985 }}
+                        transition={roogoMotion.quick}
                         className="inline-flex items-center justify-center gap-2 rounded-full bg-white px-7 py-4 text-sm font-black text-neutral-950 transition hover:bg-white/90"
                       >
                         <EnvelopeSimpleIcon size={20} weight="bold" />

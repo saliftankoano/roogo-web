@@ -28,6 +28,7 @@ import {
 import { MarketingImage } from "./marketing/MarketingPrimitives";
 import { marketingAssets } from "./marketing/assets";
 import { cn } from "../lib/utils";
+import { roogoMotion } from "@/lib/motion";
 
 const CATEGORY_FILTER_OPTIONS = [
   { value: "all", label: "Tout" },
@@ -336,9 +337,9 @@ function PropertiesPageContent({
       <main className="mx-auto max-w-7xl space-y-8 px-6 pb-20 pt-32 md:pt-40">
         {/* Results Header */}
         <motion.section
-          initial={{ opacity: 0, y: 18 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ duration: 0.65, ease: [0.22, 1, 0.36, 1] }}
+          transition={roogoMotion.deliberate}
           className="relative overflow-hidden rounded-[2rem] bg-[#17120f] p-6 text-white shadow-2xl shadow-black/10 md:p-10"
         >
           <MarketingImage
@@ -372,8 +373,8 @@ function PropertiesPageContent({
                 ].map(([label, value]) => (
                   <motion.div
                     key={label}
-                    whileHover={{ y: -3, backgroundColor: "rgba(255,255,255,0.14)" }}
-                    transition={{ duration: 0.25 }}
+                    whileHover={{ backgroundColor: "rgba(255,255,255,0.14)" }}
+                    transition={roogoMotion.standard}
                     className="rounded-2xl border border-white/10 bg-white/10 p-4"
                   >
                     <p className="text-[11px] font-black uppercase tracking-[0.16em] text-white/50">
@@ -390,8 +391,8 @@ function PropertiesPageContent({
             <div className="relative" ref={sortRef}>
               <motion.button
                 onClick={() => setIsSortOpen(!isSortOpen)}
-                whileHover={{ y: -2 }}
-                whileTap={{ scale: 0.97 }}
+                whileTap={{ scale: 0.985 }}
+                transition={roogoMotion.quick}
                 className="flex items-center gap-2 self-start rounded-full border border-white/15 bg-white px-5 py-3 text-neutral-950 shadow-xl shadow-black/15 transition-all hover:bg-white/90 md:self-auto"
               >
                 <span className="text-xs font-black uppercase tracking-wider text-neutral-400">
@@ -412,9 +413,10 @@ function PropertiesPageContent({
               <AnimatePresence>
                 {isSortOpen && (
                   <motion.div
-                    initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                    initial={{ opacity: 0, y: 8, scale: 0.985 }}
                     animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                    exit={{ opacity: 0, y: 8, scale: 0.985 }}
+                    transition={roogoMotion.standard}
                     className="absolute right-0 top-full z-50 mt-2 w-56 rounded-2xl border border-neutral-100 bg-white p-2 text-neutral-950 shadow-2xl"
                   >
                     {sortOptions.map((option) => (
@@ -445,9 +447,9 @@ function PropertiesPageContent({
 
         {/* Custom Styled Filter Section */}
         <motion.div
-          initial={{ opacity: 0, y: 18 }}
+          initial={{ opacity: 0, y: 12 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.08, duration: 0.6, ease: [0.22, 1, 0.36, 1] }}
+          transition={{ ...roogoMotion.deliberate, delay: 0.06 }}
           className="relative rounded-[2rem] border border-black/10 bg-white p-6 shadow-sm transition-all hover:shadow-xl hover:shadow-[#5a321a]/10 sm:p-8 md:p-10"
         >
           <div className="mb-8 flex flex-col gap-5 md:flex-row md:items-center md:justify-between">
@@ -468,8 +470,8 @@ function PropertiesPageContent({
                 >
                   <ExpandableScreenTrigger>
                     <motion.div
-                      whileHover={{ y: -2, scale: 1.02 }}
-                      whileTap={{ scale: 0.97 }}
+                      whileTap={{ scale: 0.985 }}
+                      transition={roogoMotion.quick}
                       className="flex cursor-pointer items-center gap-2 rounded-full bg-primary px-6 py-2.5 font-bold text-white shadow-lg shadow-primary/20 transition-all hover:bg-primary/90"
                     >
                       <PlusIcon size={20} weight="bold" />
@@ -489,8 +491,8 @@ function PropertiesPageContent({
               <div className="relative" ref={menuRef}>
                 <motion.button
                   onClick={() => setIsMenuOpen(!isMenuOpen)}
-                  whileHover={{ y: -2 }}
-                  whileTap={{ scale: 0.94 }}
+                  whileTap={{ scale: 0.985 }}
+                  transition={roogoMotion.quick}
                   className={cn(
                     "rounded-full border p-2.5 shadow-sm transition-all",
                     isMenuOpen
@@ -504,9 +506,10 @@ function PropertiesPageContent({
                 <AnimatePresence>
                   {isMenuOpen && (
                     <motion.div
-                      initial={{ opacity: 0, y: 10, scale: 0.95 }}
+                      initial={{ opacity: 0, y: 8, scale: 0.985 }}
                       animate={{ opacity: 1, y: 0, scale: 1 }}
-                      exit={{ opacity: 0, y: 10, scale: 0.95 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.985 }}
+                      transition={roogoMotion.standard}
                       className="absolute right-0 top-full z-50 mt-3 w-64 rounded-3xl border border-neutral-100 bg-white p-2 shadow-2xl"
                     >
                       {isStaffOrFounder && (
@@ -567,11 +570,7 @@ function PropertiesPageContent({
               <label className="ml-4 text-[13px] font-bold uppercase tracking-wider text-neutral-900 opacity-60">
                 Mot-clé
               </label>
-              <motion.div
-                className="relative group"
-                whileHover={{ y: -2 }}
-                transition={{ duration: 0.2 }}
-              >
+              <div className="relative group">
                 <input
                   type="text"
                   placeholder="Entrez un mot-clé..."
@@ -582,7 +581,7 @@ function PropertiesPageContent({
                 <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300 transition-colors group-focus-within:text-primary">
                   <MagnifyingGlassIcon size={20} weight="bold" />
                 </div>
-              </motion.div>
+              </div>
             </div>
 
             {/* Location Filter */}
@@ -633,11 +632,11 @@ function PropertiesPageContent({
               return (
                 <motion.div
                   key={property.id}
-                  initial={{ opacity: 0, y: 18 }}
+                  initial={{ opacity: 0, y: 12 }}
                   whileInView={{ opacity: 1, y: 0 }}
-                  whileHover={{ y: -6 }}
+                  whileHover={{ y: -2 }}
                   viewport={{ once: true, margin: "-60px" }}
-                  transition={{ duration: 0.4, ease: [0.22, 1, 0.36, 1] }}
+                  transition={roogoMotion.deliberate}
                 >
                   <Link href={route} className="block relative group">
                     <PropertyCard property={property} showStatus={showStatus} />
@@ -665,7 +664,7 @@ function PropertiesPageContent({
                 setTypeFilter("all");
                 setCategoryFilter("all");
               }}
-              className="mt-8 rounded-full bg-neutral-900 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-black/10 transition-transform hover:scale-105 active:scale-95"
+              className="mt-8 rounded-full bg-neutral-900 px-8 py-3 text-sm font-bold text-white shadow-lg shadow-black/10 transition-transform active:scale-[0.985]"
             >
               Réinitialiser les filtres
             </button>
@@ -724,8 +723,8 @@ function FilterSelect({
       <div className="relative group">
         <motion.button
           onClick={() => setIsOpen(!isOpen)}
-          whileHover={{ y: -2 }}
-          whileTap={{ scale: 0.98 }}
+          whileTap={{ scale: 0.985 }}
+          transition={roogoMotion.quick}
           className={`w-full flex items-center justify-between pl-6 pr-5 py-4 bg-neutral-50/50 rounded-full border transition-all text-[15px] font-bold text-left ${
             isOpen
               ? "bg-white ring-4 ring-primary/5 border-primary/20 text-primary"
@@ -745,9 +744,10 @@ function FilterSelect({
         <AnimatePresence>
           {isOpen && (
             <motion.div
-              initial={{ opacity: 0, y: 10, scale: 0.95 }}
+              initial={{ opacity: 0, y: 8, scale: 0.985 }}
               animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: 10, scale: 0.95 }}
+              exit={{ opacity: 0, y: 8, scale: 0.985 }}
+              transition={roogoMotion.standard}
               className="absolute top-full left-0 right-0 mt-3 bg-white rounded-[24px] p-2 shadow-2xl border border-neutral-100 z-50 max-h-[300px] overflow-y-auto"
             >
               <motion.button
@@ -755,8 +755,9 @@ function FilterSelect({
                   onChange("all");
                   setIsOpen(false);
                 }}
-                whileHover={{ x: 3 }}
-                whileTap={{ scale: 0.98 }}
+                whileHover={{ x: 2 }}
+                whileTap={{ scale: 0.985 }}
+                transition={roogoMotion.quick}
                 className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all ${
                   value === "all"
                     ? "bg-primary/10 text-primary"
@@ -774,8 +775,9 @@ function FilterSelect({
                     onChange(opt.value);
                     setIsOpen(false);
                   }}
-                  whileHover={{ x: 3 }}
-                  whileTap={{ scale: 0.98 }}
+                  whileHover={{ x: 2 }}
+                  whileTap={{ scale: 0.985 }}
+                  transition={roogoMotion.quick}
                   className={`w-full flex items-center justify-between px-4 py-3 rounded-xl text-sm font-bold transition-all ${
                     value === opt.value
                       ? "bg-primary/10 text-primary"

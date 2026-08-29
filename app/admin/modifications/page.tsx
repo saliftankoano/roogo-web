@@ -199,9 +199,9 @@ export default function AdminModificationsPage() {
                 onClick={() => setReviewModal(null)}
               />
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
                 className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10"
               >
                 <h3 className="text-lg font-black text-neutral-900 mb-1">

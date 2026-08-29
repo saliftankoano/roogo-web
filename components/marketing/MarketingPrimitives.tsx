@@ -1,7 +1,7 @@
 "use client";
 
 import Image, { type ImageProps } from "next/image";
-import { motion, type HTMLMotionProps } from "framer-motion";
+import { motion, type HTMLMotionProps, useReducedMotion } from "framer-motion";
 import {
   type ComponentPropsWithoutRef,
   type ReactNode,
@@ -9,6 +9,10 @@ import {
   useState,
 } from "react";
 import { cn } from "@/lib/utils";
+import {
+  roogoEase,
+  roogoMotion,
+} from "@/lib/motion";
 
 type MarketingImageProps = Omit<ImageProps, "src" | "alt"> & {
   alt: string;
@@ -46,13 +50,11 @@ export function MarketingImage({
   );
 }
 
-const premiumEase = [0.22, 1, 0.36, 1] as const;
-
 export function Reveal({
   children,
   className,
   delay = 0,
-  y = 18,
+  y = 12,
 }: {
   children: ReactNode;
   className?: string;
@@ -64,7 +66,7 @@ export function Reveal({
       initial={{ opacity: 0, y }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65, delay, ease: premiumEase }}
+      transition={{ ...roogoMotion.deliberate, delay }}
       className={className}
     >
       {children}
@@ -82,12 +84,12 @@ export function InteractiveCard({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 18 }}
+      initial={{ opacity: 0, y: 12 }}
       whileInView={{ opacity: 1, y: 0 }}
-      whileHover={{ y: -6, scale: 1.01 }}
-      whileTap={{ scale: 0.99 }}
+      whileHover={{ y: -2 }}
+      whileTap={{ scale: 0.995 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.45, ease: premiumEase }}
+      transition={roogoMotion.deliberate}
       {...props}
       className={cn(
         "group will-change-transform transition-shadow duration-300",
@@ -107,11 +109,11 @@ export function ImagePanel({
 }: HTMLMotionProps<"div">) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 20, scale: 0.985 }}
-      whileInView={{ opacity: 1, y: 0, scale: 1 }}
-      whileHover={{ y: -5 }}
+      initial={{ opacity: 0, y: 12 }}
+      whileInView={{ opacity: 1, y: 0 }}
+      whileHover={{ y: -2 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.7, ease: premiumEase }}
+      transition={roogoMotion.deliberate}
       {...props}
       className={cn("group will-change-transform", className)}
     >
@@ -156,10 +158,10 @@ export function SectionHeader({
 }) {
   return (
     <motion.div
-      initial={{ opacity: 0, y: 18 }}
+      initial={{ opacity: 0, y: 12 }}
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.65, ease: premiumEase }}
+      transition={roogoMotion.deliberate}
       className={cn(
         "max-w-3xl",
         align === "center" && "mx-auto text-center",
@@ -194,6 +196,8 @@ export function DarkSection({
   className,
   ...props
 }: ComponentPropsWithoutRef<"section">) {
+  const reduceMotion = useReducedMotion();
+
   return (
     <section
       {...props}
@@ -205,8 +209,12 @@ export function DarkSection({
       <motion.div
         aria-hidden="true"
         className="absolute inset-0 bg-[radial-gradient(circle_at_20%_0%,rgba(201,106,46,0.25),transparent_32%),linear-gradient(135deg,rgba(255,255,255,0.06),transparent_42%)]"
-        animate={{ opacity: [0.72, 1, 0.72] }}
-        transition={{ duration: 12, repeat: Infinity, ease: "easeInOut" }}
+        animate={reduceMotion ? { opacity: 0.9 } : { opacity: [0.82, 1, 0.82] }}
+        transition={
+          reduceMotion
+            ? { duration: 0 }
+            : { duration: 18, repeat: Infinity, ease: "easeInOut" }
+        }
       />
       <div className="relative mx-auto w-full max-w-7xl px-6">{children}</div>
     </section>
@@ -241,9 +249,9 @@ export function ProofStat({
     <motion.div
       initial={{ opacity: 0, x: -10 }}
       whileInView={{ opacity: 1, x: 0 }}
-      whileHover={{ x: 3 }}
+      whileHover={{ x: 2 }}
       viewport={{ once: true, margin: "-80px" }}
-      transition={{ duration: 0.45, ease: premiumEase }}
+      transition={{ duration: 0.4, ease: roogoEase }}
       className={cn(
         "min-w-0 border-l pl-4",
         dark ? "border-white/15" : "border-neutral-200",

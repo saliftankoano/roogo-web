@@ -602,9 +602,9 @@ export default function AdminListingDetail({
                 onClick={closeStatusModal}
               />
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
                 className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10 overflow-hidden"
               >
                 <div className="flex flex-col items-center text-center space-y-4">
@@ -681,9 +681,9 @@ export default function AdminListingDetail({
                 onClick={() => setConfirmEditModalOpen(false)}
               />
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
                 className="bg-white rounded-2xl p-8 w-full max-w-2xl shadow-xl relative z-10 overflow-hidden max-h-[90vh] flex flex-col"
               >
                 <div className="flex flex-col space-y-6 overflow-hidden">
@@ -761,9 +761,9 @@ export default function AdminListingDetail({
                 onClick={() => setDeleteModalOpen(false)}
               />
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
                 className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10 overflow-hidden"
               >
                 <div className="flex flex-col items-center text-center space-y-4">
@@ -859,7 +859,7 @@ export default function AdminListingDetail({
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
-            className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all duration-200 active:scale-95"
+            className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all duration-200 active:scale-[0.985]"
           >
             <CaretLeftIcon
               size={24}
@@ -980,9 +980,9 @@ export default function AdminListingDetail({
             <AnimatePresence>
               {isStatusDropdownOpen && (
                 <motion.div
-                  initial={{ opacity: 0, y: 8, scale: 0.95 }}
+                  initial={{ opacity: 0, y: 8, scale: 0.985 }}
                   animate={{ opacity: 1, y: 0, scale: 1 }}
-                  exit={{ opacity: 0, y: 8, scale: 0.95 }}
+                  exit={{ opacity: 0, y: 8, scale: 0.985 }}
                   className="absolute right-0 mt-2 w-64 bg-white rounded-2xl shadow-xl border border-neutral-100 py-2 z-50 overflow-hidden"
                 >
                   {[

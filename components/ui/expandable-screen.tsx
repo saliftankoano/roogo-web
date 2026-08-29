@@ -9,6 +9,7 @@ import {
 } from "react";
 import { XIcon } from "@phosphor-icons/react";
 import { AnimatePresence, motion } from "framer-motion";
+import { roogoMotion } from "@/lib/motion";
 
 // Context
 interface ExpandableScreenContextValue {
@@ -122,10 +123,10 @@ export function ExpandableScreenTrigger({
           />
           {/* Content layer that fades out on expand */}
           <motion.button
-            initial={{ opacity: 0, scale: 0.8 }}
+            initial={{ opacity: 0, scale: 0.985 }}
             animate={{ opacity: 1, scale: 1 }}
-            transition={{ delay: 0.2 }}
-            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ ...roogoMotion.standard, delay: 0.08 }}
+            exit={{ opacity: 0, scale: 0.985 }}
             layout={false}
             onClick={expand}
             className="relative cursor-pointer bg-transparent border-none p-0 m-0 text-left appearance-none"
@@ -207,7 +208,7 @@ export function ExpandableScreenContent({
             <motion.div
               initial={{ opacity: 0 }}
               animate={{ opacity: 1 }}
-              transition={{ delay: 0.15, duration: 0.4 }}
+              transition={{ ...roogoMotion.standard, delay: 0.08 }}
               className="relative z-20 w-full"
             >
               {children}

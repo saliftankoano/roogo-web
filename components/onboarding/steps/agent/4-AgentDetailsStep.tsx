@@ -168,14 +168,14 @@ export function AgentDetailsStep({
     <div className="space-y-8 w-full max-w-2xl py-8">
       <div className="space-y-3 text-center">
         <motion.h2
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           className="text-3xl font-bold text-white tracking-tight"
         >
           Contact et zones d&apos;activité
         </motion.h2>
         <motion.p
-          initial={{ opacity: 0, y: 20 }}
+          initial={{ opacity: 0, y: 10 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ delay: 0.1 }}
           className="text-neutral-400 leading-relaxed"
@@ -185,7 +185,7 @@ export function AgentDetailsStep({
       </div>
 
       <motion.form
-        initial={{ opacity: 0, y: 20 }}
+        initial={{ opacity: 0, y: 10 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ delay: 0.2 }}
         onSubmit={handleSubmit}
@@ -292,7 +292,7 @@ export function AgentDetailsStep({
 
         <motion.div
           key={shakeKey}
-          animate={shakeKey > 0 ? { x: [0, -10, 10, -10, 10, -5, 5, 0] } : {}}
+          animate={shakeKey > 0 ? { x: [0, -3, 3, -2, 2, 0] } : {}}
           transition={{ duration: 0.45, ease: "easeInOut" }}
         >
           <Button

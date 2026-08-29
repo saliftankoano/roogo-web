@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { headers } from "next/headers";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
@@ -9,6 +10,14 @@ import { getSiteIdentitySchema } from "../lib/schemas";
 import { TrustpilotScript } from "../components/TrustpilotScript";
 import { AcquisitionSourceGate } from "@/components/onboarding/AcquisitionSourceGate";
 import { ProfileNameGate } from "@/components/onboarding/ProfileNameGate";
+import {
+  ROOGO_MEBO_HOST,
+  ROOGO_PRIMARY_ORIGIN,
+  getForwardedRequestHost,
+  isMeboHost,
+  isProductionMeboHost,
+} from "@/lib/site-context";
+import { AppMotionProvider } from "@/components/motion/AppMotionProvider";
 
 const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
 
@@ -74,13 +83,25 @@ export const metadata: Metadata = {
   },
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;
 }>) {
+  const requestHeaders = await headers();
+  const requestHost = getForwardedRequestHost(requestHeaders);
+  const isMeboSurface = isMeboHost(requestHost);
+  const clerkSatelliteProps = isProductionMeboHost(requestHost)
+    ? {
+        isSatellite: true as const,
+        domain: ROOGO_MEBO_HOST,
+        signInUrl: `${ROOGO_PRIMARY_ORIGIN}/connexion`,
+        signUpUrl: `${ROOGO_PRIMARY_ORIGIN}/inscription`,
+      }
+    : {};
+
   return (
-    <ClerkProvider>
+    <ClerkProvider {...clerkSatelliteProps}>
       <html lang="fr">
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
@@ -111,11 +132,11 @@ export default function RootLayout({
               </noscript>
             </>
           )}
-          <JsonLd schema={getSiteIdentitySchema()} />
-          <NavHandler />
-          <AcquisitionSourceGate />
-          <ProfileNameGate />
-          {children}
+          {!isMeboSurface && <JsonLd schema={getSiteIdentitySchema()} />}
+          <NavHandler site={isMeboSurface ? "mebo" : "immobilier"} />
+          {!isMeboSurface && <AcquisitionSourceGate />}
+          {!isMeboSurface && <ProfileNameGate />}
+          <AppMotionProvider>{children}</AppMotionProvider>
         </body>
       </html>
     </ClerkProvider>

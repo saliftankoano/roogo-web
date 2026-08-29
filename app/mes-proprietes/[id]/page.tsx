@@ -23,6 +23,7 @@ import {
   UserCircleIcon,
   WarningCircleIcon,
 } from "@phosphor-icons/react";
+import { roogoMotion } from "@/lib/motion";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import { fetchPropertyById, Property } from "@/lib/data";
@@ -412,9 +413,10 @@ export default function OwnerPropertyDetailPage() {
                 onClick={() => setConfirmEditModalOpen(false)}
               />
               <motion.div
-                initial={{ opacity: 0, scale: 0.95, y: 10 }}
+                initial={{ opacity: 0, scale: 0.985, y: 8 }}
                 animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }}
+                transition={roogoMotion.standard}
                 className="bg-white rounded-2xl p-6 w-full max-w-md shadow-xl relative z-10"
               >
                 <h3 className="text-xl font-bold text-neutral-900 mb-2">
@@ -516,7 +518,7 @@ export default function OwnerPropertyDetailPage() {
         <div className="flex items-center gap-4">
           <button
             onClick={() => router.back()}
-            className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all duration-200 active:scale-95"
+            className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all duration-200 active:scale-[0.985]"
           >
             <CaretLeftIcon
               size={24}

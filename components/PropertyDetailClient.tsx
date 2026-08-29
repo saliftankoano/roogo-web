@@ -7,6 +7,7 @@ import { useAuth, useUser } from "@clerk/nextjs";
 import Image from "next/image";
 import Link from "next/link";
 import { motion, AnimatePresence } from "framer-motion";
+import { roogoMotion } from "@/lib/motion";
 import {
   CaretLeftIcon,
   CaretRightIcon,
@@ -320,8 +321,8 @@ export function PropertyDetailClient({
             <div className="fixed inset-0 z-[100] flex items-center justify-center p-4">
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
                 className="absolute inset-0 bg-black/40 backdrop-blur-sm" onClick={() => setShowLockConfirm(false)} />
-              <motion.div initial={{ opacity: 0, scale: 0.95, y: 10 }} animate={{ opacity: 1, scale: 1, y: 0 }}
-                exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              <motion.div initial={{ opacity: 0, scale: 0.985, y: 8 }} animate={{ opacity: 1, scale: 1, y: 0 }}
+                exit={{ opacity: 0, scale: 0.985, y: 8 }} transition={roogoMotion.standard}
                 className="relative bg-white rounded-[32px] shadow-xl w-full max-w-md z-10 overflow-hidden">
                 <div className="p-8">
                   <div className="flex items-center gap-4 mb-6">
@@ -404,7 +405,7 @@ export function PropertyDetailClient({
           <div className="flex flex-col md:flex-row md:items-start justify-between gap-6">
             <div className="flex items-start gap-4">
               <button onClick={() => router.back()}
-                className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all active:scale-95 mt-1 shrink-0">
+                className="group rounded-full w-10 h-10 flex items-center justify-center hover:bg-neutral-100 transition-all active:scale-[0.985] mt-1 shrink-0">
                 <CaretLeftIcon size={24} weight="bold" className="text-neutral-700 group-hover:text-neutral-900 group-hover:-translate-x-0.5 transition-all" />
               </button>
               <div>
@@ -449,7 +450,7 @@ export function PropertyDetailClient({
                     <div className="relative aspect-video rounded-2xl overflow-hidden cursor-pointer group"
                       onClick={() => { setFullscreenIndex(currentImageIndex); setIsFullscreen(true); }}>
                       <Image src={images[currentImageIndex]} alt={`Propriété à ${listing.location}`} fill
-                        className="object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                        className="object-cover group-hover:scale-[1.015] transition-transform duration-300"
                         sizes="(max-width: 768px) 100vw, 66vw" priority />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                       <div className="absolute top-4 right-4 px-3 py-1 bg-black/50 rounded-full text-white text-xs font-bold">

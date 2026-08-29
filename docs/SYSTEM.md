@@ -6,6 +6,50 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How does motion work across Roogo Web?
+
+**Bottom line:** motion is a shared orientation and feedback layer, not a
+collection of page effects. Every route inherits the same timing curve and
+reduced-motion behavior, while reusable navigation, onboarding, marketing, and
+group-reveal components use the same compact vocabulary.
+
+The root `AppMotionProvider` configures Framer Motion once for the entire web
+application. A route change receives a short opacity transition that does not
+transform the page container, so fixed dialogs and full-screen onboarding remain
+anchored to the viewport. Staff pages add a brief terracotta route signal under
+the stable navigation bar. Active navigation pills move with a heavily damped
+spring, menus use opacity plus a few pixels of vertical travel, and buttons use a
+small press response rather than hover jumps.
+
+CSS animation and transition durations collapse under
+`prefers-reduced-motion: reduce`, and Framer Motion follows the same system
+preference through `MotionConfig`. The initial server-rendered frame is never
+hidden; route motion begins only after hydration and only on later navigation.
+Loading spinners remain because they communicate active work, but decorative
+bounces, spinning success marks, and repeated progress pulses do not.
+
+Public discovery pages use 8–12 px entrances and at most a 2 px hover offset so
+search context stays spatially stable. Property galleries reserve scale changes
+for opening an image, dialogs originate at 98.5% scale, and onboarding compresses
+its stagger into a sub-300 ms rhythm. Payment and booking success animation is a
+single confirmation stroke; it does not loop. These local rules all consume the
+shared values in `lib/motion.ts` when a reusable timing is needed.
+
+The root layout wraps every App Router branch—currently 47 page files—so legal,
+auth, blog, tutorial, account, Mebo, and staff routes also inherit route feedback
+and reduced-motion behavior even when they intentionally have no local animation.
+The full-system audit also treats Tailwind transform utilities, modal variants,
+validation shakes, image hovers, and loading indicators as part of the motion
+surface; page-level Framer imports alone are not considered sufficient coverage.
+
+`npm run motion:audit` enforces that contract across `app/` and `components/`.
+It verifies the root provider and both reduced-motion layers, inventories every
+`page.tsx`, and rejects oversized transforms, long one-shot entrances, overshooting
+easing, decorative bounce/ping loops, and unguarded infinite motion. It runs as
+`prebuild`, so a deployment build cannot silently bypass the motion baseline.
+
+See the [motion-system decision](./DECISIONS.md#motion-explains-state-changes-instead-of-decorating-the-interface--2026-08-29).
+
 ## How does staff add ownership evidence to a review?
 
 **Bottom line:** staff can append files to a pending ownership submission or
