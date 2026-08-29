@@ -30,6 +30,7 @@ function mapAdminProperty(row: PropertyDetailsRow) {
   const city = asString(row.city);
   const images = asStringArray(row.images);
   const primaryImage = asString(row.primary_image);
+  const propertyType = asString(row.property_type);
 
   return {
     id: asString(row.id),
@@ -45,7 +46,11 @@ function mapAdminProperty(row: PropertyDetailsRow) {
     images,
     isSponsored: Boolean(row.is_boosted),
     status: asString(row.status),
-    propertyType: asString(row.property_type),
+    propertyType,
+    category:
+      propertyType.toLowerCase() === "commercial"
+        ? "Business"
+        : "Residential",
     description: asString(row.description),
     translationSourceLocale: asString(row.translation_source_locale),
     translationStatus: asString(row.translation_status),
