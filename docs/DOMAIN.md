@@ -9,21 +9,26 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
 
 ## Domain map
 
-- **What this product serves:** Roogo organizes property rental and sale in
-  Burkina Faso, from listing intake through review, visits, agreements, and
-  payment follow-up. Roogo Mebo adds a host-specific advertising marketplace
-  for businesses and local sellers on the same platform.
-- **Primary actors:** visitors, renters, owners, agents, advertisers, Roogo
-  staff, and founders.
+- **What this product serves:** Roogo organizes property rental, sale, hotel
+  stays, and coordinated travel in Burkina Faso, from listing or hotel intake
+  through review, booking, payment, stay operations, and payout. Roogo Mebo adds
+  a host-specific advertising marketplace on the same platform.
+- **Primary actors:** visitors, renters, travelers, owners, agents, hotel admins,
+  reception staff, event organizers, advertisers, Roogo staff, and founders.
 - **Core property workflow:** an owner, agent, or staff member prepares a
   listing; staff reviews it; the listing goes online after its applicable gates
   pass; renters or buyers then work through Roogo's visit, chat, agreement, and
   payment flows.
+- **Core hotel workflow:** a hotel team publishes room types and count-based
+  inventory; a traveler requests dates directly or through an event code; the
+  hotel confirms, the traveler pays, reception operates the stay, and Roogo
+  records the fee, hotel net, receipt, and payout state.
 - **Core advertising workflow:** an eligible user prepares an advertiser
   profile and business proof, submits it for review, and only proceeds through
   later Mebo campaign workflows after the applicable advertiser gates pass.
-- **External standards:** no governing product standard is identified; identity,
-  ownership, contracts, and Mobile Money records are kept as distinct evidence.
+- **External records and rails:** identity, ownership, RCCM business evidence,
+  contracts, and Mobile Money records are kept as distinct evidence; government
+  per-diem ceilings constrain eligible event rates.
 
 ## Listings and property review
 
@@ -80,6 +85,78 @@ the agreed commercial terms.
 
 **Why it matters for building:** Ownership approval and mandate signature are
 separate sale-publication gates. Passing one never implies the other.
+
+## Hotel booking and coordinated travel
+
+### Hotel membership
+
+**Meaning:** The Supabase relationship connecting a Roogo user to one hotel as
+either `admin` or `staff`. Admin means the hotel manager capability set; staff
+means reception and stay-operation access.
+
+**Origin:** Coined for Roogo's hotel organization model; it deliberately replaces
+the earlier Clerk Organizations proposal.
+
+**Why it matters for building:** Clerk authenticates the person, but
+`hotel_members` is the authorization source of truth. A `hotel` user type alone
+never grants access to an arbitrary hotel or to admin-only actions.
+
+**Evidence:** See [how the hotel program works](./SYSTEM.md#how-does-the-roogo-hotel-program-work).
+
+### RCCM hotel verification
+
+**Meaning:** Roogo's private review of a hotel's legal identity, RCCM number,
+optional tax number, and supporting business document.
+
+**Origin:** Established business-registration evidence used in Burkina Faso;
+Roogo applies it as a hotel business-trust workflow distinct from personal KYC.
+
+**Why it matters for building:** The evidence is private and staff-reviewed, and
+its lifecycle must resist duplicate pending submissions and stale decisions.
+Personal identity verification never substitutes for hotel authorization or
+business approval.
+
+**Evidence:** See [how hotel trust fits the program](./SYSTEM.md#how-does-the-roogo-hotel-program-work).
+
+### Event room block (pledge)
+
+**Meaning:** A hotel's commitment of a count of one room type for each night of
+an event window, optionally at a negotiated event rate.
+
+**Origin:** Established group-travel and hotel-allotment practice, represented in
+Roogo by `event_room_blocks`.
+
+**Why it matters for building:** Availability is per night and count-based. A
+booking must recheck the remaining pledge atomically; a total-room count or one
+blocked date cannot safely represent the commitment.
+
+**Evidence:** See the [hotel product-boundary decision](./DECISIONS.md#hotels-use-roogo-as-a-booking-and-payment-rail-not-as-a-pms--2026-08-30).
+
+### Negotiated event rate and per diem
+
+**Meaning:** The event-specific nightly price offered by a hotel, bounded by the
+maximum daily lodging allowance recorded for that event.
+
+**Origin:** Negotiated hotel pricing and government per-diem practice, adapted to
+Roogo's event-code flow.
+
+**Why it matters for building:** The server, not the displayed client quote,
+selects and revalidates the price against event dates, city, rate ceiling, and
+pledged capacity before creating a booking.
+
+**Evidence:** See [how an event booking is handed off](./SYSTEM.md#how-does-the-roogo-hotel-program-work).
+
+### Hotel group
+
+**Meaning:** A create-or-join-by-code roster of multiple Roogo hotels.
+
+**Origin:** Coined for Roogo's lightweight multi-hotel coordination capability.
+
+**Why it matters for building:** Group membership helps hotels discover one
+another but does not merge their listings, staff permissions, bookings, wallets,
+or event pledges.
+
+**Evidence:** Backend [PR #22](https://github.com/saliftankoano/roogo-web/pull/22).
 
 ## Advertising marketplace
 

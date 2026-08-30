@@ -6,6 +6,78 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How does the Roogo hotel program work?
+
+**Bottom line:** Roogo connects hotel supply to individual travelers and coordinated
+events without becoming the hotel's internal management system. The mobile app owns
+the traveler, hotel-admin, and reception workflows; this backend owns authorization,
+business rules, durable booking/event state, staff review, analytics, and payouts.
+
+A hotel admin creates or joins the hotel through a Supabase membership, publishes a
+hotel listing, defines room types and counts, invites reception staff, and sets payout
+defaults. Reception staff can find a paid reservation by booking code or guest phone
+and move it through check-in and checkout, but admin-only actions such as room setup,
+analytics, payouts, RCCM submission, event pledges, and group management remain
+role-gated.
+
+Travelers select a room type and dates, then use the existing daily request-to-confirm
+flow. The hotel approves only after checking availability; the traveler pays through
+PawaPay; the confirmed reservation supplies a shareable receipt and front-desk code.
+The operations view summarizes 7-, 30-, or 90-day bookings, revenue, Roogo's 7% fee,
+hotel net, room nights, occupancy, and payout settings. Booking chat stays scoped to
+that reservation so operational messages do not become a general hotel inbox.
+
+For coordinated travel, staff creates an event with a city, stay window, per-diem
+ceiling, and code. Eligible hotels pledge a room type, a count, and optionally a lower
+negotiated rate. Applying the code makes the server recheck the event window, city,
+rate ceiling, and remaining per-night pledged capacity before quoting and again when
+the booking is created. This prevents stale or concurrent requests from overselling
+the block. Staff can then read pledged, confirmed, remaining, gross, and hotel-net
+totals. Hotel groups are a separate create/join-by-code membership surface for hotels
+that want a shared roster; they do not change booking ownership or payment flows.
+
+The diagram answers who hands off each stage of an event booking. It intentionally
+omits API route names and internal query details.
+
+```mermaid
+flowchart LR
+    STAFF(["Staff defines event, window and per diem"]) --> PLEDGE[["Hotel pledges room type, count and rate"]]
+    PLEDGE --> CODE(["Traveler applies event code"])
+    CODE --> RULES{"Window, city, rate and capacity valid?"}
+    RULES -->|"No"| STOP(["Quote or booking stops safely"])
+    RULES -->|"Yes"| REQUEST[["Daily booking request"]]
+    REQUEST --> HOTEL{"Hotel confirms availability?"}
+    HOTEL -->|"Declined"| STOP
+    HOTEL -->|"Approved"| PAY[("PawaPay payment")]
+    PAY --> STAY[["Front desk check-in and checkout"]]
+    STAY --> OPS(["Receipt, hotel net and event dashboard"])
+    CHAT[["Booking-scoped chat"]] -. "supports" .-> REQUEST
+    RCCM{"Staff approves RCCM evidence?"} -. "trust status" .-> PLEDGE
+
+    classDef stage fill:#172554,stroke:#60a5fa,color:#eff6ff,stroke-width:2px;
+    classDef workflow fill:#064e3b,stroke:#5eead4,color:#ecfdf5,stroke-width:3px;
+    classDef decision fill:#78350f,stroke:#fbbf24,color:#fffbeb,stroke-width:3px;
+    classDef external fill:#1f2937,stroke:#9ca3af,color:#f9fafb,stroke-width:2px;
+    classDef success fill:#14532d,stroke:#86efac,color:#f0fdf4,stroke-width:3px;
+    classDef danger fill:#7f1d1d,stroke:#fca5a5,color:#fef2f2,stroke-width:3px;
+
+    class STAFF,CODE stage;
+    class PLEDGE,REQUEST,STAY,CHAT workflow;
+    class RULES,HOTEL,RCCM decision;
+    class PAY external;
+    class OPS success;
+    class STOP danger;
+```
+
+Hotel business verification is intentionally separate from personal KYC. An admin
+submits legal identity, RCCM number, optional tax number, and a private document;
+staff records one approve/reject decision. Duplicate pending submissions and stale or
+concurrent staff decisions are rejected, so the hotel trust state cannot silently
+move backward.
+
+See the [hotel product-boundary decision](./DECISIONS.md#hotels-use-roogo-as-a-booking-and-payment-rail-not-as-a-pms--2026-08-30)
+and the hotel terms in [DOMAIN.md](./DOMAIN.md#hotel-booking-and-coordinated-travel).
+
 ## How does Mebo share Roogo Web without becoming the immobilier site?
 
 **Bottom line:** the request host selects a product context before the shared
