@@ -157,6 +157,8 @@ const isPublicRoute = createRouteMatcher([
   "/api/properties/(.*)/ownership-documents/upload-url",
   // Sale chat — mobile authenticates with Bearer JWT
   "/api/sale-chat/(.*)",
+  // Hotel operations — the handler validates the mobile Bearer JWT and admin role.
+  "/api/hotels/(.*)/operations",
   // Shared property links — must be accessible without sign-in
   "/p/(.*)",
   "/proprietes/(.*)",
@@ -175,69 +177,72 @@ const isOnboardingGateExempt = createRouteMatcher([
   "/api(.*)",
 ]);
 
-export default clerkMiddleware(async (auth, req) => {
-  const requestHost = getForwardedRequestHost(req.headers);
-  const isMarketplaceRequest = isMeboHost(requestHost);
-  const isInternalMarketplacePublicRequest =
-    req.nextUrl.pathname === "/mebo" ||
-    req.nextUrl.pathname.startsWith("/mebo/plans") ||
-    req.nextUrl.pathname.startsWith("/mebo/vendeurs");
-  const isPublicRequest =
-    isPublicRoute(req) ||
-    isInternalMarketplacePublicRequest ||
-    (isMarketplaceRequest && isMeboPublicPath(req.nextUrl.pathname));
+export default clerkMiddleware(
+  async (auth, req) => {
+    const requestHost = getForwardedRequestHost(req.headers);
+    const isMarketplaceRequest = isMeboHost(requestHost);
+    const isInternalMarketplacePublicRequest =
+      req.nextUrl.pathname === "/mebo" ||
+      req.nextUrl.pathname.startsWith("/mebo/plans") ||
+      req.nextUrl.pathname.startsWith("/mebo/vendeurs");
+    const isPublicRequest =
+      isPublicRoute(req) ||
+      isInternalMarketplacePublicRequest ||
+      (isMarketplaceRequest && isMeboPublicPath(req.nextUrl.pathname));
 
-  if (!isPublicRequest) {
-    await auth.protect();
+    if (!isPublicRequest) {
+      await auth.protect();
 
-    // Roogo Immobilier onboarding is intentionally product-specific. A user
-    // can browse or use Roogo Mêbo without being pushed into a renter/owner/
-    // agent choice that belongs to the real-estate product.
-    if (!isMarketplaceRequest && !isOnboardingGateExempt(req)) {
-      const { sessionClaims, userId } = await auth();
-      const sessionGateState = getOnboardingGateState(
-        getSessionMetadata(sessionClaims as Record<string, unknown> | null),
-      );
-      const serverGateState =
-        !sessionGateState.hasCompletedOnboarding &&
-        !["staff", "founder"].includes(sessionGateState.userType) &&
-        userId
-          ? await getUserMetadataGateState(userId)
-          : null;
-      const gateState = serverGateState ?? sessionGateState;
+      // Roogo Immobilier onboarding is intentionally product-specific. A user
+      // can browse or use Roogo Mêbo without being pushed into a renter/owner/
+      // agent choice that belongs to the real-estate product.
+      if (!isMarketplaceRequest && !isOnboardingGateExempt(req)) {
+        const { sessionClaims, userId } = await auth();
+        const sessionGateState = getOnboardingGateState(
+          getSessionMetadata(sessionClaims as Record<string, unknown> | null),
+        );
+        const serverGateState =
+          !sessionGateState.hasCompletedOnboarding &&
+          !["staff", "founder"].includes(sessionGateState.userType) &&
+          userId
+            ? await getUserMetadataGateState(userId)
+            : null;
+        const gateState = serverGateState ?? sessionGateState;
 
-      // Staff and founders are never blocked by the onboarding gate
-      const isBypassRole = ["staff", "founder"].includes(gateState.userType);
+        // Staff and founders are never blocked by the onboarding gate
+        const isBypassRole = ["staff", "founder"].includes(gateState.userType);
 
-      if (!gateState.hasCompletedOnboarding && !isBypassRole) {
-        return NextResponse.redirect(new URL("/onboarding", req.url));
+        if (!gateState.hasCompletedOnboarding && !isBypassRole) {
+          return NextResponse.redirect(new URL("/onboarding", req.url));
+        }
       }
     }
-  }
 
-  if (isMarketplaceRequest) {
-    const internalPath = getMeboRewritePath(req.nextUrl.pathname);
+    if (isMarketplaceRequest) {
+      const internalPath = getMeboRewritePath(req.nextUrl.pathname);
 
-    if (internalPath) {
-      const rewriteUrl = req.nextUrl.clone();
-      rewriteUrl.pathname = internalPath;
-      return NextResponse.rewrite(rewriteUrl);
+      if (internalPath) {
+        const rewriteUrl = req.nextUrl.clone();
+        rewriteUrl.pathname = internalPath;
+        return NextResponse.rewrite(rewriteUrl);
+      }
     }
-  }
-}, (req) => {
-  const requestHost = getForwardedRequestHost(req.headers);
+  },
+  (req) => {
+    const requestHost = getForwardedRequestHost(req.headers);
 
-  if (!isProductionMeboHost(requestHost)) {
-    return {};
-  }
+    if (!isProductionMeboHost(requestHost)) {
+      return {};
+    }
 
-  return {
-    isSatellite: true,
-    domain: ROOGO_MEBO_HOST,
-    signInUrl: `${ROOGO_PRIMARY_ORIGIN}/connexion`,
-    signUpUrl: `${ROOGO_PRIMARY_ORIGIN}/inscription`,
-  };
-});
+    return {
+      isSatellite: true,
+      domain: ROOGO_MEBO_HOST,
+      signInUrl: `${ROOGO_PRIMARY_ORIGIN}/connexion`,
+      signUpUrl: `${ROOGO_PRIMARY_ORIGIN}/inscription`,
+    };
+  },
+);
 
 export const config = {
   matcher: [
