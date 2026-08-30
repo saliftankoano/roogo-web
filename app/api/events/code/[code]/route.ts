@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
-import { normalizeEventCode } from "@/lib/hotel-events";
+import { eventCheckoutDate, normalizeEventCode } from "@/lib/hotel-events";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function OPTIONS(req: Request) {
@@ -43,6 +43,7 @@ export async function GET(
         city: event.city,
         startDate: event.start_date,
         endDate: event.end_date,
+        checkoutDate: eventCheckoutDate(event.end_date),
         perDiemLimit: event.per_diem_limit,
         eventNightlyRate: block.event_nightly_rate,
       },

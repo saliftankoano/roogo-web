@@ -72,6 +72,70 @@ CREATE POLICY "Group members view group hotels"
   ON public.hotel_group_hotels FOR SELECT
   USING (current_user_hotel_group_member(group_id));
 
+-- Pledge edits and booking writes use the same advisory-lock key. A hotel
+-- cannot lower or withdraw a room block below the maximum rooms already
+-- reserved on any event night, including under concurrent writes.
+CREATE OR REPLACE FUNCTION enforce_event_room_block_pledge()
+RETURNS TRIGGER
+LANGUAGE plpgsql
+SET search_path = public
+AS $$
+DECLARE
+  event_start DATE;
+  event_end DATE;
+  reserved_peak INTEGER;
+BEGIN
+  PERFORM pg_advisory_xact_lock(
+    hashtextextended(NEW.event_id::text || ':' || NEW.room_type_id::text, 0)
+  );
+
+  SELECT start_date, end_date INTO event_start, event_end
+  FROM events
+  WHERE id = NEW.event_id;
+
+  SELECT COALESCE(MAX(reserved), 0)::integer INTO reserved_peak
+  FROM (
+    SELECT count(request.id) AS reserved
+    FROM generate_series(event_start, event_end, interval '1 day') AS night
+    LEFT JOIN daily_booking_requests request
+      ON request.event_id = NEW.event_id
+     AND request.room_type_id = NEW.room_type_id
+     AND request.property_id = NEW.property_id
+     AND request.status IN (
+       'requested',
+       'approved_awaiting_payment',
+       'payment_pending',
+       'confirmed',
+       'checked_in',
+       'checkin_issue',
+       'checkout_reported',
+       'post_checkout_review',
+       'issue_open',
+       'completed'
+     )
+     AND request.start_date <= night::date
+     AND request.end_date > night::date
+    GROUP BY night
+  ) occupancy;
+
+  IF NEW.status <> 'pledged' AND reserved_peak > 0 THEN
+    RAISE EXCEPTION 'EVENT_ROOM_BLOCK_BELOW_RESERVED';
+  END IF;
+  IF NEW.status = 'pledged' AND NEW.count_pledged < reserved_peak THEN
+    RAISE EXCEPTION 'EVENT_ROOM_BLOCK_BELOW_RESERVED';
+  END IF;
+
+  RETURN NEW;
+END;
+$$;
+
+DROP TRIGGER IF EXISTS trg_event_room_block_pledge ON public.event_room_blocks;
+CREATE TRIGGER trg_event_room_block_pledge
+  BEFORE INSERT OR UPDATE OF count_pledged, status, property_id, room_type_id
+  ON public.event_room_blocks
+  FOR EACH ROW
+  EXECUTE FUNCTION enforce_event_room_block_pledge();
+
 -- Serialize reservations for the same event room block so two requests cannot
 -- both claim the final pledged room. API validation provides friendly errors;
 -- this trigger is the database-level concurrency guarantee.

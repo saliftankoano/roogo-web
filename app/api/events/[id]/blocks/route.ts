@@ -60,7 +60,7 @@ export async function POST(
     supabaseAdmin
       .from("room_types")
       .select(
-        "id, property_id, total_count, properties:property_id(hotel_id, city)",
+        "id, property_id, total_count, nightly_rate, properties:property_id(hotel_id, city)",
       )
       .eq("id", roomTypeId)
       .maybeSingle(),
@@ -85,11 +85,11 @@ export async function POST(
   }
   if (
     event.per_diem_limit != null &&
-    parsed.value.event_nightly_rate != null &&
-    parsed.value.event_nightly_rate > event.per_diem_limit
+    (parsed.value.event_nightly_rate ?? roomType.nightly_rate) >
+      event.per_diem_limit
   ) {
     return errorResponse(
-      "Negotiated rate exceeds the event per diem",
+      "Effective room rate exceeds the event per diem",
       400,
       req,
     );
@@ -110,6 +110,15 @@ export async function POST(
     )
     .select("*")
     .single();
-  if (error) throw error;
+  if (error) {
+    if (error.message.includes("EVENT_ROOM_BLOCK_BELOW_RESERVED")) {
+      return errorResponse(
+        "Pledged rooms cannot be lower than existing event reservations",
+        409,
+        req,
+      );
+    }
+    throw error;
+  }
   return cors(NextResponse.json({ success: true, block: data }), req);
 }

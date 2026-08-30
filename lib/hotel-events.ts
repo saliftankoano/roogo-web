@@ -8,6 +8,25 @@ export function normalizeEventCode(value: unknown) {
   return /^[A-Z0-9-]{4,24}$/.test(normalized) ? normalized : null;
 }
 
+export function eventCheckoutDate(eventEndDate: string) {
+  const end = new Date(`${eventEndDate}T00:00:00.000Z`);
+  if (Number.isNaN(end.getTime())) return null;
+  end.setUTCDate(end.getUTCDate() + 1);
+  return end.toISOString().slice(0, 10);
+}
+
+export function isBookingWithinEvent(
+  startDate: string,
+  endDate: string,
+  eventStartDate: string,
+  eventEndDate: string,
+) {
+  const checkoutDate = eventCheckoutDate(eventEndDate);
+  return Boolean(
+    checkoutDate && startDate >= eventStartDate && endDate <= checkoutDate,
+  );
+}
+
 export function generateEventCode() {
   const bytes = randomBytes(5);
   let code = "";

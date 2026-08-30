@@ -18,7 +18,7 @@ import {
   toDailyCheckinAt,
   toDailyCheckoutAt,
 } from "@/lib/daily-bookings";
-import { normalizeEventCode } from "@/lib/hotel-events";
+import { isBookingWithinEvent, normalizeEventCode } from "@/lib/hotel-events";
 
 const createDailyBookingSchema = z.object({
   propertyId: z.uuid(),
@@ -120,10 +120,16 @@ export async function POST(req: Request) {
           .ilike("code", eventCode)
           .eq("status", "open")
           .maybeSingle();
+        if (!event) {
+          return errorResponse("Event code not found or closed", 404, req);
+        }
         if (
-          !event ||
-          startDate < event.start_date ||
-          endDate > event.end_date
+          !isBookingWithinEvent(
+            startDate,
+            endDate,
+            event.start_date,
+            event.end_date,
+          )
         ) {
           return errorResponse("Booking dates are outside the event", 400, req);
         }
