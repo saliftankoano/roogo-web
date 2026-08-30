@@ -15,6 +15,15 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Recently completed
 
+- [x] **Hotel booking, operations, trust, events, and groups** — verified and
+  merged on 2026-08-30 across mobile PRs
+  [#11](https://github.com/saliftankoano/roogo/pull/11),
+  [#12](https://github.com/saliftankoano/roogo/pull/12),
+  [#13](https://github.com/saliftankoano/roogo/pull/13), and
+  [#14](https://github.com/saliftankoano/roogo/pull/14), plus backend PRs
+  [#19](https://github.com/saliftankoano/roogo-web/pull/19)–[#22](https://github.com/saliftankoano/roogo-web/pull/22).
+  See the [changelog](./CHANGELOG.md#2026-08-30) and
+  [system recap](./SYSTEM.md#how-does-the-roogo-hotel-program-work).
 - [x] **Sale details use sale pricing semantics** — verified on 2026-08-29
   across staff, owner, and public detail surfaces; see the
   [changelog](./CHANGELOG.md#2026-08-29).
@@ -40,6 +49,9 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ### For visitors & renters — discover, apply, and rent in the browser
 
+- [x] **Book hotel stays and coordinated-event rooms** — choose a room type,
+      request dates, apply an event code when relevant, pay individually by
+      Mobile Money, chat with the hotel, and keep a receipt plus front-desk code.
 - [x] **Blog and owner tutorials** — public, onboarding-exempt guides explain
       owner signup and sale-listing workflows with video, structured data, and
       contextual links from the relevant product surfaces.
@@ -77,6 +89,10 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ### For owners & agents — list, manage, and get paid on a bigger screen
 
+- [x] **Operate a hotel as a managed Roogo partner** — hotel admins manage room
+      types, reception membership, booking decisions, payout defaults, revenue,
+      occupancy, RCCM evidence, event pledges, and hotel-group membership while
+      reception staff handles arrivals, departures, and payment lookup.
 - [x] **Owner/agent dashboard** — manage all listings at `/mes-proprietes` with a
       desktop-grade create/edit listing wizard (location picker, photo uploader with
       client-side HEIC→JPEG compression).
@@ -94,6 +110,9 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ### For staff & founders — operate the marketplace (`/admin`)
 
+- [x] **Hotel trust and event coordination** — review RCCM submissions, create
+      event codes and per-diem ceilings, and monitor pledged, confirmed,
+      remaining, gross, and hotel-net event totals.
 - [x] **Listing moderation** — review and act on annonces before they go live.
 - [x] **Composable listing filters** — combine keyword, location, physical
       property type, Residential/Business category, and rental/sale intent.
@@ -117,6 +136,10 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ### Platform — the engine behind both apps
 
+- [x] **Hotel booking and settlement rail** — Supabase hotel memberships,
+      count-based room inventory, request-to-confirm bookings, booking-scoped
+      chat, 7% hotel fee accounting, wallet payouts, and concurrency-safe event
+      pledges extend the existing daily-rental and payment infrastructure.
 - [x] **Single backend for web + mobile** — every authenticated mobile mutation hits
       these `/api/*` routes (Bearer-JWT auth, CORS, rate limiting via Upstash).
 - [x] **Host-aware Mebo foundation** — Roogo Mebo has a distinct host shell and
@@ -146,6 +169,12 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 Use this list as the quick completion view for major features.
 
+- [x] Hotels CVP and coordinated-travel phase 2 — booking, operations, payouts,
+      RCCM, chat, events, negotiated rates, dashboards, and groups shipped on
+      2026-08-30
+- [ ] Proactive hotel event notifications — notify eligible hotel admins when a
+      new event opens in their city so capacity solicitation does not depend on
+      manually opening the program screen
 - [x] Staged owner property edits with staff review — shipped; migrations 031–033
       applied in dev; production migration + QA pending
 - [x] International phone numbers + multi-country mobile money — shipped (mobile

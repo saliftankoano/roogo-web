@@ -4,6 +4,13 @@ What shipped, when. One line each, newest first. The *why* lives in
 [`DECISIONS.md`](./DECISIONS.md); the *how it works* lives in
 [`SYSTEM.md`](./SYSTEM.md).
 
+## 2026-08-30
+
+- **Hotel booking and front-desk foundation** (mobile + backend + data): hotel admins can create a hotel, manage room types and invite reception staff through Supabase memberships; travelers request room stays, pay individually, receive hotel receipts and booking codes, while reception staff verifies payment and checks guests in or out. Production effects of migrations 051–055 were verified. ([mobile PR #11](https://github.com/saliftankoano/roogo/pull/11), [backend PR #19](https://github.com/saliftankoano/roogo-web/pull/19), [why](./DECISIONS.md#hotels-use-roogo-as-a-booking-and-payment-rail-not-as-a-pms--2026-08-30))
+- **Hotel operations, analytics, and payouts** (mobile + backend): hotel admins now see 7/30/90-day bookings, revenue, 7% Roogo fee, net, room nights and occupancy, can save dedicated payout defaults, and continue into the shared wallet payout flow. ([mobile PR #12](https://github.com/saliftankoano/roogo/pull/12), [backend PR #20](https://github.com/saliftankoano/roogo-web/pull/20))
+- **Booking chat and RCCM trust workflow** (mobile + web + backend + data): traveler↔hotel messages are scoped to a booking with realtime/unread/deep-link behavior; hotel admins privately submit business evidence and staff reviews it through a transaction-safe queue that rejects duplicate pending submissions and stale decisions. ([mobile PR #13](https://github.com/saliftankoano/roogo/pull/13), [backend PR #21](https://github.com/saliftankoano/roogo-web/pull/21))
+- **Hotel events, negotiated rates, and groups** (mobile + web + backend + data): staff can create coordinated-travel events and read capacity/revenue dashboards; hotels pledge per-night room inventory within the per-diem ceiling; travelers book with event codes at validated rates; hotels can create or join multi-hotel groups by code. ([mobile PR #14](https://github.com/saliftankoano/roogo/pull/14), [backend PR #22](https://github.com/saliftankoano/roogo-web/pull/22), [how](./SYSTEM.md#how-does-the-roogo-hotel-program-work))
+
 ## 2026-08-29
 
 - **Sale detail pricing corrected** (web): expanded sale listings now show `Prix de vente` and a one-time FCFA amount, never `/ mois`, caution, advance rent, or rental application/payment actions; daily and monthly rentals retain their proper units and conditions. ([why](./DECISIONS.md#listing-intent-stays-separate-and-controls-salerental-behavior--2026-08-29), [how](./SYSTEM.md#how-do-listing-intent-and-admin-filters-compose))

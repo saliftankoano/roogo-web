@@ -7,6 +7,36 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Hotels use Roogo as a booking and payment rail, not as a PMS — 2026-08-30
+
+**Decision:** Roogo supports hotel discovery, room-type inventory, request-to-confirm
+bookings, Mobile Money payment, front-desk verification, hotel payouts, and
+government-event coordination. Hotel identity and permissions live in Supabase
+memberships (`admin` or `staff`) while Clerk authenticates the person. A hotel pays
+Roogo a 7% commission on completed reservations; the traveler sees the room price,
+not an added platform fee. Events may add a negotiated room rate and pledged
+inventory, but travelers still book and pay individually.
+
+**Why:** The Department of Arts and Tourism opportunity requires thousands of
+travelers to find participating hotels, stay within an allocated per diem, produce
+payment evidence, and let coordinators see capacity. Hotels need demand,
+reservation, payment, and reconciliation tooling from Roogo; they do not need Roogo
+to replace housekeeping, walk-in, POS, channel-manager, or physical-room systems.
+Reusing the daily-booking and wallet rails keeps the new market operationally
+consistent with the rest of Roogo.
+
+**Ruled out / alternatives:** A full property-management system was rejected as a
+different product; instant booking was rejected because hotels must recheck live
+availability; Clerk Organizations were rejected because bookings, roles, and
+earnings already need one Supabase source of truth; blocked-date inventory was
+rejected in favor of room-count availability; a central ministry payer was not
+assumed because the agreed model is individual traveler payment.
+
+**Status:** Settled and shipped across mobile
+[PRs #11–#14](https://github.com/saliftankoano/roogo/pulls?q=is%3Apr+is%3Amerged+hotel)
+and backend [PRs #19–#22](https://github.com/saliftankoano/roogo-web/pulls?q=is%3Apr+is%3Amerged+hotel).
+See [how the hotel program works](./SYSTEM.md#how-does-the-roogo-hotel-program-work).
+
 ### Listing intent stays separate and controls sale/rental behavior — 2026-08-29
 
 **Decision:** `listing_type` is the authoritative source for rental versus sale
