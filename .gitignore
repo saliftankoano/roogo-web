@@ -58,6 +58,7 @@ next-env.d.ts
 apply_migration*
 *.mjs
 !scripts/backfill-property-translations.mjs
+!lib/*.test.mjs
 
 # Supabase CLI
 supabase/.temp/
