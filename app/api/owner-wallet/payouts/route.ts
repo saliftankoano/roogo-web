@@ -10,6 +10,7 @@ import {
   updateOwnerPayoutFromPawaPayStatus,
 } from "@/lib/owner-wallet";
 import { initiatePawaPayPayout } from "@/lib/pawapay-payouts";
+import { isHotelFinanceAdmin } from "@/lib/hotel-auth";
 
 const DEFAULT_PAYOUT_MIN = 100;
 const DEFAULT_PAYOUT_MAX = 2_000_000;
@@ -36,9 +37,12 @@ export async function POST(req: Request) {
 
     const user = await getOrSyncUserByClerkId(clerkUserId);
     if (!user) return errorResponse("User not found", 404, req);
-    if (!["owner", "agent", "staff", "founder"].includes(user.user_type)) {
+    const canUseWallet =
+      ["owner", "agent", "staff", "founder"].includes(user.user_type) ||
+      (user.user_type === "hotel" && (await isHotelFinanceAdmin(user.id)));
+    if (!canUseWallet) {
       return errorResponse(
-        "Only owners, agents, staff, and founders can request payouts",
+        "Only listing owners and hotel admins can request payouts",
         403,
         req,
       );
