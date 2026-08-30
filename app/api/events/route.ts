@@ -31,11 +31,13 @@ export async function GET(req: Request) {
   if (!user) return errorResponse("Unauthorized", 401, req);
   let query = supabaseAdmin.from("events").select("*").order("start_date");
   let hotelCity: string | null = null;
+  let hotelId: string | null = null;
   if (!isStaffOrFounder(user)) {
     const adminMembership = (await getMembershipsForUser(user.id)).find(
       (membership) => membership.role === "admin",
     );
     if (!adminMembership) return errorResponse("Forbidden", 403, req);
+    hotelId = adminMembership.hotelId;
     const { data: hotel } = await supabaseAdmin
       .from("hotels")
       .select("city")
@@ -46,13 +48,32 @@ export async function GET(req: Request) {
   }
   const { data, error } = await query;
   if (error) throw error;
-  const events = hotelCity
+  let events = hotelCity
     ? (data || []).filter(
         (event) =>
           normalizeHotelEventCity(event.city) ===
           normalizeHotelEventCity(hotelCity),
       )
     : data || [];
+  if (hotelId && events.length > 0) {
+    const { data: blocks, error: blocksError } = await supabaseAdmin
+      .from("event_room_blocks")
+      .select(
+        "event_id, room_type_id, count_pledged, event_nightly_rate, status",
+      )
+      .eq("hotel_id", hotelId)
+      .in(
+        "event_id",
+        events.map((event) => event.id),
+      );
+    if (blocksError) throw blocksError;
+    events = events.map((event) => ({
+      ...event,
+      hotel_blocks: (blocks || []).filter(
+        (block) => block.event_id === event.id,
+      ),
+    }));
+  }
   return cors(NextResponse.json({ success: true, events }), req);
 }
 
