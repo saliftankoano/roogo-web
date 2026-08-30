@@ -31,7 +31,7 @@ export async function POST(
 
   const now = new Date().toISOString();
   const status = decision === "approve" ? "approved" : "rejected";
-  const { error: updateError } = await supabaseAdmin
+  const { error: updateError, count } = await supabaseAdmin
     .from("hotel_business_verification_submissions")
     .update({
       status,
@@ -43,6 +43,9 @@ export async function POST(
     .eq("id", id)
     .eq("status", "pending");
   if (updateError) return NextResponse.json({ error: "Failed to save review" }, { status: 500 });
+  if (count === 0) {
+    return NextResponse.json({ error: "Submission no longer pending" }, { status: 409 });
+  }
   const { error: hotelError } = await supabaseAdmin
     .from("hotels")
     .update({
