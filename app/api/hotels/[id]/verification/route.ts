@@ -90,32 +90,26 @@ export async function POST(
       return errorResponse("Invalid document path", 400, req);
     }
 
-    await supabaseAdmin
-      .from("hotel_business_verification_submissions")
-      .update({
-        status: "rejected",
-        reviewed_at: new Date().toISOString(),
-        rejection_reason: "Remplacé par une nouvelle soumission.",
-      })
-      .eq("hotel_id", id)
-      .eq("status", "pending");
-
-    const { data: submission, error } = await supabaseAdmin
-      .from("hotel_business_verification_submissions")
-      .insert({ hotel_id: id, submitted_by: user.id, ...parsed.value })
-      .select("id, status, submitted_at")
-      .single();
-    if (error) throw error;
-    const { error: hotelError } = await supabaseAdmin
-      .from("hotels")
-      .update({
-        business_verification_status: "pending",
-        business_verified_at: null,
-        business_verified_by: null,
-        business_verification_rejection_reason: null,
-      })
-      .eq("id", id);
-    if (hotelError) throw hotelError;
+    const { data: submissions, error } = await supabaseAdmin.rpc(
+      "submit_hotel_business_verification",
+      {
+        p_hotel_id: id,
+        p_submitted_by: user.id,
+        p_legal_name: parsed.value.legal_name,
+        p_rccm_number: parsed.value.rccm_number,
+        p_tax_number: parsed.value.tax_number,
+        p_document_storage_path: parsed.value.document_storage_path,
+        p_document_mime_type: parsed.value.document_mime_type,
+      },
+    );
+    if (error) {
+      if (error.message.includes("HOTEL_ALREADY_VERIFIED")) {
+        return errorResponse("Hotel is already verified", 409, req);
+      }
+      throw error;
+    }
+    const submission = submissions?.[0];
+    if (!submission) return errorResponse("Hotel not found", 404, req);
     return cors(NextResponse.json({ success: true, submission }), req);
   } catch (error) {
     console.error("POST hotel RCCM verification:", error);
