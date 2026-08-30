@@ -41,10 +41,7 @@ import { buildPropertyBaseSlug, normalizeQuartier } from "@/lib/property-url";
 
 const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
 const FREE_LISTING_DEFAULT_TIER_ID = "premium";
-type ListingPaymentMode =
-  | "free_success_fee"
-  | "upfront_package"
-  | "daily_free";
+type ListingPaymentMode = "free_success_fee" | "upfront_package" | "daily_free";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -155,12 +152,17 @@ export async function POST(req: Request) {
     }
     console.log("Supabase user found:", user.id);
 
-    // 4. Check if user is an owner, agent, staff, or founder
+    // 4. Check if user can publish. Hotel users need an active admin
+    // membership; reception staff cannot create listings.
     let isStaffOrFounder =
       user.user_type === "staff" || user.user_type === "founder";
-    let canCreateListing = ["owner", "agent", "staff", "founder"].includes(
-      user.user_type,
-    );
+    let hotelAdminMembership =
+      user.user_type === "hotel"
+        ? (await getMembershipsForUser(user.id)).find((m) => m.role === "admin")
+        : undefined;
+    let canCreateListing =
+      ["owner", "agent", "staff", "founder"].includes(user.user_type) ||
+      Boolean(hotelAdminMembership);
 
     if (!canCreateListing) {
       // user_type in Supabase may be stale — re-sync from Clerk and retry once
@@ -190,9 +192,17 @@ export async function POST(req: Request) {
           unsafe_metadata:
             clerkUser.unsafeMetadata as ClerkUserData["unsafe_metadata"],
         });
+        if (freshUser?.user_type === "hotel") {
+          hotelAdminMembership = (
+            await getMembershipsForUser(freshUser.id)
+          ).find((m) => m.role === "admin");
+        }
         if (
           freshUser &&
-          ["owner", "agent", "staff", "founder"].includes(freshUser.user_type)
+          (["owner", "agent", "staff", "founder"].includes(
+            freshUser.user_type,
+          ) ||
+            Boolean(hotelAdminMembership))
         ) {
           console.log("Re-sync succeeded, new user_type:", freshUser.user_type);
           user = freshUser as typeof user;
@@ -205,7 +215,7 @@ export async function POST(req: Request) {
             freshUser?.user_type,
           );
           return errorResponse(
-            "Only owners, agents, staff, or founders can create listings",
+            "Only owners, agents, hotel admins, staff, or founders can create listings",
             403,
             req,
           );
@@ -213,7 +223,7 @@ export async function POST(req: Request) {
       } catch (syncError) {
         console.error("Failed to re-sync user from Clerk:", syncError);
         return errorResponse(
-          "Only owners, agents, staff, or founders can create listings",
+          "Only owners, agents, hotel admins, staff, or founders can create listings",
           403,
           req,
         );
@@ -260,6 +270,14 @@ export async function POST(req: Request) {
     }
     const parsedListingData = validationResult.data;
 
+    if (user.user_type === "hotel" && parsedListingData.type !== "hotel") {
+      return errorResponse(
+        "Le gérant d'un hôtel ne peut publier que des annonces d'hôtel",
+        403,
+        req,
+      );
+    }
+
     // Type-conditional rules: terrain requires superficie and allows 0
     // rooms; every other type still requires ≥1 chambre and ≥1 douche.
     const typeIssue = requireListingFieldsByType(parsedListingData);
@@ -272,8 +290,9 @@ export async function POST(req: Request) {
     // through this link.
     let hotelId: string | null = null;
     if (parsedListingData.type === "hotel") {
-      const memberships = await getMembershipsForUser(user.id);
-      const adminMembership = memberships.find((m) => m.role === "admin");
+      const adminMembership =
+        hotelAdminMembership ||
+        (await getMembershipsForUser(user.id)).find((m) => m.role === "admin");
       if (!adminMembership) {
         return errorResponse(
           "Seul le gérant d'un hôtel peut publier une annonce d'hôtel",
@@ -283,7 +302,11 @@ export async function POST(req: Request) {
       }
       hotelId = adminMembership.hotelId;
       if (parsedListingData.listing_type !== "louer") {
-        return errorResponse("Un hôtel ne peut pas être mis en vente", 400, req);
+        return errorResponse(
+          "Un hôtel ne peut pas être mis en vente",
+          400,
+          req,
+        );
       }
       if (parsedListingData.frequence !== "journalier") {
         return errorResponse(
@@ -418,7 +441,10 @@ export async function POST(req: Request) {
         ? (parsedListingData.tier_id ?? null)
         : FREE_LISTING_DEFAULT_TIER_ID;
 
-    if (isFreeSuccessFeeListing && (parsedListingData.add_ons?.length ?? 0) > 0) {
+    if (
+      isFreeSuccessFeeListing &&
+      (parsedListingData.add_ons?.length ?? 0) > 0
+    ) {
       return errorResponse(
         "Les options payantes nécessitent un pack de publication.",
         400,
@@ -581,7 +607,11 @@ export async function POST(req: Request) {
         freeListingReferral = applyReferralToQuote(quote, profile);
       } catch (referralError) {
         if (referralError instanceof ReferralValidationError) {
-          return errorResponse(referralError.message, referralError.status, req);
+          return errorResponse(
+            referralError.message,
+            referralError.status,
+            req,
+          );
         }
         console.error("Error validating free listing referral:", referralError);
         return errorResponse("Failed to validate referral", 500, req);
@@ -712,7 +742,10 @@ export async function POST(req: Request) {
 
     // Slug race: two identical listings created at the same time. Retry once
     // with a random suffix instead of failing the whole creation.
-    if (propertyError?.code === "23505" && propertyError.message.includes("slug")) {
+    if (
+      propertyError?.code === "23505" &&
+      propertyError.message.includes("slug")
+    ) {
       const retry = await supabase
         .from("properties")
         .insert({
@@ -745,15 +778,17 @@ export async function POST(req: Request) {
     );
 
     if (directOwner) {
-      const { error: intakeError } = await supabase.from("sale_intakes").insert({
-        property_id: propertyId,
-        owner_first_name: sanitizeString(directOwner.first_name),
-        owner_last_name: sanitizeString(directOwner.last_name),
-        owner_phone: directOwner.phone,
-        phone_has_whatsapp: directOwner.phone_has_whatsapp,
-        created_by: user.id,
-        status: "unlinked",
-      });
+      const { error: intakeError } = await supabase
+        .from("sale_intakes")
+        .insert({
+          property_id: propertyId,
+          owner_first_name: sanitizeString(directOwner.first_name),
+          owner_last_name: sanitizeString(directOwner.last_name),
+          owner_phone: directOwner.phone,
+          phone_has_whatsapp: directOwner.phone_has_whatsapp,
+          created_by: user.id,
+          status: "unlinked",
+        });
       if (intakeError) {
         console.error("Error creating sale intake:", intakeError);
         await supabase.from("properties").delete().eq("id", propertyId);

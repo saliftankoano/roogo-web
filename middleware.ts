@@ -163,6 +163,11 @@ const isPublicRoute = createRouteMatcher([
   "/api/hotel-booking-chat/(.*)",
   "/api/hotels/(.*)/verification",
   "/api/hotels/(.*)/verification/upload-url",
+  // Hotel events and groups — public code lookup plus handler-validated mobile JWTs.
+  "/api/events",
+  "/api/events/(.*)",
+  "/api/hotel-groups",
+  "/api/hotel-groups/(.*)",
   // Shared property links — must be accessible without sign-in
   "/p/(.*)",
   "/proprietes/(.*)",
