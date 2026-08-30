@@ -116,7 +116,7 @@ export async function POST(req: Request) {
         if (!eventCode) return errorResponse("Invalid event code", 400, req);
         const { data: event } = await supabaseAdmin
           .from("events")
-          .select("id, name, start_date, end_date, status")
+          .select("id, name, start_date, end_date, status, per_diem_limit")
           .ilike("code", eventCode)
           .eq("status", "open")
           .maybeSingle();
@@ -143,6 +143,17 @@ export async function POST(req: Request) {
           .maybeSingle();
         if (!block)
           return errorResponse("Room is not pledged to this event", 400, req);
+        if (
+          event.per_diem_limit != null &&
+          (block.event_nightly_rate ?? roomType.nightly_rate) >
+            event.per_diem_limit
+        ) {
+          return errorResponse(
+            "Event room rate exceeds the per diem",
+            409,
+            req,
+          );
+        }
         const { count: eventBookings, error: countError } = await supabaseAdmin
           .from("daily_booking_requests")
           .select("id", { count: "exact", head: true })

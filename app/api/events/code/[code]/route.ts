@@ -33,6 +33,19 @@ export async function GET(
     .maybeSingle();
   if (!block)
     return errorResponse("This room is not part of the event", 404, req);
+  const { data: roomType } = await supabaseAdmin
+    .from("room_types")
+    .select("nightly_rate")
+    .eq("id", roomTypeId)
+    .maybeSingle();
+  if (
+    !roomType ||
+    (event.per_diem_limit != null &&
+      (block.event_nightly_rate ?? roomType.nightly_rate) >
+        event.per_diem_limit)
+  ) {
+    return errorResponse("Event room rate is no longer available", 409, req);
+  }
   return cors(
     NextResponse.json({
       success: true,
