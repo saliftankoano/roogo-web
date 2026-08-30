@@ -61,8 +61,9 @@ export function summarizeHotelOperations(
     periodDays: days,
     totalRooms,
     totalBookings: bookings.length,
-    pendingRequests: bookings.filter((booking) => booking.status === "requested")
-      .length,
+    pendingRequests: bookings.filter(
+      (booking) => booking.status === "requested",
+    ).length,
     paidBookings: paidBookings.length,
     activeStays: bookings.filter((booking) => booking.status === "checked_in")
       .length,
@@ -90,36 +91,44 @@ export function summarizeHotelOperations(
   };
 }
 
-export function normalizeHotelPayoutSettings(
-  input: Record<string, unknown>,
-):
+export function normalizeHotelPayoutSettings(input: Record<string, unknown>):
   | { error: string }
   | {
       value: {
-        payout_provider: "ORANGE_BFA" | "MOOV_BFA" | null;
-        payout_phone: string | null;
+        payout_provider?: "ORANGE_BFA" | "MOOV_BFA" | null;
+        payout_phone?: string | null;
       };
     } {
-  const provider =
-    input.payoutProvider === "ORANGE_BFA" || input.payoutProvider === "MOOV_BFA"
-      ? input.payoutProvider
-      : null;
-  const digits =
-    typeof input.payoutPhone === "string"
-      ? input.payoutPhone.replace(/\D/g, "").replace(/^226/, "")
-      : "";
+  const value: {
+    payout_provider?: "ORANGE_BFA" | "MOOV_BFA" | null;
+    payout_phone?: string | null;
+  } = {};
 
-  if (input.payoutProvider != null && !provider) {
-    return { error: "Invalid payout provider" };
-  }
-  if (digits && digits.length !== 8) {
-    return { error: "Payout phone must contain 8 digits" };
+  if ("payoutProvider" in input) {
+    const provider =
+      input.payoutProvider === "ORANGE_BFA" ||
+      input.payoutProvider === "MOOV_BFA"
+        ? input.payoutProvider
+        : null;
+    if (input.payoutProvider != null && !provider) {
+      return { error: "Invalid payout provider" };
+    }
+    value.payout_provider = provider;
   }
 
-  return {
-    value: {
-      payout_provider: provider,
-      payout_phone: digits || null,
-    },
-  };
+  if ("payoutPhone" in input) {
+    const digits =
+      typeof input.payoutPhone === "string"
+        ? input.payoutPhone.replace(/\D/g, "").replace(/^226/, "")
+        : "";
+    if (digits && digits.length !== 8) {
+      return { error: "Payout phone must contain 8 digits" };
+    }
+    value.payout_phone = digits || null;
+  }
+
+  if (Object.keys(value).length === 0) {
+    return { error: "No valid fields to update" };
+  }
+  return { value };
 }
