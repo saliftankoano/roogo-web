@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getAuthenticatedUser } from "@/lib/api-auth";
-import { parseEventBlock } from "@/lib/hotel-events";
+import { normalizeHotelEventCity, parseEventBlock } from "@/lib/hotel-events";
 import { getHotelMembership } from "@/lib/hotel-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -77,7 +77,10 @@ export async function POST(
   ) {
     return errorResponse("Event or room type not available", 400, req);
   }
-  if (event.city.toLowerCase() !== String(property.city || "").toLowerCase()) {
+  if (
+    normalizeHotelEventCity(event.city) !==
+    normalizeHotelEventCity(property.city)
+  ) {
     return errorResponse("Hotel and event cities do not match", 400, req);
   }
   if (parsed.value.count_pledged > roomType.total_count) {

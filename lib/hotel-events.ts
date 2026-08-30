@@ -2,6 +2,27 @@ import { randomBytes } from "crypto";
 
 const CODE_ALPHABET = "23456789ABCDEFGHJKMNPQRSTVWXYZ";
 
+const CITY_ALIASES: Record<string, string> = {
+  ouaga: "ouagadougou",
+  bobo: "bobo-dioulasso",
+  po: "po",
+  cinkasse: "cinkasse",
+  dedougou: "dedougou",
+  koupela: "koupela",
+};
+
+export function normalizeHotelEventCity(value: unknown) {
+  if (typeof value !== "string") return "";
+  const normalized = value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-|-$/g, "");
+  return CITY_ALIASES[normalized] || normalized;
+}
+
 export function normalizeEventCode(value: unknown) {
   if (typeof value !== "string") return null;
   const normalized = value.trim().toUpperCase().replace(/\s+/g, "-");

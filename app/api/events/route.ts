@@ -2,7 +2,11 @@ import { NextResponse } from "next/server";
 import { z } from "zod";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
-import { generateEventCode, normalizeEventCode } from "@/lib/hotel-events";
+import {
+  generateEventCode,
+  normalizeEventCode,
+  normalizeHotelEventCity,
+} from "@/lib/hotel-events";
 import { getMembershipsForUser } from "@/lib/hotel-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
@@ -26,6 +30,7 @@ export async function GET(req: Request) {
   const user = await getAuthenticatedUser(req);
   if (!user) return errorResponse("Unauthorized", 401, req);
   let query = supabaseAdmin.from("events").select("*").order("start_date");
+  let hotelCity: string | null = null;
   if (!isStaffOrFounder(user)) {
     const adminMembership = (await getMembershipsForUser(user.id)).find(
       (membership) => membership.role === "admin",
@@ -37,11 +42,18 @@ export async function GET(req: Request) {
       .eq("id", adminMembership.hotelId)
       .single();
     query = query.eq("status", "open");
-    if (hotel?.city) query = query.ilike("city", hotel.city);
+    hotelCity = hotel?.city || null;
   }
   const { data, error } = await query;
   if (error) throw error;
-  return cors(NextResponse.json({ success: true, events: data || [] }), req);
+  const events = hotelCity
+    ? (data || []).filter(
+        (event) =>
+          normalizeHotelEventCity(event.city) ===
+          normalizeHotelEventCity(hotelCity),
+      )
+    : data || [];
+  return cors(NextResponse.json({ success: true, events }), req);
 }
 
 export async function POST(req: Request) {
