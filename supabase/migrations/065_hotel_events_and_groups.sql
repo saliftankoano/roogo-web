@@ -146,7 +146,7 @@ SET search_path = public
 AS $$
 DECLARE
   pledged_count INTEGER;
-  reserved_count INTEGER;
+  reserved_peak INTEGER;
 BEGIN
   IF NEW.event_id IS NULL THEN
     RETURN NEW;
@@ -182,27 +182,33 @@ BEGIN
     RAISE EXCEPTION 'EVENT_ROOM_BLOCK_UNAVAILABLE';
   END IF;
 
-  SELECT count(*) INTO reserved_count
-  FROM daily_booking_requests
-  WHERE event_id = NEW.event_id
-    AND room_type_id = NEW.room_type_id
-    AND id IS DISTINCT FROM NEW.id
-    AND status IN (
-      'requested',
-      'approved_awaiting_payment',
-      'payment_pending',
-      'confirmed',
-      'checked_in',
-      'checkin_issue',
-      'checkout_reported',
-      'post_checkout_review',
-      'issue_open',
-      'completed'
-    )
-    AND start_date < NEW.end_date
-    AND end_date > NEW.start_date;
+  SELECT COALESCE(MAX(reserved), 0)::integer INTO reserved_peak
+  FROM (
+    SELECT count(request.id) AS reserved
+    FROM generate_series(NEW.start_date, NEW.end_date - 1, interval '1 day') AS night
+    LEFT JOIN daily_booking_requests request
+      ON request.event_id = NEW.event_id
+     AND request.room_type_id = NEW.room_type_id
+     AND request.property_id = NEW.property_id
+     AND request.id IS DISTINCT FROM NEW.id
+     AND request.status IN (
+       'requested',
+       'approved_awaiting_payment',
+       'payment_pending',
+       'confirmed',
+       'checked_in',
+       'checkin_issue',
+       'checkout_reported',
+       'post_checkout_review',
+       'issue_open',
+       'completed'
+     )
+     AND request.start_date <= night::date
+     AND request.end_date > night::date
+    GROUP BY night
+  ) occupancy;
 
-  IF reserved_count >= pledged_count THEN
+  IF reserved_peak >= pledged_count THEN
     RAISE EXCEPTION 'EVENT_ROOM_BLOCK_FULL';
   END IF;
 

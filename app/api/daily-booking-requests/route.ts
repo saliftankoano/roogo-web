@@ -154,28 +154,6 @@ export async function POST(req: Request) {
             req,
           );
         }
-        const { count: eventBookings, error: countError } = await supabaseAdmin
-          .from("daily_booking_requests")
-          .select("id", { count: "exact", head: true })
-          .eq("event_id", event.id)
-          .eq("room_type_id", roomTypeId)
-          .in("status", [
-            "requested",
-            "approved_awaiting_payment",
-            "payment_pending",
-            "confirmed",
-            "checked_in",
-            "checkin_issue",
-            "checkout_reported",
-            "post_checkout_review",
-            "issue_open",
-          ])
-          .lt("start_date", endDate)
-          .gt("end_date", startDate);
-        if (countError) throw countError;
-        if ((eventBookings || 0) >= block.count_pledged) {
-          return errorResponse("The event room block is full", 409, req);
-        }
         eventId = event.id;
         eventName = event.name;
         eventNightlyRate = block.event_nightly_rate;
