@@ -18,10 +18,22 @@ export async function POST(
     const user = await getAuthenticatedUser(req);
     if (!user) return errorResponse("Unauthorized", 401, req);
     const membership = await getHotelMembership(user.id, id);
-    if (membership?.role !== "admin") return errorResponse("Forbidden", 403, req);
+    if (membership?.role !== "admin")
+      return errorResponse("Forbidden", 403, req);
+
+    const { data: hotel, error: hotelLookupError } = await supabaseAdmin
+      .from("hotels")
+      .select("business_verification_status")
+      .eq("id", id)
+      .single();
+    if (hotelLookupError) throw hotelLookupError;
+    if (hotel?.business_verification_status === "approved") {
+      return errorResponse("Hotel is already verified", 409, req);
+    }
 
     const body = await req.json().catch(() => ({}));
-    const mimeType = typeof body.mimeType === "string" ? body.mimeType : "image/jpeg";
+    const mimeType =
+      typeof body.mimeType === "string" ? body.mimeType : "image/jpeg";
     const allowed = new Map([
       ["image/jpeg", "jpg"],
       ["image/png", "png"],
@@ -39,7 +51,11 @@ export async function POST(
     return cors(
       NextResponse.json({
         success: true,
-        upload: { path: data.path, signedUrl: data.signedUrl, token: data.token },
+        upload: {
+          path: data.path,
+          signedUrl: data.signedUrl,
+          token: data.token,
+        },
       }),
       req,
     );

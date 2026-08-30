@@ -29,7 +29,9 @@ export async function GET(
     if (error) throw error;
     const { data: latest } = await supabaseAdmin
       .from("hotel_business_verification_submissions")
-      .select("id, legal_name, rccm_number, tax_number, status, submitted_at, rejection_reason")
+      .select(
+        "id, legal_name, rccm_number, tax_number, status, submitted_at, rejection_reason",
+      )
       .eq("hotel_id", id)
       .order("submitted_at", { ascending: false })
       .limit(1)
@@ -71,7 +73,17 @@ export async function POST(
     const user = await getAuthenticatedUser(req);
     if (!user) return errorResponse("Unauthorized", 401, req);
     const membership = await getHotelMembership(user.id, id);
-    if (membership?.role !== "admin") return errorResponse("Forbidden", 403, req);
+    if (membership?.role !== "admin")
+      return errorResponse("Forbidden", 403, req);
+    const { data: hotel, error: hotelLookupError } = await supabaseAdmin
+      .from("hotels")
+      .select("business_verification_status")
+      .eq("id", id)
+      .single();
+    if (hotelLookupError) throw hotelLookupError;
+    if (hotel?.business_verification_status === "approved") {
+      return errorResponse("Hotel is already verified", 409, req);
+    }
     const parsed = normalizeRccmSubmission(await req.json().catch(() => ({})));
     if ("error" in parsed) return errorResponse(parsed.error, 400, req);
     if (!parsed.value.document_storage_path.startsWith(`${id}/`)) {
