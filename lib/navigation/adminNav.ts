@@ -78,6 +78,13 @@ const operationsNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
+    label: "RCCM hôtels",
+    href: "/admin/hotel-verifications",
+    id: "admin-nav-hotel-verifications",
+    icon: BuildingsIcon,
+  },
+  {
+    type: "link",
     label: "Visites",
     href: "/admin/visit-requests",
     id: "admin-nav-visit-requests",

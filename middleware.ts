@@ -159,6 +159,10 @@ const isPublicRoute = createRouteMatcher([
   "/api/sale-chat/(.*)",
   // Hotel operations — the handler validates the mobile Bearer JWT and admin role.
   "/api/hotels/(.*)/operations",
+  // Hotel chat and RCCM — handlers validate the mobile Bearer JWT and membership.
+  "/api/hotel-booking-chat/(.*)",
+  "/api/hotels/(.*)/verification",
+  "/api/hotels/(.*)/verification/upload-url",
   // Shared property links — must be accessible without sign-in
   "/p/(.*)",
   "/proprietes/(.*)",

@@ -1,0 +1,118 @@
+import { NextResponse } from "next/server";
+import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
+import { getAuthenticatedUser } from "@/lib/api-auth";
+import { normalizeRccmSubmission } from "@/lib/hotel-business-verification";
+import { getHotelMembership } from "@/lib/hotel-auth";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+
+export async function OPTIONS(req: Request) {
+  return corsOptions(req);
+}
+
+export async function GET(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const user = await getAuthenticatedUser(req);
+    if (!user) return errorResponse("Unauthorized", 401, req);
+    const membership = await getHotelMembership(user.id, id);
+    if (!membership) return errorResponse("Forbidden", 403, req);
+    const { data: hotel, error } = await supabaseAdmin
+      .from("hotels")
+      .select(
+        "id, business_verification_status, business_verified_at, business_verification_rejection_reason",
+      )
+      .eq("id", id)
+      .single();
+    if (error) throw error;
+    const { data: latest } = await supabaseAdmin
+      .from("hotel_business_verification_submissions")
+      .select(
+        "id, legal_name, rccm_number, tax_number, status, submitted_at, rejection_reason",
+      )
+      .eq("hotel_id", id)
+      .order("submitted_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    return cors(
+      NextResponse.json({
+        success: true,
+        verification: {
+          status: hotel.business_verification_status,
+          verifiedAt: hotel.business_verified_at,
+          rejectionReason: hotel.business_verification_rejection_reason,
+          latestSubmission: latest
+            ? {
+                id: latest.id,
+                legalName: latest.legal_name,
+                rccmNumber: latest.rccm_number,
+                taxNumber: latest.tax_number,
+                status: latest.status,
+                submittedAt: latest.submitted_at,
+                rejectionReason: latest.rejection_reason,
+              }
+            : null,
+        },
+      }),
+      req,
+    );
+  } catch (error) {
+    console.error("GET hotel RCCM verification:", error);
+    return errorResponse("Failed to load verification", 500, req);
+  }
+}
+
+export async function POST(
+  req: Request,
+  { params }: { params: Promise<{ id: string }> },
+) {
+  try {
+    const { id } = await params;
+    const user = await getAuthenticatedUser(req);
+    if (!user) return errorResponse("Unauthorized", 401, req);
+    const membership = await getHotelMembership(user.id, id);
+    if (membership?.role !== "admin")
+      return errorResponse("Forbidden", 403, req);
+    const { data: hotel, error: hotelLookupError } = await supabaseAdmin
+      .from("hotels")
+      .select("business_verification_status")
+      .eq("id", id)
+      .single();
+    if (hotelLookupError) throw hotelLookupError;
+    if (hotel?.business_verification_status === "approved") {
+      return errorResponse("Hotel is already verified", 409, req);
+    }
+    const parsed = normalizeRccmSubmission(await req.json().catch(() => ({})));
+    if ("error" in parsed) return errorResponse(parsed.error, 400, req);
+    if (!parsed.value.document_storage_path.startsWith(`${id}/`)) {
+      return errorResponse("Invalid document path", 400, req);
+    }
+
+    const { data: submissions, error } = await supabaseAdmin.rpc(
+      "submit_hotel_business_verification",
+      {
+        p_hotel_id: id,
+        p_submitted_by: user.id,
+        p_legal_name: parsed.value.legal_name,
+        p_rccm_number: parsed.value.rccm_number,
+        p_tax_number: parsed.value.tax_number,
+        p_document_storage_path: parsed.value.document_storage_path,
+        p_document_mime_type: parsed.value.document_mime_type,
+      },
+    );
+    if (error) {
+      if (error.message.includes("HOTEL_ALREADY_VERIFIED")) {
+        return errorResponse("Hotel is already verified", 409, req);
+      }
+      throw error;
+    }
+    const submission = submissions?.[0];
+    if (!submission) return errorResponse("Hotel not found", 404, req);
+    return cors(NextResponse.json({ success: true, submission }), req);
+  } catch (error) {
+    console.error("POST hotel RCCM verification:", error);
+    return errorResponse("Failed to submit verification", 500, req);
+  }
+}

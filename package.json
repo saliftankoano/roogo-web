@@ -8,7 +8,7 @@
     "prebuild": "npm run motion:audit",
     "build": "next build --turbopack",
     "start": "next start",
-    "test": "node --experimental-strip-types --test lib/booking-codes.test.mjs lib/hotel-desk.test.mjs lib/hotel-operations.test.mjs",
+    "test": "node --experimental-strip-types --test lib/booking-codes.test.mjs lib/hotel-desk.test.mjs lib/hotel-operations.test.mjs lib/hotel-trust.test.mjs",
     "lint": "eslint",
     "backfill:property-translations": "node scripts/backfill-property-translations.mjs"
   },
