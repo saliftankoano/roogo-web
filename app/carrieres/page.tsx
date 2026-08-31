@@ -64,12 +64,17 @@ const teamMembers = [
   },
   {
     name: "Ablassé Zagre",
-    role: "Directeur Marketing & Visuels",
+    role: "Directeur des visuels & communication",
     description: "Identité de marque, contenu, photographie et narration.",
   },
   {
     name: "Nanema Cosmos Ezechiel Don De DIEU",
-    role: "Directeur commercial",
+    role: "Directeur marketing",
+    description: "Stratégie marketing, croissance de marque et acquisition.",
+  },
+  {
+    name: "Boukaré Zagré",
+    role: "Directeur des ventes",
     description: "Croissance terrain et relations avec les propriétaires.",
   },
 ];
@@ -243,7 +248,7 @@ export default function CareersPage() {
                 description="Nous construisons avec des profils complementaires: marque, commercial, operations et technologie. Chaque role doit renforcer la promesse centrale de Roogo: moins d'incertitude dans la recherche d'un logement."
               />
 
-              <div className="mt-10 grid gap-4 sm:grid-cols-3">
+              <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
                 {teamMembers.map((member) => (
                   <InteractiveCard
                     key={member.name}
