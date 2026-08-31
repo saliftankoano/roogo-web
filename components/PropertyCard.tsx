@@ -109,7 +109,7 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
               <div className="absolute bottom-4 left-4 flex items-center bg-white/95 px-3 py-1.5 rounded-full shadow-md border border-green-200 z-10">
                 <SealCheckIcon size={14} weight="fill" className="text-green-600" />
                 <span className="text-green-700 text-[10px] font-black tracking-tighter uppercase ml-1">
-                  Documents vérifiés
+                  Document fourni par le vendeur
                 </span>
               </div>
             )
