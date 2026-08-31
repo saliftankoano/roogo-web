@@ -630,7 +630,7 @@ export function PropertyDetailClient({
                     </p>
                   </div>
                   <p className="text-sm font-medium text-neutral-500">
-                    Les documents de propriété sont vérifiés par Roogo. Roogo
+                    Le document de propriété est fourni par le vendeur. Roogo
                     gère toute la transaction&nbsp;: échangez avec notre équipe,
                     organisez la visite et signez chez le notaire depuis
                     l&apos;application Roogo.

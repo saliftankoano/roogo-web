@@ -68,7 +68,7 @@ const teamMembers = [
     description: "Identité de marque, contenu, photographie et narration.",
   },
   {
-    name: "Aroun Zerbo",
+    name: "Nanema Cosmos Ezechiel Don De DIEU",
     role: "Directeur commercial",
     description: "Croissance terrain et relations avec les propriétaires.",
   },
