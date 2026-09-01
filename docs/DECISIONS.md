@@ -7,6 +7,40 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Monthly listing economics separate acquisition from default-on rent collection — 2026-09-01
+
+**Decision:** Roogo's default monthly-listing offer is “0 FCFA today.” Roogo
+earns one success fee equal to 50% of the monthly rent snapshotted at publication
+only if it brings the renter and collects the first rent. Ongoing rent collection
+starts enabled when a monthly agreement becomes active; its 7% fee applies only
+to rents actually paid through Roogo. The owner can opt out from the active bail
+for future unpaid rents. If the acquisition fee is still pending, that opt-out
+does not remove the obligation to pay the first rent through Roogo.
+Every monthly property must accept the success-fee terms, furnished or not, and
+any displayed referral discount must reduce the stored fee that the wallet later
+collects. Direct owner-created agreements and imported offline leases waive the
+pending fee because those paths show that Roogo did not source the renter.
+
+**Why:** “Publication gratuite” was technically true only at submission and
+could be understood as permanently free. Furnished listings also bypassed the
+acceptance gate despite receiving the same deferred charge, while the web
+referral summary could display a discounted amount that the backend did not
+persist. Separating acquisition economics from collection, while making the
+operating default and opt-out explicit, keeps the marketing promise strong
+without hiding when Roogo earns money.
+
+**Ruled out / alternatives:** Calling the offer unqualified “free publication”
+was rejected because a known contingent fee exists; adding a second consent
+modal when the bail starts was rejected because the disclosed operating model is
+default-on and the active bail already provides a durable opt-out; silently
+making collection permanent was rejected because owners must control future
+unpaid rents; trusting the client-provided acceptance or referral total was
+rejected in favor of backend enforcement and server-side calculation.
+
+**Status:** Settled in product behavior and copy. The legal terms update remains
+subject to qualified Burkina Faso counsel review before it is treated as legal
+certification. See [how the no-upfront option works](./SYSTEM.md#how-does-the-no-upfront-monthly-listing-option-earn-revenue).
+
 ### Hotels use Roogo as a booking and payment rail, not as a PMS — 2026-08-30
 
 **Decision:** Roogo supports hotel discovery, room-type inventory, request-to-confirm
@@ -353,9 +387,10 @@ percentage buys trust. It also matches the settlement culture buyers/sellers
 already know (receipts on the table, split the surplus, everyone shakes hands).
 
 **Ruled out / alternatives:**
-- *Pure spread (status quo, migrations 039–043)* — rejected by the team as
+
+- _Pure spread (status quo, migrations 039–043)_ — rejected by the team as
   "pas rentable / ça nous arrange pas" and opaque to sellers.
-- *Keeping 100% of the surplus* — that's the démarcheur move the model
+- _Keeping 100% of the surplus_ — that's the démarcheur move the model
   deliberately breaks with.
 
 **Status:** Settled 2026-07-09, shipped as migration 050 + full-stack v2. The six
@@ -396,11 +431,12 @@ an older runtime, so without our own prompt a runtime bump quietly freezes
 part of the user base on the old version forever.
 
 **Ruled out / alternatives:**
-- *Querying the stores directly from the app* (iTunes lookup / Play scraping)
+
+- _Querying the stores directly from the app_ (iTunes lookup / Play scraping)
   — rejected: no reliable Play API, and store propagation lags would prompt
   users toward pages still serving the old binary. Our endpoint is bumped by a
   human when the release is confirmed live.
-- *Bumping runtimeVersion on every release regardless* — rejected: it would
+- _Bumping runtimeVersion on every release regardless_ — rejected: it would
   needlessly cut OTA reach; JS-only releases keep the runtime.
 
 **Status:** Settled. Note: the banner and telemetry were committed after the
@@ -428,12 +464,13 @@ when the user is asking "which one". A wrong identity is worse than a
 placeholder, hence the hard no-avatar-fallback rule.
 
 **Ruled out / alternatives:**
-- *Falling back to the other party's avatar* — rejected; it re-introduces the
+
+- _Falling back to the other party's avatar_ — rejected; it re-introduces the
   ambiguity the change removes and leaks person-identity into a
   brand-mediated chat.
-- *Keeping the Roogo logo in the thread header* — rejected; the header names
+- _Keeping the Roogo logo in the thread header_ — rejected; the header names
   the subject (the property), bubbles carry the team identity.
-- *Resolving covers client-side* — rejected; the join + collapse lives once in
+- _Resolving covers client-side_ — rejected; the join + collapse lives once in
   the API (`withPropertyCover`), so mobile and admin cannot drift.
 
 **Status:** Settled. Shipped 2026-07-09 across mobile inbox, mobile thread
@@ -460,11 +497,12 @@ a signed URL would otherwise accept any bytes (APK/executable risk in a chat
 users trust).
 
 **Ruled out / alternatives:**
-- *A new `document` message_type* — rejected; `mime_type` on the attachment
+
+- _A new `document` message_type_ — rejected; `mime_type` on the attachment
   already discriminates rendering, and migration 047's CHECK list stays small.
-- *Accepting arbitrary file types* — rejected (malware surface, unopenable
+- _Accepting arbitrary file types_ — rejected (malware surface, unopenable
   files on low-end Androids).
-- *Compressing/converting documents server-side* — rejected; unlike photos,
+- _Compressing/converting documents server-side_ — rejected; unlike photos,
   document bytes are the artifact. The 20 MB cap bounds the data cost instead.
 
 **Status:** Settled. Shipped 2026-07-09; requires migration 048 (filenames are
@@ -489,9 +527,10 @@ thread without the owner noticing a handoff. Internally, accountability needs
 the opposite: per-message attribution.
 
 **Ruled out / alternatives:**
-- *Client-side hiding of names* — rejected; privacy must survive a curious
+
+- _Client-side hiding of names_ — rejected; privacy must survive a curious
   client, so the field is never emitted to owners.
-- *Per-staff avatars for owners* — rejected; individual identities invite
+- _Per-staff avatars for owners_ — rejected; individual identities invite
   side-channel contact and make handoffs visible.
 
 **Status:** Fully shipped 2026-07-09: identity, wallpaper, voice notes (record,
@@ -523,14 +562,15 @@ schema, AND the server schema), and sales showed nonsense like a move-in total
 computed from the asking price. Real seller feedback surfaced both.
 
 **Ruled out / alternatives:**
-- *Conditioning the counters on listing_type instead of property type* — rejected;
+
+- _Conditioning the counters on listing_type instead of property type_ — rejected;
   a terrain rental has the same problem. A follow-up review (2026-07-08) generalized
   the terrain `if` into a per-type capability map (`LISTING_TYPE_CAPABILITIES`):
   `commercial` premises are also rooms-exempt (a shop has no bedrooms) but keep the
   vehicles counter (parking matters) and don't require superficie.
-- *Clearing stale rental values on type-switch* — rejected in favor of stripping
+- _Clearing stale rental values on type-switch_ — rejected in favor of stripping
   them at payload build, which also survives restored drafts.
-- *One schema-level superRefine* — not possible as-is: both repos `pick()`/`omit()`
+- _One schema-level superRefine_ — not possible as-is: both repos `pick()`/`omit()`
   the base schema, so the rule lives in a shared plain function
   (`requireListingFieldsByType`) mirrored mobile/web with identical messages.
 
@@ -553,14 +593,15 @@ Read receipts were nearly free because sale chat already stamped `read_at`; shar
 indicator across both surfaces keeps them consistent.
 
 **Ruled out / alternatives:**
-- *Separate "Support client" screen off the Profile menu* — less discoverable; the
+
+- _Separate "Support client" screen off the Profile menu_ — less discoverable; the
   Messages tab is the natural conversation hub.
-- *New API routes for the mobile console* — unnecessary. The root cause of "can't reply
+- _New API routes for the mobile console_ — unnecessary. The root cause of "can't reply
   on mobile" was that the existing `/api/support/admin/*` routes weren't in middleware
   `isPublicRoute`, so mobile Bearer calls were rejected. One middleware line fixed it
   (routes still gate on `isStaffLikeUserType` in-handler). See
   [how](./SYSTEM.md#how-is-the-mobile-app-authorized-to-hit-our-api-and-supabase).
-- *Per-screen Supabase token registration* — a code review caught that each chat hook
+- _Per-screen Supabase token registration_ — a code review caught that each chat hook
   registered the one process-global Supabase token getter and nulled it on unmount, so
   closing one chat screen de-authenticated any other still-mounted one. Moved to a single
   registration at app root.
@@ -587,12 +628,13 @@ sites already shared one Supabase project, so the `bookings` table and its data 
 already in our database — the migration was code + branding, not data.
 
 **Ruled out / alternatives:**
-- *Marketing page only (booking via WhatsApp)* — rejected; the self-serve flow
+
+- _Marketing page only (booking via WhatsApp)_ — rejected; the self-serve flow
   already worked and was worth keeping end-to-end.
-- *Separate PawaPay webhook endpoint* — rejected; deposit IDs are UUIDs with unique
+- _Separate PawaPay webhook endpoint_ — rejected; deposit IDs are UUIDs with unique
   indexes in both `transactions` and `bookings`, so the existing
   `/api/pawapay/callback` can route safely by lookup fallback (`lib/visit3d-callback.ts`).
-- *Keeping two price tiers as a listing incentive* — rejected in favor of one simple
+- _Keeping two price tiers as a listing incentive_ — rejected in favor of one simple
   number.
 
 **Status:** Shipped. Ops follow-ups: apply migration `045` (drops `with_roogo`),
@@ -618,12 +660,13 @@ moderate every listing before it goes live (`en_attente` → `en_ligne`), and sa
 keep their own stronger gates.
 
 **Ruled out / alternatives:**
-- *Relaxing it for sales only* — rejected; the reluctance applies to all owners, and
+
+- _Relaxing it for sales only_ — rejected; the reluctance applies to all owners, and
   the gate wasn't branched by listing type anyway.
-- *Removing verification entirely* — rejected; verified owners still earn the trust
+- _Removing verification entirely_ — rejected; verified owners still earn the trust
   badge, so the flow stays as a voluntary path (also reachable from the profile
   screen).
-- *Also relaxing the sale ownership/mandate gates* — rejected; those protect buyers
+- _Also relaxing the sale ownership/mandate gates_ — rejected; those protect buyers
   and are core to the broker model (see below). Identity ≠ ownership.
 
 **Status:** Settled. Would reopen if fraud from unverified posters becomes a problem
@@ -648,11 +691,12 @@ these transactions actually close locally (in person, at a notary, with cash-sca
 amounts where online payment is too costly).
 
 **Ruled out / alternatives:**
-- *10% commission* — replaced by the two-price spread; simpler to communicate and
+
+- _10% commission_ — replaced by the two-price spread; simpler to communicate and
   aligns Roogo's incentive with getting a good sale price.
-- *Buyer↔seller chat with a consent gate* — removed entirely; there's no stranger to
+- _Buyer↔seller chat with a consent gate_ — removed entirely; there's no stranger to
   warn about when Roogo is the only counterparty.
-- *Online payment* — rejected at these amounts; too costly. Payment is offline at the
+- _Online payment_ — rejected at these amounts; too costly. Payment is offline at the
   office.
 
 **Status:** Settled (v1 shipped). Open thread: whether staff need a dedicated agenda

@@ -320,6 +320,12 @@ function AgreementPdf({
   const defaultTerms = isDaily
     ? "Le présent contrat de location courte durée est établi pour la période indiquée ci-dessus. Le locataire s'engage à libérer le logement à la date de départ convenue, à maintenir le bien en bon état et à respecter le règlement intérieur. La caution éventuelle sera restituée dans un délai de 48h après l'état des lieux de sortie, sous réserve de l'absence de dommages. Tout litige sera réglé à l'amiable, puis devant les juridictions compétentes de Ouagadougou."
     : "Le présent contrat est soumis aux dispositions légales en vigueur au Burkina Faso régissant les baux d'habitation. Le locataire s'engage à maintenir le bien en bon état et à s'acquitter du loyer à la date convenue. Tout litige sera réglé à l'amiable dans un premier temps, puis devant les juridictions compétentes de Ouagadougou.";
+  const rentCollectionTerms = isDaily
+    ? ""
+    : "Les loyers suivants sont encaissés par Roogo par défaut. Roogo retient 7% sur chaque loyer effectivement encaissé via la plateforme. Le propriétaire peut désactiver cette collecte pour les échéances futures non payées depuis le bail dans l'application; le premier loyer reste toutefois payable via Roogo lorsqu'un frais de succès de publication est encore dû.";
+  const renderedTerms = [data.terms_text || defaultTerms, rentCollectionTerms]
+    .filter(Boolean)
+    .join("\n\n");
 
   return (
     <Document title={`${title} — ${ref}`} author="Roogo">
@@ -544,7 +550,7 @@ function AgreementPdf({
         <View style={styles.section}>
           <Text style={styles.sectionTitle}>Termes généraux</Text>
           <View style={styles.termsBox}>
-            <Text>{data.terms_text || defaultTerms}</Text>
+            <Text>{renderedTerms}</Text>
           </View>
         </View>
 

@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { JOURNALIER_LISTING_PUBLICATION_FEE } from "@/lib/journalier-pricing";
+import { calculateMonthlyFreeSuccessFee } from "@/lib/listing-fees";
 
 export const REFERRAL_DISCOUNT_BPS = 500;
 export const REFERRAL_COMMISSION_BPS = 500;
@@ -120,8 +121,7 @@ export async function computeListingSubmissionQuote(
   supabase: SupabaseClient,
   input: ListingQuoteInput,
 ): Promise<ListingReferralQuote> {
-  const frequence =
-    input.frequence === "journalier" ? "journalier" : "mensuel";
+  const frequence = input.frequence === "journalier" ? "journalier" : "mensuel";
   const addOns = uniqueStrings(input.addOns);
   const monthlyRent = toWholeXof(input.monthlyRent);
 
@@ -133,7 +133,8 @@ export async function computeListingSubmissionQuote(
       );
     }
 
-    const deferredSuccessFeeAmount = Math.round(monthlyRent / 2);
+    const deferredSuccessFeeAmount =
+      calculateMonthlyFreeSuccessFee(monthlyRent);
     return {
       tierId: null,
       baseFee: deferredSuccessFeeAmount,
@@ -186,19 +187,21 @@ export async function computeListingSubmissionQuote(
     );
   }
 
-  const [{ data: tier, error: tierError }, { data: config, error: configError }] =
-    await Promise.all([
-      supabase
-        .from("listing_tiers")
-        .select("id, min_price")
-        .eq("id", input.tierId)
-        .maybeSingle(),
-      supabase
-        .from("listing_config")
-        .select("commission_percentage")
-        .eq("id", "default")
-        .maybeSingle(),
-    ]);
+  const [
+    { data: tier, error: tierError },
+    { data: config, error: configError },
+  ] = await Promise.all([
+    supabase
+      .from("listing_tiers")
+      .select("id, min_price")
+      .eq("id", input.tierId)
+      .maybeSingle(),
+    supabase
+      .from("listing_config")
+      .select("commission_percentage")
+      .eq("id", "default")
+      .maybeSingle(),
+  ]);
 
   if (tierError) throw tierError;
   if (!tier) {
@@ -259,7 +262,9 @@ export async function validateReferralForUser(
 
   const { data: profile, error } = await supabase
     .from("referrer_profiles")
-    .select("id, user_id, code, status, legal_name, users:user_id(full_name, email)")
+    .select(
+      "id, user_id, code, status, legal_name, users:user_id(full_name, email)",
+    )
     .eq("code", code)
     .maybeSingle();
 
@@ -561,7 +566,9 @@ export async function qualifyReferralForTransaction(
 
   const commissionAmount =
     metadata.commissionAmount ||
-    Math.round((toWholeXof(redemption.paid_amount) * REFERRAL_COMMISSION_BPS) / 10000);
+    Math.round(
+      (toWholeXof(redemption.paid_amount) * REFERRAL_COMMISSION_BPS) / 10000,
+    );
 
   const { data: existingCommission, error: existingCommissionError } =
     await supabase

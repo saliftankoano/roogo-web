@@ -479,12 +479,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const ownerComboboxRef = useRef<HTMLDivElement>(null);
   const selectedOwnerId = selectedOwner?.id ?? null;
   const isSaleListing = formData.listing_type === "vendre";
-  const isDailyListing =
-    !isSaleListing && formData.frequence === "journalier";
+  const isDailyListing = !isSaleListing && formData.frequence === "journalier";
 
   const isFreeMonthlyListing =
     !isSaleListing && !isDailyListing && paymentChoice === "free";
-  const isFurnishedListing = formData.equipements.includes("meuble");
 
   useEffect(() => {
     if (
@@ -504,30 +502,32 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const selectedTierConfig = selectedTier
     ? (tiersList.find((tier) => tier.id === selectedTier) ?? null)
     : null;
-  const commissionAmount = isFreeMonthlyListing || isDailyListing
+  const commissionAmount =
+    isFreeMonthlyListing || isDailyListing
+      ? 0
+      : rentAmount * (commissionRate ?? 0);
+  const baseFeeAmount = isFreeMonthlyListing
     ? 0
-    : rentAmount * (commissionRate ?? 0);
-  const baseFeeAmount =
-    isFreeMonthlyListing
-      ? 0
-      : formData.frequence === "journalier"
-        ? DAILY_LISTING_PUBLICATION_FEE
-        : (selectedTierConfig?.base_fee ?? 0);
-  const addOnsAmount =
-    isFreeMonthlyListing
-      ? 0
-      : selectedAddOns.reduce((sum, id) => {
-          const addon = addonsList.find((item) => item.id === id);
-          return sum + (addon?.price || 0);
-        }, 0);
+    : formData.frequence === "journalier"
+      ? DAILY_LISTING_PUBLICATION_FEE
+      : (selectedTierConfig?.base_fee ?? 0);
+  const addOnsAmount = isFreeMonthlyListing
+    ? 0
+    : selectedAddOns.reduce((sum, id) => {
+        const addon = addonsList.find((item) => item.id === id);
+        return sum + (addon?.price || 0);
+      }, 0);
   const totalAmount = baseFeeAmount + commissionAmount + addOnsAmount;
   const referralDiscountAmount = referralQuote?.discountAmount ?? 0;
   const payableAmount = Math.max(0, totalAmount - referralDiscountAmount);
   const deferredSuccessFeeAmount = isFreeMonthlyListing
     ? Math.round((rentAmount * MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) / 10000)
     : 0;
+  const displayedDeferredSuccessFeeAmount =
+    referralQuote?.paidAmount ?? deferredSuccessFeeAmount;
   const hasVideoEntitlement =
-    selectedTierConfig?.video_included === true || selectedAddOns.includes("video");
+    selectedTierConfig?.video_included === true ||
+    selectedAddOns.includes("video");
   const sortedPaidTiers = useMemo(
     () =>
       [...tiersList].sort((a, b) => {
@@ -717,9 +717,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     value: PropertyFormData[K],
   ) => {
     setFormData((current) => ({ ...current, [field]: value }));
-    if (field === "equipements") {
-      setFreeTermsAccepted(false);
-    }
+    setFreeTermsAccepted(false);
     setErrors((current) => {
       if (!current[field]) return current;
       const next = { ...current };
@@ -729,6 +727,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   };
 
   const updateFrequency = (frequence: RentalFrequency) => {
+    setFreeTermsAccepted(false);
     setFormData((current) => ({
       ...current,
       frequence,
@@ -782,13 +781,15 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       dosAndDonts: cleanRules(formData.dosAndDonts),
       virtualTourUrl: isStaffOrFounder ? formData.virtualTourUrl.trim() : "",
       photos,
-      tier_id: isDaily || isFreeMonthly ? FREE_LISTING_DEFAULT_TIER_ID : (selectedTier ?? undefined),
+      tier_id:
+        isDaily || isFreeMonthly
+          ? FREE_LISTING_DEFAULT_TIER_ID
+          : (selectedTier ?? undefined),
       listing_payment_mode: listingPaymentMode,
       add_ons: isFreeMonthly ? [] : addOns,
-      freeSuccessFeeTermsAccepted:
-        isFreeMonthly && !formData.equipements.includes("meuble")
-          ? freeTermsAccepted
-          : undefined,
+      freeSuccessFeeTermsAccepted: isFreeMonthly
+        ? freeTermsAccepted
+        : undefined,
       referralCode:
         isFreeMonthly && referralCodeOverride
           ? referralCodeOverride
@@ -1228,12 +1229,15 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
       if (videoFile) {
         try {
-          pendingVideoStoredInDb = await savePendingVideo(paymentData.depositId, {
-            data: await fileToBase64(videoFile),
-            ext: videoFile.name.split(".").pop()?.toLowerCase() || "mp4",
-            mimeType: videoFile.type || undefined,
-            sizeBytes: videoFile.size,
-          });
+          pendingVideoStoredInDb = await savePendingVideo(
+            paymentData.depositId,
+            {
+              data: await fileToBase64(videoFile),
+              ext: videoFile.name.split(".").pop()?.toLowerCase() || "mp4",
+              mimeType: videoFile.type || undefined,
+              sizeBytes: videoFile.size,
+            },
+          );
           pendingVideoOverflow = !pendingVideoStoredInDb;
         } catch {
           pendingVideoOverflow = true;
@@ -1273,24 +1277,38 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       return;
     }
 
-    if (isSaleListing || isFreeMonthlyListing) {
-      if (
-        isFreeMonthlyListing &&
-        !isFurnishedListing &&
-        !freeTermsAccepted
-      ) {
-        setShowFreeTermsModal(true);
-        return;
-      }
+    if (isSaleListing) {
       setIsSubmitting(true);
       try {
         setSelectedAddOns([]);
+        await createListingDirectly([]);
+      } catch (error) {
+        console.error("Error creating property:", error);
+        alert(
+          error instanceof Error
+            ? error.message
+            : "Erreur lors de la création.",
+        );
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    if (isFreeMonthlyListing) {
+      setIsSubmitting(true);
+      try {
         const activeReferral = referralCode.trim()
           ? await validateReferralCode([])
           : null;
         if (referralCode.trim() && !activeReferral) {
           throw new Error("Code de parrainage invalide.");
         }
+        if (!freeTermsAccepted) {
+          setShowFreeTermsModal(true);
+          return;
+        }
+        setSelectedAddOns([]);
         await createListingDirectly([], activeReferral);
       } catch (error) {
         console.error("Error creating property:", error);
@@ -1385,20 +1403,22 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <FieldError message={errors.type} />
       </div>
 
-      {!isSaleListing && <div className="space-y-3">
-        <label className="text-sm font-extrabold text-neutral-800">
-          Fréquence de location <span className="text-red-500">*</span>
-        </label>
-        <SegmentedButton
-          value={formData.frequence}
-          options={[
-            { id: "mensuel", label: "Mensuel" },
-            { id: "journalier", label: "Journalier" },
-          ]}
-          onChange={updateFrequency}
-        />
-        <FieldError message={errors.frequence} />
-      </div>}
+      {!isSaleListing && (
+        <div className="space-y-3">
+          <label className="text-sm font-extrabold text-neutral-800">
+            Fréquence de location <span className="text-red-500">*</span>
+          </label>
+          <SegmentedButton
+            value={formData.frequence}
+            options={[
+              { id: "mensuel", label: "Mensuel" },
+              { id: "journalier", label: "Journalier" },
+            ]}
+            onChange={updateFrequency}
+          />
+          <FieldError message={errors.frequence} />
+        </div>
+      )}
 
       <div className="grid grid-cols-1 gap-5 md:grid-cols-2">
         <div className="space-y-2">
@@ -1406,8 +1426,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             {isSaleListing
               ? "Prix souhaité par le vendeur (FCFA)"
               : formData.frequence === "journalier"
-              ? "Prix (FCFA / nuit)"
-              : "Prix de location (FCFA / mois)"}{" "}
+                ? "Prix (FCFA / nuit)"
+                : "Prix de location (FCFA / mois)"}{" "}
             <span className="text-red-500">*</span>
           </label>
           <input
@@ -1906,104 +1926,106 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             </div>
           ) : (
             <>
-          <label className="text-sm font-extrabold text-neutral-700">
-            Propriétaire ou agent <span className="text-red-500">*</span>
-          </label>
-          <div ref={ownerComboboxRef} className="relative">
-            {selectedOwner ? (
-              <div
-                className={`flex items-center justify-between rounded-2xl border bg-neutral-50 px-5 py-4 ${
-                  errors.owner_id ? "border-red-500" : "border-neutral-200"
-                }`}
-              >
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-extrabold text-neutral-950">
-                    {selectedOwner.full_name || selectedOwner.email}
-                  </p>
-                  <p className="truncate text-xs font-semibold text-neutral-500">
-                    {selectedOwner.email} · {selectedOwner.user_type}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setSelectedOwner(null);
-                    setOwnerSearch("");
-                    setOwnerResults([]);
-                  }}
-                  className="ml-3 shrink-0 text-neutral-400 hover:text-neutral-700"
-                  aria-label="Effacer la sélection"
-                >
-                  <XCircleIcon size={22} weight="fill" />
-                </button>
-              </div>
-            ) : (
-              <div
-                className={`flex items-center gap-3 rounded-2xl border bg-neutral-50 px-5 py-4 ${
-                  errors.owner_id ? "border-red-500" : "border-neutral-200"
-                }`}
-              >
-                {loadingOwnerSearch ? (
-                  <Loader2
-                    className="shrink-0 animate-spin text-neutral-400"
-                    size={18}
-                  />
-                ) : (
-                  <MagnifyingGlassIcon
-                    size={18}
-                    className="shrink-0 text-neutral-400"
-                  />
-                )}
-                <input
-                  type="text"
-                  value={ownerSearch}
-                  onChange={(e) => setOwnerSearch(e.target.value)}
-                  onFocus={() =>
-                    ownerResults.length > 0 && setShowOwnerDropdown(true)
-                  }
-                  placeholder="Nom, email, téléphone ou WhatsApp..."
-                  className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
-                />
-              </div>
-            )}
-            {showOwnerDropdown && ownerResults.length > 0 && !selectedOwner && (
-              <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-2xl border border-neutral-100 bg-white shadow-lg">
-                {ownerResults.map((user) => (
-                  <li
-                    key={user.id}
-                    onMouseDown={(e) => {
-                      e.preventDefault();
-                      setSelectedOwner(user);
-                      setOwnerSearch("");
-                      setOwnerResults([]);
-                      setShowOwnerDropdown(false);
-                    }}
-                    className="flex cursor-pointer items-center justify-between px-5 py-3 transition-colors hover:bg-neutral-50"
+              <label className="text-sm font-extrabold text-neutral-700">
+                Propriétaire ou agent <span className="text-red-500">*</span>
+              </label>
+              <div ref={ownerComboboxRef} className="relative">
+                {selectedOwner ? (
+                  <div
+                    className={`flex items-center justify-between rounded-2xl border bg-neutral-50 px-5 py-4 ${
+                      errors.owner_id ? "border-red-500" : "border-neutral-200"
+                    }`}
                   >
                     <div className="min-w-0">
-                      <p className="truncate text-sm font-extrabold text-neutral-900">
-                        {user.full_name || user.email}
+                      <p className="truncate text-sm font-extrabold text-neutral-950">
+                        {selectedOwner.full_name || selectedOwner.email}
                       </p>
-                      <p className="truncate text-xs font-semibold text-neutral-400">
-                        {[user.email, user.phone || user.whatsapp]
-                          .filter(Boolean)
-                          .join(" · ")}
+                      <p className="truncate text-xs font-semibold text-neutral-500">
+                        {selectedOwner.email} · {selectedOwner.user_type}
                       </p>
                     </div>
-                    <span className="ml-3 shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-bold capitalize text-neutral-600">
-                      {user.user_type}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            )}
-          </div>
-          {ownerSearchError && (
-            <p className="text-xs font-semibold text-red-600">
-              {ownerSearchError}
-            </p>
-          )}
-          <FieldError message={errors.owner_id} />
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setSelectedOwner(null);
+                        setOwnerSearch("");
+                        setOwnerResults([]);
+                      }}
+                      className="ml-3 shrink-0 text-neutral-400 hover:text-neutral-700"
+                      aria-label="Effacer la sélection"
+                    >
+                      <XCircleIcon size={22} weight="fill" />
+                    </button>
+                  </div>
+                ) : (
+                  <div
+                    className={`flex items-center gap-3 rounded-2xl border bg-neutral-50 px-5 py-4 ${
+                      errors.owner_id ? "border-red-500" : "border-neutral-200"
+                    }`}
+                  >
+                    {loadingOwnerSearch ? (
+                      <Loader2
+                        className="shrink-0 animate-spin text-neutral-400"
+                        size={18}
+                      />
+                    ) : (
+                      <MagnifyingGlassIcon
+                        size={18}
+                        className="shrink-0 text-neutral-400"
+                      />
+                    )}
+                    <input
+                      type="text"
+                      value={ownerSearch}
+                      onChange={(e) => setOwnerSearch(e.target.value)}
+                      onFocus={() =>
+                        ownerResults.length > 0 && setShowOwnerDropdown(true)
+                      }
+                      placeholder="Nom, email, téléphone ou WhatsApp..."
+                      className="min-w-0 flex-1 bg-transparent text-sm text-neutral-900 outline-none placeholder:text-neutral-400"
+                    />
+                  </div>
+                )}
+                {showOwnerDropdown &&
+                  ownerResults.length > 0 &&
+                  !selectedOwner && (
+                    <ul className="absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-2xl border border-neutral-100 bg-white shadow-lg">
+                      {ownerResults.map((user) => (
+                        <li
+                          key={user.id}
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setSelectedOwner(user);
+                            setOwnerSearch("");
+                            setOwnerResults([]);
+                            setShowOwnerDropdown(false);
+                          }}
+                          className="flex cursor-pointer items-center justify-between px-5 py-3 transition-colors hover:bg-neutral-50"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-extrabold text-neutral-900">
+                              {user.full_name || user.email}
+                            </p>
+                            <p className="truncate text-xs font-semibold text-neutral-400">
+                              {[user.email, user.phone || user.whatsapp]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          </div>
+                          <span className="ml-3 shrink-0 rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-bold capitalize text-neutral-600">
+                            {user.user_type}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+              </div>
+              {ownerSearchError && (
+                <p className="text-xs font-semibold text-red-600">
+                  {ownerSearchError}
+                </p>
+              )}
+              <FieldError message={errors.owner_id} />
             </>
           )}
         </div>
@@ -2062,7 +2084,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <div className="rounded-2xl bg-neutral-50 p-3">
             <p className="font-bold text-neutral-400">Surface</p>
             <p className="font-extrabold text-neutral-950">
-              {formData.superficie ? `${formData.superficie} m²` : "Non renseignée"}
+              {formData.superficie
+                ? `${formData.superficie} m²`
+                : "Non renseignée"}
             </p>
           </div>
           <div className="rounded-2xl bg-neutral-50 p-3">
@@ -2141,7 +2165,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <SegmentedButton
             value={paymentChoice}
             options={[
-              { id: "free", label: "Gratuite" },
+              { id: "free", label: "Sans paiement initial" },
               { id: "pay", label: "Packs payants" },
             ]}
             onChange={(value) => {
@@ -2157,127 +2181,138 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           />
           <p className="text-sm font-semibold leading-6 text-neutral-500">
             {paymentChoice === "free"
-              ? "Publiez sans paiement aujourd'hui. Roogo prélèvera 50% du premier loyer encaissé."
+              ? "0 FCFA aujourd'hui. Un frais unique égal à 50% du loyer mensuel indiqué sera retenu si Roogo apporte le locataire et encaisse le premier loyer."
               : "Choisissez un pack maintenant pour payer la publication et éviter le frais de succès au premier loyer."}
           </p>
         </div>
       )}
 
-      {!isSaleListing && <div className="space-y-4">
-        <h4 className="text-lg font-extrabold text-neutral-950">
-          {isDailyListing
-            ? "Publication journalière"
-            : isFreeMonthlyListing
-              ? "Publication gratuite"
-              : "Packs de publication"}{" "}
-          {!isFreeMonthlyListing && <span className="text-red-500">*</span>}
-        </h4>
-        {isDailyListing ? (
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
-              setErrors((current) => {
-                const next = { ...current };
-                delete next.tier_id;
-                return next;
-              });
-            }}
-            className="w-full rounded-3xl border-2 border-primary bg-primary/5 p-5 text-left transition-all"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-lg font-extrabold text-neutral-950">
-                  Publication journalière
-                </p>
-                <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
-                  Publication gratuite pour une location journalière. Les
-                  options photo, vidéo et visibilité restent disponibles à
-                  l&apos;étape suivante.
+      {!isSaleListing && (
+        <div className="space-y-4">
+          <h4 className="text-lg font-extrabold text-neutral-950">
+            {isDailyListing
+              ? "Publication journalière"
+              : isFreeMonthlyListing
+                ? "Publication sans paiement initial"
+                : "Packs de publication"}{" "}
+            {!isFreeMonthlyListing && <span className="text-red-500">*</span>}
+          </h4>
+          {isDailyListing ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
+                setErrors((current) => {
+                  const next = { ...current };
+                  delete next.tier_id;
+                  return next;
+                });
+              }}
+              className="w-full rounded-3xl border-2 border-primary bg-primary/5 p-5 text-left transition-all"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-lg font-extrabold text-neutral-950">
+                    Publication journalière
+                  </p>
+                  <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
+                    Publication gratuite pour une location journalière. Les
+                    options photo, vidéo et visibilité restent disponibles à
+                    l&apos;étape suivante.
+                  </p>
+                </div>
+                <p className="shrink-0 text-2xl font-black text-neutral-950">
+                  {paymentChoice === "free"
+                    ? formatAmount(0)
+                    : formatAmount(DAILY_LISTING_PUBLICATION_FEE)}
                 </p>
               </div>
-              <p className="shrink-0 text-2xl font-black text-neutral-950">
-                {paymentChoice === "free"
-                  ? formatAmount(0)
-                  : formatAmount(DAILY_LISTING_PUBLICATION_FEE)}
-              </p>
-            </div>
-          </button>
-        ) : isFreeMonthlyListing ? (
-          <button
-            type="button"
-            onClick={() => {
-              setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
-              setErrors((current) => {
-                const next = { ...current };
-                delete next.tier_id;
-                return next;
-              });
-            }}
-            className="w-full rounded-3xl border-2 border-primary bg-primary/5 p-5 text-left transition-all"
-          >
-            <div className="flex items-start justify-between gap-4">
-              <div>
-                <p className="text-lg font-extrabold text-neutral-950">
-                  Publication gratuite
-                </p>
-                <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
-                  Mise en ligne avec les avantages du pack Premium. Aucun
-                  paiement aujourd&apos;hui; le frais Roogo sera prélevé sur le
-                  premier loyer encaissé.
+            </button>
+          ) : isFreeMonthlyListing ? (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
+                setErrors((current) => {
+                  const next = { ...current };
+                  delete next.tier_id;
+                  return next;
+                });
+              }}
+              className="w-full rounded-3xl border-2 border-primary bg-primary/5 p-5 text-left transition-all"
+            >
+              <div className="flex items-start justify-between gap-4">
+                <div>
+                  <p className="text-lg font-extrabold text-neutral-950">
+                    Publication sans paiement initial
+                  </p>
+                  <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
+                    Le pack Premium est inclus. Aucun paiement aujourd&apos;hui;
+                    le frais unique sera retenu uniquement si Roogo apporte le
+                    locataire et encaisse le premier loyer.
+                  </p>
+                  <p className="mt-2 max-w-xl text-xs font-semibold leading-5 text-neutral-500">
+                    Après la mise en location, la collecte mensuelle via Roogo
+                    est activée par défaut : 7% sont retenus sur chaque loyer
+                    encaissé. Vous pourrez la désactiver pour les échéances
+                    futures non payées.
+                  </p>
+                </div>
+                <p className="shrink-0 text-2xl font-black text-neutral-950">
+                  {formatAmount(0)}
                 </p>
               </div>
-              <p className="shrink-0 text-2xl font-black text-neutral-950">
-                {formatAmount(0)}
-              </p>
+            </button>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+              {sortedPaidTiers.map((tier) => {
+                const selected = selectedTier === tier.id;
+                const price =
+                  tier.base_fee + rentAmount * (commissionRate ?? 0);
+                return (
+                  <button
+                    key={tier.id}
+                    type="button"
+                    onClick={() => {
+                      setSelectedTier(tier.id);
+                      setErrors((current) => {
+                        const next = { ...current };
+                        delete next.tier_id;
+                        return next;
+                      });
+                    }}
+                    className={`rounded-3xl border-2 p-5 text-left transition-all ${
+                      selected
+                        ? "border-primary bg-primary/5"
+                        : "border-neutral-200 bg-white hover:border-neutral-300"
+                    }`}
+                  >
+                    <p className="text-lg font-extrabold capitalize text-neutral-950">
+                      {tier.id}
+                    </p>
+                    <p className="mt-2 text-2xl font-black text-neutral-950">
+                      {formatAmount(price)}
+                    </p>
+                    <ul className="mt-4 space-y-2 text-sm font-semibold text-neutral-600">
+                      <li>{tier.photo_limit} photos</li>
+                      <li>{tier.slot_limit} candidats</li>
+                      {tier.video_included && <li>Vidéo incluse</li>}
+                    </ul>
+                  </button>
+                );
+              })}
             </div>
-          </button>
-        ) : (
-          <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-            {sortedPaidTiers.map((tier) => {
-              const selected = selectedTier === tier.id;
-              const price = tier.base_fee + rentAmount * (commissionRate ?? 0);
-              return (
-                <button
-                  key={tier.id}
-                  type="button"
-                  onClick={() => {
-                    setSelectedTier(tier.id);
-                    setErrors((current) => {
-                      const next = { ...current };
-                      delete next.tier_id;
-                      return next;
-                    });
-                  }}
-                  className={`rounded-3xl border-2 p-5 text-left transition-all ${
-                    selected
-                      ? "border-primary bg-primary/5"
-                      : "border-neutral-200 bg-white hover:border-neutral-300"
-                  }`}
-                >
-                  <p className="text-lg font-extrabold capitalize text-neutral-950">
-                    {tier.id}
-                  </p>
-                  <p className="mt-2 text-2xl font-black text-neutral-950">
-                    {formatAmount(price)}
-                  </p>
-                  <ul className="mt-4 space-y-2 text-sm font-semibold text-neutral-600">
-                    <li>{tier.photo_limit} photos</li>
-                    <li>{tier.slot_limit} candidats</li>
-                    {tier.video_included && <li>Vidéo incluse</li>}
-                  </ul>
-                </button>
-              );
-            })}
-          </div>
-        )}
-        <FieldError message={errors.tier_id} />
-        {paymentChoice === "pay" && !isDailyListing && commissionConfigError && (
-          <p className="text-xs font-semibold text-red-600">
-            {commissionConfigError}
-          </p>
-        )}
-      </div>}
+          )}
+          <FieldError message={errors.tier_id} />
+          {paymentChoice === "pay" &&
+            !isDailyListing &&
+            commissionConfigError && (
+              <p className="text-xs font-semibold text-red-600">
+                {commissionConfigError}
+              </p>
+            )}
+        </div>
+      )}
 
       {isStaffOrFounder && (
         <div className="space-y-5 rounded-3xl border border-primary/20 bg-primary/5 p-5">
@@ -2310,103 +2345,108 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             des documents et signature du mandat.
           </p>
         </div>
-      ) : <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
-        <h4 className="text-lg font-extrabold text-neutral-950">
-          {isFreeMonthlyListing ? "Récapitulatif" : "Récapitulatif du paiement"}
-        </h4>
-        <div className="mt-4 space-y-2 text-sm">
-          <div className="flex justify-between text-neutral-600">
-            <span>Pack choisi</span>
-            <span className="font-extrabold text-neutral-950">
-              {formatAmount(baseFeeAmount + commissionAmount)}
-            </span>
-          </div>
-          <div className="flex justify-between text-neutral-600">
-            <span>Options supplémentaires</span>
-            <span className="font-extrabold text-neutral-950">
-              {formatAmount(addOnsAmount)}
-            </span>
-          </div>
-          {isFreeMonthlyListing && (
+      ) : (
+        <div className="rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
+          <h4 className="text-lg font-extrabold text-neutral-950">
+            {isFreeMonthlyListing
+              ? "Récapitulatif"
+              : "Récapitulatif du paiement"}
+          </h4>
+          <div className="mt-4 space-y-2 text-sm">
             <div className="flex justify-between text-neutral-600">
-              <span>Frais au premier loyer</span>
+              <span>Pack choisi</span>
               <span className="font-extrabold text-neutral-950">
-                {formatAmount(deferredSuccessFeeAmount)}
+                {formatAmount(baseFeeAmount + commissionAmount)}
               </span>
             </div>
-          )}
-          {!isDailyListing &&
-            (isFreeMonthlyListing || (paymentChoice === "pay" && selectedTier)) && (
-            <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
-              <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
-                Code de parrainage
-              </label>
-              <div className="flex flex-col gap-2 sm:flex-row">
-                <input
-                  value={referralCode}
-                  onChange={(event) => {
-                    setReferralCode(event.target.value.toUpperCase());
-                    setReferralQuote(null);
-                    setReferralError(null);
-                  }}
-                  placeholder="ROOGO-NOM-123"
-                  className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-bold uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
-                />
-                <button
-                  type="button"
-                  onClick={() => validateReferralCode()}
-                  disabled={validatingReferral || !referralCode.trim()}
-                  className="rounded-xl bg-neutral-900 px-4 py-3 text-sm font-extrabold text-white disabled:opacity-50"
-                >
-                  {validatingReferral ? "Validation..." : "Appliquer"}
-                </button>
+            <div className="flex justify-between text-neutral-600">
+              <span>Options supplémentaires</span>
+              <span className="font-extrabold text-neutral-950">
+                {formatAmount(addOnsAmount)}
+              </span>
+            </div>
+            {isFreeMonthlyListing && (
+              <div className="flex justify-between text-neutral-600">
+                <span>Frais au premier loyer</span>
+                <span className="font-extrabold text-neutral-950">
+                  {formatAmount(deferredSuccessFeeAmount)}
+                </span>
               </div>
-              {referralQuote && (
-                <p className="text-xs font-semibold text-green-700">
-                  Code appliqué
-                  {referralQuote.referrerName
-                    ? ` (${referralQuote.referrerName})`
-                    : ""}{" "}
-                  : -{formatAmount(referralQuote.discountAmount)}
-                </p>
+            )}
+            {!isDailyListing &&
+              (isFreeMonthlyListing ||
+                (paymentChoice === "pay" && selectedTier)) && (
+                <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
+                  <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
+                    Code de parrainage
+                  </label>
+                  <div className="flex flex-col gap-2 sm:flex-row">
+                    <input
+                      value={referralCode}
+                      onChange={(event) => {
+                        setReferralCode(event.target.value.toUpperCase());
+                        setReferralQuote(null);
+                        setReferralError(null);
+                      }}
+                      placeholder="ROOGO-NOM-123"
+                      className="min-w-0 flex-1 rounded-xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm font-bold uppercase outline-none focus:border-primary focus:ring-2 focus:ring-primary/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => validateReferralCode()}
+                      disabled={validatingReferral || !referralCode.trim()}
+                      className="rounded-xl bg-neutral-900 px-4 py-3 text-sm font-extrabold text-white disabled:opacity-50"
+                    >
+                      {validatingReferral ? "Validation..." : "Appliquer"}
+                    </button>
+                  </div>
+                  {referralQuote && (
+                    <p className="text-xs font-semibold text-green-700">
+                      Code appliqué
+                      {referralQuote.referrerName
+                        ? ` (${referralQuote.referrerName})`
+                        : ""}{" "}
+                      : -{formatAmount(referralQuote.discountAmount)}
+                    </p>
+                  )}
+                  {referralError && (
+                    <p className="text-xs font-semibold text-red-600">
+                      {referralError}
+                    </p>
+                  )}
+                </div>
               )}
-              {referralError && (
-                <p className="text-xs font-semibold text-red-600">
-                  {referralError}
-                </p>
-              )}
-            </div>
-          )}
-          {referralDiscountAmount > 0 && (
-            <div className="flex justify-between text-green-700">
-              <span>
-                {isFreeMonthlyListing
-                  ? "Remise sur frais différé"
-                  : "Remise parrainage"}
-              </span>
-              <span className="font-extrabold">
-                -{formatAmount(referralDiscountAmount)}
-              </span>
-            </div>
-          )}
-          {isFreeMonthlyListing && referralQuote && (
-            <div className="flex justify-between text-neutral-600">
-              <span>Frais différé après remise</span>
+            {referralDiscountAmount > 0 && (
+              <div className="flex justify-between text-green-700">
+                <span>
+                  {isFreeMonthlyListing
+                    ? "Remise sur frais différé"
+                    : "Remise parrainage"}
+                </span>
+                <span className="font-extrabold">
+                  -{formatAmount(referralDiscountAmount)}
+                </span>
+              </div>
+            )}
+            {isFreeMonthlyListing && referralQuote && (
+              <div className="flex justify-between text-neutral-600">
+                <span>Frais différé après remise</span>
+                <span className="font-extrabold text-neutral-950">
+                  {formatAmount(referralQuote.paidAmount)}
+                </span>
+              </div>
+            )}
+            <div className="flex justify-between border-t border-neutral-200 pt-3 text-base">
               <span className="font-extrabold text-neutral-950">
-                {formatAmount(referralQuote.paidAmount)}
+                {isFreeMonthlyListing ? "À payer aujourd'hui" : "Total à payer"}
+              </span>
+              <span className="text-xl font-black text-primary">
+                {formatAmount(payableAmount)}
               </span>
             </div>
-          )}
-          <div className="flex justify-between border-t border-neutral-200 pt-3 text-base">
-            <span className="font-extrabold text-neutral-950">
-              {isFreeMonthlyListing ? "À payer aujourd'hui" : "Total à payer"}
-            </span>
-            <span className="text-xl font-black text-primary">
-              {formatAmount(payableAmount)}
-            </span>
           </div>
         </div>
-      </div>}
+      )}
     </div>
   );
 
@@ -2527,18 +2567,33 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
           <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
             <h3 className="text-xl font-black text-neutral-950">
-              Conditions de publication gratuite
+              Conditions du paiement différé
             </h3>
             <p className="mt-4 text-sm font-semibold leading-6 text-neutral-600">
-              En publiant sans paiement initial, vous confirmez que Roogo ne
-              vous facturera aucun frais tant que nous ne vous apportons pas un
-              locataire.
+              Aucun paiement n&apos;est demandé aujourd&apos;hui pour publier
+              cette annonce.
             </p>
             <p className="mt-3 text-sm font-semibold leading-6 text-neutral-600">
-              Lorsque le premier loyer sera encaissé, vous acceptez que Roogo
-              prélève 50% du premier mois de loyer comme frais de service, dans
-              la limite autorisée par la loi au Burkina Faso.
+              Si Roogo vous apporte un locataire et encaisse le premier loyer,
+              Roogo retiendra une seule fois{" "}
+              {formatAmount(displayedDeferredSuccessFeeAmount)}. Le frais avant
+              toute remise est égal à 50% du loyer mensuel indiqué lors de la
+              publication.
             </p>
+            <p className="mt-3 text-sm font-semibold leading-6 text-neutral-600">
+              Après la mise en location, Roogo encaisse les loyers suivants par
+              défaut et retient 7% sur chaque paiement reçu. Vous pourrez
+              désactiver cette collecte depuis le bail pour les échéances
+              futures non payées.
+            </p>
+            <a
+              href="/conditions-utilisation"
+              target="_blank"
+              rel="noreferrer"
+              className="mt-3 inline-block text-sm font-extrabold text-primary underline"
+            >
+              Lire les conditions d&apos;utilisation
+            </a>
             <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-2xl border border-neutral-200 bg-neutral-50 p-4">
               <input
                 type="checkbox"

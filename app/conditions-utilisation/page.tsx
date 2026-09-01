@@ -18,7 +18,7 @@ export default function TermsPage() {
 
           <div className="prose prose-sm max-w-none text-neutral-600 space-y-6">
             <p className="text-sm italic">
-              Dernière mise à jour : 15 janvier 2026
+              Version 2.0 — Dernière mise à jour : 30 août 2026
             </p>
 
             <section>
@@ -63,10 +63,26 @@ export default function TermsPage() {
                 4. Tarification et Paiements
               </h2>
               <p>
-                Les tarifs des différents packs de publication et des frais de
-                réservation Early Bird sont indiqués sur la plateforme. Tous les
-                paiements effectués via Roogo sont finaux, sous réserve de notre
-                politique de remboursement spécifique.
+                Pour une location mensuelle, le propriétaire peut choisir une
+                publication sans paiement initial. Dans ce cas, aucun montant
+                n&apos;est dû le jour de la publication. Si Roogo apporte un
+                locataire et encaisse le premier loyer, un frais unique égal à
+                50% du loyer mensuel indiqué au moment de la publication est
+                retenu sur cet encaissement. Une remise de parrainage affichée
+                et validée avant la publication réduit ce frais enregistré.
+              </p>
+              <p className="mt-3">
+                Le propriétaire peut aussi choisir un pack payé avant
+                publication; le prix complet du pack est alors affiché avant le
+                paiement et le frais unique de succès ne s&apos;applique pas. La
+                collecte des loyers suivants via Roogo est activée par défaut
+                lorsqu&apos;un bail mensuel devient actif. Roogo retient 7% de
+                chaque loyer effectivement encaissé par la plateforme. Le
+                propriétaire peut la désactiver depuis le bail pour les
+                échéances futures non payées. Si le frais unique de succès reste
+                dû, le premier loyer demeure payable via Roogo. Les montants
+                applicables sont présentés dans le parcours concerné avant
+                confirmation.
               </p>
             </section>
 

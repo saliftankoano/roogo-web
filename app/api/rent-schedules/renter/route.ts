@@ -3,6 +3,10 @@ import { verifyToken } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
+import {
+  addRentCollectionAvailability,
+  type RentCollectionScheduleRow,
+} from "@/lib/rent-collection-access";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -37,16 +41,7 @@ export async function GET(req: Request) {
         *,
         properties(id, address, quartier, city, property_images(url, is_primary)),
         owner:users!rent_schedules_owner_id_fkey(id, full_name, phone),
-        agreement:rental_agreements!rent_schedules_agreement_id_fkey(
-          id,
-          status,
-          property_frequence,
-          start_date,
-          end_date,
-          caution_mois,
-          loyer_avance_mois,
-          transaction_id
-        )
+        agreement:rental_agreements!rent_schedules_agreement_id_fkey(*)
       `,
       )
       .eq("renter_id", user.id)
@@ -57,7 +52,14 @@ export async function GET(req: Request) {
       return errorResponse("Failed to fetch schedules", 500, req);
     }
 
-    return cors(NextResponse.json({ schedules: schedules || [] }), req);
+    const schedulesWithAvailability = await addRentCollectionAvailability(
+      (schedules || []) as RentCollectionScheduleRow[],
+    );
+
+    return cors(
+      NextResponse.json({ schedules: schedulesWithAvailability }),
+      req,
+    );
   } catch (error) {
     console.error("Error in GET /api/rent-schedules/renter:", error);
     return errorResponse("Internal server error", 500, req);

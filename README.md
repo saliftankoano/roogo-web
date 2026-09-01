@@ -108,6 +108,20 @@ Content-Type: application/json
 
 ## Payment Testing Scenarios (Web + Mobile)
 
+### Monthly listing payment modes
+
+- `free_success_fee`: 0 XOF at submission; one fee equal to 50% of the listed
+  monthly rent is stored and collected from the first rent Roogo receives.
+- `upfront_package`: the selected pack, monthly-rent commission, and add-ons are
+  paid before the listing is created; no deferred success fee is stored.
+- `daily_free`: daily inventory is submitted without the monthly success fee.
+
+All monthly `free_success_fee` submissions require explicit acceptance. Later
+rent collection is enabled by default when a monthly agreement becomes active;
+the owner can opt out for future unpaid installments, and the 7% collection fee
+applies only to rents paid through Roogo. See `docs/SYSTEM.md` for settlement,
+opt-out, and idempotency details.
+
 Use this section as the source of truth when testing payments locally.
 
 ### Where each variable lives

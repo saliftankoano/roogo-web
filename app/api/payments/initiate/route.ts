@@ -24,6 +24,10 @@ import {
 import { normalizePhone } from "@/lib/phone";
 import { notifyOwnerRentReceivedForSchedule } from "@/lib/rent-notifications";
 import {
+  canPayRentScheduleThroughRoogo,
+  firstUnpaidRentScheduleId,
+} from "@/lib/rent-collection";
+import {
   finalizeDailyBookingAfterPaymentDepositId,
   type DailyBookingRequestRow,
 } from "@/lib/daily-bookings";
@@ -223,9 +227,127 @@ export async function POST(req: Request) {
     const currency = "XOF";
     const supabase = getSupabaseClient();
     let resolvedAmount = amount;
+    let resolvedPropertyId = propertyId || null;
     let resolvedMetadata: Record<string, unknown> = metadata || {};
     let appliedReferral = null as ReturnType<typeof applyReferralToQuote> | null;
     let dailyBookingRequestId: string | null = null;
+
+    if (transactionType === "rent_payment") {
+      const scheduleId =
+        typeof resolvedMetadata.scheduleId === "string"
+          ? resolvedMetadata.scheduleId
+          : null;
+      if (!scheduleId) {
+        return errorResponse("scheduleId is required for rent payments", 400, req);
+      }
+
+      const { data: schedule, error: scheduleError } = await supabase
+        .from("rent_schedules")
+        .select(
+          `
+          id,
+          agreement_id,
+          property_id,
+          renter_id,
+          owner_id,
+          amount,
+          status,
+          transaction_id
+        `,
+        )
+        .eq("id", scheduleId)
+        .maybeSingle();
+
+      if (scheduleError || !schedule) {
+        return errorResponse("Rent schedule not found", 404, req);
+      }
+      if (schedule.renter_id !== user.id) {
+        return errorResponse("This rent schedule belongs to another renter", 403, req);
+      }
+      if (!["upcoming", "overdue"].includes(schedule.status)) {
+        return errorResponse("This rent schedule is not payable", 409, req);
+      }
+      if (schedule.transaction_id) {
+        return errorResponse("Payment is already in progress", 409, req);
+      }
+
+      // Select the full agreement instead of naming the new collection column.
+      // This keeps the existing rent-payment path live while migration 067 is
+      // rolling out; after the migration, the field is returned automatically.
+      const { data: agreement, error: agreementError } = await supabase
+        .from("rental_agreements")
+        .select("*")
+        .eq("id", schedule.agreement_id)
+        .maybeSingle();
+      if (agreementError || !agreement) {
+        return errorResponse("Rental agreement not found", 404, req);
+      }
+
+      const rentCollectionEnabled =
+        agreement.rent_collection_enabled !== false;
+      let hasPendingSuccessFee = false;
+      let firstUnpaidScheduleId: string | null = null;
+
+      if (!rentCollectionEnabled) {
+        const { data: pendingFee, error: pendingFeeError } = await supabase
+          .from("property_listing_fees")
+          .select("id")
+          .eq("property_id", schedule.property_id)
+          .eq("owner_id", schedule.owner_id)
+          .eq("fee_type", "success_fee")
+          .eq("status", "pending")
+          .maybeSingle();
+
+        if (pendingFeeError) {
+          return errorResponse("Unable to verify rent collection terms", 500, req);
+        }
+        hasPendingSuccessFee = Boolean(pendingFee);
+
+        if (hasPendingSuccessFee) {
+          const { data: unpaidSchedules, error: unpaidError } = await supabase
+            .from("rent_schedules")
+            .select("id, due_date, status")
+            .eq("agreement_id", schedule.agreement_id)
+            .in("status", ["upcoming", "overdue"]);
+
+          if (unpaidError) {
+            return errorResponse("Unable to verify first rent", 500, req);
+          }
+          firstUnpaidScheduleId = firstUnpaidRentScheduleId(
+            unpaidSchedules || [],
+          );
+        }
+      }
+
+      if (
+        !canPayRentScheduleThroughRoogo({
+          rentCollectionEnabled,
+          hasPendingSuccessFee,
+          scheduleId: schedule.id,
+          firstUnpaidScheduleId,
+        })
+      ) {
+        return errorResponse(
+          "Roogo rent collection is disabled for this agreement",
+          409,
+          req,
+        );
+      }
+
+      resolvedAmount = Number(schedule.amount);
+      resolvedPropertyId = schedule.property_id;
+      resolvedMetadata = {
+        ...resolvedMetadata,
+        scheduleId: schedule.id,
+        agreementId: schedule.agreement_id,
+        ownerId: schedule.owner_id,
+        rentCollectionEnabled,
+        firstRentSuccessFeeSettlement:
+          !rentCollectionEnabled && hasPendingSuccessFee,
+        originalClientAmount: amount,
+        serverAmount: Number(schedule.amount),
+      };
+    }
 
     if (transactionType === "property_lock" && propertyId) {
       const { data: propertyRecord, error: propertyError } = await supabase
@@ -417,7 +539,7 @@ export async function POST(req: Request) {
         type: transactionType,
         provider: payerClientCode,
         user_id: user.id,
-        property_id: propertyId || null,
+        property_id: resolvedPropertyId,
         payer_phone: phoneNumber,
         otp_code: preAuthorisationCode || null,
         metadata: resolvedMetadata,
@@ -460,7 +582,7 @@ export async function POST(req: Request) {
       currency,
       transaction_type: transactionType,
       provider: payerClientCode,
-      property_id: propertyId || null,
+      property_id: resolvedPropertyId,
       has_otp: !!preAuthorisationCode,
     });
 
@@ -599,7 +721,7 @@ export async function POST(req: Request) {
         currency,
         transaction_type: transactionType,
         provider: payerClientCode,
-        property_id: propertyId || null,
+        property_id: resolvedPropertyId,
         failure_reason: errorMessage,
       });
 
@@ -647,7 +769,7 @@ export async function POST(req: Request) {
         currency,
         transaction_type: transactionType,
         provider: payerClientCode,
-        property_id: propertyId || null,
+        property_id: resolvedPropertyId,
         source: "initiate_immediate",
       });
 
@@ -663,8 +785,8 @@ export async function POST(req: Request) {
             boost_expires_at: expiresAt.toISOString(),
           })
           .eq("id", propertyId);
-      } else if (transactionType === "rent_payment" && metadata) {
-        const scheduleId = (metadata as Record<string, unknown>)?.scheduleId as
+      } else if (transactionType === "rent_payment" && resolvedMetadata) {
+        const scheduleId = resolvedMetadata.scheduleId as
           | string
           | undefined;
         if (scheduleId) {

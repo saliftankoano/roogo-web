@@ -38,9 +38,13 @@ import { isValidStoredPhone } from "@/lib/phone";
 import { sanitizeForStorage } from "@/lib/text-sanitize";
 import { getMembershipsForUser } from "@/lib/hotel-auth";
 import { buildPropertyBaseSlug, normalizeQuartier } from "@/lib/property-url";
+import {
+  calculateMonthlyFreeSuccessFee,
+  MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
+} from "@/lib/listing-fees";
 
-const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
 const FREE_LISTING_DEFAULT_TIER_ID = "premium";
+const FREE_SUCCESS_FEE_TERMS_VERSION = "monthly-success-fee-2026-08-30";
 type ListingPaymentMode = "free_success_fee" | "upfront_package" | "daily_free";
 
 export async function OPTIONS(req: Request) {
@@ -82,18 +86,6 @@ async function generateUniquePropertySlug(
     if (!taken.has(candidate)) return candidate;
   }
 }
-
-const normalizeAmenityName = (value: string) =>
-  value
-    .normalize("NFD")
-    .replace(/[\u0300-\u036f]/g, "")
-    .toLowerCase()
-    .trim();
-
-const hasFurnishedAmenity = (amenities: string[] | undefined) =>
-  (amenities ?? []).some((amenity) =>
-    ["meuble", "furnished"].includes(normalizeAmenityName(amenity)),
-  );
 
 export async function POST(req: Request) {
   console.log("Received POST request to /api/properties");
@@ -430,9 +422,6 @@ export async function POST(req: Request) {
     // rental free-listing success-fee path (terms gate + 50%-of-first-month fee).
     const isFreeSuccessFeeListing =
       !isSaleListing && listingPaymentMode === "free_success_fee";
-    const isFurnishedListing = hasFurnishedAmenity(
-      parsedListingData.equipements,
-    );
     const effectiveAddOns = isFreeSuccessFeeListing
       ? []
       : (parsedListingData.add_ons ?? []);
@@ -455,11 +444,10 @@ export async function POST(req: Request) {
     if (
       isFreeSuccessFeeListing &&
       !isDailyListing &&
-      !isFurnishedListing &&
       parsedListingData.freeSuccessFeeTermsAccepted !== true
     ) {
       return errorResponse(
-        "Vous devez accepter les conditions de publication gratuite.",
+        "Vous devez accepter les conditions du paiement différé.",
         400,
         req,
       );
@@ -573,13 +561,9 @@ export async function POST(req: Request) {
     const isTestListing = isStaffOrFounder
       ? parsedListingData.is_test === true
       : false;
-    const deferredSuccessFeeAmount =
+    const deferredSuccessFeeBeforeReferral =
       isFreeSuccessFeeListing && isTestListing === false
-        ? Math.round(
-            (parsedListingData.prixMensuel *
-              MONTHLY_FREE_SUCCESS_FEE_RATE_BPS) /
-              10000,
-          )
+        ? calculateMonthlyFreeSuccessFee(parsedListingData.prixMensuel)
         : 0;
 
     const freeReferralCode =
@@ -591,7 +575,7 @@ export async function POST(req: Request) {
       freeReferralCode &&
       isFreeSuccessFeeListing &&
       !isDailyListing &&
-      deferredSuccessFeeAmount > 0
+      deferredSuccessFeeBeforeReferral > 0
     ) {
       try {
         const profile = await validateReferralForUser(supabase, {
@@ -617,6 +601,8 @@ export async function POST(req: Request) {
         return errorResponse("Failed to validate referral", 500, req);
       }
     }
+    const deferredSuccessFeeAmount =
+      freeListingReferral?.paidAmount ?? deferredSuccessFeeBeforeReferral;
 
     const dailyCautionValue = (() => {
       if (!isDailyListing) return null;
@@ -848,11 +834,26 @@ export async function POST(req: Request) {
             created_by: user.id,
             listing_payment_mode: listingPaymentMode,
             tier_id: selectedTier?.id || null,
+            original_fee_amount: deferredSuccessFeeBeforeReferral,
+            referral_discount_amount: freeListingReferral?.discountAmount ?? 0,
+            terms_version: FREE_SUCCESS_FEE_TERMS_VERSION,
+            terms_accepted_at: new Date().toISOString(),
           },
         });
 
       if (feeError) {
         console.error("Error creating deferred listing fee:", feeError);
+        const { error: rollbackError } = await supabase
+          .from("properties")
+          .delete()
+          .eq("id", propertyId)
+          .eq("agent_id", propertyData.agent_id);
+        if (rollbackError) {
+          console.error(
+            "Failed to roll back property without its deferred fee:",
+            rollbackError,
+          );
+        }
         return errorResponse("Failed to create listing fee", 500, req);
       }
     }
