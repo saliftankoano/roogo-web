@@ -7,7 +7,10 @@ import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { addMonths, format } from "date-fns";
 import { creditOwnerEarningsForSchedules } from "@/lib/owner-wallet";
 import { unescapeText } from "@/lib/text-sanitize";
-import { getDailyCompletionEligibleAt, toDailyCheckoutAt } from "@/lib/daily-bookings";
+import {
+  getDailyCompletionEligibleAt,
+  toDailyCheckoutAt,
+} from "@/lib/daily-bookings";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -51,11 +54,6 @@ export async function POST(req: Request) {
     const body = await req.json();
     const {
       applicationId,
-      propertyId,
-      renterId: bodyRenterId,
-      monthlyRent,
-      cautionMois = 1,
-      loyerAvanceMois,
       startDate,
       endDate,
       termsText,
@@ -74,6 +72,63 @@ export async function POST(req: Request) {
       dosAndDonts?: string[];
       interdictions?: string[];
     };
+    let {
+      propertyId,
+      renterId: bodyRenterId,
+      monthlyRent,
+      cautionMois,
+      loyerAvanceMois,
+    } = body as {
+      propertyId: string;
+      renterId?: string;
+      monthlyRent: number;
+      cautionMois?: number;
+      loyerAvanceMois?: number;
+    };
+
+    // The mobile owner flow opens the agreement from a Roogo application and
+    // sends only applicationId. Resolve and validate the property/renter on the
+    // server so that application_id remains reliable acquisition evidence.
+    if (applicationId) {
+      const { data: application, error: applicationError } = await supabaseAdmin
+        .from("applications")
+        .select(
+          "id, property_id, user_id, status, properties(agent_id, price, caution_mois, loyer_avance_mois)",
+        )
+        .eq("id", applicationId)
+        .single();
+
+      const applicationProperty = application?.properties as unknown as {
+        agent_id: string;
+        price: number;
+        caution_mois: number | null;
+        loyer_avance_mois: number | null;
+      } | null;
+
+      if (applicationError || !application || !applicationProperty) {
+        return errorResponse("Application not found", 404, req);
+      }
+      if (applicationProperty.agent_id !== user.id) {
+        return errorResponse("Forbidden", 403, req);
+      }
+      if (!["approved", "attributed"].includes(application.status)) {
+        return errorResponse(
+          "Application must be approved before creating an agreement",
+          409,
+          req,
+        );
+      }
+
+      propertyId = application.property_id;
+      bodyRenterId = application.user_id;
+      monthlyRent = Number(monthlyRent || applicationProperty.price);
+      cautionMois = Number(
+        cautionMois ?? applicationProperty.caution_mois ?? 0,
+      );
+      loyerAvanceMois = Number(
+        loyerAvanceMois ?? applicationProperty.loyer_avance_mois ?? 1,
+      );
+    }
 
     if (!propertyId || !monthlyRent) {
       return errorResponse("propertyId and monthlyRent are required", 400, req);

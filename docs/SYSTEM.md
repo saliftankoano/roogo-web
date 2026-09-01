@@ -78,6 +78,52 @@ move backward.
 See the [hotel product-boundary decision](./DECISIONS.md#hotels-use-roogo-as-a-booking-and-payment-rail-not-as-a-pms--2026-08-30)
 and the hotel terms in [DOMAIN.md](./DOMAIN.md#hotel-booking-and-coordinated-travel).
 
+## How does the no-upfront monthly listing option earn revenue?
+
+**Bottom line:** a monthly rental can be submitted for 0 FCFA today. If Roogo
+brings the renter and collects the first rent, Roogo withholds one snapshotted
+success fee equal to 50% of the monthly rent shown when the listing was created.
+Ongoing rent collection starts enabled when a monthly agreement becomes active
+and applies its 7% fee only to rents actually collected through Roogo. The owner
+can opt out from the active agreement for future unpaid installments.
+
+Web and mobile both default monthly rentals to `free_success_fee`, show the exact
+FCFA success-fee amount, and require explicit acceptance for every property,
+including furnished rentals. The API independently enforces the acceptance,
+rejects paid add-ons on the free path, stores one pending row in
+`property_listing_fees`, and snapshots the rate, base rent, final fee, and any
+referral discount together with the accepted terms version and server timestamp.
+The Premium tier determines listing entitlements but creates no payment at
+submission. If the deferred-fee row cannot be created, the API removes the new
+property instead of leaving a published promise with no charge record.
+
+When the first paid rent schedule is credited, `creditOwnerEarningForSchedule()`
+uses the pending fee instead of the ordinary collection calculation, records the
+owner's net earning, and marks that fee `collected`. A unique property/fee
+constraint and the unique schedule earning prevent a callback, poll, or retry
+from charging it twice. A repair guard also recognizes an existing earning if a
+previous run inserted it but failed before marking the fee collected, then
+finishes that state transition without charging a later schedule. Later rent
+schedules use the ordinary 7% collection calculation only when payment runs
+through Roogo. `rent_collection_enabled` defaults to true for new monthly
+agreements and false for daily or imported offline agreements. The owner can
+disable it from an active monthly bail; schedule APIs then hide in-app payment
+for future unpaid rents and the payment initiation API enforces the same rule.
+When the acquisition success fee is still pending, only the earliest unpaid rent
+remains payable through Roogo. Re-enabling collection restores in-app payment for
+all unpaid schedules. Already-paid rents are never rewritten.
+
+Paid publication packages remain a separate alternative: payment is collected
+before submission and no deferred success-fee row is created.
+
+An agreement created from a Roogo application, or from the renter's completed
+Roogo property-lock payment, preserves the pending success fee. A direct
+owner-created agreement with no Roogo application and an imported offline lease
+both waive it automatically in the same database transaction, because those
+paths are evidence that Roogo did not source the renter.
+
+See the [economics decision](./DECISIONS.md#monthly-listing-economics-separate-acquisition-from-default-on-rent-collection--2026-09-01).
+
 ## How does Mebo share Roogo Web without becoming the immobilier site?
 
 **Bottom line:** the request host selects a product context before the shared
@@ -138,11 +184,11 @@ in the admin surface.
 
 Expanded property surfaces use the same intent before considering rental period:
 
-| Listing state | Price title and unit | Conditions and actions |
-|---|---|---|
-| Sale (`vendre`) | `Prix de vente`, amount in FCFA | No monthly/nightly suffix, caution, advance rent, rental application, or rental payment |
-| Daily rental | `Tarif par nuit`, FCFA per night | Daily-stay conditions |
-| Monthly rental | `Prix du loyer`, FCFA per month | Caution, advance rent, and eligible rental actions |
+| Listing state   | Price title and unit             | Conditions and actions                                                                  |
+| --------------- | -------------------------------- | --------------------------------------------------------------------------------------- |
+| Sale (`vendre`) | `Prix de vente`, amount in FCFA  | No monthly/nightly suffix, caution, advance rent, rental application, or rental payment |
+| Daily rental    | `Tarif par nuit`, FCFA per night | Daily-stay conditions                                                                   |
+| Monthly rental  | `Prix du loyer`, FCFA per month  | Caution, advance rent, and eligible rental actions                                      |
 
 This ordering matters for legacy data. A sale row may still contain `period =
 month`, caution, or advance-rent defaults, but those fields never override
@@ -354,9 +400,9 @@ from a screen/hook. See [decision](./DECISIONS.md#support-console-goes-mobile--r
 
 ## How do chat read receipts (✓✓ "Lu") work?
 
-**Bottom line:** a message carries a nullable `read_at`. When the *recipient* opens a
+**Bottom line:** a message carries a nullable `read_at`. When the _recipient_ opens a
 thread, the server stamps `read_at = now()` on the other party's un-read messages; the
-*sender's* client sees that change live over Realtime and flips the bubble from
+_sender's_ client sees that change live over Realtime and flips the bubble from
 ✓ Envoyé to ✓✓ Lu.
 
 - **Write:** `markConversationRead(convTable, msgTable, id, role)` (shared by support +
@@ -438,7 +484,7 @@ to be run once, for two reasons:
    default).
 2. **Baseline/bookkeeping:** everything else in 045 is written idempotently
    (`create table if not exists`, `create index if not exists`, `create or replace
-   view`) and is a **no-op against the live DB**. Its purpose is that roogo-web's
+view`) and is a **no-op against the live DB**. Its purpose is that roogo-web's
    migration folder now fully describes a table it owns — a fresh environment (or a
    future migration audit) can rebuild the schema from this repo alone, without
    digging up the deleted kazedra migrations.
@@ -446,7 +492,7 @@ to be run once, for two reasons:
 So: not urgent, nothing breaks before it runs, but run it once so the schema and the
 code agree. (Decision context: [Visites 3D move under the Roogo brand](./DECISIONS.md#visites-3d-move-under-the-roogo-brand--2026-07-06).)
 
-## What are the AT_* / TEAM_PHONE env vars for (Visites 3D)?
+## What are the AT\_\* / TEAM_PHONE env vars for (Visites 3D)?
 
 **Bottom line:** they power the confirmation SMS sent after a 3D-visit booking is
 paid — Africa's Talking is the SMS provider (chosen for Onatel/Orange/Telecel
@@ -485,9 +531,10 @@ fees are paid by Roogo. See
 [the decision](./DECISIONS.md#roogo-sell-economics-v2-base-commission--5050-surplus-split--2026-07-09).
 
 **Seller flow:**
+
 1. Owner submits a `vendre` listing with the **amount they want to receive**
-   (their desired price), plus ownership proof — primarily the **PUH** (*Permis
-   Urbain d'Habiter*). The commission model is disclosed before they submit.
+   (their desired price), plus ownership proof — primarily the **PUH** (_Permis
+   Urbain d'Habiter_). The commission model is disclosed before they submit.
 2. A seller↔Roogo chat (one thread per property) opens automatically. Roogo reviews
    the ownership docs.
 3. Roogo sends a **mandate** (desired price + commission percentages + an
@@ -498,6 +545,7 @@ fees are paid by Roogo. See
    deliberately NOT shown or notified of Roogo's listing price.
 
 **Buyer flow:**
+
 1. Buyer browses listed properties and opens a buyer↔Roogo chat (not the owner).
 2. Roogo schedules **visits** (Roogo-run; the owner need not attend).
 3. When there's a deal, Roogo schedules a **notary meeting at its office**. Background

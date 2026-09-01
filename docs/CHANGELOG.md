@@ -1,8 +1,12 @@
 # Changelog
 
-What shipped, when. One line each, newest first. The *why* lives in
-[`DECISIONS.md`](./DECISIONS.md); the *how it works* lives in
+What shipped, when. One line each, newest first. The _why_ lives in
+[`DECISIONS.md`](./DECISIONS.md); the _how it works_ lives in
 [`SYSTEM.md`](./SYSTEM.md).
+
+## 2026-09-01
+
+- **No-upfront monthly listing economics aligned** (web + mobile + backend + data + docs): every monthly rental now accepts the same one-time 50%-of-listed-rent success fee, including furnished properties; web referral discounts reduce the persisted fee instead of only the preview; owner-sourced and imported renters waive the fee automatically; the UI says 0 FCFA today rather than unqualified “free”; and 7% ongoing rent collection starts enabled on active monthly leases with an owner opt-out for future unpaid rents. Payment APIs enforce the opt-out while preserving a still-due first-rent success fee. Pure fee and collection-access regression tests back both paths. Requires migrations 066 and 067. ([why](./DECISIONS.md#monthly-listing-economics-separate-acquisition-from-default-on-rent-collection--2026-09-01), [how](./SYSTEM.md#how-does-the-no-upfront-monthly-listing-option-earn-revenue))
 
 ## 2026-08-30
 

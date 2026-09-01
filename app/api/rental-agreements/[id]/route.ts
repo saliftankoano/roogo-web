@@ -58,7 +58,33 @@ export async function GET(
       return errorResponse("Forbidden", 403, req);
     }
 
-    return cors(NextResponse.json({ agreement }), req);
+    let firstRentSuccessFeePending = false;
+    if (agreement.property_frequence === "mensuel") {
+      const { data: pendingFee, error: feeError } = await supabaseAdmin
+        .from("property_listing_fees")
+        .select("id")
+        .eq("property_id", agreement.property_id)
+        .eq("owner_id", agreement.owner_id)
+        .eq("fee_type", "success_fee")
+        .eq("status", "pending")
+        .maybeSingle();
+
+      if (feeError) {
+        console.error("Unable to check pending success fee:", feeError);
+        return errorResponse("Failed to load agreement fee state", 500, req);
+      }
+      firstRentSuccessFeePending = Boolean(pendingFee);
+    }
+
+    return cors(
+      NextResponse.json({
+        agreement: {
+          ...agreement,
+          first_rent_success_fee_pending: firstRentSuccessFeePending,
+        },
+      }),
+      req,
+    );
   } catch (error) {
     console.error("Error in GET /api/rental-agreements/[id]:", error);
     return errorResponse("Internal server error", 500, req);

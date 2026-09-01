@@ -1,7 +1,16 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  calculateFirstRentSuccessFeeAmounts,
+  calculateOwnerRentAmounts,
+  MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
+  OWNER_RENT_FEE_RATE_BPS,
+} from "@/lib/listing-fees";
 
-export const OWNER_RENT_FEE_RATE_BPS = 700;
-export const MONTHLY_FREE_SUCCESS_FEE_RATE_BPS = 5000;
+export {
+  calculateOwnerRentAmounts,
+  MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
+  OWNER_RENT_FEE_RATE_BPS,
+} from "@/lib/listing-fees";
 
 export type OwnerPayoutStatus =
   | "requested"
@@ -18,21 +27,6 @@ const FAILED_PAYOUT_STATUSES = new Set<OwnerPayoutStatus>([
   "rejected",
   "not_found",
 ]);
-
-export function calculateOwnerRentAmounts(
-  grossRentAmount: number,
-  feeRateBps = OWNER_RENT_FEE_RATE_BPS,
-) {
-  const gross = Math.max(0, Math.round(Number(grossRentAmount) || 0));
-  const feeAmount = Math.round((gross * feeRateBps) / 10000);
-
-  return {
-    grossRentAmount: gross,
-    feeRateBps,
-    feeAmount,
-    netAmount: gross - feeAmount,
-  };
-}
 
 export function normalizeBurkinaPhone(phoneNumber: string): string | null {
   const digits = phoneNumber.replace(/\D/g, "");
@@ -88,9 +82,9 @@ export async function creditOwnerEarningForSchedule(scheduleId: string) {
         .select("currency")
         .eq("id", schedule.transaction_id)
         .maybeSingle()
-      : { data: null };
+    : { data: null };
 
-  const { data: pendingListingFee, error: listingFeeError } = await supabaseAdmin
+  const listingFeeResult = await supabaseAdmin
     .from("property_listing_fees")
     .select("id, rate_bps, fee_amount, metadata")
     .eq("property_id", schedule.property_id)
@@ -99,7 +93,38 @@ export async function creditOwnerEarningForSchedule(scheduleId: string) {
     .eq("status", "pending")
     .maybeSingle();
 
-  if (listingFeeError) throw listingFeeError;
+  if (listingFeeResult.error) throw listingFeeResult.error;
+  let pendingListingFee = listingFeeResult.data;
+
+  // Repair the legacy failure window where the earning insert succeeded but
+  // marking its deferred fee collected did not. A retry finishes that state
+  // change instead of charging a later rent schedule again.
+  if (pendingListingFee?.id) {
+    const { data: existingFeeEarning, error: existingFeeEarningError } =
+      await supabaseAdmin
+        .from("owner_earnings")
+        .select("id")
+        .eq("property_id", schedule.property_id)
+        .eq("owner_id", schedule.owner_id)
+        .contains("metadata", { listingFeeId: pendingListingFee.id })
+        .maybeSingle();
+
+    if (existingFeeEarningError) throw existingFeeEarningError;
+    if (existingFeeEarning?.id) {
+      const { error: repairError } = await supabaseAdmin
+        .from("property_listing_fees")
+        .update({
+          status: "collected",
+          owner_earning_id: existingFeeEarning.id,
+          collected_at: new Date().toISOString(),
+        })
+        .eq("id", pendingListingFee.id)
+        .eq("status", "pending");
+
+      if (repairError) throw repairError;
+      pendingListingFee = null;
+    }
+  }
 
   const hasListingSuccessFee = Boolean(pendingListingFee);
   const pendingListingFeeMetadata =
@@ -109,20 +134,12 @@ export async function creditOwnerEarningForSchedule(scheduleId: string) {
       ? (pendingListingFee.metadata as Record<string, unknown>)
       : {};
   const amounts = hasListingSuccessFee
-    ? {
-        grossRentAmount: Math.max(0, Math.round(Number(schedule.amount) || 0)),
-        feeRateBps: Number(pendingListingFee?.rate_bps) || MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
-        feeAmount: Math.min(
-          Math.max(0, Math.round(Number(schedule.amount) || 0)),
-          Math.max(0, Math.round(Number(pendingListingFee?.fee_amount) || 0)),
-        ),
-        netAmount:
-          Math.max(0, Math.round(Number(schedule.amount) || 0)) -
-          Math.min(
-            Math.max(0, Math.round(Number(schedule.amount) || 0)),
-            Math.max(0, Math.round(Number(pendingListingFee?.fee_amount) || 0)),
-          ),
-      }
+    ? calculateFirstRentSuccessFeeAmounts(
+        schedule.amount,
+        pendingListingFee?.fee_amount,
+        Number(pendingListingFee?.rate_bps) ||
+          MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
+      )
     : calculateOwnerRentAmounts(schedule.amount);
   const metadata = hasListingSuccessFee
     ? {
