@@ -36,6 +36,7 @@ export type NotificationCopyKey =
   | "dailyBookings.requestSubmittedOwner"
   | "dailyBookings.requestSubmittedRenter"
   | "dailyBookings.requestApprovedRenter"
+  | "dailyBookings.requestApprovedRenterHotel"
   | "dailyBookings.requestApprovedOwner"
   | "dailyBookings.requestDeclinedRenter"
   | "dailyBookings.requestExpiredRenter"
@@ -402,6 +403,16 @@ const notificationCopy: Record<
     en: {
       title: "Stay approved",
       body: "Pay by {deadline} to confirm your stay at {propertyLabel}.",
+    },
+  },
+  "dailyBookings.requestApprovedRenterHotel": {
+    fr: {
+      title: "Disponibilité confirmée",
+      body: "L'hôtel a confirmé votre chambre à {propertyLabel}. Payez avant {deadline} pour confirmer la réservation.",
+    },
+    en: {
+      title: "Availability confirmed",
+      body: "The hotel confirmed your room at {propertyLabel}. Pay by {deadline} to confirm the booking.",
     },
   },
   "dailyBookings.requestApprovedOwner": {

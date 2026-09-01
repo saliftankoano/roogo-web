@@ -13,6 +13,7 @@ import {
   type DailyBookingRequestRow,
 } from "@/lib/daily-bookings";
 import { getHotelBookingActor } from "@/lib/hotel-auth";
+import { buildDailyBookingApprovalNotification } from "@/lib/daily-booking-notifications";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -64,7 +65,10 @@ export async function POST(
     }
 
     if (requestRow.status === "approved_awaiting_payment") {
-      return cors(NextResponse.json({ success: true, request: requestRow }), req);
+      return cors(
+        NextResponse.json({ success: true, request: requestRow }),
+        req,
+      );
     }
     if (requestRow.status !== "requested") {
       return errorResponse("This request cannot be approved", 409, req);
@@ -79,7 +83,10 @@ export async function POST(
     }
 
     const approvedAt = new Date();
-    const paymentExpiresAt = addHoursIso(approvedAt, DAILY_PAYMENT_WINDOW_HOURS);
+    const paymentExpiresAt = addHoursIso(
+      approvedAt,
+      DAILY_PAYMENT_WINDOW_HOURS,
+    );
     let updated: DailyBookingRequestRow;
 
     if (isHotelBooking) {
@@ -138,18 +145,19 @@ export async function POST(
       timeStyle: "short",
       timeZone: "Africa/Ouagadougou",
     });
+    const renterNotification = buildDailyBookingApprovalNotification({
+      isHotelBooking,
+      requestId: id,
+      propertyId: requestRow.property_id,
+    });
 
     await Promise.allSettled([
       notifyUserWithTemplate(
         requestRow.renter_id,
         "payments",
-        "dailyBookings.requestApprovedRenter",
+        renterNotification.copyKey,
         { propertyLabel, deadline },
-        {
-          type: "daily_booking_request_approved",
-          dailyBookingRequestId: id,
-          propertyId: requestRow.property_id,
-        },
+        renterNotification.data,
       ),
       notifyUserWithTemplate(
         requestRow.owner_id,
