@@ -34,5 +34,5 @@ Uploads accept JPG, PNG, WebP and PDF, up to 10 MB per file and 10 attachments p
 - `npx tsc --noEmit --incremental false`, focused ESLint and `npm run motion:audit` passed.
 - `npm run build`: production Turbopack build passed.
 - Interactive browser preview with test data: desktop and 390px layouts, respondent/contact display, follow-up save and request creation/publishing form. Preview uses mocked API responses; it does not validate a live Supabase deployment.
-- Browser regression checks confirm sibling drafts survive save/filter/refresh, and concurrent staff conflicts preserve edits until reviewed.
+- Browser regression checks confirm sibling drafts survive save/filter/refresh, and concurrent staff conflicts preserve edits until reviewed. New edits also survive a refresh while an earlier save is in flight.
 - Mobile counterpart: 14 tests passed; React Native Web previews exercised feed/search/filter and complete property submission/receipt. The iOS development bundle loaded on iPhone 17 Pro and the signed-in renter was correctly denied access to the new feed. Native agent/owner submission and real storage uploads still require a deployed test backend and an appropriate signed-in account.

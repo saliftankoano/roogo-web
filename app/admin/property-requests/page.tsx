@@ -851,6 +851,10 @@ export default function PropertyRequestsPage() {
                     }
                     onUpdated={(saved) => {
                       setDrafts((previous) => {
+                        // A refresh can remount the card while its save is in flight.
+                        // Keep any newer edits made since that save started.
+                        if (previous[saved.id] !== drafts[saved.id])
+                          return previous;
                         const next = { ...previous };
                         delete next[saved.id];
                         return next;
