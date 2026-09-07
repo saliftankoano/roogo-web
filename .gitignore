@@ -59,6 +59,7 @@ apply_migration*
 *.mjs
 !scripts/backfill-property-translations.mjs
 !lib/*.test.mjs
+!components/*.test.mjs
 
 # Supabase CLI
 supabase/.temp/
