@@ -12,6 +12,7 @@ import {
 import { normalizePhone } from "@/lib/phone";
 import {
   extractPaymentFailure,
+  isUncertainPaymentInitiationFailure,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -252,6 +253,14 @@ export async function POST(
 
     if (!response.ok) {
       const failure = extractPaymentFailure(result);
+      if (isUncertainPaymentInitiationFailure(response.status, result)) {
+        return cors(
+          NextResponse.json(
+            { success: true, depositId, status: "PENDING" },
+            { status: 202 },
+          ),
+        );
+      }
       await supabase
         .from("transactions")
         .update({

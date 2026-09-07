@@ -23,6 +23,7 @@ import {
 } from "@/lib/referrals";
 import {
   extractPaymentFailure,
+  isUncertainPaymentInitiationFailure,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -416,6 +417,22 @@ export async function POST(req: Request) {
 
       const failure = extractPaymentFailure(result);
       const failureMessage = paymentFailureMessage(failure.code, "fr");
+
+      if (isUncertainPaymentInitiationFailure(response.status, result)) {
+        log("pawapay-status-uncertain", { depositId, failureCode: failure.code });
+        return cors(
+          NextResponse.json(
+            {
+              error:
+                "Impossible de confirmer la création de la page de paiement. Réessayez dans quelques instants.",
+              depositId,
+              status: "PENDING",
+            },
+            { status: 503 },
+          ),
+          req,
+        );
+      }
 
       await getSupabaseClient()
         .from("transactions")

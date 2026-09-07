@@ -91,6 +91,38 @@ export function extractPaymentPayerPhone(payload: unknown): string | null {
   return typeof root.payer_phone === "string" ? root.payer_phone : null;
 }
 
+/**
+ * PawaPay documents HTTP 5xx + UNKNOWN_ERROR as an indeterminate initiation:
+ * the deposit may still have reached them and must be reconciled by deposit ID.
+ */
+export function isUncertainPaymentInitiationFailure(
+  httpStatus: number,
+  payload: unknown,
+) {
+  return (
+    httpStatus >= 500 &&
+    extractPaymentFailure(payload).code === "UNKNOWN_ERROR"
+  );
+}
+
+const TERMINAL_PAYMENT_STATUSES = new Set([
+  "completed",
+  "failed",
+  "refunded",
+]);
+
+/** Prevent delayed callbacks from regressing a deposit that already settled. */
+export function shouldApplyPaymentStatus(
+  currentStatus: string | null | undefined,
+  nextStatus: string | null | undefined,
+) {
+  const current = currentStatus?.trim().toLowerCase() ?? "";
+  const next = nextStatus?.trim().toLowerCase() ?? "";
+  if (!TERMINAL_PAYMENT_STATUSES.has(current)) return true;
+  if (current === next) return true;
+  return current === "completed" && next === "refunded";
+}
+
 const FAILURE_MESSAGES: Record<
   string,
   Record<PaymentFailureLocale, string>

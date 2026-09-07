@@ -43,6 +43,7 @@ import {
 } from "@/lib/referrals";
 import {
   extractPaymentFailure,
+  isUncertainPaymentInitiationFailure,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -681,6 +682,22 @@ export async function POST(req: Request) {
       });
 
       const failure = extractPaymentFailure(result);
+
+      if (isUncertainPaymentInitiationFailure(response.status, result)) {
+        log("pawapay-status-uncertain", { depositId, failureCode: failure.code });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
+      }
 
       await getSupabaseClient()
         .from("transactions")

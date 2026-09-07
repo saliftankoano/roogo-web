@@ -39,18 +39,61 @@ export async function reserveNotificationDelivery({
   return false;
 }
 
+export async function claimPaymentFailureDelivery({
+  userId,
+  notificationType,
+  eventType,
+  subjectId,
+  metadata,
+}: NotificationDeliveryReservation) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "claim_payment_failure_delivery",
+    {
+      p_user_id: userId ?? null,
+      p_notification_type: notificationType,
+      p_event_type: eventType,
+      p_subject_id: subjectId,
+      p_metadata: metadata ?? {},
+      p_lease_seconds: 300,
+    },
+  );
+
+  if (!error) return data === true;
+
+  console.error("Failed to claim payment-failure delivery:", error);
+  return null;
+}
+
 export async function updateNotificationDeliveryMetadata({
   eventType,
   subjectId,
   metadata,
+  deliveryStatus,
+  releaseSmsClaim = false,
 }: {
   eventType: string;
   subjectId: string;
   metadata: Record<string, unknown>;
+  deliveryStatus?: "sent" | "failed";
+  releaseSmsClaim?: boolean;
 }) {
+  const patch: Record<string, unknown> = { metadata };
+  if (deliveryStatus) {
+    patch.delivery_status = deliveryStatus;
+    patch.lease_expires_at =
+      deliveryStatus === "failed"
+        ? new Date(Date.now() + 60_000).toISOString()
+        : null;
+    if (deliveryStatus === "sent") patch.sent_at = new Date().toISOString();
+  }
+  if (releaseSmsClaim) {
+    patch.sms_cooldown_key = null;
+    patch.sms_claimed_at = null;
+  }
+
   const { error } = await supabaseAdmin
     .from("notification_deliveries")
-    .update({ metadata })
+    .update(patch)
     .eq("event_type", eventType)
     .eq("subject_id", subjectId);
 
@@ -59,27 +102,31 @@ export async function updateNotificationDeliveryMetadata({
   }
 }
 
-export async function hasMatchingSmsDeliverySince({
+export async function claimPaymentFailureSmsCooldown({
+  subjectId,
   phoneHash,
   failureCode,
   since,
 }: {
+  subjectId: string;
   phoneHash: string;
   failureCode: string;
   since: Date;
 }) {
-  const { count, error } = await supabaseAdmin
-    .from("notification_deliveries")
-    .select("id", { count: "exact", head: true })
-    .eq("event_type", "payments.failed")
-    .contains("metadata", { phoneHash, failureCode, smsSent: true })
-    .gte("sent_at", since.toISOString());
+  const cooldownKey = `${phoneHash}:${failureCode}`;
+  const { data, error } = await supabaseAdmin.rpc(
+    "claim_payment_failure_sms_cooldown",
+    {
+      p_subject_id: subjectId,
+      p_cooldown_key: cooldownKey,
+      p_since: since.toISOString(),
+    },
+  );
 
-  if (!error) return (count ?? 0) > 0;
-  if (error.code === "42P01") return false;
+  if (!error) return data === true;
 
-  console.error("Failed to check payment failure SMS cooldown:", error);
-  return true;
+  console.error("Failed to claim payment-failure SMS cooldown:", error);
+  return null;
 }
 
 export async function countNotificationDeliveriesSince({

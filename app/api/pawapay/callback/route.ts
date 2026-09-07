@@ -18,6 +18,7 @@ import { handleVisit3dDepositCallback } from "@/lib/visit3d-callback";
 import {
   extractPaymentFailure,
   extractPaymentPayerPhone,
+  shouldApplyPaymentStatus,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
@@ -273,6 +274,15 @@ export async function POST(req: Request) {
       extractPaymentPayerPhone(data) ?? transaction.payer_phone ?? null;
 
     const inferredProvider = resolveWebProvider(data);
+
+    if (!shouldApplyPaymentStatus(transaction.status, dbStatus)) {
+      log("terminal-status-ignored", {
+        transactionId,
+        previousStatus: transaction.status,
+        ignoredStatus: dbStatus,
+      });
+      return NextResponse.json({ received: true, statusIgnored: true });
+    }
 
     const { error: updateError } = await supabase
       .from("transactions")

@@ -15,6 +15,7 @@ import {
 } from "@/lib/visit3d-callback";
 import {
   extractPaymentFailure,
+  isUncertainPaymentInitiationFailure,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -191,10 +192,14 @@ export async function POST(req: Request) {
     });
   } catch (err) {
     console.error("[visites-3d/initiate] fetch failed", err);
-    await rollback(inserted.id);
     return NextResponse.json(
-      { error: "Impossible de joindre PawaPay. Réessayez." },
-      { status: 502 },
+      {
+        success: true,
+        depositId,
+        status: "PENDING",
+        bookingId: inserted.id,
+      },
+      { status: 202 },
     );
   }
 
@@ -209,6 +214,18 @@ export async function POST(req: Request) {
   if (!upstream.ok) {
     const failure = extractPaymentFailure(result);
     const message = paymentFailureMessage(failure.code, "fr");
+
+    if (isUncertainPaymentInitiationFailure(upstream.status, result)) {
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
 
     await rollback(
       inserted.id,

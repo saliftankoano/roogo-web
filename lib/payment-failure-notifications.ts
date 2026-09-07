@@ -2,8 +2,8 @@ import { createHash } from "node:crypto";
 import { after } from "next/server";
 import { sendTransactionalSms } from "@/lib/africastalking";
 import {
-  hasMatchingSmsDeliverySince,
-  reserveNotificationDelivery,
+  claimPaymentFailureDelivery,
+  claimPaymentFailureSmsCooldown,
   updateNotificationDeliveryMetadata,
 } from "@/lib/notification-deliveries";
 import {
@@ -64,13 +64,16 @@ export async function notifyPaymentFailure(
     propertyId: input.propertyId ?? null,
   };
 
-  const reserved = await reserveNotificationDelivery({
+  const reserved = await claimPaymentFailureDelivery({
     userId: input.userId,
     notificationType: "payments",
     eventType: EVENT_TYPE,
     subjectId: input.depositId,
     metadata: baseMetadata,
   });
+  if (reserved === null) {
+    return { delivered: false, reason: "claim_failed" as const };
+  }
   if (!reserved) return { delivered: false, reason: "duplicate" as const };
 
   let locale: PaymentFailureLocale = input.locale ?? "fr";
@@ -117,6 +120,7 @@ export async function notifyPaymentFailure(
         pushSent,
         smsSent: false,
       },
+      deliveryStatus: pushSent || !pushEnabled ? "sent" : "failed",
     });
     return {
       delivered: pushSent,
@@ -129,15 +133,32 @@ export async function notifyPaymentFailure(
       eventType: EVENT_TYPE,
       subjectId: input.depositId,
       metadata: { ...baseMetadata, channel: "none", smsSent: false },
+      deliveryStatus: "sent",
     });
     return { delivered: false, reason: "missing_phone" as const };
   }
 
-  const onCooldown = await hasMatchingSmsDeliverySince({
+  const smsClaimed = await claimPaymentFailureSmsCooldown({
+    subjectId: input.depositId,
     phoneHash,
     failureCode,
     since: new Date(Date.now() - SMS_COOLDOWN_MS),
   });
+  if (smsClaimed === null) {
+    await updateNotificationDeliveryMetadata({
+      eventType: EVENT_TYPE,
+      subjectId: input.depositId,
+      metadata: {
+        ...baseMetadata,
+        channel: "sms",
+        smsCooldownClaimFailed: true,
+        smsSent: false,
+      },
+      deliveryStatus: "failed",
+    });
+    return { delivered: false, reason: "sms_claim_failed" as const };
+  }
+  const onCooldown = !smsClaimed;
   const smsSent = onCooldown
     ? false
     : await sendTransactionalSms(
@@ -154,6 +175,8 @@ export async function notifyPaymentFailure(
       smsCooldownSuppressed: onCooldown,
       smsSent,
     },
+    deliveryStatus: onCooldown || smsSent ? "sent" : "failed",
+    releaseSmsClaim: !onCooldown && !smsSent,
   });
 
   return {
