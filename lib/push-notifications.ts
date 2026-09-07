@@ -28,9 +28,13 @@ interface OnboardingData {
   preferredLocale?: string;
 }
 
-type UserNotificationSettings = {
+export type UserNotificationSettings = {
   enabled: boolean;
   locale: string;
+};
+
+export type UserPushNotificationContext = UserNotificationSettings & {
+  tokens: string[];
 };
 
 /**
@@ -96,7 +100,7 @@ function getLocaleFromMetadata({
   return match ?? "fr";
 }
 
-async function getUserNotificationSettings(
+export async function getUserNotificationSettings(
   clerkId: string,
   notificationType: NotificationType,
 ): Promise<UserNotificationSettings> {
@@ -135,6 +139,34 @@ async function getUserNotificationSettings(
     // On error, default to sending notification (fail-open)
     return { enabled: true, locale: "fr" };
   }
+}
+
+export async function getUserPushNotificationContext(
+  userId: string,
+  notificationType: NotificationType,
+): Promise<UserPushNotificationContext | null> {
+  const supabase = getSupabaseClient();
+  const userRecord = await getUserRecord(userId);
+  if (!userRecord) return null;
+
+  const settings = await getUserNotificationSettings(
+    userRecord.clerk_id,
+    notificationType,
+  );
+  const { data: tokens, error } = await supabase
+    .from("user_push_tokens")
+    .select("expo_push_token")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error fetching user tokens:", error);
+    return { ...settings, tokens: [] };
+  }
+
+  return {
+    ...settings,
+    tokens: (tokens ?? []).map((token) => token.expo_push_token),
+  };
 }
 
 async function getUserRecord(userId: string) {

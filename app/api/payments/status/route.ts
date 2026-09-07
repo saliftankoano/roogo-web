@@ -14,6 +14,11 @@ import {
   finalizeDailyBookingAfterPayment,
   isBlockedDailyFinalize,
 } from "@/lib/daily-bookings";
+import {
+  extractPaymentFailure,
+  extractPaymentPayerPhone,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -214,6 +219,23 @@ export async function POST(req: Request) {
           transaction as Record<string, unknown>,
         );
 
+        const failure =
+          transaction.status === "failed"
+            ? extractPaymentFailure(transaction)
+            : null;
+
+        if (failure) {
+          queuePaymentFailureNotification({
+            depositId,
+            failureCode: failure.code,
+            payerPhone: transaction.payer_phone,
+            userId: transaction.user_id,
+            transactionId: transaction.id,
+            transactionType: transaction.type,
+            propertyId: transaction.property_id,
+          });
+        }
+
         if (
           transaction.status === "completed" &&
           transaction.type === "property_lock" &&
@@ -246,7 +268,8 @@ export async function POST(req: Request) {
           NextResponse.json({
             success: true,
             status: pawaPayStatus,
-            raw: { status: pawaPayStatus, ...(transaction.metadata || {}) },
+            raw: { status: pawaPayStatus, depositId },
+            failureCode: failure?.code,
             context,
           }),
         );
@@ -335,6 +358,10 @@ export async function POST(req: Request) {
 
     const statusData = Array.isArray(result) ? result[0] : result;
     const status = statusData?.status || statusData?.depositStatus;
+    const failure = extractPaymentFailure(statusData);
+    const payerPhone =
+      extractPaymentPayerPhone(statusData) ?? transaction?.payer_phone ?? null;
+    let resolvedDbStatus: string | null = null;
 
     log("status-extracted", {
       depositId,
@@ -354,6 +381,7 @@ export async function POST(req: Request) {
       )
         dbStatus = "failed";
       if (status === "REFUNDED") dbStatus = "refunded";
+      resolvedDbStatus = dbStatus;
 
       log("db-update", {
         depositId,
@@ -369,6 +397,10 @@ export async function POST(req: Request) {
         .update({
           status: dbStatus,
           provider: inferredProvider || transaction.provider,
+          payer_phone: payerPhone,
+          failure_code: dbStatus === "failed" ? failure.code : null,
+          failure_reason:
+            dbStatus === "failed" ? failure.providerMessage : null,
           metadata: {
             ...((transaction.metadata as Record<string, unknown>) || {}),
             pawapay: statusData,
@@ -401,6 +433,16 @@ export async function POST(req: Request) {
             .eq("id", dailyBookingRequestId)
             .eq("transaction_id", transaction.id);
         }
+
+        queuePaymentFailureNotification({
+          depositId,
+          failureCode: failure.code,
+          payerPhone,
+          userId: transaction.user_id,
+          transactionId: transaction.id,
+          transactionType: transaction.type,
+          propertyId: transaction.property_id,
+        });
       }
 
       // Handle post-payment logic if it just became completed
@@ -586,7 +628,9 @@ export async function POST(req: Request) {
       NextResponse.json({
         success: true,
         status: status,
-        raw: statusData,
+        raw: { status, depositId },
+        failureCode:
+          resolvedDbStatus === "failed" ? failure.code : undefined,
         context,
       }),
     );

@@ -21,6 +21,11 @@ import {
   validateReferralForUser,
   voidPendingReferralForTransaction,
 } from "@/lib/referrals";
+import {
+  extractPaymentFailure,
+  paymentFailureMessage,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 // Valid PawaPay 3-letter country codes for payment page
 const VALID_PAYMENT_PAGE_COUNTRIES = ["BFA", "CIV", "SEN"] as const;
@@ -409,18 +414,15 @@ export async function POST(req: Request) {
         result,
       });
 
-      const failureMessage =
-        typeof result?.failureReason?.failureMessage === "string"
-          ? result.failureReason.failureMessage
-          : typeof result?.message === "string"
-            ? result.message
-            : "Payment page creation failed";
+      const failure = extractPaymentFailure(result);
+      const failureMessage = paymentFailureMessage(failure.code, "fr");
 
       await getSupabaseClient()
         .from("transactions")
         .update({
           status: "failed",
-          failure_reason: failureMessage,
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
           metadata: { ...transactionMetadata, pawapay: result },
         })
         .eq("deposit_id", depositId);
@@ -440,9 +442,21 @@ export async function POST(req: Request) {
         source: "payment_page",
       });
 
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        userId: user.id,
+        transactionId: transactionRecord?.id,
+        transactionType,
+        propertyId: propertyId || null,
+      });
+
       return cors(
         NextResponse.json(
-          { error: failureMessage, details: result },
+          {
+            error: failureMessage,
+            failureCode: failure.code,
+          },
           { status: response.status },
         ),
         req,

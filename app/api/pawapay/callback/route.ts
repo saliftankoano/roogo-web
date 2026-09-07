@@ -15,6 +15,11 @@ import {
   isBlockedDailyFinalize,
 } from "@/lib/daily-bookings";
 import { handleVisit3dDepositCallback } from "@/lib/visit3d-callback";
+import {
+  extractPaymentFailure,
+  extractPaymentPayerPhone,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -209,7 +214,11 @@ export async function POST(req: Request) {
     if (!transaction) {
       // Not a rent/listing transaction — try Visites 3D bookings, which share
       // this PawaPay account. Deposit IDs are unique in both tables.
-      const visit3d = await handleVisit3dDepositCallback(transactionId, status);
+      const visit3d = await handleVisit3dDepositCallback(
+        transactionId,
+        status,
+        data,
+      );
       if (visit3d.dbError) {
         // The bookings lookup itself failed — don't ack as "not found" or
         // PawaPay will never retry a possibly-real booking callback.
@@ -259,16 +268,9 @@ export async function POST(req: Request) {
       userId: transaction.user_id,
     });
 
-    // Extract detailed failure information
-    let detailedFailureReason = null;
-    if (dbStatus === "failed" && failureReason) {
-      // PawaPay sends failureReason as an object with failureMessage, failureCode, etc.
-      if (typeof failureReason === "object") {
-        detailedFailureReason = JSON.stringify(failureReason);
-      } else {
-        detailedFailureReason = String(failureReason);
-      }
-    }
+    const failure = extractPaymentFailure(data);
+    const payerPhone =
+      extractPaymentPayerPhone(data) ?? transaction.payer_phone ?? null;
 
     const inferredProvider = resolveWebProvider(data);
 
@@ -277,7 +279,10 @@ export async function POST(req: Request) {
       .update({
         status: dbStatus,
         provider: inferredProvider || transaction.provider,
-        failure_reason: detailedFailureReason || null,
+        payer_phone: payerPhone,
+        failure_code: dbStatus === "failed" ? failure.code : null,
+        failure_reason:
+          dbStatus === "failed" ? failure.providerMessage : null,
         metadata: { ...(transaction.metadata || {}), ...data }, // Merge metadata
         updated_at: new Date().toISOString(),
       })
@@ -519,10 +524,22 @@ export async function POST(req: Request) {
           transaction_type: transaction.type || "unknown",
           provider: transaction.provider || "unknown",
           property_id: transaction.property_id || null,
-          failure_reason: detailedFailureReason || "Payment failed",
+          failure_reason: failure.providerMessage || "Payment failed",
           source: "pawapay_callback",
         },
       );
+    }
+
+    if (dbStatus === "failed") {
+      queuePaymentFailureNotification({
+        depositId: transactionId,
+        failureCode: failure.code,
+        payerPhone,
+        userId: transaction.user_id,
+        transactionId: transaction.id,
+        transactionType: transaction.type,
+        propertyId: transaction.property_id,
+      });
     }
 
     log("callback-complete", { transactionId, finalStatus: dbStatus });

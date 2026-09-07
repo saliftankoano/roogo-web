@@ -3,8 +3,11 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import {
   finalizeVisit3dCompletion,
+  handleVisit3dDepositCallback,
   type Visit3dBookingRow,
 } from "@/lib/visit3d-callback";
+import { extractPaymentFailure } from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -27,7 +30,7 @@ export async function POST(req: Request) {
   const { data: row, error: fetchErr } = await supabase
     .from("bookings")
     .select(
-      "id, date, slot, name, company, phone, address, room_count, total_amount, status, payment_status",
+      "id, date, slot, name, company, phone, address, room_count, total_amount, status, payment_status, payment_failure_code, payment_failure_reason, payment_payer_phone",
     )
     .eq("payment_deposit_id", depositId)
     .maybeSingle<Visit3dBookingRow>();
@@ -48,7 +51,20 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "COMPLETED", bookingId: row.id });
   }
   if (row.payment_status === "failed" || row.payment_status === "cancelled") {
-    return NextResponse.json({ status: "FAILED", bookingId: row.id });
+    if (row.payment_status === "failed") {
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode: row.payment_failure_code || "UNSPECIFIED_FAILURE",
+        payerPhone: row.payment_payer_phone || row.phone,
+        locale: "fr",
+        transactionType: "visit3d",
+      });
+    }
+    return NextResponse.json({
+      status: "FAILED",
+      bookingId: row.id,
+      failureCode: row.payment_failure_code || "UNSPECIFIED_FAILURE",
+    });
   }
 
   // Still in flight — ask PawaPay.
@@ -110,11 +126,20 @@ export async function POST(req: Request) {
   }
 
   if (status === "FAILED" || status === "CANCELLED" || status === "REJECTED") {
-    await supabase
-      .from("bookings")
-      .update({ status: "cancelled", payment_status: "failed" })
-      .eq("id", row.id);
-    return NextResponse.json({ status: "FAILED", bookingId: row.id });
+    const failure = extractPaymentFailure(payload);
+    const update = await handleVisit3dDepositCallback(
+      depositId,
+      status,
+      payload,
+    );
+    if (update.error) {
+      console.error("[visites-3d/status] failure finalize", update.error);
+    }
+    return NextResponse.json({
+      status: "FAILED",
+      bookingId: row.id,
+      failureCode: failure.code,
+    });
   }
 
   if (status === "SUBMITTED" && row.payment_status !== "submitted") {

@@ -10,6 +10,11 @@ import {
   getCorrespondent,
 } from "@/lib/payment-providers";
 import { normalizePhone } from "@/lib/phone";
+import {
+  extractPaymentFailure,
+  paymentFailureMessage,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 // Use service role for reading config
 //const supabaseAdmin = createClient(
@@ -246,31 +251,76 @@ export async function POST(
     }
 
     if (!response.ok) {
+      const failure = extractPaymentFailure(result);
       await supabase
         .from("transactions")
         .update({
           status: "failed",
-          failure_reason: result.message || "API call failed",
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
           metadata: result,
         })
         .eq("deposit_id", depositId);
 
-      const failureReason = result.details?.failureReason;
-      const errorMessage =
-        failureReason?.failureMessage ||
-        result.details?.errorMessage ||
-        result.error ||
-        "Payment initiation failed";
+      const errorMessage = paymentFailureMessage(failure.code, "fr");
+
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        payerPhone: formattedPhone,
+        userId: user.id,
+        transactionType: "property_lock",
+        propertyId,
+      });
 
       return cors(
         NextResponse.json(
           {
             error: errorMessage,
-            details: result,
-            failureCode: failureReason?.failureCode,
+            failureCode: failure.code,
           },
           { status: response.status }
         )
+      );
+    }
+
+    const immediateStatus = String(result.status || "").toUpperCase();
+    if (
+      immediateStatus === "FAILED" ||
+      immediateStatus === "CANCELLED" ||
+      immediateStatus === "REJECTED"
+    ) {
+      const failure = extractPaymentFailure(result);
+      await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
+          metadata: result,
+        })
+        .eq("deposit_id", depositId);
+
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        payerPhone: formattedPhone,
+        userId: user.id,
+        transactionType: "property_lock",
+        propertyId,
+      });
+
+      return cors(
+        NextResponse.json(
+          {
+            success: false,
+            depositId,
+            status: immediateStatus,
+            error: paymentFailureMessage(failure.code, "fr"),
+            failureCode: failure.code,
+          },
+          { status: 422 },
+        ),
       );
     }
 
@@ -279,7 +329,10 @@ export async function POST(
         success: true,
         depositId: result.depositId || depositId,
         status: result.status || "PENDING",
-        raw: result,
+        raw: {
+          status: result.status || "PENDING",
+          depositId: result.depositId || depositId,
+        },
       })
     );
   } catch (error: unknown) {

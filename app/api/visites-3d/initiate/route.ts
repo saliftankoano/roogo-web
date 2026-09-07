@@ -9,7 +9,15 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { finalizeVisit3dCompletion } from "@/lib/visit3d-callback";
+import {
+  finalizeVisit3dCompletion,
+  handleVisit3dDepositCallback,
+} from "@/lib/visit3d-callback";
+import {
+  extractPaymentFailure,
+  paymentFailureMessage,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -113,6 +121,7 @@ export async function POST(req: Request) {
       status: "pending_payment",
       payment_status: "pending",
       payment_provider: d.payment_provider,
+      payment_payer_phone: payerPhoneFormatted,
       payment_deposit_id: depositId,
       held_until: heldUntil,
     })
@@ -198,22 +207,26 @@ export async function POST(req: Request) {
   }
 
   if (!upstream.ok) {
-    const details = result.details as Record<string, unknown> | undefined;
-    const failureReason = details?.failureReason as
-      | { failureMessage?: string; failureCode?: string }
-      | undefined;
-    const message =
-      failureReason?.failureMessage ||
-      (details?.errorMessage as string | undefined) ||
-      (result.message as string | undefined) ||
-      "Échec de l'initiation du paiement.";
+    const failure = extractPaymentFailure(result);
+    const message = paymentFailureMessage(failure.code, "fr");
 
-    await rollback(inserted.id, String(message));
+    await rollback(
+      inserted.id,
+      failure.code,
+      failure.providerMessage,
+    );
+    queuePaymentFailureNotification({
+      depositId,
+      failureCode: failure.code,
+      payerPhone: payerPhoneFormatted,
+      locale: "fr",
+      transactionType: "visit3d",
+    });
 
     return NextResponse.json(
       {
         error: message,
-        failureCode: failureReason?.failureCode,
+        failureCode: failure.code,
       },
       { status: upstream.status },
     );
@@ -251,6 +264,23 @@ export async function POST(req: Request) {
       .from("bookings")
       .update({ payment_status: "submitted" })
       .eq("id", inserted.id);
+  } else if (
+    pawaStatus === "FAILED" ||
+    pawaStatus === "CANCELLED" ||
+    pawaStatus === "REJECTED"
+  ) {
+    const failure = extractPaymentFailure(result);
+    await handleVisit3dDepositCallback(depositId, pawaStatus, result);
+    return NextResponse.json(
+      {
+        success: false,
+        depositId,
+        status: pawaStatus,
+        error: paymentFailureMessage(failure.code, "fr"),
+        failureCode: failure.code,
+      },
+      { status: 422 },
+    );
   }
 
   await captureServerEvent(depositId, "visit3d_payment_initiated", {
@@ -273,13 +303,18 @@ export async function POST(req: Request) {
   );
 }
 
-async function rollback(bookingId: string, reason?: string) {
+async function rollback(
+  bookingId: string,
+  failureCode?: string,
+  failureReason?: string | null,
+) {
   await supabaseAdmin
     .from("bookings")
     .update({
       status: "cancelled",
       payment_status: "failed",
-      notes: reason ? `[cancelled after initiate] ${reason}` : undefined,
+      payment_failure_code: failureCode,
+      payment_failure_reason: failureReason,
     })
     .eq("id", bookingId);
 }

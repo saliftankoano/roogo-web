@@ -15,6 +15,7 @@ import {
   uploadCompressedPropertyPhotos,
   uploadPropertyVideoData,
 } from "@/lib/clientPropertyPhotoUpload";
+import { paymentFailureMessage } from "@/lib/payment-failures";
 
 function PaymentCallbackContent() {
   const searchParams = useSearchParams();
@@ -122,7 +123,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
             data.status === "REJECTED"
           ) {
             setStatus("failed");
-            setMessage("Le paiement a échoué ou a été annulé.");
+            setMessage(paymentFailureMessage(data.failureCode, "fr"));
           } else {
             if (attempts < 10) {
               setStatus("pending");

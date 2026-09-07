@@ -41,6 +41,11 @@ import {
   validateReferralForUser,
   voidPendingReferralForTransaction,
 } from "@/lib/referrals";
+import {
+  extractPaymentFailure,
+  paymentFailureMessage,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -675,20 +680,14 @@ export async function POST(req: Request) {
         result,
       });
 
-      // Extract detailed failure information from PawaPay response
-      let detailedFailure = result.message || "API call failed";
-      if (result.details?.failureReason) {
-        const fr = result.details.failureReason;
-        detailedFailure = `${fr.failureCode || "ERROR"}: ${fr.failureMessage || result.message || "Unknown error"}`;
-      } else if (result.details?.errorMessage) {
-        detailedFailure = result.details.errorMessage;
-      }
+      const failure = extractPaymentFailure(result);
 
       await getSupabaseClient()
         .from("transactions")
         .update({
           status: "failed",
-          failure_reason: detailedFailure,
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
           metadata: { ...resolvedMetadata, ...result },
         })
         .eq("deposit_id", depositId);
@@ -708,12 +707,7 @@ export async function POST(req: Request) {
           .eq("transaction_id", transactionRecord.id);
       }
 
-      const failureReason = result.details?.failureReason;
-      const errorMessage =
-        failureReason?.failureMessage ||
-        result.details?.errorMessage ||
-        result.error ||
-        "Payment initiation failed";
+      const errorMessage = paymentFailureMessage(failure.code, "fr");
 
       await captureServerEvent(user.id, "payment_failed", {
         deposit_id: depositId,
@@ -725,14 +719,79 @@ export async function POST(req: Request) {
         failure_reason: errorMessage,
       });
 
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        payerPhone: phoneNumber,
+        userId: user.id,
+        transactionId: transactionRecord?.id,
+        transactionType,
+        propertyId: resolvedPropertyId,
+      });
+
       return cors(
         NextResponse.json(
           {
             error: errorMessage,
-            details: result,
-            failureCode: failureReason?.failureCode,
+            failureCode: failure.code,
           },
           { status: response.status },
+        ),
+        req,
+      );
+    }
+
+    const immediateStatus = String(result.status || "").toUpperCase();
+    if (
+      immediateStatus === "FAILED" ||
+      immediateStatus === "CANCELLED" ||
+      immediateStatus === "REJECTED"
+    ) {
+      const failure = extractPaymentFailure(result);
+      await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
+          metadata: { ...resolvedMetadata, ...result },
+        })
+        .eq("deposit_id", depositId);
+
+      if (transactionRecord?.id) {
+        await voidPendingReferralForTransaction(supabase, transactionRecord.id);
+      }
+      if (dailyBookingRequestId && transactionRecord?.id) {
+        await supabase
+          .from("daily_booking_requests")
+          .update({
+            status: "approved_awaiting_payment",
+            transaction_id: null,
+          })
+          .eq("id", dailyBookingRequestId)
+          .eq("transaction_id", transactionRecord.id);
+      }
+
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        payerPhone: phoneNumber,
+        userId: user.id,
+        transactionId: transactionRecord?.id,
+        transactionType,
+        propertyId: resolvedPropertyId,
+      });
+
+      return cors(
+        NextResponse.json(
+          {
+            success: false,
+            depositId,
+            status: immediateStatus,
+            error: paymentFailureMessage(failure.code, "fr"),
+            failureCode: failure.code,
+          },
+          { status: 422 },
         ),
         req,
       );
@@ -823,7 +882,10 @@ export async function POST(req: Request) {
         success: true,
         depositId: result.depositId || depositId,
         status: result.status || "PENDING",
-        raw: result,
+        raw: {
+          status: result.status || "PENDING",
+          depositId: result.depositId || depositId,
+        },
       }),
       req,
     );

@@ -4,6 +4,11 @@ import {
   sendTeamNotification,
 } from "@/lib/africastalking";
 import { captureServerEvent } from "@/lib/posthog-server";
+import {
+  extractPaymentFailure,
+  extractPaymentPayerPhone,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 // Visites 3D bookings share the PawaPay callback endpoint with rent/listing
 // transactions. Deposit IDs are UUIDs with unique indexes in both tables, so
@@ -22,6 +27,9 @@ export type Visit3dBookingRow = {
   total_amount: number;
   status: string;
   payment_status: string;
+  payment_failure_code?: string | null;
+  payment_failure_reason?: string | null;
+  payment_payer_phone?: string | null;
 };
 
 const TERMINAL_PAYMENT_STATUSES = ["completed", "failed", "cancelled", "refunded"];
@@ -86,6 +94,7 @@ export async function finalizeVisit3dCompletion(
 export async function handleVisit3dDepositCallback(
   depositId: string,
   pawaPayStatus: string,
+  payload?: unknown,
 ): Promise<{
   handled: boolean;
   bookingId?: string;
@@ -107,7 +116,7 @@ export async function handleVisit3dDepositCallback(
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from("bookings")
     .select(
-      "id, date, slot, name, company, phone, address, room_count, total_amount, status, payment_status",
+      "id, date, slot, name, company, phone, address, room_count, total_amount, status, payment_status, payment_failure_code, payment_failure_reason, payment_payer_phone",
     )
     .eq("payment_deposit_id", depositId)
     .maybeSingle<Visit3dBookingRow>();
@@ -127,6 +136,20 @@ export async function handleVisit3dDepositCallback(
     const isRefundOfCompleted =
       status === "REFUNDED" && row.payment_status === "completed";
     if (!isRefundOfCompleted) {
+      if (row.payment_status === "failed") {
+        const failure = extractPaymentFailure(payload);
+        queuePaymentFailureNotification({
+          depositId,
+          failureCode:
+            row.payment_failure_code || failure.code,
+          payerPhone:
+            row.payment_payer_phone ||
+            extractPaymentPayerPhone(payload) ||
+            row.phone,
+          locale: "fr",
+          transactionType: "visit3d",
+        });
+      }
       return { handled: true, bookingId: row.id };
     }
   }
@@ -142,6 +165,11 @@ export async function handleVisit3dDepositCallback(
   const patch: Record<string, unknown> = { payment_status };
   if (payment_status === "failed" && row.status === "pending_payment") {
     patch.status = "cancelled";
+    const failure = extractPaymentFailure(payload);
+    patch.payment_failure_code = failure.code;
+    patch.payment_failure_reason = failure.providerMessage;
+    patch.payment_payer_phone =
+      extractPaymentPayerPhone(payload) ?? row.payment_payer_phone;
   }
 
   const { error: updErr } = await supabaseAdmin
@@ -151,6 +179,20 @@ export async function handleVisit3dDepositCallback(
 
   if (updErr) {
     return { handled: true, bookingId: row.id, error: String(updErr) };
+  }
+
+  if (payment_status === "failed") {
+    const failure = extractPaymentFailure(payload);
+    queuePaymentFailureNotification({
+      depositId,
+      failureCode: failure.code,
+      payerPhone:
+        extractPaymentPayerPhone(payload) ??
+        row.payment_payer_phone ??
+        row.phone,
+      locale: "fr",
+      transactionType: "visit3d",
+    });
   }
 
   return { handled: true, bookingId: row.id };

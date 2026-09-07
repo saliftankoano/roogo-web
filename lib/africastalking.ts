@@ -49,14 +49,23 @@ function client(): ATClient["SMS"] {
   return _sms;
 }
 
-async function send(to: string, message: string): Promise<void> {
+async function send(to: string, message: string): Promise<boolean> {
   const from = process.env.AT_SENDER_ID || undefined;
   try {
     await client().send({ to, message, from });
+    return true;
   } catch (err) {
     // We don't want an SMS provider hiccup to fail a booking write — log and continue.
     console.error("[africastalking] send failed", err);
+    return false;
   }
+}
+
+export async function sendTransactionalSms(
+  phone: string,
+  message: string,
+): Promise<boolean> {
+  return send(phone, message);
 }
 
 export function customerConfirmationMessage(input: {
@@ -85,8 +94,8 @@ export async function sendCustomerConfirmation(
   phone: string,
   date: string,
   slot: string,
-): Promise<void> {
-  await send(phone, customerConfirmationMessage({ date, slot }));
+): Promise<boolean> {
+  return send(phone, customerConfirmationMessage({ date, slot }));
 }
 
 export async function sendTeamNotification(payload: {
@@ -98,8 +107,8 @@ export async function sendTeamNotification(payload: {
   address: string;
   room_count: number;
   total_amount: number;
-}): Promise<void> {
+}): Promise<boolean> {
   const to = process.env.TEAM_PHONE;
-  if (!to) return;
-  await send(to, teamNotificationMessage(payload));
+  if (!to) return false;
+  return send(to, teamNotificationMessage(payload));
 }
