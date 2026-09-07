@@ -4,6 +4,7 @@ import {
   renderNotificationCopy,
   type NotificationCopyKey,
 } from "@/lib/notification-copy";
+import { isExpoPushResponseAccepted } from "@/lib/expo-push-response";
 
 export interface PushNotificationPayload {
   to: string | string[];
@@ -64,7 +65,7 @@ export async function sendExpoPushNotifications(
 
     const result = await response.json();
     console.log("Expo Push API response:", JSON.stringify(result, null, 2));
-    return true;
+    return isExpoPushResponseAccepted(result);
   } catch (error) {
     console.error("Failed to send Expo push notifications:", error);
     return false;

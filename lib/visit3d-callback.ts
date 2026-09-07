@@ -51,7 +51,7 @@ export async function finalizeVisit3dCompletion(
     .from("bookings")
     .update({ status: "confirmed", payment_status: "completed" })
     .eq("id", row.id)
-    .neq("payment_status", "completed")
+    .in("payment_status", ["pending", "submitted"])
     .select("id");
 
   if (updErr) {

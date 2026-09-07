@@ -23,7 +23,6 @@ import {
 } from "@/lib/referrals";
 import {
   extractPaymentFailure,
-  isUncertainPaymentInitiationFailure,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -374,6 +373,79 @@ export async function POST(req: Request) {
         .slice(0, 50)
         .replace(/[^a-zA-Z0-9\s]/g, ""),
     };
+    const failureLocale =
+      requestedLocale?.toUpperCase() === "EN" ? "en" : "fr";
+
+    const finalizePaymentPageFailure = async (
+      failurePayload: unknown,
+      httpStatus: number,
+    ) => {
+      const failure = extractPaymentFailure(failurePayload);
+      const failureMessage = paymentFailureMessage(failure.code, failureLocale);
+
+      const { error: failureUpdateError } = await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
+          metadata: { ...transactionMetadata, pawapay: failurePayload },
+        })
+        .eq("deposit_id", depositId);
+
+      if (failureUpdateError) {
+        log("failure-update-failed", {
+          depositId,
+          error: String(failureUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            { error: "Failed to reconcile payment" },
+            { status: 500 },
+          ),
+          req,
+        );
+      }
+
+      if (transactionRecord?.id) {
+        await voidPendingReferralForTransaction(supabase, transactionRecord.id);
+      }
+
+      await captureServerEvent(user.id, "payment_failed", {
+        deposit_id: depositId,
+        amount: resolvedAmount,
+        currency,
+        transaction_type: transactionType,
+        provider,
+        property_id: propertyId || null,
+        failure_reason: failureMessage,
+        source: "payment_page",
+      });
+
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        userId: user.id,
+        transactionId: transactionRecord?.id,
+        transactionType,
+        propertyId: propertyId || null,
+        locale: failureLocale,
+      });
+
+      return cors(
+        NextResponse.json(
+          {
+            success: false,
+            depositId,
+            status: "FAILED",
+            error: failureMessage,
+            failureCode: failure.code,
+          },
+          { status: httpStatus },
+        ),
+        req,
+      );
+    };
 
     log("pawapay-request", {
       url: `${pawaUrl}/v2/paymentpage`,
@@ -384,16 +456,28 @@ export async function POST(req: Request) {
       currency: payload.amountDetails.currency,
     });
 
-    const response = await fetch(`${pawaUrl}/v2/paymentpage`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${pawaToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const responseText = await response.text();
+    let response: Response;
+    let responseText: string;
+    try {
+      response = await fetch(`${pawaUrl}/v2/paymentpage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pawaToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      responseText = await response.text();
+    } catch (error) {
+      log("pawapay-response-unavailable", {
+        depositId,
+        error: String(error),
+      });
+      return finalizePaymentPageFailure(
+        { failureReason: { failureCode: "UNKNOWN_ERROR" } },
+        503,
+      );
+    }
     let result;
     try {
       result = JSON.parse(responseText);
@@ -415,68 +499,22 @@ export async function POST(req: Request) {
         result,
       });
 
-      const failure = extractPaymentFailure(result);
-      const failureMessage = paymentFailureMessage(failure.code, "fr");
+      return finalizePaymentPageFailure(result, response.status);
+    }
 
-      if (isUncertainPaymentInitiationFailure(response.status, result)) {
-        log("pawapay-status-uncertain", { depositId, failureCode: failure.code });
-        return cors(
-          NextResponse.json(
-            {
-              error:
-                "Impossible de confirmer la création de la page de paiement. Réessayez dans quelques instants.",
-              depositId,
-              status: "PENDING",
-            },
-            { status: 503 },
-          ),
-          req,
-        );
-      }
+    const immediateStatus = String(result.status || "").toUpperCase();
+    if (
+      immediateStatus === "FAILED" ||
+      immediateStatus === "CANCELLED" ||
+      immediateStatus === "REJECTED"
+    ) {
+      return finalizePaymentPageFailure(result, 422);
+    }
 
-      await getSupabaseClient()
-        .from("transactions")
-        .update({
-          status: "failed",
-          failure_code: failure.code,
-          failure_reason: failure.providerMessage,
-          metadata: { ...transactionMetadata, pawapay: result },
-        })
-        .eq("deposit_id", depositId);
-
-      if (transactionRecord?.id) {
-        await voidPendingReferralForTransaction(supabase, transactionRecord.id);
-      }
-
-      await captureServerEvent(user.id, "payment_failed", {
-        deposit_id: depositId,
-        amount,
-        currency,
-        transaction_type: transactionType,
-        provider,
-        property_id: propertyId || null,
-        failure_reason: failureMessage,
-        source: "payment_page",
-      });
-
-      queuePaymentFailureNotification({
-        depositId,
-        failureCode: failure.code,
-        userId: user.id,
-        transactionId: transactionRecord?.id,
-        transactionType,
-        propertyId: propertyId || null,
-      });
-
-      return cors(
-        NextResponse.json(
-          {
-            error: failureMessage,
-            failureCode: failure.code,
-          },
-          { status: response.status },
-        ),
-        req,
+    if (typeof result.redirectUrl !== "string" || !result.redirectUrl.trim()) {
+      return finalizePaymentPageFailure(
+        { failureReason: { failureCode: "UNKNOWN_ERROR" } },
+        502,
       );
     }
 

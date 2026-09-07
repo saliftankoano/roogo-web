@@ -6,7 +6,10 @@ import {
   handleVisit3dDepositCallback,
   type Visit3dBookingRow,
 } from "@/lib/visit3d-callback";
-import { extractPaymentFailure } from "@/lib/payment-failures";
+import {
+  extractPaymentFailure,
+  parsePawaPayDepositStatus,
+} from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 export const runtime = "nodejs";
@@ -67,6 +70,27 @@ export async function POST(req: Request) {
     });
   }
 
+  const finalizeNotFound = async () => {
+    const failureCode = "UNSPECIFIED_FAILURE";
+    const update = await handleVisit3dDepositCallback(
+      depositId,
+      "FAILED",
+      { failureReason: { failureCode } },
+    );
+    if (update.error || update.dbError || !update.handled) {
+      console.error(
+        "[visites-3d/status] not-found finalize",
+        update.error || update.dbError || "booking not handled",
+      );
+      return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    }
+    return NextResponse.json({
+      status: "FAILED",
+      bookingId: row.id,
+      failureCode,
+    });
+  };
+
   // Still in flight — ask PawaPay.
   let pawa: { url: string; token: string };
   try {
@@ -92,21 +116,7 @@ export async function POST(req: Request) {
   }
 
   if (upstream.status === 404) {
-    const failureCode = "UNSPECIFIED_FAILURE";
-    const update = await handleVisit3dDepositCallback(
-      depositId,
-      "FAILED",
-      { failureReason: { failureCode } },
-    );
-    if (update.error) {
-      console.error("[visites-3d/status] not-found finalize", update.error);
-      return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
-    }
-    return NextResponse.json({
-      status: "FAILED",
-      bookingId: row.id,
-      failureCode,
-    });
+    return finalizeNotFound();
   }
 
   const text = await upstream.text();
@@ -117,12 +127,11 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "PENDING" });
   }
 
-  const payload = Array.isArray(result) ? result[0] : result;
-  const statusRaw =
-    (payload as { status?: string; depositStatus?: string })?.status ||
-    (payload as { depositStatus?: string })?.depositStatus ||
-    "";
-  const status = String(statusRaw).toUpperCase();
+  const checked = parsePawaPayDepositStatus(result);
+  if (checked.lookupStatus === "NOT_FOUND") return finalizeNotFound();
+
+  const payload = checked.deposit;
+  const status = checked.status || "";
 
   if (!status) {
     return NextResponse.json({ status: "PENDING" });
@@ -148,6 +157,7 @@ export async function POST(req: Request) {
     );
     if (update.error) {
       console.error("[visites-3d/status] failure finalize", update.error);
+      return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
     }
     return NextResponse.json({
       status: "FAILED",

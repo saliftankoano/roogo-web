@@ -17,8 +17,19 @@ import {
 import {
   extractPaymentFailure,
   extractPaymentPayerPhone,
+  parsePawaPayDepositStatus,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+
+const PAYMENT_PAGE_NOT_FOUND_GRACE_MS = 15 * 60 * 1000;
+
+function storedStatusToApi(status: string | null | undefined) {
+  if (status === "completed") return "COMPLETED";
+  if (status === "failed") return "FAILED";
+  if (status === "refunded") return "REFUNDED";
+  if (status === "submitted") return "SUBMITTED";
+  return "PENDING";
+}
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -327,105 +338,147 @@ export async function POST(req: Request) {
       result: JSON.stringify(result).slice(0, 500),
     });
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        log("deposit-not-found", { depositId });
+    const reconcileNotFound = async () => {
+      log("deposit-not-found", { depositId });
 
-        if (transaction) {
-          const failureCode = "UNSPECIFIED_FAILURE";
-          const { error: updateError } = await supabase
-            .from("transactions")
-            .update({
-              status: "failed",
-              failure_code: failureCode,
-              failure_reason: null,
-              updated_at: new Date().toISOString(),
-            })
-            .eq("deposit_id", depositId);
+      if (!transaction) {
+        return cors(
+          NextResponse.json({
+            success: true,
+            status: "NOT_FOUND",
+            error: "Deposit not found in PawaPay system",
+            raw: { status: "NOT_FOUND", depositId },
+          }),
+        );
+      }
 
-          if (updateError) {
-            log("not-found-finalize-failed", {
-              depositId,
-              error: String(updateError),
-            });
-            return cors(
-              NextResponse.json(
-                { success: false, error: "Failed to reconcile payment" },
-                { status: 500 },
-              ),
-            );
-          }
+      const metadata =
+        transaction.metadata && typeof transaction.metadata === "object"
+          ? (transaction.metadata as Record<string, unknown>)
+          : {};
+      const createdAt = Date.parse(String(transaction.created_at || ""));
+      const isPaymentPage = metadata.source === "payment_page";
+      if (
+        isPaymentPage &&
+        Number.isFinite(createdAt) &&
+        Date.now() - createdAt < PAYMENT_PAGE_NOT_FOUND_GRACE_MS
+      ) {
+        return cors(
+          NextResponse.json({
+            success: true,
+            status: "PENDING",
+            raw: { status: "PENDING", depositId },
+            context: await getPaymentContext(
+              transaction as Record<string, unknown>,
+            ),
+          }),
+        );
+      }
 
-          await voidPendingReferralForTransaction(supabase, transaction.id);
-          const metadata =
-            transaction.metadata && typeof transaction.metadata === "object"
-              ? (transaction.metadata as Record<string, unknown>)
-              : {};
-          const dailyBookingRequestId =
-            typeof metadata.dailyBookingRequestId === "string"
-              ? metadata.dailyBookingRequestId
-              : null;
-          if (dailyBookingRequestId) {
-            await supabase
-              .from("daily_booking_requests")
-              .update({
-                status: "approved_awaiting_payment",
-                transaction_id: null,
-              })
-              .eq("id", dailyBookingRequestId)
-              .eq("transaction_id", transaction.id);
-          }
+      const failureCode = "UNSPECIFIED_FAILURE";
+      const { data: updated, error: updateError } = await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          failure_code: failureCode,
+          failure_reason: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("deposit_id", depositId)
+        .eq("status", transaction.status)
+        .select("id");
 
-          await captureServerEvent(
-            transaction.user_id || clerkUserId || depositId,
-            "payment_failed",
-            {
-              deposit_id: depositId,
-              amount: transaction.amount || 0,
-              currency: transaction.currency || "XOF",
-              transaction_type: transaction.type || "unknown",
-              provider: transaction.provider || "unknown",
-              property_id: transaction.property_id || null,
-              failure_reason: "Deposit not found during reconciliation",
-              source: "status_polling_not_found",
-            },
-          );
-
-          queuePaymentFailureNotification({
-            depositId,
-            failureCode,
-            payerPhone: transaction.payer_phone,
-            userId: transaction.user_id,
-            transactionId: transaction.id,
-            transactionType: transaction.type,
-            propertyId: transaction.property_id,
-          });
-
-          const context = await getPaymentContext(
-            transaction as Record<string, unknown>,
-          );
-          return cors(
-            NextResponse.json({
-              success: true,
-              status: "FAILED",
-              failureCode,
-              raw: { status: "FAILED", depositId },
-              context,
-            }),
-          );
-        }
-
+      if (updateError) {
+        log("not-found-finalize-failed", {
+          depositId,
+          error: String(updateError),
+        });
         return cors(
           NextResponse.json(
-            {
-              success: true,
-              status: "NOT_FOUND",
-              error: "Deposit not found in PawaPay system",
-              raw: { status: "NOT_FOUND", depositId },
-            },
-            { status: 200 },
+            { success: false, error: "Failed to reconcile payment" },
+            { status: 500 },
           ),
         );
+      }
+
+      if (!updated?.length) {
+        const { data: current } = await supabase
+          .from("transactions")
+          .select("status, failure_code")
+          .eq("deposit_id", depositId)
+          .single();
+        const currentStatus = storedStatusToApi(current?.status);
+        return cors(
+          NextResponse.json({
+            success: true,
+            status: currentStatus,
+            failureCode:
+              currentStatus === "FAILED" ? current?.failure_code : undefined,
+            raw: { status: currentStatus, depositId },
+            context: await getPaymentContext(
+              transaction as Record<string, unknown>,
+            ),
+          }),
+        );
+      }
+
+      await voidPendingReferralForTransaction(supabase, transaction.id);
+      const dailyBookingRequestId =
+        typeof metadata.dailyBookingRequestId === "string"
+          ? metadata.dailyBookingRequestId
+          : null;
+      if (dailyBookingRequestId) {
+        await supabase
+          .from("daily_booking_requests")
+          .update({
+            status: "approved_awaiting_payment",
+            transaction_id: null,
+          })
+          .eq("id", dailyBookingRequestId)
+          .eq("transaction_id", transaction.id);
+      }
+
+      await captureServerEvent(
+        transaction.user_id || clerkUserId || depositId,
+        "payment_failed",
+        {
+          deposit_id: depositId,
+          amount: transaction.amount || 0,
+          currency: transaction.currency || "XOF",
+          transaction_type: transaction.type || "unknown",
+          provider: transaction.provider || "unknown",
+          property_id: transaction.property_id || null,
+          failure_reason: "Deposit not found during reconciliation",
+          source: "status_polling_not_found",
+        },
+      );
+
+      queuePaymentFailureNotification({
+        depositId,
+        failureCode,
+        payerPhone: transaction.payer_phone,
+        userId: transaction.user_id,
+        transactionId: transaction.id,
+        transactionType: transaction.type,
+        propertyId: transaction.property_id,
+      });
+
+      return cors(
+        NextResponse.json({
+          success: true,
+          status: "FAILED",
+          failureCode,
+          raw: { status: "FAILED", depositId },
+          context: await getPaymentContext(
+            transaction as Record<string, unknown>,
+          ),
+        }),
+      );
+    };
+
+    if (!response.ok) {
+      if (response.status === 404) {
+        return reconcileNotFound();
       }
 
       log("pawapay-error", { depositId, httpStatus: response.status, result });
@@ -442,8 +495,11 @@ export async function POST(req: Request) {
       );
     }
 
-    const statusData = Array.isArray(result) ? result[0] : result;
-    const status = statusData?.status || statusData?.depositStatus;
+    const checked = parsePawaPayDepositStatus(result);
+    if (checked.lookupStatus === "NOT_FOUND") return reconcileNotFound();
+
+    const statusData = checked.deposit;
+    const status = checked.status;
     const failure = extractPaymentFailure(statusData);
     const payerPhone =
       extractPaymentPayerPhone(statusData) ?? transaction?.payer_phone ?? null;
@@ -458,7 +514,11 @@ export async function POST(req: Request) {
     if (status && transaction) {
       let dbStatus = "pending";
       if (status === "COMPLETED") dbStatus = "completed";
-      if (status === "ACCEPTED" || status === "SUBMITTED")
+      if (
+        status === "ACCEPTED" ||
+        status === "SUBMITTED" ||
+        status === "PROCESSING"
+      )
         dbStatus = "submitted";
       if (
         status === "FAILED" ||
@@ -478,7 +538,7 @@ export async function POST(req: Request) {
 
       const inferredProvider = resolveWebProvider(statusData);
 
-      const { error: updateError } = await supabase
+      const { data: updated, error: updateError } = await supabase
         .from("transactions")
         .update({
           status: dbStatus,
@@ -493,10 +553,40 @@ export async function POST(req: Request) {
           },
           updated_at: new Date().toISOString(),
         })
-        .eq("deposit_id", depositId);
+        .eq("deposit_id", depositId)
+        .eq("status", transaction.status)
+        .select("id");
 
       if (updateError) {
         log("db-update-failed", { depositId, error: String(updateError) });
+        return cors(
+          NextResponse.json(
+            { success: false, error: "Failed to reconcile payment" },
+            { status: 500 },
+          ),
+        );
+      }
+
+      if (!updated?.length) {
+        log("db-update-raced", { depositId, previousStatus: transaction.status });
+        const { data: current } = await supabase
+          .from("transactions")
+          .select("status, failure_code")
+          .eq("deposit_id", depositId)
+          .single();
+        const currentStatus = storedStatusToApi(current?.status);
+        return cors(
+          NextResponse.json({
+            success: true,
+            status: currentStatus,
+            failureCode:
+              currentStatus === "FAILED" ? current?.failure_code : undefined,
+            raw: { status: currentStatus, depositId },
+            context: await getPaymentContext(
+              transaction as Record<string, unknown>,
+            ),
+          }),
+        );
       }
 
       if (dbStatus === "failed") {
@@ -690,10 +780,7 @@ export async function POST(req: Request) {
             transaction_type: transaction.type || "unknown",
             provider: transaction.provider || "unknown",
             property_id: transaction.property_id || null,
-            failure_reason:
-              statusData?.failureReason?.failureMessage ||
-              statusData?.failureReason ||
-              "Payment failed",
+            failure_reason: failure.providerMessage || "Payment failed",
             source: "status_polling",
           },
         );

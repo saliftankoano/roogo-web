@@ -5,6 +5,12 @@ export type PaymentFailure = {
   providerMessage: string | null;
 };
 
+export type PawaPayDepositStatusResult = {
+  lookupStatus: "FOUND" | "NOT_FOUND" | null;
+  deposit: Record<string, unknown> | null;
+  status: string | null;
+};
+
 const GENERIC_FAILURE_CODE = "UNSPECIFIED_FAILURE";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
@@ -20,6 +26,45 @@ function parseRecord(value: unknown): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * Normalize both the PawaPay v2 status envelope and the legacy/direct shapes.
+ * V2 returns `{ status: "FOUND", data: Deposit }` or `{ status: "NOT_FOUND" }`.
+ */
+export function parsePawaPayDepositStatus(
+  payload: unknown,
+): PawaPayDepositStatusResult {
+  const candidate = Array.isArray(payload) ? payload[0] : payload;
+  const root = parseRecord(candidate);
+  if (!root) return { lookupStatus: null, deposit: null, status: null };
+
+  const outerStatus =
+    typeof root.status === "string" ? root.status.trim().toUpperCase() : "";
+  if (outerStatus === "NOT_FOUND") {
+    return { lookupStatus: "NOT_FOUND", deposit: null, status: "NOT_FOUND" };
+  }
+  if (outerStatus === "FOUND") {
+    const deposit = asRecord(root.data);
+    const status =
+      typeof deposit?.status === "string"
+        ? deposit.status.trim().toUpperCase()
+        : typeof deposit?.depositStatus === "string"
+          ? deposit.depositStatus.trim().toUpperCase()
+          : null;
+    return { lookupStatus: "FOUND", deposit, status };
+  }
+
+  const directStatus =
+    outerStatus ||
+    (typeof root.depositStatus === "string"
+      ? root.depositStatus.trim().toUpperCase()
+      : "");
+  return {
+    lookupStatus: null,
+    deposit: root,
+    status: directStatus || null,
+  };
 }
 
 function reasonFrom(value: unknown): PaymentFailure | null {
