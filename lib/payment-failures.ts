@@ -123,6 +123,22 @@ export function shouldApplyPaymentStatus(
   return current === "completed" && next === "refunded";
 }
 
+const RETRYABLE_NOTIFICATION_REASONS = new Set([
+  "claim_failed",
+  "sms_claim_failed",
+  "push",
+  "sms",
+]);
+
+export function shouldRetryPaymentFailureNotification(result: {
+  delivered: boolean;
+  reason: string;
+}) {
+  return (
+    !result.delivered && RETRYABLE_NOTIFICATION_REASONS.has(result.reason)
+  );
+}
+
 const FAILURE_MESSAGES: Record<
   string,
   Record<PaymentFailureLocale, string>

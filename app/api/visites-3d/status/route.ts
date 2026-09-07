@@ -92,7 +92,21 @@ export async function POST(req: Request) {
   }
 
   if (upstream.status === 404) {
-    return NextResponse.json({ status: "PENDING" });
+    const failureCode = "UNSPECIFIED_FAILURE";
+    const update = await handleVisit3dDepositCallback(
+      depositId,
+      "FAILED",
+      { failureReason: { failureCode } },
+    );
+    if (update.error) {
+      console.error("[visites-3d/status] not-found finalize", update.error);
+      return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    }
+    return NextResponse.json({
+      status: "FAILED",
+      bookingId: row.id,
+      failureCode,
+    });
   }
 
   const text = await upstream.text();

@@ -10,6 +10,7 @@ import {
   paymentFailureMessage,
   paymentFailureSmsMessage,
   paymentFailureTitle,
+  shouldRetryPaymentFailureNotification,
   type PaymentFailureLocale,
 } from "@/lib/payment-failures";
 import {
@@ -19,6 +20,11 @@ import {
 
 const EVENT_TYPE = "payments.failed";
 const SMS_COOLDOWN_MS = 15 * 60 * 1000;
+const RETRY_DELAYS_MS = [2_500, 7_500];
+
+function wait(delayMs: number) {
+  return new Promise((resolve) => setTimeout(resolve, delayMs));
+}
 
 function normalizeSmsPhone(phone: string) {
   const digits = phone.replace(/\D/g, "");
@@ -44,9 +50,17 @@ export function queuePaymentFailureNotification(
   input: PaymentFailureNotificationInput,
 ) {
   after(async () => {
-    await notifyPaymentFailure(input).catch((error) =>
-      console.error("Failed-payment notification failed:", error),
-    );
+    for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
+      const result = await notifyPaymentFailure(input).catch((error) => {
+        console.error("Failed-payment notification failed:", error);
+        return { delivered: false, reason: "claim_failed" as const };
+      });
+      if (!shouldRetryPaymentFailureNotification(result)) return;
+
+      const delayMs = RETRY_DELAYS_MS[attempt];
+      if (delayMs === undefined) return;
+      await wait(delayMs);
+    }
   });
 }
 

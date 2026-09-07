@@ -82,7 +82,7 @@ export async function updateNotificationDeliveryMetadata({
     patch.delivery_status = deliveryStatus;
     patch.lease_expires_at =
       deliveryStatus === "failed"
-        ? new Date(Date.now() + 60_000).toISOString()
+        ? new Date(Date.now() + 2_000).toISOString()
         : null;
     if (deliveryStatus === "sent") patch.sent_at = new Date().toISOString();
   }
