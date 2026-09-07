@@ -8,9 +8,10 @@
     "prebuild": "npm run motion:audit",
     "build": "next build --turbopack",
     "start": "next start",
-    "test": "node --experimental-strip-types --test components/Navbar.test.mjs lib/booking-codes.test.mjs lib/hotel-desk.test.mjs lib/hotel-events.test.mjs lib/hotel-operations.test.mjs lib/hotel-trust.test.mjs lib/listing-fees.test.mjs lib/rent-collection.test.mjs",
+    "test": "node --experimental-strip-types --test components/Navbar.test.mjs lib/booking-codes.test.mjs lib/hotel-desk.test.mjs lib/hotel-events.test.mjs lib/hotel-operations.test.mjs lib/hotel-trust.test.mjs lib/listing-fees.test.mjs lib/rent-collection.test.mjs lib/property-requests.test.mjs lib/property-request-routes.test.mjs",
     "lint": "eslint",
-    "backfill:property-translations": "node scripts/backfill-property-translations.mjs"
+    "backfill:property-translations": "node scripts/backfill-property-translations.mjs",
+    "test:property-requests:db": "node scripts/test-property-requests-db.mjs"
   },
   "dependencies": {
     "@clerk/backend": "2.16.0",
@@ -59,6 +60,7 @@
     "eslint": "^9",
     "eslint-config-next": "15.5.7",
     "tailwindcss": "^4",
-    "typescript": "^5"
+    "typescript": "^5",
+    "@electric-sql/pglite": "0.5.8"
   }
 }
