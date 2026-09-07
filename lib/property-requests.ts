@@ -121,6 +121,7 @@ export const responseReviewSchema = z
     status: z.enum(RESPONSE_STATUSES),
     staff_notes: z.string().trim().max(4000),
     property_id: z.uuid().nullable().default(null),
+    updated_at: z.iso.datetime({ offset: true }),
   })
   .refine((v) => v.status !== "listed" || v.property_id !== null, {
     message: "Renseignez l'identifiant de l'annonce publiée.",
@@ -148,7 +149,10 @@ export type PropertyResponse = Omit<
 > & {
   id: string;
   request_id: string;
-  respondent_id: string;
+  respondent_id: string | null;
+  respondent_deleted_at: string | null;
+  property_deleted_at: string | null;
+  updated_at: string;
   respondent_role: "owner" | "agent";
   status: ResponseStatus;
   created_at: string;
@@ -183,7 +187,7 @@ export type PropertyResponse = Omit<
 export const PUBLIC_REQUEST_COLUMNS =
   "id,title,description,listing_type,property_type,city,neighborhood,budget_min,budget_max,min_area,min_bedrooms,commission_rate,commission_terms,status,created_at,updated_at";
 export const OWN_RESPONSE_COLUMNS =
-  "id,request_id,respondent_id,respondent_role,property_type,city,neighborhood,address,asking_price,area,bedrooms,bathrooms,description,document_types,document_notes,contact_phone,attachments,status,created_at,terms_accepted_at,commission_rate,commission_terms,commission_basis,commission_confirmed_at,property_id";
+  "id,request_id,respondent_id,respondent_role,respondent_deleted_at,property_deleted_at,updated_at,property_type,city,neighborhood,address,asking_price,area,bedrooms,bathrooms,description,document_types,document_notes,contact_phone,attachments,status,created_at,terms_accepted_at,commission_rate,commission_terms,commission_basis,commission_confirmed_at,property_id";
 export const REQUEST_ATTACHMENTS_BUCKET = "property-request-files";
 export const REQUEST_FILE_MIMES: Record<string, string> = {
   "image/jpeg": "jpg",
@@ -194,6 +198,22 @@ export const REQUEST_FILE_MIMES: Record<string, string> = {
 
 export function commissionEstimate(price: number, rate: number) {
   return Math.round((price * rate) / 100);
+}
+
+export function matchesResponseTransaction(
+  property: {
+    listing_type: string;
+    frequence?: string | null;
+    period?: string | null;
+  },
+  basis: PropertyResponse["commission_basis"],
+) {
+  return basis === "sale_price"
+    ? property.listing_type === "vendre"
+    : property.listing_type === "louer" &&
+        property.frequence !== "journalier" &&
+        property.period !== "day" &&
+        (property.frequence === "mensuel" || property.period === "month");
 }
 
 export function isRequestAttachmentPath(

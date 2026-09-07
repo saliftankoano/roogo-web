@@ -12,6 +12,7 @@ import {
   requestActor,
   requestJson,
   requestFailure,
+  signedResponseFiles,
 } from "@/lib/property-request-server";
 
 export const OPTIONS = corsOptions;
@@ -78,7 +79,10 @@ export async function POST(
     if (readError) throw readError;
     return requestJson(
       req,
-      { response, existing: result.existing },
+      {
+        response: await signedResponseFiles(response),
+        existing: result.existing,
+      },
       result.existing ? 200 : 201,
     );
   } catch (error) {

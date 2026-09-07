@@ -6,6 +6,7 @@ import {
   OWN_RESPONSE_COLUMNS,
   PUBLIC_REQUEST_COLUMNS,
   propertyRequestSchema,
+  matchesResponseTransaction,
   type PropertyResponse,
   type PropertyRequest,
 } from "@/lib/property-requests";
@@ -51,14 +52,21 @@ export async function GET(req: Request, context: Context) {
     if (staff && rows.length) {
       const { data, error: propertyError } = await supabaseAdmin
         .from("properties")
-        .select("id,title,city,status,listing_type,agent_id")
-        .in("agent_id", [...new Set(rows.map((row) => row.respondent_id))])
-        .eq("listing_type", request.listing_type);
+        .select("id,title,city,status,listing_type,agent_id,frequence,period")
+        .in("agent_id", [
+          ...new Set(
+            rows.flatMap((row) =>
+              row.respondent_id ? [row.respondent_id] : [],
+            ),
+          ),
+        ]);
       if (propertyError) throw propertyError;
       const properties = data || [];
       for (const row of rows)
         row.properties = properties.filter(
-          (property) => property.agent_id === row.respondent_id,
+          (property) =>
+            property.agent_id === row.respondent_id &&
+            matchesResponseTransaction(property, row.commission_basis),
         );
     }
     return requestJson(req, {

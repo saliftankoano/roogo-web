@@ -55,7 +55,11 @@ export default async function AgreementPage({
       </p>
       <p>
         Apporteur :{" "}
-        <strong>{response.respondent?.full_name || "Agent Roogo"}</strong>
+        <strong>
+          {response.respondent_deleted_at
+            ? "Compte supprimé · archive anonymisée"
+            : response.respondent?.full_name || "Agent Roogo"}
+        </strong>
         <br />
         Contact : {response.contact_phone}
       </p>

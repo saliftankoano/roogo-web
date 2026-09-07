@@ -266,16 +266,33 @@ function RequestForm({
   );
 }
 
+type ResponseDraft = {
+  status: PropertyResponse["status"];
+  notes: string;
+  propertyId: string;
+  updated_at: string;
+};
+
 function ResponseCard({
   response,
   onUpdated,
+  draft,
+  onDraft,
 }: {
   response: PropertyResponse;
-  onUpdated: () => void;
+  onUpdated: (response: PropertyResponse) => void;
+  draft?: ResponseDraft;
+  onDraft: (draft: ResponseDraft) => void;
 }) {
-  const [status, setStatus] = useState(response.status);
-  const [notes, setNotes] = useState(response.staff_notes || "");
-  const [propertyId, setPropertyId] = useState(response.property_id || "");
+  const current = draft || {
+    status: response.status,
+    notes: response.staff_notes || "",
+    propertyId: response.property_id || "",
+    updated_at: response.updated_at,
+  };
+  const { status, notes, propertyId } = current;
+  const edit = (changes: Partial<ResponseDraft>) =>
+    onDraft({ ...current, ...changes });
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const person = response.respondent;
@@ -284,7 +301,7 @@ function ResponseCard({
     setSaving(true);
     setError("");
     try {
-      await api(
+      const data = await api<{ response: PropertyResponse }>(
         `/api/property-requests/${response.request_id}/responses/${response.id}`,
         {
           method: "PUT",
@@ -292,10 +309,11 @@ function ResponseCard({
             status,
             staff_notes: notes,
             property_id: propertyId.trim() || null,
+            updated_at: current.updated_at,
           }),
         },
       );
-      onUpdated();
+      onUpdated(data.response);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Enregistrement impossible.");
     } finally {
@@ -307,7 +325,9 @@ function ResponseCard({
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <h3 className="text-lg font-black">
-            {person?.full_name || "Utilisateur"}
+            {response.respondent_deleted_at
+              ? "Compte supprimé · archive"
+              : person?.full_name || "Utilisateur"}
           </h3>
           <p className="text-sm text-neutral-500">
             {response.respondent_role === "agent" ? "Agent" : "Propriétaire"}
@@ -320,12 +340,14 @@ function ResponseCard({
         </span>
       </div>
       <div className="my-4 flex flex-wrap gap-2 text-sm font-bold text-primary">
-        <a
-          className="rounded-xl border px-3 py-2"
-          href={`tel:${response.contact_phone.replace(/[^+\d]/g, "")}`}
-        >
-          Appeler · {response.contact_phone}
-        </a>
+        {response.contact_phone && (
+          <a
+            className="rounded-xl border px-3 py-2"
+            href={`tel:${response.contact_phone.replace(/[^+\d]/g, "")}`}
+          >
+            Appeler · {response.contact_phone}
+          </a>
+        )}
         {whatsapp && (
           <a
             className="rounded-xl border px-3 py-2"
@@ -433,13 +455,22 @@ function ResponseCard({
           )}
         </div>
       )}
-      <fieldset disabled={saving} className="mt-4 grid gap-3">
+      {response.property_deleted_at && (
+        <p className="mt-4 text-sm text-neutral-600">
+          L’annonce liée a été supprimée. Les conditions de commission sont
+          conservées.
+        </p>
+      )}
+      <fieldset
+        disabled={saving || !!response.respondent_deleted_at}
+        className="mt-4 grid gap-3"
+      >
         <label className="text-sm font-bold">
           Suivi
           <select
             value={status}
             onChange={(e) =>
-              setStatus(e.target.value as PropertyResponse["status"])
+              edit({ status: e.target.value as PropertyResponse["status"] })
             }
             className={fieldClass}
           >
@@ -454,7 +485,7 @@ function ResponseCard({
           Annonce liée
           <select
             value={propertyId}
-            onChange={(e) => setPropertyId(e.target.value)}
+            onChange={(e) => edit({ propertyId: e.target.value })}
             className={fieldClass}
           >
             <option value="">Choisir une annonce de cet utilisateur</option>
@@ -485,7 +516,7 @@ function ResponseCard({
           Notes de suivi internes
           <textarea
             value={notes}
-            onChange={(e) => setNotes(e.target.value)}
+            onChange={(e) => edit({ notes: e.target.value })}
             maxLength={4000}
             rows={2}
             className={fieldClass}
@@ -495,6 +526,20 @@ function ResponseCard({
           <p role="alert" className="text-sm text-red-700">
             {error}
           </p>
+        )}
+        {draft && draft.updated_at !== response.updated_at && (
+          <div className="text-sm text-orange-800">
+            Ce suivi a été modifié. Notes enregistrées :{" "}
+            {response.staff_notes || "Aucune"}. Statut :{" "}
+            {RESPONSE_LABELS[response.status]}.
+            <button
+              type="button"
+              className="ml-2 underline"
+              onClick={() => edit({ updated_at: response.updated_at })}
+            >
+              Conserver mon brouillon sur cette version
+            </button>
+          </div>
         )}
         <Button onClick={save} disabled={saving}>
           {saving ? "Enregistrement…" : "Enregistrer le suivi"}
@@ -519,6 +564,7 @@ export default function PropertyRequestsPage() {
   const [filter, setFilter] = useState("all");
   const [responseFilter, setResponseFilter] = useState("all");
   const [revision, setRevision] = useState(0);
+  const [drafts, setDrafts] = useState<Record<string, ResponseDraft>>({});
   const load = useCallback(async () => {
     setLoading(true);
     setError("");
@@ -794,9 +840,37 @@ export default function PropertyRequestsPage() {
                 )
                 .map((response) => (
                   <ResponseCard
-                    key={`${response.id}-${revision}`}
+                    key={response.id}
                     response={response}
-                    onUpdated={refresh}
+                    draft={drafts[response.id]}
+                    onDraft={(draft) =>
+                      setDrafts((previous) => ({
+                        ...previous,
+                        [response.id]: draft,
+                      }))
+                    }
+                    onUpdated={(saved) => {
+                      setDrafts((previous) => {
+                        const next = { ...previous };
+                        delete next[saved.id];
+                        return next;
+                      });
+                      setDetail(
+                        (previous) =>
+                          previous && {
+                            ...previous,
+                            responses: previous.responses.map((row) =>
+                              row.id === saved.id
+                                ? {
+                                    ...row,
+                                    ...saved,
+                                    attachments: row.attachments,
+                                  }
+                                : row,
+                            ),
+                          },
+                      );
+                    }}
                   />
                 ))}
             </>

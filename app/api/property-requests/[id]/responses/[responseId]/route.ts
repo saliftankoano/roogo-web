@@ -1,7 +1,10 @@
 import { z } from "zod";
 import { corsOptions, errorResponse } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { responseReviewSchema } from "@/lib/property-requests";
+import {
+  responseReviewSchema,
+  matchesResponseTransaction,
+} from "@/lib/property-requests";
 import {
   requestActor,
   requestJson,
@@ -29,16 +32,24 @@ export async function PUT(
       return errorResponse(parsed.error.issues[0].message, 400, req);
     const { data: existing, error: readError } = await supabaseAdmin
       .from("property_request_responses")
-      .select("respondent_id,respondent_role,commission_confirmed_at")
+      .select(
+        "respondent_id,respondent_role,commission_confirmed_at,commission_basis",
+      )
       .eq("id", responseId)
       .eq("request_id", id)
       .maybeSingle();
     if (readError) throw readError;
     if (!existing) return errorResponse("Réponse introuvable.", 404, req);
+    if (!existing.respondent_id)
+      return errorResponse(
+        "Ce compte a été supprimé. La réponse est archivée.",
+        409,
+        req,
+      );
     if (parsed.data.property_id) {
       const { data: property, error } = await supabaseAdmin
         .from("properties")
-        .select("id,agent_id,status,listing_type")
+        .select("id,agent_id,status,listing_type,frequence,period")
         .eq("id", parsed.data.property_id)
         .maybeSingle();
       if (error) throw error;
@@ -48,15 +59,9 @@ export async function PUT(
           400,
           req,
         );
-      const { data: call, error: callError } = await supabaseAdmin
-        .from("property_requests")
-        .select("listing_type")
-        .eq("id", id)
-        .single();
-      if (callError) throw callError;
-      if (property.listing_type !== call.listing_type)
+      if (!matchesResponseTransaction(property, existing.commission_basis))
         return errorResponse(
-          "Le type de transaction de l'annonce doit correspondre à l'appel.",
+          "L'annonce doit correspondre aux conditions acceptées : vente ou location mensuelle.",
           400,
           req,
         );
@@ -71,10 +76,12 @@ export async function PUT(
       existing.respondent_role === "agent" &&
       ["accepted", "listed"].includes(parsed.data.status) &&
       !existing.commission_confirmed_at;
+    const { updated_at, ...updates } = parsed.data;
     const { data, error } = await supabaseAdmin
       .from("property_request_responses")
       .update({
-        ...parsed.data,
+        ...updates,
+        ...(updates.property_id ? { property_deleted_at: null } : {}),
         ...(confirmsCommission
           ? {
               commission_confirmed_at: new Date().toISOString(),
@@ -84,9 +91,16 @@ export async function PUT(
       })
       .eq("id", responseId)
       .eq("request_id", id)
+      .eq("updated_at", updated_at)
       .select("*")
-      .single();
+      .maybeSingle();
     if (error) throw error;
+    if (!data)
+      return errorResponse(
+        "Ce suivi a changé. Actualisez avant de réessayer ; vos notes sont conservées.",
+        409,
+        req,
+      );
     return requestJson(req, { response: data });
   } catch (error) {
     return requestFailure(req, error);
