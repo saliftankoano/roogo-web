@@ -47,39 +47,44 @@ const loading = { isLoaded: false, isSignedIn: undefined };
 const guest = { isLoaded: true, isSignedIn: false };
 const nav = (html, label) => html.match(new RegExp(`<nav aria-label="${label}"[^>]*>([\\s\\S]*?)</nav>`))?.[1];
 
-test('primary destinations and account slot dimensions stay stable through hydration and every role', () => {
+test('loading reserves the same navigation and account dimensions without guest links', () => {
   const states = [loading, guest, ...['renter', 'owner', 'agent', 'staff', 'founder'].map(signedIn)];
   const rendered = states.map(state => render(state));
-  const primary = nav(rendered[0], 'Navigation principale');
-  assert.ok(primary.includes('/visites-3d'));
+  const navClass = html => html.match(/aria-label="Navigation principale"[^>]*class="([^"]+)"/)?.[1];
   for (const html of rendered) {
-    assert.equal(nav(html, 'Navigation principale'), primary);
+    assert.equal(navClass(html), navClass(rendered[0]));
+    assert.match(navClass(html), /w-\[700px\].*grid-cols-5/);
     assert.equal(html.match(/data-nav-auth-slot="true" class="([^"]+)"/)?.[1],
       'flex h-10 w-36 shrink-0 items-center justify-end sm:w-60');
-    assert.match(html, /aria-current="page"/);
   }
+  assert.doesNotMatch(nav(render(loading), 'Navigation principale'), /href=/);
+  assert.doesNotMatch(render(loading, true), /href="\/(connexion|inscription|proprietes)"/);
 });
 
-test('loading never flashes sign-in controls; public links also remain in mobile navigation', () => {
-  for (const state of [loading, guest, signedIn('owner')]) {
+test('public roles have five tailored slots and the same destinations on mobile', () => {
+  for (const state of [guest, signedIn('renter'), signedIn('owner'), signedIn('agent')]) {
     const html = render(state, true);
-    assert.match(html, /aria-label="Navigation mobile"/);
-    for (const href of ['/', '/proprietes', '/visites-3d', '/a-propos', '/carrieres', '/nous-contacter']) {
-      assert.ok(html.includes(`href="${href}"`));
-    }
+    const primary = nav(html, 'Navigation principale');
+    const mobile = html.match(/aria-label="Navigation mobile"[^>]*>([\s\S]*?)<\/nav>/)[1];
+    const hrefs = section => [...section.matchAll(/href="([^"]+)"/g)].map(match => match[1]);
+    assert.equal(hrefs(primary).length, 5);
+    assert.deepEqual(hrefs(mobile).slice(0, 5), hrefs(primary));
+    assert.deepEqual(hrefs(primary).slice(0, 2), ['/', '/proprietes']);
   }
-  assert.doesNotMatch(render(loading, true), /href="\/(connexion|inscription)"/);
-  assert.match(render(guest), /href="\/inscription"/);
+  assert.match(nav(render(signedIn('owner')), 'Navigation principale'), /Mes biens/);
+  assert.match(nav(render(signedIn('agent')), 'Navigation principale'), /Mes biens/);
+  assert.match(nav(render(signedIn('renter')), 'Navigation principale'), /Visites 3D/);
+  assert.match(nav(render(guest), 'Navigation principale'), /À propos/);
 });
 
-test('account menu retains role destinations without replacing the public nav', () => {
-  assert.match(nav(render(signedIn('owner')), 'Navigation du compte'), /Mes Biens/);
-  assert.match(nav(render(signedIn('agent')), 'Navigation du compte'), /Mes Biens/);
-  assert.doesNotMatch(nav(render(signedIn('renter')), 'Navigation du compte'), /Mes Biens/);
-  assert.match(nav(render(signedIn('renter')), 'Navigation du compte'), /Parrainage/);
-  assert.match(nav(render(signedIn('staff')), 'Navigation du compte'), /href="\/admin/);
-  assert.match(nav(render(signedIn('founder')), 'Navigation du compte'), /href="\/admin/);
-  assert.equal(nav(render(guest), 'Navigation du compte'), undefined);
+test('staff operations stay grouped and founder-only destinations stay restricted', () => {
+  const staff = nav(render(signedIn('staff')), 'Navigation principale');
+  const founder = nav(render(signedIn('founder')), 'Navigation principale');
+  assert.equal((staff.match(/<details/g) || []).length, 4);
+  for (const label of ['Messages', 'Opérations', 'Développement', 'Pilotage']) assert.ok(staff.includes(label));
+  assert.doesNotMatch(staff, /href="\/admin\/(finances|parametres)"/);
+  assert.match(founder, /href="\/admin\/finances"/);
+  assert.match(founder, /href="\/admin\/parametres"/);
 });
 
 test('Escape restores focus from mobile links but does not steal focus outside the menu', () => {
@@ -88,7 +93,7 @@ test('Escape restores focus from mobile links but does not steal focus outside t
     const listeners = new Map();
     let focused = false;
     let open = true;
-    const link = {};
+    const link = { closest: () => null };
     const refs = [
       { current: { focus: () => { focused = true; } } },
       { current: { contains: (element) => element === link } },
@@ -101,7 +106,7 @@ test('Escape restores focus from mobile links but does not steal focus outside t
     });
     const previous = Object.getOwnPropertyDescriptor(globalThis, 'document');
     Object.defineProperty(globalThis, 'document', { configurable: true, value: {
-      activeElement: focusInside ? link : {},
+      activeElement: focusInside ? link : { closest: () => null },
       addEventListener: (name, listener) => listeners.set(name, listener),
       removeEventListener: (name) => listeners.delete(name),
     } });
