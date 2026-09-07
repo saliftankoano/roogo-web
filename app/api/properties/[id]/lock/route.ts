@@ -234,16 +234,33 @@ export async function POST(
       payload.preAuthorisationCode = preAuthorisationCode;
     }
 
-    const response = await fetch(`${pawaUrl}/v2/deposits`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${pawaToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
+    let response: Response;
+    let responseText: string;
+    try {
+      response = await fetch(`${pawaUrl}/v2/deposits`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pawaToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      responseText = await response.text();
+    } catch (error) {
+      console.error("Lock initiation response uncertain:", error);
+      return cors(
+        NextResponse.json(
+          {
+            success: true,
+            depositId,
+            status: "PENDING",
+            raw: { status: "PENDING", depositId },
+          },
+          { status: 202 },
+        ),
+      );
+    }
 
-    const responseText = await response.text();
     let result;
     try {
       result = JSON.parse(responseText);

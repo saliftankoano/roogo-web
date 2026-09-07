@@ -1,6 +1,8 @@
 // Africa's Talking SMS helper — used by the Visites 3D booking API.
 // Docs: https://developers.africastalking.com/docs/sms/sending
 
+import { isSmsRecipientAccepted } from "@/lib/africastalking-response";
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const AfricasTalking = require("africastalking");
 
@@ -52,8 +54,14 @@ function client(): ATClient["SMS"] {
 async function send(to: string, message: string): Promise<boolean> {
   const from = process.env.AT_SENDER_ID || undefined;
   try {
-    await client().send({ to, message, from });
-    return true;
+    const response = await client().send({ to, message, from });
+    const accepted = isSmsRecipientAccepted(response, to);
+    if (!accepted) {
+      console.error("[africastalking] recipient was not accepted", {
+        phoneSuffix: to.replace(/\D/g, "").slice(-4),
+      });
+    }
+    return accepted;
   } catch (err) {
     // We don't want an SMS provider hiccup to fail a booking write — log and continue.
     console.error("[africastalking] send failed", err);
