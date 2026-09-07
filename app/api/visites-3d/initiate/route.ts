@@ -61,7 +61,10 @@ export async function POST(req: Request) {
   const parsed = visit3dPaymentInitiateSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation échouée", issues: parsed.error.flatten().fieldErrors },
+      {
+        error: "Validation échouée",
+        issues: parsed.error.flatten().fieldErrors,
+      },
       { status: 400 },
     );
   }
@@ -227,11 +230,26 @@ export async function POST(req: Request) {
       );
     }
 
-    await rollback(
+    const rollbackResult = await rollback(
       inserted.id,
       failure.code,
       failure.providerMessage,
     );
+    if (rollbackResult.error || !rollbackResult.updated) {
+      console.error(
+        "[visites-3d/initiate] failure persistence uncertain",
+        rollbackResult.error,
+      );
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
     queuePaymentFailureNotification({
       depositId,
       failureCode: failure.code,
@@ -257,7 +275,7 @@ export async function POST(req: Request) {
   // polling on an immediate COMPLETED, and the webhook's guard would then
   // skip them too.
   if (pawaStatus === "COMPLETED") {
-    const result = await finalizeVisit3dCompletion(
+    const completion = await finalizeVisit3dCompletion(
       {
         id: inserted.id,
         date: d.date,
@@ -273,8 +291,52 @@ export async function POST(req: Request) {
       },
       depositId,
     );
-    if (result.error) {
-      console.error("[visites-3d/initiate] finalize failed", result.error);
+    if (completion.error) {
+      console.error("[visites-3d/initiate] finalize failed", completion.error);
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
+    if (!completion.finalized) {
+      const { data: current, error: currentError } = await supabaseAdmin
+        .from("bookings")
+        .select("payment_status, payment_failure_code")
+        .eq("id", inserted.id)
+        .single();
+      if (currentError || current?.payment_status !== "completed") {
+        if (currentError) {
+          console.error("[visites-3d/initiate] race reload", currentError);
+        }
+        if (current?.payment_status === "failed") {
+          const failureCode =
+            current.payment_failure_code || "UNSPECIFIED_FAILURE";
+          return NextResponse.json(
+            {
+              success: false,
+              depositId,
+              status: "FAILED",
+              error: paymentFailureMessage(failureCode, "fr"),
+              failureCode,
+            },
+            { status: 422 },
+          );
+        }
+        return NextResponse.json(
+          {
+            success: true,
+            depositId,
+            status: "PENDING",
+            bookingId: inserted.id,
+          },
+          { status: 202 },
+        );
+      }
     }
   } else if (pawaStatus === "SUBMITTED") {
     await supabase
@@ -287,7 +349,26 @@ export async function POST(req: Request) {
     pawaStatus === "REJECTED"
   ) {
     const failure = extractPaymentFailure(result);
-    await handleVisit3dDepositCallback(depositId, pawaStatus, result);
+    const callbackResult = await handleVisit3dDepositCallback(
+      depositId,
+      pawaStatus,
+      result,
+    );
+    if (callbackResult.error) {
+      console.error(
+        "[visites-3d/initiate] failure persistence uncertain",
+        callbackResult.error,
+      );
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
     return NextResponse.json(
       {
         success: false,
@@ -325,7 +406,7 @@ async function rollback(
   failureCode?: string,
   failureReason?: string | null,
 ) {
-  await supabaseAdmin
+  const { data, error } = await supabaseAdmin
     .from("bookings")
     .update({
       status: "cancelled",
@@ -333,5 +414,12 @@ async function rollback(
       payment_failure_code: failureCode,
       payment_failure_reason: failureReason,
     })
-    .eq("id", bookingId);
+    .eq("id", bookingId)
+    .in("payment_status", ["pending", "submitted"])
+    .select("id");
+
+  return {
+    error: error ? String(error) : null,
+    updated: Boolean(data?.length),
+  };
 }

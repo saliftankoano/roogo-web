@@ -284,19 +284,20 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, statusIgnored: true });
     }
 
-    const { error: updateError } = await supabase
+    const { data: updated, error: updateError } = await supabase
       .from("transactions")
       .update({
         status: dbStatus,
         provider: inferredProvider || transaction.provider,
         payer_phone: payerPhone,
         failure_code: dbStatus === "failed" ? failure.code : null,
-        failure_reason:
-          dbStatus === "failed" ? failure.providerMessage : null,
+        failure_reason: dbStatus === "failed" ? failure.providerMessage : null,
         metadata: { ...(transaction.metadata || {}), ...data }, // Merge metadata
         updated_at: new Date().toISOString(),
       })
-      .eq("deposit_id", transactionId);
+      .eq("deposit_id", transactionId)
+      .eq("status", transaction.status)
+      .select("id");
 
     if (updateError) {
       log("db-update-failed", { transactionId, error: String(updateError) });
@@ -304,6 +305,15 @@ export async function POST(req: Request) {
         { error: "Database update failed" },
         { status: 500 },
       );
+    }
+
+    if (!updated?.length) {
+      log("status-update-raced", {
+        transactionId,
+        previousStatus: transaction.status,
+        attemptedStatus: dbStatus,
+      });
+      return NextResponse.json({ received: true, statusIgnored: true });
     }
 
     log("db-updated", { transactionId, newStatus: dbStatus });

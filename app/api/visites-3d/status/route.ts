@@ -72,11 +72,9 @@ export async function POST(req: Request) {
 
   const finalizeNotFound = async () => {
     const failureCode = "UNSPECIFIED_FAILURE";
-    const update = await handleVisit3dDepositCallback(
-      depositId,
-      "FAILED",
-      { failureReason: { failureCode } },
-    );
+    const update = await handleVisit3dDepositCallback(depositId, "FAILED", {
+      failureReason: { failureCode },
+    });
     if (update.error || update.dbError || !update.handled) {
       console.error(
         "[visites-3d/status] not-found finalize",
@@ -84,10 +82,16 @@ export async function POST(req: Request) {
       );
       return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
     }
+    if (update.paymentStatus === "completed") {
+      return NextResponse.json({ status: "COMPLETED", bookingId: row.id });
+    }
+    if (update.paymentStatus && update.paymentStatus !== "failed") {
+      return NextResponse.json({ status: "PENDING", bookingId: row.id });
+    }
     return NextResponse.json({
       status: "FAILED",
       bookingId: row.id,
-      failureCode,
+      failureCode: update.failureCode || failureCode,
     });
   };
 
@@ -144,6 +148,28 @@ export async function POST(req: Request) {
     const result = await finalizeVisit3dCompletion(row, depositId);
     if (result.error) {
       console.error("[visites-3d/status] finalize failed", result.error);
+      return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+    }
+    if (!result.finalized) {
+      const { data: current, error: currentError } = await supabase
+        .from("bookings")
+        .select("payment_status, payment_failure_code")
+        .eq("id", row.id)
+        .single();
+      if (currentError) {
+        console.error("[visites-3d/status] race reload", currentError);
+        return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
+      }
+      if (current?.payment_status === "failed") {
+        return NextResponse.json({
+          status: "FAILED",
+          bookingId: row.id,
+          failureCode: current.payment_failure_code || "UNSPECIFIED_FAILURE",
+        });
+      }
+      if (current?.payment_status !== "completed") {
+        return NextResponse.json({ status: "PENDING", bookingId: row.id });
+      }
     }
     return NextResponse.json({ status: "COMPLETED", bookingId: row.id });
   }
@@ -159,10 +185,16 @@ export async function POST(req: Request) {
       console.error("[visites-3d/status] failure finalize", update.error);
       return NextResponse.json({ error: "Erreur serveur" }, { status: 500 });
     }
+    if (update.paymentStatus === "completed") {
+      return NextResponse.json({ status: "COMPLETED", bookingId: row.id });
+    }
+    if (update.paymentStatus && update.paymentStatus !== "failed") {
+      return NextResponse.json({ status: "PENDING", bookingId: row.id });
+    }
     return NextResponse.json({
       status: "FAILED",
       bookingId: row.id,
-      failureCode: failure.code,
+      failureCode: update.failureCode || failure.code,
     });
   }
 
@@ -170,7 +202,8 @@ export async function POST(req: Request) {
     await supabase
       .from("bookings")
       .update({ payment_status: "submitted" })
-      .eq("id", row.id);
+      .eq("id", row.id)
+      .eq("payment_status", row.payment_status);
   }
 
   return NextResponse.json({ status: status || "PENDING" });

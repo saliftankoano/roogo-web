@@ -203,7 +203,10 @@ export async function POST(req: Request) {
       (legacyProvider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA");
 
     if (!ALLOWED_CORRESPONDENT_CODES.has(resolvedCorrespondentCode)) {
-      log("error", { error: "Unknown correspondent", resolvedCorrespondentCode });
+      log("error", {
+        error: "Unknown correspondent",
+        resolvedCorrespondentCode,
+      });
       return errorResponse("Opérateur de paiement non reconnu", 400, req);
     }
 
@@ -235,7 +238,9 @@ export async function POST(req: Request) {
     let resolvedAmount = amount;
     let resolvedPropertyId = propertyId || null;
     let resolvedMetadata: Record<string, unknown> = metadata || {};
-    let appliedReferral = null as ReturnType<typeof applyReferralToQuote> | null;
+    let appliedReferral = null as ReturnType<
+      typeof applyReferralToQuote
+    > | null;
     let dailyBookingRequestId: string | null = null;
 
     if (transactionType === "rent_payment") {
@@ -244,7 +249,11 @@ export async function POST(req: Request) {
           ? resolvedMetadata.scheduleId
           : null;
       if (!scheduleId) {
-        return errorResponse("scheduleId is required for rent payments", 400, req);
+        return errorResponse(
+          "scheduleId is required for rent payments",
+          400,
+          req,
+        );
       }
 
       const { data: schedule, error: scheduleError } = await supabase
@@ -268,7 +277,11 @@ export async function POST(req: Request) {
         return errorResponse("Rent schedule not found", 404, req);
       }
       if (schedule.renter_id !== user.id) {
-        return errorResponse("This rent schedule belongs to another renter", 403, req);
+        return errorResponse(
+          "This rent schedule belongs to another renter",
+          403,
+          req,
+        );
       }
       if (!["upcoming", "overdue"].includes(schedule.status)) {
         return errorResponse("This rent schedule is not payable", 409, req);
@@ -289,8 +302,7 @@ export async function POST(req: Request) {
         return errorResponse("Rental agreement not found", 404, req);
       }
 
-      const rentCollectionEnabled =
-        agreement.rent_collection_enabled !== false;
+      const rentCollectionEnabled = agreement.rent_collection_enabled !== false;
       let hasPendingSuccessFee = false;
       let firstUnpaidScheduleId: string | null = null;
 
@@ -305,7 +317,11 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (pendingFeeError) {
-          return errorResponse("Unable to verify rent collection terms", 500, req);
+          return errorResponse(
+            "Unable to verify rent collection terms",
+            500,
+            req,
+          );
         }
         hasPendingSuccessFee = Boolean(pendingFee);
 
@@ -417,7 +433,11 @@ export async function POST(req: Request) {
           bookingRequest.property_id !== propertyId ||
           bookingRequest.renter_id !== user.id
         ) {
-          return errorResponse("Booking request does not match payment", 403, req);
+          return errorResponse(
+            "Booking request does not match payment",
+            403,
+            req,
+          );
         }
 
         if (
@@ -425,7 +445,11 @@ export async function POST(req: Request) {
             bookingRequest.status,
           )
         ) {
-          return errorResponse("Booking request is not awaiting payment", 409, req);
+          return errorResponse(
+            "Booking request is not awaiting payment",
+            409,
+            req,
+          );
         }
 
         if (
@@ -445,9 +469,7 @@ export async function POST(req: Request) {
         const payoutPhoneRaw =
           typeof meta.payoutPhone === "string" ? meta.payoutPhone : null;
         const payoutProviderRaw =
-          typeof meta.payoutProvider === "string"
-            ? meta.payoutProvider
-            : null;
+          typeof meta.payoutProvider === "string" ? meta.payoutProvider : null;
         const payoutProvider = payoutProviderRaw
           ? normalizePawaPayProvider(payoutProviderRaw)
           : null;
@@ -496,11 +518,16 @@ export async function POST(req: Request) {
               ? meta.tierId
               : null,
         addOns: Array.isArray(meta.add_ons)
-          ? meta.add_ons.filter((item): item is string => typeof item === "string")
+          ? meta.add_ons.filter(
+              (item): item is string => typeof item === "string",
+            )
           : Array.isArray(meta.addOns)
-            ? meta.addOns.filter((item): item is string => typeof item === "string")
-          : undefined,
-        frequence: typeof meta.frequence === "string" ? meta.frequence : "mensuel",
+            ? meta.addOns.filter(
+                (item): item is string => typeof item === "string",
+              )
+            : undefined,
+        frequence:
+          typeof meta.frequence === "string" ? meta.frequence : "mensuel",
         monthlyRent:
           typeof meta.monthlyRent === "number"
             ? meta.monthlyRent
@@ -535,6 +562,15 @@ export async function POST(req: Request) {
 
     const payerClientCode = resolvedCorrespondentCode;
 
+    // Persist the same normalized MSISDN sent to PawaPay so polling and
+    // failure notifications always target the payer's actual account.
+    let formattedPhone = phoneNumber.replace(/\s/g, "");
+    const countryIso = correspondentConfig?.countryIso ?? "BF";
+    if (formattedPhone.length <= 8) {
+      const e164 = normalizePhone(formattedPhone, countryIso);
+      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
+    }
+
     const { data: transactionRecord, error: dbError } = await supabase
       .from("transactions")
       .insert({
@@ -546,7 +582,7 @@ export async function POST(req: Request) {
         provider: payerClientCode,
         user_id: user.id,
         property_id: resolvedPropertyId,
-        payer_phone: phoneNumber,
+        payer_phone: formattedPhone,
         otp_code: preAuthorisationCode || null,
         metadata: resolvedMetadata,
       })
@@ -601,16 +637,6 @@ export async function POST(req: Request) {
       environment: pawaPayConfig.environment,
       url: pawaUrl,
     });
-
-    // Build MSISDN: if already a full MSISDN (length > 8), use as-is; otherwise
-    // normalise via libphonenumber using the correspondent's country.
-    let formattedPhone = phoneNumber.replace(/\s/g, "");
-    const countryIso = correspondentConfig?.countryIso ?? "BF";
-    if (formattedPhone.length <= 8) {
-      // National number — prepend country code via libphonenumber
-      const e164 = normalizePhone(formattedPhone, countryIso);
-      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
-    }
 
     const customerMessage = preAuthorisationCode
       ? `${preAuthorisationCode} ${(description || "Roogo Payment").replace(/[^a-zA-Z0-9\s]/g, "")}`.slice(
@@ -705,7 +731,10 @@ export async function POST(req: Request) {
       const failure = extractPaymentFailure(result);
 
       if (isUncertainPaymentInitiationFailure(response.status, result)) {
-        log("pawapay-status-uncertain", { depositId, failureCode: failure.code });
+        log("pawapay-status-uncertain", {
+          depositId,
+          failureCode: failure.code,
+        });
         return cors(
           NextResponse.json(
             {
@@ -720,15 +749,37 @@ export async function POST(req: Request) {
         );
       }
 
-      await getSupabaseClient()
-        .from("transactions")
-        .update({
-          status: "failed",
-          failure_code: failure.code,
-          failure_reason: failure.providerMessage,
-          metadata: { ...resolvedMetadata, ...result },
-        })
-        .eq("deposit_id", depositId);
+      const { data: failureUpdated, error: failureUpdateError } =
+        await getSupabaseClient()
+          .from("transactions")
+          .update({
+            status: "failed",
+            failure_code: failure.code,
+            failure_reason: failure.providerMessage,
+            metadata: { ...resolvedMetadata, ...result },
+          })
+          .eq("deposit_id", depositId)
+          .eq("status", "pending")
+          .select("id");
+
+      if (failureUpdateError || !failureUpdated?.length) {
+        log("failure-persistence-uncertain", {
+          depositId,
+          error: String(failureUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
+      }
 
       if (transactionRecord?.id) {
         await voidPendingReferralForTransaction(supabase, transactionRecord.id);
@@ -760,7 +811,7 @@ export async function POST(req: Request) {
       queuePaymentFailureNotification({
         depositId,
         failureCode: failure.code,
-        payerPhone: phoneNumber,
+        payerPhone: formattedPhone,
         userId: user.id,
         transactionId: transactionRecord?.id,
         transactionType,
@@ -786,7 +837,7 @@ export async function POST(req: Request) {
       immediateStatus === "REJECTED"
     ) {
       const failure = extractPaymentFailure(result);
-      await supabase
+      const { data: failureUpdated, error: failureUpdateError } = await supabase
         .from("transactions")
         .update({
           status: "failed",
@@ -794,7 +845,28 @@ export async function POST(req: Request) {
           failure_reason: failure.providerMessage,
           metadata: { ...resolvedMetadata, ...result },
         })
-        .eq("deposit_id", depositId);
+        .eq("deposit_id", depositId)
+        .eq("status", "pending")
+        .select("id");
+
+      if (failureUpdateError || !failureUpdated?.length) {
+        log("failure-persistence-uncertain", {
+          depositId,
+          error: String(failureUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
+      }
 
       if (transactionRecord?.id) {
         await voidPendingReferralForTransaction(supabase, transactionRecord.id);
@@ -813,7 +885,7 @@ export async function POST(req: Request) {
       queuePaymentFailureNotification({
         depositId,
         failureCode: failure.code,
-        payerPhone: phoneNumber,
+        payerPhone: formattedPhone,
         userId: user.id,
         transactionId: transactionRecord?.id,
         transactionType,
@@ -883,9 +955,7 @@ export async function POST(req: Request) {
           })
           .eq("id", propertyId);
       } else if (transactionType === "rent_payment" && resolvedMetadata) {
-        const scheduleId = resolvedMetadata.scheduleId as
-          | string
-          | undefined;
+        const scheduleId = resolvedMetadata.scheduleId as string | undefined;
         if (scheduleId) {
           const { data: completedTransaction } = await supabase
             .from("transactions")

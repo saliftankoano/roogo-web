@@ -4,7 +4,10 @@ import {
   renderNotificationCopy,
   type NotificationCopyKey,
 } from "@/lib/notification-copy";
-import { isExpoPushResponseAccepted } from "@/lib/expo-push-response";
+import {
+  getInvalidExpoPushTokens,
+  isExpoPushResponseAccepted,
+} from "@/lib/expo-push-response";
 
 export interface PushNotificationPayload {
   to: string | string[];
@@ -41,10 +44,18 @@ export type UserPushNotificationContext = UserNotificationSettings & {
 /**
  * Sends a push notification to specific Expo push tokens
  */
-export async function sendExpoPushNotifications(
+export type ExpoPushSendResult = {
+  accepted: boolean;
+  invalidTokens: string[];
+};
+
+export async function sendExpoPushNotificationsWithResult(
   payloads: PushNotificationPayload | PushNotificationPayload[],
-) {
+): Promise<ExpoPushSendResult> {
   const finalPayloads = Array.isArray(payloads) ? payloads : [payloads];
+  const targetTokens = finalPayloads.flatMap((payload) =>
+    Array.isArray(payload.to) ? payload.to : [payload.to],
+  );
 
   try {
     const response = await fetch("https://exp.host/--/api/v2/push/send", {
@@ -60,16 +71,34 @@ export async function sendExpoPushNotifications(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Expo Push API error: ${response.status}`, errorText);
-      return false;
+      return { accepted: false, invalidTokens: [] };
     }
 
     const result = await response.json();
     console.log("Expo Push API response:", JSON.stringify(result, null, 2));
-    return isExpoPushResponseAccepted(result);
+    return {
+      accepted: isExpoPushResponseAccepted(result),
+      invalidTokens: getInvalidExpoPushTokens(result, targetTokens),
+    };
   } catch (error) {
     console.error("Failed to send Expo push notifications:", error);
-    return false;
+    return { accepted: false, invalidTokens: [] };
   }
+}
+
+export async function sendExpoPushNotifications(
+  payloads: PushNotificationPayload | PushNotificationPayload[],
+) {
+  return (await sendExpoPushNotificationsWithResult(payloads)).accepted;
+}
+
+export async function removeUserPushTokens(tokens: string[]) {
+  if (tokens.length === 0) return;
+  const { error } = await getSupabaseClient()
+    .from("user_push_tokens")
+    .delete()
+    .in("expo_push_token", tokens);
+  if (error) console.error("Failed to remove invalid Expo push tokens:", error);
 }
 
 /**
@@ -111,12 +140,11 @@ export async function getUserNotificationSettings(
     const privateMetadata = user.privateMetadata as Record<string, unknown>;
     const publicMetadata = user.publicMetadata as Record<string, unknown>;
 
-    const onboardingData = (
+    const onboardingData =
       (privateMetadata.mobileOnboardingData as OnboardingData | undefined) ??
       (privateMetadata.webOnboardingData as OnboardingData | undefined) ??
       (privateMetadata.onboardingData as OnboardingData | undefined) ??
-      (publicMetadata.onboardingData as OnboardingData | undefined)
-    );
+      (publicMetadata.onboardingData as OnboardingData | undefined);
     const preferences = onboardingData?.notifications;
     const locale = getLocaleFromMetadata({
       onboardingData,
@@ -280,11 +308,7 @@ export async function notifyUserWithTemplate(
     return false;
   }
 
-  const renderedCopy = renderNotificationCopy(
-    copyKey,
-    settings.locale,
-    params,
-  );
+  const renderedCopy = renderNotificationCopy(copyKey, settings.locale, params);
 
   return sendExpoPushNotifications({
     to: tokens.map((t) => t.expo_push_token),

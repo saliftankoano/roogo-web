@@ -15,7 +15,8 @@ import {
 } from "@/lib/payment-failures";
 import {
   getUserPushNotificationContext,
-  sendExpoPushNotifications,
+  removeUserPushTokens,
+  sendExpoPushNotificationsWithResult,
 } from "@/lib/push-notifications";
 
 const EVENT_TYPE = "payments.failed";
@@ -51,7 +52,9 @@ export function queuePaymentFailureNotification(
 ) {
   after(async () => {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
-      const result = await notifyPaymentFailure(input).catch((error) => {
+      const result = await notifyPaymentFailure(input, {
+        fallbackToSmsOnPushFailure: attempt === RETRY_DELAYS_MS.length,
+      }).catch((error) => {
         console.error("Failed-payment notification failed:", error);
         return { delivered: false, reason: "claim_failed" as const };
       });
@@ -66,6 +69,7 @@ export function queuePaymentFailureNotification(
 
 export async function notifyPaymentFailure(
   input: PaymentFailureNotificationInput,
+  options: { fallbackToSmsOnPushFailure?: boolean } = {},
 ) {
   const phone = input.payerPhone ? normalizeSmsPhone(input.payerPhone) : "";
   const phoneHash = phone ? hashPhone(phone) : null;
@@ -93,6 +97,7 @@ export async function notifyPaymentFailure(
   let locale: PaymentFailureLocale = input.locale ?? "fr";
   let pushTokens: string[] = [];
   let pushEnabled = true;
+  let pushAttempted = false;
 
   if (input.userId) {
     const pushContext = await getUserPushNotificationContext(
@@ -107,46 +112,68 @@ export async function notifyPaymentFailure(
   }
 
   if (pushTokens.length > 0) {
-    const pushSent = pushEnabled
-      ? await sendExpoPushNotifications({
-          to: pushTokens,
-          title: paymentFailureTitle(locale),
-          body: paymentFailureMessage(failureCode, locale),
-          data: {
-            type: "payment_failed",
-            depositId: input.depositId,
-            transactionId: input.transactionId,
-            transactionType: input.transactionType,
-            propertyId: input.propertyId,
-            failureCode,
-          },
-          sound: "default",
-        })
-      : false;
+    if (!pushEnabled) {
+      await updateNotificationDeliveryMetadata({
+        eventType: EVENT_TYPE,
+        subjectId: input.depositId,
+        metadata: {
+          ...baseMetadata,
+          channel: "push",
+          pushEnabled: false,
+          pushSent: false,
+          smsSent: false,
+        },
+        deliveryStatus: "sent",
+      });
+      return { delivered: false, reason: "push_disabled" as const };
+    }
 
-    await updateNotificationDeliveryMetadata({
-      eventType: EVENT_TYPE,
-      subjectId: input.depositId,
-      metadata: {
-        ...baseMetadata,
-        channel: "push",
-        pushEnabled,
-        pushSent,
-        smsSent: false,
+    pushAttempted = true;
+    const pushResult = await sendExpoPushNotificationsWithResult({
+      to: pushTokens,
+      title: paymentFailureTitle(locale),
+      body: paymentFailureMessage(failureCode, locale),
+      data: {
+        type: "payment_failed",
+        depositId: input.depositId,
+        transactionId: input.transactionId,
+        transactionType: input.transactionType,
+        propertyId: input.propertyId,
+        failureCode,
       },
-      deliveryStatus: pushSent || !pushEnabled ? "sent" : "failed",
+      sound: "default",
     });
-    return {
-      delivered: pushSent,
-      reason: pushEnabled ? "push" : "push_disabled",
-    } as const;
+    await removeUserPushTokens(pushResult.invalidTokens);
+
+    if (pushResult.accepted || !options.fallbackToSmsOnPushFailure) {
+      await updateNotificationDeliveryMetadata({
+        eventType: EVENT_TYPE,
+        subjectId: input.depositId,
+        metadata: {
+          ...baseMetadata,
+          channel: "push",
+          pushEnabled: true,
+          pushSent: pushResult.accepted,
+          invalidPushTokens: pushResult.invalidTokens.length,
+          smsSent: false,
+        },
+        deliveryStatus: pushResult.accepted ? "sent" : "failed",
+      });
+      return { delivered: pushResult.accepted, reason: "push" as const };
+    }
   }
 
   if (!phone || !phoneHash) {
     await updateNotificationDeliveryMetadata({
       eventType: EVENT_TYPE,
       subjectId: input.depositId,
-      metadata: { ...baseMetadata, channel: "none", smsSent: false },
+      metadata: {
+        ...baseMetadata,
+        channel: "none",
+        pushAttempted,
+        pushSent: false,
+        smsSent: false,
+      },
       deliveryStatus: "sent",
     });
     return { delivered: false, reason: "missing_phone" as const };
@@ -186,6 +213,8 @@ export async function notifyPaymentFailure(
     metadata: {
       ...baseMetadata,
       channel: "sms",
+      pushAttempted,
+      pushSent: pushAttempted ? false : undefined,
       smsCooldownSuppressed: onCooldown,
       smsSent,
     },

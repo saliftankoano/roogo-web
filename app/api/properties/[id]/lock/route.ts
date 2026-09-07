@@ -44,7 +44,7 @@ export async function OPTIONS(req: Request) {
 
 export async function POST(
   req: NextRequest,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: propertyId } = await params;
@@ -54,7 +54,7 @@ export async function POST(
     const token = auth.replace("Bearer ", "");
     if (!token) {
       return cors(
-        NextResponse.json({ error: "Missing token" }, { status: 401 })
+        NextResponse.json({ error: "Missing token" }, { status: 401 }),
       );
     }
 
@@ -67,13 +67,13 @@ export async function POST(
     } catch (error) {
       console.error("Token verification failed:", error);
       return cors(
-        NextResponse.json({ error: "Invalid token" }, { status: 401 })
+        NextResponse.json({ error: "Invalid token" }, { status: 401 }),
       );
     }
 
     if (!clerkUserId) {
       return cors(
-        NextResponse.json({ error: "Unauthorized" }, { status: 401 })
+        NextResponse.json({ error: "Unauthorized" }, { status: 401 }),
       );
     }
 
@@ -81,17 +81,25 @@ export async function POST(
     const user = await getUserByClerkId(clerkUserId);
     if (!user) {
       return cors(
-        NextResponse.json({ error: "User not found" }, { status: 404 })
+        NextResponse.json({ error: "User not found" }, { status: 404 }),
       );
     }
 
     // 3. Parse Body
     const body = await req.json();
-    const { phoneNumber, correspondent: correspondentCode, provider: legacyProvider, preAuthorisationCode } = body;
+    const {
+      phoneNumber,
+      correspondent: correspondentCode,
+      provider: legacyProvider,
+      preAuthorisationCode,
+    } = body;
 
     if (!phoneNumber || (!correspondentCode && !legacyProvider)) {
       return cors(
-        NextResponse.json({ error: "Missing required fields" }, { status: 400 })
+        NextResponse.json(
+          { error: "Missing required fields" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -102,7 +110,10 @@ export async function POST(
 
     if (!ALLOWED_CORRESPONDENT_CODES.has(resolvedCorrespondentCode)) {
       return cors(
-        NextResponse.json({ error: "Opérateur de paiement non reconnu" }, { status: 400 })
+        NextResponse.json(
+          { error: "Opérateur de paiement non reconnu" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -110,7 +121,10 @@ export async function POST(
 
     if (correspondentConfig?.requiresPreAuth && !preAuthorisationCode) {
       return cors(
-        NextResponse.json({ error: "Un code d'autorisation est requis pour ce réseau" }, { status: 400 })
+        NextResponse.json(
+          { error: "Un code d'autorisation est requis pour ce réseau" },
+          { status: 400 },
+        ),
       );
     }
 
@@ -125,7 +139,7 @@ export async function POST(
 
     if (propError || !property) {
       return cors(
-        NextResponse.json({ error: "Property not found" }, { status: 404 })
+        NextResponse.json({ error: "Property not found" }, { status: 404 }),
       );
     }
 
@@ -135,8 +149,8 @@ export async function POST(
           {
             error: "This property is not available for direct payment",
           },
-          { status: 400 }
-        )
+          { status: 400 },
+        ),
       );
     }
 
@@ -154,6 +168,14 @@ export async function POST(
 
     const payerClientCode = resolvedCorrespondentCode;
 
+    // Persist the same normalized MSISDN sent to PawaPay.
+    let formattedPhone = (phoneNumber as string).replace(/\s/g, "");
+    const countryIso = correspondentConfig?.countryIso ?? "BF";
+    if (formattedPhone.length <= 8) {
+      const e164 = normalizePhone(formattedPhone, countryIso);
+      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
+    }
+
     const { error: dbError } = await supabase.from("transactions").insert({
       deposit_id: depositId,
       amount: paymentAmount,
@@ -163,7 +185,7 @@ export async function POST(
       provider: payerClientCode,
       user_id: user.id,
       property_id: propertyId,
-      payer_phone: phoneNumber,
+      payer_phone: formattedPhone,
       metadata: {
         monthlyRent: breakdown.monthlyRent,
         cautionMois: breakdown.cautionMois,
@@ -179,8 +201,8 @@ export async function POST(
       return cors(
         NextResponse.json(
           { error: "Failed to initialize transaction" },
-          { status: 500 }
-        )
+          { status: 500 },
+        ),
       );
     }
 
@@ -191,8 +213,8 @@ export async function POST(
       return cors(
         NextResponse.json(
           { error: "Server configuration error" },
-          { status: 500 }
-        )
+          { status: 500 },
+        ),
       );
     }
     const pawaUrl = pawaPayConfig.url;
@@ -202,18 +224,11 @@ export async function POST(
       return cors(
         NextResponse.json(
           { error: "Server configuration error" },
-          { status: 500 }
-        )
+          { status: 500 },
+        ),
       );
     }
 
-    // Build MSISDN: full MSISDN from new clients, national-only from legacy
-    let formattedPhone = (phoneNumber as string).replace(/\s/g, "");
-    const countryIso = correspondentConfig?.countryIso ?? "BF";
-    if (formattedPhone.length <= 8) {
-      const e164 = normalizePhone(formattedPhone, countryIso);
-      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
-    }
     const customerMessage = "Roogo Payment".slice(0, 22);
 
     const payload: PawaPayDepositPayload = {
@@ -278,7 +293,7 @@ export async function POST(
           ),
         );
       }
-      await supabase
+      const { data: failureUpdated, error: failureUpdateError } = await supabase
         .from("transactions")
         .update({
           status: "failed",
@@ -286,7 +301,27 @@ export async function POST(
           failure_reason: failure.providerMessage,
           metadata: result,
         })
-        .eq("deposit_id", depositId);
+        .eq("deposit_id", depositId)
+        .eq("status", "pending")
+        .select("id");
+
+      if (failureUpdateError || !failureUpdated?.length) {
+        console.error(
+          "Failed to persist lock payment failure:",
+          failureUpdateError,
+        );
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+        );
+      }
 
       const errorMessage = paymentFailureMessage(failure.code, "fr");
 
@@ -305,8 +340,8 @@ export async function POST(
             error: errorMessage,
             failureCode: failure.code,
           },
-          { status: response.status }
-        )
+          { status: response.status },
+        ),
       );
     }
 
@@ -317,7 +352,7 @@ export async function POST(
       immediateStatus === "REJECTED"
     ) {
       const failure = extractPaymentFailure(result);
-      await supabase
+      const { data: failureUpdated, error: failureUpdateError } = await supabase
         .from("transactions")
         .update({
           status: "failed",
@@ -325,7 +360,27 @@ export async function POST(
           failure_reason: failure.providerMessage,
           metadata: result,
         })
-        .eq("deposit_id", depositId);
+        .eq("deposit_id", depositId)
+        .eq("status", "pending")
+        .select("id");
+
+      if (failureUpdateError || !failureUpdated?.length) {
+        console.error(
+          "Failed to persist lock payment failure:",
+          failureUpdateError,
+        );
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+        );
+      }
 
       queuePaymentFailureNotification({
         depositId,
@@ -359,15 +414,15 @@ export async function POST(
           status: result.status || "PENDING",
           depositId: result.depositId || depositId,
         },
-      })
+      }),
     );
   } catch (error: unknown) {
     console.error("Lock initiation error:", error);
     return cors(
       NextResponse.json(
         { error: error instanceof Error ? error.message : String(error) },
-        { status: 500 }
-      )
+        { status: 500 },
+      ),
     );
   }
 }
