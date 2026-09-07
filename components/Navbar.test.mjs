@@ -18,7 +18,7 @@ function render(auth, mobileOpen = false, hooks = {}) {
     const compiled = ts.transpileModule(readFileSync(filename, 'utf8'), {
       compilerOptions: { module: ts.ModuleKind.CommonJS, jsx: ts.JsxEmit.ReactJSX },
     }).outputText;
-    const module = { exports: {} };
+    const loadedModule = { exports: {} };
     const mockedRequire = (name) => {
       if (name === 'react') return { ...React, useState: () => [mobileOpen, () => {}], ...hooks };
       if (name === '@clerk/nextjs') return {
@@ -33,8 +33,8 @@ function render(auth, mobileOpen = false, hooks = {}) {
       if (name === '../lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
       return require(name);
     };
-    new Function('require', 'module', 'exports', compiled)(mockedRequire, module, module.exports);
-    return module.exports;
+    new Function('require', 'module', 'exports', compiled)(mockedRequire, loadedModule, loadedModule.exports);
+    return loadedModule.exports;
   }
   return renderToStaticMarkup(React.createElement(load('./Navbar.tsx').Navbar));
 }
