@@ -369,13 +369,33 @@ export async function POST(req: Request) {
         { status: 202 },
       );
     }
+    if (callbackResult.paymentStatus === "completed") {
+      return NextResponse.json({
+        success: true,
+        depositId,
+        status: "COMPLETED",
+        bookingId: inserted.id,
+      });
+    }
+    if (callbackResult.paymentStatus !== "failed") {
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
+    const persistedFailureCode = callbackResult.failureCode || failure.code;
     return NextResponse.json(
       {
         success: false,
         depositId,
-        status: pawaStatus,
-        error: paymentFailureMessage(failure.code, "fr"),
-        failureCode: failure.code,
+        status: "FAILED",
+        error: paymentFailureMessage(persistedFailureCode, "fr"),
+        failureCode: persistedFailureCode,
       },
       { status: 422 },
     );

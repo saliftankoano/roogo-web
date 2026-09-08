@@ -281,6 +281,20 @@ export async function POST(req: Request) {
         previousStatus: transaction.status,
         ignoredStatus: dbStatus,
       });
+      // A later delivery can safely re-drive a previously failed notification
+      // after its lease expires. The dispatcher still deduplicates successful
+      // sends by deposit ID.
+      if (transaction.status === "failed") {
+        queuePaymentFailureNotification({
+          depositId: transactionId,
+          failureCode: transaction.failure_code || failure.code,
+          payerPhone,
+          userId: transaction.user_id,
+          transactionId: transaction.id,
+          transactionType: transaction.type,
+          propertyId: transaction.property_id,
+        });
+      }
       return NextResponse.json({ received: true, statusIgnored: true });
     }
 

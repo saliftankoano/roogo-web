@@ -130,39 +130,46 @@ function getLocaleFromMetadata({
   return match ?? "fr";
 }
 
+async function loadUserNotificationSettings(
+  clerkId: string,
+  notificationType: NotificationType,
+): Promise<UserNotificationSettings> {
+  const client = await clerkClient();
+  const user = await client.users.getUser(clerkId);
+  const privateMetadata = user.privateMetadata as Record<string, unknown>;
+  const publicMetadata = user.publicMetadata as Record<string, unknown>;
+
+  const onboardingData =
+    (privateMetadata.mobileOnboardingData as OnboardingData | undefined) ??
+    (privateMetadata.webOnboardingData as OnboardingData | undefined) ??
+    (privateMetadata.onboardingData as OnboardingData | undefined) ??
+    (publicMetadata.onboardingData as OnboardingData | undefined);
+  const preferences = onboardingData?.notifications;
+  const locale = getLocaleFromMetadata({
+    onboardingData,
+    privateMetadata,
+    publicMetadata,
+  });
+
+  // If no preferences set, default to enabled (opt-out model)
+  if (!preferences || typeof preferences !== "object") {
+    return { enabled: true, locale };
+  }
+
+  // Check specific notification type preference
+  const isEnabled = preferences[notificationType];
+  return {
+    enabled: isEnabled !== false, // Default to true if not explicitly set to false
+    locale,
+  };
+}
+
 export async function getUserNotificationSettings(
   clerkId: string,
   notificationType: NotificationType,
 ): Promise<UserNotificationSettings> {
   try {
-    const client = await clerkClient();
-    const user = await client.users.getUser(clerkId);
-    const privateMetadata = user.privateMetadata as Record<string, unknown>;
-    const publicMetadata = user.publicMetadata as Record<string, unknown>;
-
-    const onboardingData =
-      (privateMetadata.mobileOnboardingData as OnboardingData | undefined) ??
-      (privateMetadata.webOnboardingData as OnboardingData | undefined) ??
-      (privateMetadata.onboardingData as OnboardingData | undefined) ??
-      (publicMetadata.onboardingData as OnboardingData | undefined);
-    const preferences = onboardingData?.notifications;
-    const locale = getLocaleFromMetadata({
-      onboardingData,
-      privateMetadata,
-      publicMetadata,
-    });
-
-    // If no preferences set, default to enabled (opt-out model)
-    if (!preferences || typeof preferences !== "object") {
-      return { enabled: true, locale };
-    }
-
-    // Check specific notification type preference
-    const isEnabled = preferences[notificationType];
-    return {
-      enabled: isEnabled !== false, // Default to true if not explicitly set to false
-      locale,
-    };
+    return await loadUserNotificationSettings(clerkId, notificationType);
   } catch (error) {
     console.error("Error checking notification preference:", error);
     // On error, default to sending notification (fail-open)
@@ -178,10 +185,18 @@ export async function getUserPushNotificationContext(
   const userRecord = await getUserRecord(userId);
   if (!userRecord) return null;
 
-  const settings = await getUserNotificationSettings(
-    userRecord.clerk_id,
-    notificationType,
-  );
+  let settings: UserNotificationSettings;
+  try {
+    // Failed-payment delivery must fail closed: a transient Clerk error cannot
+    // be interpreted as consent to send sensitive payment details.
+    settings = await loadUserNotificationSettings(
+      userRecord.clerk_id,
+      notificationType,
+    );
+  } catch (error) {
+    console.error("Error loading push notification context:", error);
+    return null;
+  }
   const { data: tokens, error } = await supabase
     .from("user_push_tokens")
     .select("expo_push_token")
@@ -189,7 +204,9 @@ export async function getUserPushNotificationContext(
 
   if (error) {
     console.error("Error fetching user tokens:", error);
-    return { ...settings, tokens: [] };
+    // A token lookup failure is not evidence that the user has no token. Let
+    // the caller retry instead of incorrectly falling back to paid SMS.
+    return null;
   }
 
   return {
