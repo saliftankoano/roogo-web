@@ -170,6 +170,7 @@ export function shouldApplyPaymentStatus(
 
 const RETRYABLE_NOTIFICATION_REASONS = new Set([
   "claim_failed",
+  "push_context",
   "sms_claim_failed",
   "push",
   "sms",

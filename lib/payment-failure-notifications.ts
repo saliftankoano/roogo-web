@@ -18,6 +18,7 @@ import {
   removeUserPushTokens,
   sendExpoPushNotificationsWithResult,
 } from "@/lib/push-notifications";
+import { releaseMonthlyPropertyLockPayment } from "@/lib/property-lock-finalization";
 
 const EVENT_TYPE = "payments.failed";
 const SMS_COOLDOWN_MS = 15 * 60 * 1000;
@@ -51,6 +52,9 @@ export function queuePaymentFailureNotification(
   input: PaymentFailureNotificationInput,
 ) {
   after(async () => {
+    await releaseMonthlyPropertyLockPayment(input.depositId).catch((error) => {
+      console.error("Failed to release property payment claim:", error);
+    });
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
       const result = await notifyPaymentFailure(input, {
         fallbackToSmsOnPushFailure: attempt === RETRY_DELAYS_MS.length,
@@ -100,34 +104,48 @@ export async function notifyPaymentFailure(
   let pushAttempted = false;
 
   if (input.userId) {
-    const pushContext = await getUserPushNotificationContext(
+    const pushLookup = await getUserPushNotificationContext(
       input.userId,
       "payments",
     );
-    if (pushContext) {
-      locale = pushContext.locale === "en" ? "en" : "fr";
-      pushTokens = pushContext.tokens;
-      pushEnabled = pushContext.enabled;
-    }
-  }
-
-  if (pushTokens.length > 0) {
-    if (!pushEnabled) {
+    if (pushLookup.status === "retry") {
       await updateNotificationDeliveryMetadata({
         eventType: EVENT_TYPE,
         subjectId: input.depositId,
         metadata: {
           ...baseMetadata,
-          channel: "push",
-          pushEnabled: false,
+          channel: "none",
+          pushContextLookupFailed: true,
           pushSent: false,
           smsSent: false,
         },
-        deliveryStatus: "sent",
+        deliveryStatus: "failed",
       });
-      return { delivered: false, reason: "push_disabled" as const };
+      return { delivered: false, reason: "push_context" as const };
     }
+    const pushContext = pushLookup.context;
+    locale = pushContext.locale === "en" ? "en" : "fr";
+    pushTokens = pushContext.tokens;
+    pushEnabled = pushContext.enabled;
+  }
 
+  if (input.userId && !pushEnabled) {
+    await updateNotificationDeliveryMetadata({
+      eventType: EVENT_TYPE,
+      subjectId: input.depositId,
+      metadata: {
+        ...baseMetadata,
+        channel: "none",
+        pushEnabled: false,
+        pushSent: false,
+        smsSent: false,
+      },
+      deliveryStatus: "sent",
+    });
+    return { delivered: false, reason: "push_disabled" as const };
+  }
+
+  if (pushTokens.length > 0) {
     pushAttempted = true;
     const pushResult = await sendExpoPushNotificationsWithResult({
       to: pushTokens,

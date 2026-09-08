@@ -19,7 +19,10 @@ import { queuePaymentFailureNotification } from "@/lib/payment-failure-notificat
 import { captureServerEvent } from "@/lib/posthog-server";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { unescapeText } from "@/lib/text-sanitize";
-import { finalizeMonthlyPropertyLock } from "@/lib/property-lock-finalization";
+import {
+  claimMonthlyPropertyLockPayment,
+  finalizeMonthlyPropertyLock,
+} from "@/lib/property-lock-finalization";
 
 // Use service role for reading config
 //const supabaseAdmin = createClient(
@@ -262,6 +265,16 @@ export async function POST(
 
     let response: Response;
     let responseText: string;
+    const claimed = await claimMonthlyPropertyLockPayment(propertyId, depositId);
+    if (!claimed) {
+      await supabase.from("transactions").delete().eq("deposit_id", depositId);
+      return cors(
+        NextResponse.json(
+          { error: "Un autre paiement est déjà en cours pour ce bien" },
+          { status: 409 },
+        ),
+      );
+    }
     try {
       response = await fetch(`${pawaUrl}/v2/deposits`, {
         method: "POST",
@@ -455,6 +468,22 @@ export async function POST(
               failureCode,
             },
             { status: 422 },
+          ),
+        );
+      }
+
+      if (completion.fulfillmentConflict) {
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "NEEDS_SUPPORT",
+              error:
+                "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+              raw: { status: "NEEDS_SUPPORT", depositId },
+            },
+            { status: 202 },
           ),
         );
       }

@@ -41,6 +41,10 @@ export type UserPushNotificationContext = UserNotificationSettings & {
   tokens: string[];
 };
 
+export type UserPushNotificationContextResult =
+  | { status: "ready"; context: UserPushNotificationContext }
+  | { status: "retry" };
+
 /**
  * Sends a push notification to specific Expo push tokens
  */
@@ -180,10 +184,10 @@ export async function getUserNotificationSettings(
 export async function getUserPushNotificationContext(
   userId: string,
   notificationType: NotificationType,
-): Promise<UserPushNotificationContext | null> {
+): Promise<UserPushNotificationContextResult> {
   const supabase = getSupabaseClient();
   const userRecord = await getUserRecord(userId);
-  if (!userRecord) return null;
+  if (!userRecord) return { status: "retry" };
 
   let settings: UserNotificationSettings;
   try {
@@ -195,7 +199,7 @@ export async function getUserPushNotificationContext(
     );
   } catch (error) {
     console.error("Error loading push notification context:", error);
-    return null;
+    return { status: "retry" };
   }
   const { data: tokens, error } = await supabase
     .from("user_push_tokens")
@@ -206,12 +210,15 @@ export async function getUserPushNotificationContext(
     console.error("Error fetching user tokens:", error);
     // A token lookup failure is not evidence that the user has no token. Let
     // the caller retry instead of incorrectly falling back to paid SMS.
-    return null;
+    return { status: "retry" };
   }
 
   return {
-    ...settings,
-    tokens: (tokens ?? []).map((token) => token.expo_push_token),
+    status: "ready",
+    context: {
+      ...settings,
+      tokens: (tokens ?? []).map((token) => token.expo_push_token),
+    },
   };
 }
 

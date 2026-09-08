@@ -204,6 +204,14 @@ export default function PropertyPaymentModal({
           pollingRef.current = null;
           setErrorMessage(paymentFailureMessage(data.failureCode, "fr"));
           setStep("error");
+        } else if (data.status === "NEEDS_SUPPORT") {
+          clearInterval(pollingRef.current!);
+          pollingRef.current = null;
+          setErrorMessage(
+            data.error ||
+              "Paiement reçu, mais réservation non confirmée. Le support Roogo vous contactera.",
+          );
+          setStep("error");
         }
       } catch {
         // keep polling on network errors

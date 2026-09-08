@@ -290,6 +290,18 @@ export async function POST(req: Request) {
                 depositId,
                 transaction.metadata,
               );
+              if (completion.fulfillmentConflict) {
+                return cors(
+                  NextResponse.json({
+                    success: true,
+                    status: "NEEDS_SUPPORT",
+                    error:
+                      "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+                    raw: { status: "NEEDS_SUPPORT", depositId },
+                    context,
+                  }),
+                );
+              }
               if (completion.paymentStatus !== "completed") {
                 return cors(
                   NextResponse.json(
@@ -601,6 +613,20 @@ export async function POST(req: Request) {
             depositId,
             statusData,
           );
+          if (completion.fulfillmentConflict) {
+            return cors(
+              NextResponse.json({
+                success: true,
+                status: "NEEDS_SUPPORT",
+                error:
+                  "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+                raw: { status: "NEEDS_SUPPORT", depositId },
+                context: await getPaymentContext(
+                  transaction as Record<string, unknown>,
+                ),
+              }),
+            );
+          }
           updated = completion.transitioned ? [{ id: transaction.id }] : [];
           if (completion.paymentStatus === "completed") {
             const { error: enrichmentError } = await supabase

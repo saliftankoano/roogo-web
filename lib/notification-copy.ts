@@ -32,6 +32,8 @@ export type NotificationCopyKey =
   | "payments.propertyReserved"
   | "payments.stayReserved"
   | "payments.stayPaymentNeedsSupport"
+  | "payments.propertyPaymentNeedsSupport"
+  | "payments.propertyPaymentConflictStaff"
   | "dailyBookings.latePaymentConflictStaff"
   | "dailyBookings.requestSubmittedOwner"
   | "dailyBookings.requestSubmittedRenter"
@@ -462,6 +464,26 @@ const notificationCopy: Record<
     en: {
       title: "Payment received, stay to confirm",
       body: "Your payment for {propertyLabel} arrived after the deadline and the dates are no longer free. Roogo support will contact you about a refund or new dates.",
+    },
+  },
+  "payments.propertyPaymentNeedsSupport": {
+    fr: {
+      title: "Paiement reçu, réservation à vérifier",
+      body: "Votre paiement pour {propertyLabel} a été reçu, mais le bien avait déjà été réservé. Le support Roogo vous contactera pour un remboursement ou une solution.",
+    },
+    en: {
+      title: "Payment received, reservation needs review",
+      body: "Your payment for {propertyLabel} was received, but the property had already been reserved. Roogo support will contact you about a refund or another solution.",
+    },
+  },
+  "payments.propertyPaymentConflictStaff": {
+    fr: {
+      title: "Action requise: paiement immobilier en conflit",
+      body: "Un paiement pour {propertyLabel} a été encaissé après une autre réservation. Contactez le client et organisez un remboursement ou une solution.",
+    },
+    en: {
+      title: "Action required: property payment conflict",
+      body: "A payment for {propertyLabel} was collected after another reservation. Contact the customer and arrange a refund or another solution.",
     },
   },
   "dailyBookings.latePaymentConflictStaff": {

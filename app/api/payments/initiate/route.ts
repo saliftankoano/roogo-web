@@ -47,7 +47,10 @@ import {
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
-import { finalizeMonthlyPropertyLock } from "@/lib/property-lock-finalization";
+import {
+  claimMonthlyPropertyLockPayment,
+  finalizeMonthlyPropertyLock,
+} from "@/lib/property-lock-finalization";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { unescapeText } from "@/lib/text-sanitize";
 
@@ -685,6 +688,27 @@ export async function POST(req: Request) {
 
     let response: Response;
     let responseText: string;
+    if (
+      transactionType === "property_lock" &&
+      monthlyPropertyLock &&
+      resolvedPropertyId
+    ) {
+      const claimed = await claimMonthlyPropertyLockPayment(
+        resolvedPropertyId,
+        depositId,
+      );
+      if (!claimed) {
+        if (transactionRecord?.id) {
+          await voidPendingReferralForTransaction(supabase, transactionRecord.id);
+        }
+        await supabase.from("transactions").delete().eq("deposit_id", depositId);
+        return errorResponse(
+          "Un autre paiement est déjà en cours pour ce bien",
+          409,
+          req,
+        );
+      }
+    }
     try {
       response = await fetch(`${pawaUrl}/v2/deposits`, {
         method: "POST",
@@ -940,6 +964,22 @@ export async function POST(req: Request) {
             depositId,
             result,
           );
+          if (completion.fulfillmentConflict) {
+            return cors(
+              NextResponse.json(
+                {
+                  success: true,
+                  depositId,
+                  status: "NEEDS_SUPPORT",
+                  error:
+                    "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+                  raw: { status: "NEEDS_SUPPORT", depositId },
+                },
+                { status: 202 },
+              ),
+              req,
+            );
+          }
           completionUpdated = completion.transitioned
             ? [{ id: transactionRecord.id }]
             : [];
