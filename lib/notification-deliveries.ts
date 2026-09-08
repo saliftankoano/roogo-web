@@ -64,15 +64,43 @@ export async function claimPaymentFailureDelivery({
   return null;
 }
 
+export async function claimRetryableNotificationDelivery({
+  userId,
+  notificationType,
+  eventType,
+  subjectId,
+  metadata,
+}: NotificationDeliveryReservation) {
+  if (!userId) return null;
+  const { data, error } = await supabaseAdmin.rpc(
+    "claim_retryable_notification_delivery",
+    {
+      p_user_id: userId,
+      p_notification_type: notificationType,
+      p_event_type: eventType,
+      p_subject_id: subjectId,
+      p_metadata: metadata ?? {},
+      p_lease_seconds: 300,
+    },
+  );
+
+  if (!error) return data === true;
+
+  console.error("Failed to claim retryable notification delivery:", error);
+  return null;
+}
+
 export async function updateNotificationDeliveryMetadata({
   eventType,
   subjectId,
+  userId,
   metadata,
   deliveryStatus,
   releaseSmsClaim = false,
 }: {
   eventType: string;
   subjectId: string;
+  userId?: string | null;
   metadata: Record<string, unknown>;
   deliveryStatus?: "sent" | "failed";
   releaseSmsClaim?: boolean;
@@ -91,11 +119,15 @@ export async function updateNotificationDeliveryMetadata({
     patch.sms_claimed_at = null;
   }
 
-  const { error } = await supabaseAdmin
+  let query = supabaseAdmin
     .from("notification_deliveries")
     .update(patch)
     .eq("event_type", eventType)
     .eq("subject_id", subjectId);
+  if (userId !== undefined) {
+    query = userId ? query.eq("user_id", userId) : query.is("user_id", null);
+  }
+  const { error } = await query;
 
   if (error && error.code !== "42P01") {
     console.error("Failed to update notification delivery:", error);

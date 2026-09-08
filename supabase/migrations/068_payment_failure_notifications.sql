@@ -91,6 +91,66 @@ BEGIN
 END;
 $$;
 
+-- Retryable delivery claims for other payment-critical alerts. Unlike the
+-- accountless payment-failure index above, these deliveries always belong to
+-- a user and use the table's original per-user event uniqueness guarantee.
+CREATE OR REPLACE FUNCTION public.claim_retryable_notification_delivery(
+  p_user_id UUID,
+  p_notification_type TEXT,
+  p_event_type TEXT,
+  p_subject_id TEXT,
+  p_metadata JSONB,
+  p_lease_seconds INTEGER DEFAULT 300
+)
+RETURNS BOOLEAN
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public
+AS $$
+DECLARE
+  claimed_id UUID;
+BEGIN
+  INSERT INTO public.notification_deliveries (
+    user_id,
+    notification_type,
+    event_type,
+    subject_id,
+    metadata,
+    delivery_status,
+    lease_expires_at,
+    attempt_count
+  )
+  VALUES (
+    p_user_id,
+    p_notification_type,
+    p_event_type,
+    p_subject_id,
+    COALESCE(p_metadata, '{}'::jsonb),
+    'pending',
+    NOW() + make_interval(secs => GREATEST(COALESCE(p_lease_seconds, 300), 1)),
+    1
+  )
+  ON CONFLICT (user_id, event_type, subject_id)
+  DO UPDATE SET
+    notification_type = EXCLUDED.notification_type,
+    metadata = EXCLUDED.metadata,
+    delivery_status = 'pending',
+    lease_expires_at = EXCLUDED.lease_expires_at,
+    attempt_count = notification_deliveries.attempt_count + 1
+  WHERE (
+       notification_deliveries.delivery_status = 'failed'
+       AND COALESCE(notification_deliveries.lease_expires_at, '-infinity') < NOW()
+     )
+     OR (
+       notification_deliveries.delivery_status = 'pending'
+       AND notification_deliveries.lease_expires_at < NOW()
+     )
+  RETURNING id INTO claimed_id;
+
+  RETURN claimed_id IS NOT NULL;
+END;
+$$;
+
 -- Serialize claims for a phone/failure-code pair. Recording the claim before
 -- the external send closes the read-then-send race between different deposits.
 CREATE OR REPLACE FUNCTION public.claim_payment_failure_sms_cooldown(
@@ -137,6 +197,13 @@ REVOKE ALL ON FUNCTION public.claim_payment_failure_delivery(
   UUID, TEXT, TEXT, TEXT, JSONB, INTEGER
 ) FROM PUBLIC, anon, authenticated;
 GRANT EXECUTE ON FUNCTION public.claim_payment_failure_delivery(
+  UUID, TEXT, TEXT, TEXT, JSONB, INTEGER
+) TO service_role;
+
+REVOKE ALL ON FUNCTION public.claim_retryable_notification_delivery(
+  UUID, TEXT, TEXT, TEXT, JSONB, INTEGER
+) FROM PUBLIC, anon, authenticated;
+GRANT EXECUTE ON FUNCTION public.claim_retryable_notification_delivery(
   UUID, TEXT, TEXT, TEXT, JSONB, INTEGER
 ) TO service_role;
 

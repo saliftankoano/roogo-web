@@ -183,6 +183,7 @@ BEGIN
       status = 'completed',
       metadata = COALESCE(metadata, '{}'::JSONB) || jsonb_build_object(
         'pawapay', p_pawapay,
+        'propertyLockFinalizedAt', NOW(),
         'propertyLockConflict', TRUE,
         'propertyLockConflictAt', NOW()
       ),
