@@ -47,6 +47,9 @@ import {
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import { finalizeMonthlyPropertyLock } from "@/lib/property-lock-finalization";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { unescapeText } from "@/lib/text-sanitize";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -242,6 +245,7 @@ export async function POST(req: Request) {
       typeof applyReferralToQuote
     > | null;
     let dailyBookingRequestId: string | null = null;
+    let monthlyPropertyLock = false;
 
     if (transactionType === "rent_payment") {
       const scheduleId =
@@ -375,7 +379,7 @@ export async function POST(req: Request) {
       const { data: propertyRecord, error: propertyError } = await supabase
         .from("properties")
         .select(
-          "price, caution_mois, loyer_avance_mois, period, caution_type, caution_valeur",
+          "price, caution_mois, loyer_avance_mois, period, caution_type, caution_valeur, quartier, address",
         )
         .eq("id", propertyId)
         .maybeSingle();
@@ -385,6 +389,7 @@ export async function POST(req: Request) {
       }
 
       if (propertyRecord.period !== "day") {
+        monthlyPropertyLock = true;
         const breakdown = getMoveInPaymentBreakdown({
           monthlyRent: propertyRecord.price,
           cautionMois: propertyRecord.caution_mois,
@@ -510,6 +515,11 @@ export async function POST(req: Request) {
 
     if (transactionType === "listing_submission") {
       const meta = (metadata || {}) as Record<string, unknown>;
+      const snakeCaseAddOns = Array.isArray(meta.add_ons)
+        ? meta.add_ons.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [];
       const listingQuote = await computeListingSubmissionQuote(supabase, {
         tierId:
           typeof meta.tier_id === "string"
@@ -517,15 +527,14 @@ export async function POST(req: Request) {
             : typeof meta.tierId === "string"
               ? meta.tierId
               : null,
-        addOns: Array.isArray(meta.add_ons)
-          ? meta.add_ons.filter(
-              (item): item is string => typeof item === "string",
-            )
-          : Array.isArray(meta.addOns)
-            ? meta.addOns.filter(
-                (item): item is string => typeof item === "string",
-              )
-            : undefined,
+        addOns:
+          snakeCaseAddOns.length > 0
+            ? snakeCaseAddOns
+            : Array.isArray(meta.addOns)
+              ? meta.addOns.filter(
+                  (item): item is string => typeof item === "string",
+                )
+              : undefined,
         frequence:
           typeof meta.frequence === "string" ? meta.frequence : "mensuel",
         monthlyRent:
@@ -921,16 +930,108 @@ export async function POST(req: Request) {
 
     // 7. Update status only if PawaPay COMPLETED immediately
     // Note: ACCEPTED just means queued, not confirmed - must poll for final status
-    if (result.status === "COMPLETED") {
+    if (immediateStatus === "COMPLETED") {
       log("immediate-completion", { depositId });
-      await supabase
-        .from("transactions")
-        .update({
-          status: "completed",
-          metadata: { ...resolvedMetadata, ...result },
-          updated_at: new Date().toISOString(),
-        })
-        .eq("deposit_id", depositId);
+      let completionUpdated: { id: string }[] | null = null;
+      let completionUpdateError: unknown = null;
+      try {
+        if (transactionType === "property_lock" && monthlyPropertyLock) {
+          const completion = await finalizeMonthlyPropertyLock(
+            depositId,
+            result,
+          );
+          completionUpdated = completion.transitioned
+            ? [{ id: transactionRecord.id }]
+            : [];
+        } else {
+          const completion = await supabase
+            .from("transactions")
+            .update({
+              status: "completed",
+              metadata: { ...resolvedMetadata, ...result },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("deposit_id", depositId)
+            .eq("status", "pending")
+            .select("id");
+          completionUpdated = completion.data;
+          completionUpdateError = completion.error;
+        }
+      } catch (error) {
+        completionUpdateError = error;
+      }
+
+      if (completionUpdateError) {
+        log("completion-persistence-uncertain", {
+          depositId,
+          error: String(completionUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
+      }
+
+      if (!completionUpdated?.length) {
+        const { data: current, error: currentError } = await supabase
+          .from("transactions")
+          .select("status, failure_code")
+          .eq("deposit_id", depositId)
+          .single();
+        if (
+          currentError ||
+          (current?.status !== "completed" && current?.status !== "failed")
+        ) {
+          return cors(
+            NextResponse.json(
+              {
+                success: true,
+                depositId,
+                status: "PENDING",
+                raw: { status: "PENDING", depositId },
+              },
+              { status: 202 },
+            ),
+            req,
+          );
+        }
+        if (current.status === "failed") {
+          const failureCode = current.failure_code || "UNSPECIFIED_FAILURE";
+          return cors(
+            NextResponse.json(
+              {
+                success: false,
+                depositId,
+                status: "FAILED",
+                error: paymentFailureMessage(failureCode, "fr"),
+                failureCode,
+              },
+              { status: 422 },
+            ),
+            req,
+          );
+        }
+
+        // The webhook or poller won the completion transition and owns the
+        // one-time fulfillment side effects.
+        return cors(
+          NextResponse.json({
+            success: true,
+            depositId,
+            status: "COMPLETED",
+            raw: { status: "COMPLETED", depositId },
+          }),
+          req,
+        );
+      }
 
       await captureServerEvent(user.id, "payment_completed", {
         deposit_id: depositId,
@@ -977,6 +1078,40 @@ export async function POST(req: Request) {
         }
       } else if (transactionType === "property_lock" && dailyBookingRequestId) {
         await finalizeDailyBookingAfterPaymentDepositId(depositId);
+      } else if (
+        transactionType === "property_lock" &&
+        monthlyPropertyLock &&
+        resolvedPropertyId
+      ) {
+        const { data: lockedProperty } = await supabase
+          .from("properties")
+          .select("quartier, address")
+          .eq("id", resolvedPropertyId)
+          .maybeSingle();
+        const propertyLabel = unescapeText(
+          lockedProperty?.quartier || lockedProperty?.address,
+        );
+        await notifyUserWithTemplate(
+          user.id,
+          "payments",
+          propertyLabel
+            ? "payments.propertyReserved"
+            : "payments.genericCompleted",
+          propertyLabel ? { propertyLabel } : {},
+          {
+            type: "payment_completed",
+            transactionId: transactionRecord.id,
+            depositId,
+            transactionType,
+            amount: resolvedAmount,
+            propertyId: resolvedPropertyId,
+          },
+        ).catch((error) => {
+          log("immediate-lock-notification-failed", {
+            depositId,
+            error: String(error),
+          });
+        });
       }
     }
 

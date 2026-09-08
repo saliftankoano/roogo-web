@@ -20,8 +20,9 @@ import { paymentFailureMessage } from "@/lib/payment-failures";
 function PaymentCallbackContent() {
   const searchParams = useSearchParams();
   const depositId = searchParams.get("depositId");
+  const flow = searchParams.get("flow");
 
-  return <PaymentStatusChecker depositId={depositId} />;
+  return <PaymentStatusChecker depositId={depositId} flow={flow} />;
 }
 
 export default function PaymentCallbackPage() {
@@ -51,7 +52,13 @@ type PaymentContext = {
   description: string | null;
 };
 
-function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
+function PaymentStatusChecker({
+  depositId,
+  flow,
+}: {
+  depositId: string | null;
+  flow: string | null;
+}) {
   const { getToken, isLoaded, isSignedIn } = useAuth();
   const { user } = useUser();
   const router = useRouter();
@@ -427,8 +434,10 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
   // Mobile app users come from PawaPay redirect — Safari has no Clerk session.
   // Show a branded "return to app" page instead of a login wall.
   if (isLoaded && !isSignedIn) {
+    const mobileDestination =
+      flow === "listing_submission" ? "add-property" : "my-properties";
     const appDeepLink = depositId
-      ? `roogo://add-property?payment_status=pending&depositId=${depositId}`
+      ? `roogo://${mobileDestination}?payment_status=pending&depositId=${depositId}`
       : `roogo://my-properties`;
 
     return (
@@ -561,7 +570,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           {/* Deep link back to the Roogo mobile app (for users who came from the app) */}
           {status === "success" && (
             <a
-              href={`roogo://add-property?payment_status=success&depositId=${depositId ?? ""}`}
+              href={`roogo://${paymentContext?.transactionType === "listing_submission" ? "add-property" : "my-properties"}?payment_status=success&depositId=${depositId ?? ""}`}
               style={{ backgroundColor: "#C75B3A" }}
               className="block w-full text-center text-white font-medium py-3 px-4 rounded-xl hover:opacity-90 transition-opacity"
             >

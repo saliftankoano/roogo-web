@@ -358,7 +358,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const returnUrl = validatedExplicitReturnUrl || fallbackReturnUrl;
+    const returnUrlObject = new URL(
+      validatedExplicitReturnUrl || fallbackReturnUrl,
+    );
+    returnUrlObject.searchParams.set("flow", transactionType);
+    const returnUrl = returnUrlObject.toString();
 
     const payload = {
       depositId,

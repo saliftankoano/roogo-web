@@ -1,7 +1,7 @@
 import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
-import { getSupabaseClient } from "@/lib/user-sync";
+import { getOrSyncUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import type { NotificationCopyKey } from "@/lib/notification-copy";
 import { captureServerEvent } from "@/lib/posthog-server";
@@ -20,6 +20,10 @@ import {
   parsePawaPayDepositStatus,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import {
+  finalizeMonthlyPropertyLock,
+  isMonthlyProperty,
+} from "@/lib/property-lock-finalization";
 
 const PAYMENT_PAGE_NOT_FOUND_GRACE_MS = 15 * 60 * 1000;
 
@@ -87,6 +91,12 @@ export async function POST(req: Request) {
     log("checking-status", { depositId });
 
     const supabase = getSupabaseClient();
+    const requestingUser = await getOrSyncUserByClerkId(clerkUserId);
+    if (!requestingUser) {
+      return cors(
+        NextResponse.json({ error: "User not found" }, { status: 404 }),
+      );
+    }
     const getPropertyLabel = async (propertyId: string) => {
       const { data: propertyData } = await supabase
         .from("properties")
@@ -198,8 +208,13 @@ export async function POST(req: Request) {
         errorCode: fetchError?.code,
         errorDetails: fetchError?.details,
       });
-      // Continue to check PawaPay API - transaction might exist there
+      return cors(
+        NextResponse.json({ error: "Payment not found" }, { status: 404 }),
+      );
     } else {
+      if (transaction.user_id !== requestingUser.id) {
+        return cors(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+      }
       log("db-status", {
         depositId,
         dbStatus: transaction.status,
@@ -538,24 +553,61 @@ export async function POST(req: Request) {
 
       const inferredProvider = resolveWebProvider(statusData);
 
-      const { data: updated, error: updateError } = await supabase
-        .from("transactions")
-        .update({
-          status: dbStatus,
-          provider: inferredProvider || transaction.provider,
-          payer_phone: payerPhone,
-          failure_code: dbStatus === "failed" ? failure.code : null,
-          failure_reason:
-            dbStatus === "failed" ? failure.providerMessage : null,
-          metadata: {
-            ...((transaction.metadata as Record<string, unknown>) || {}),
-            pawapay: statusData,
-          },
-          updated_at: new Date().toISOString(),
-        })
-        .eq("deposit_id", depositId)
-        .eq("status", transaction.status)
-        .select("id");
+      let updated: { id: string }[] | null = null;
+      let updateError: unknown = null;
+      try {
+        const atomicMonthlyLock =
+          dbStatus === "completed" &&
+          transaction.type === "property_lock" &&
+          (await isMonthlyProperty(transaction.property_id));
+
+        if (atomicMonthlyLock) {
+          const completion = await finalizeMonthlyPropertyLock(
+            depositId,
+            statusData,
+          );
+          updated = completion.transitioned ? [{ id: transaction.id }] : [];
+          if (completion.paymentStatus === "completed") {
+            const { error: enrichmentError } = await supabase
+              .from("transactions")
+              .update({
+                provider: inferredProvider || transaction.provider,
+                payer_phone: payerPhone,
+              })
+              .eq("id", transaction.id)
+              .eq("status", "completed");
+            if (enrichmentError) {
+              log("completed-lock-enrichment-failed", {
+                depositId,
+                error: String(enrichmentError),
+              });
+            }
+          }
+        } else {
+          const update = await supabase
+            .from("transactions")
+            .update({
+              status: dbStatus,
+              provider: inferredProvider || transaction.provider,
+              payer_phone: payerPhone,
+              failure_code: dbStatus === "failed" ? failure.code : null,
+              failure_reason:
+                dbStatus === "failed" ? failure.providerMessage : null,
+              metadata: {
+                ...((transaction.metadata as Record<string, unknown>) || {}),
+                pawapay: statusData,
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("deposit_id", depositId)
+            .eq("status", transaction.status)
+            .select("id");
+          updated = update.data;
+          updateError = update.error;
+        }
+      } catch (error) {
+        updateError = error;
+      }
 
       if (updateError) {
         log("db-update-failed", { depositId, error: String(updateError) });
@@ -681,12 +733,7 @@ export async function POST(req: Request) {
             .maybeSingle();
 
           let dailyFinalizeBlocked = false;
-          if (propertyRecord?.period !== "day") {
-            await supabase
-              .from("properties")
-              .update({ status: "locked" })
-              .eq("id", transaction.property_id);
-          } else {
+          if (propertyRecord?.period === "day") {
             const finalizeResult = await finalizeDailyBookingAfterPayment(
               transaction.id,
             );

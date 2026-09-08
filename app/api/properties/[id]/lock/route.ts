@@ -19,12 +19,7 @@ import { queuePaymentFailureNotification } from "@/lib/payment-failure-notificat
 import { captureServerEvent } from "@/lib/posthog-server";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { unescapeText } from "@/lib/text-sanitize";
-
-type DirectLockCompletion = {
-  payment_status: string | null;
-  failure_code: string | null;
-  transitioned: boolean;
-};
+import { finalizeMonthlyPropertyLock } from "@/lib/property-lock-finalization";
 
 // Use service role for reading config
 //const supabaseAdmin = createClient(
@@ -427,16 +422,10 @@ export async function POST(
       // Finalize the payment and property together. This prevents a completed
       // transaction from being committed without its property lock, and avoids
       // relying on later status polls that could relock an old property.
-      const { data: completionResult, error: completionUpdateError } =
-        await supabase
-          .rpc("finalize_direct_property_lock", {
-            p_deposit_id: depositId,
-            p_pawapay: result,
-          })
-          .maybeSingle();
-      const completion = completionResult as DirectLockCompletion | null;
-
-      if (completionUpdateError) {
+      let completion;
+      try {
+        completion = await finalizeMonthlyPropertyLock(depositId, result);
+      } catch (completionUpdateError) {
         console.error(
           "Failed to persist completed lock payment:",
           completionUpdateError,
@@ -454,8 +443,8 @@ export async function POST(
         );
       }
 
-      if (completion?.payment_status === "failed") {
-        const failureCode = completion.failure_code || "UNSPECIFIED_FAILURE";
+      if (completion.paymentStatus === "failed") {
+        const failureCode = completion.failureCode || "UNSPECIFIED_FAILURE";
         return cors(
           NextResponse.json(
             {
@@ -470,7 +459,7 @@ export async function POST(
         );
       }
 
-      if (completion?.payment_status !== "completed") {
+      if (completion.paymentStatus !== "completed") {
         return cors(
           NextResponse.json(
             {

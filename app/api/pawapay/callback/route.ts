@@ -21,6 +21,10 @@ import {
   shouldApplyPaymentStatus,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import {
+  finalizeMonthlyPropertyLock,
+  isMonthlyProperty,
+} from "@/lib/property-lock-finalization";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -298,20 +302,58 @@ export async function POST(req: Request) {
       return NextResponse.json({ received: true, statusIgnored: true });
     }
 
-    const { data: updated, error: updateError } = await supabase
-      .from("transactions")
-      .update({
-        status: dbStatus,
-        provider: inferredProvider || transaction.provider,
-        payer_phone: payerPhone,
-        failure_code: dbStatus === "failed" ? failure.code : null,
-        failure_reason: dbStatus === "failed" ? failure.providerMessage : null,
-        metadata: { ...(transaction.metadata || {}), ...data }, // Merge metadata
-        updated_at: new Date().toISOString(),
-      })
-      .eq("deposit_id", transactionId)
-      .eq("status", transaction.status)
-      .select("id");
+    let updated: { id: string }[] | null = null;
+    let updateError: unknown = null;
+    try {
+      const atomicMonthlyLock =
+        dbStatus === "completed" &&
+        transaction.type === "property_lock" &&
+        (await isMonthlyProperty(transaction.property_id));
+
+      if (atomicMonthlyLock) {
+        const completion = await finalizeMonthlyPropertyLock(
+          transactionId,
+          data,
+        );
+        updated = completion.transitioned ? [{ id: transaction.id }] : [];
+        if (completion.paymentStatus === "completed") {
+          const { error: enrichmentError } = await supabase
+            .from("transactions")
+            .update({
+              provider: inferredProvider || transaction.provider,
+              payer_phone: payerPhone,
+            })
+            .eq("id", transaction.id)
+            .eq("status", "completed");
+          if (enrichmentError) {
+            log("completed-lock-enrichment-failed", {
+              transactionId,
+              error: String(enrichmentError),
+            });
+          }
+        }
+      } else {
+        const update = await supabase
+          .from("transactions")
+          .update({
+            status: dbStatus,
+            provider: inferredProvider || transaction.provider,
+            payer_phone: payerPhone,
+            failure_code: dbStatus === "failed" ? failure.code : null,
+            failure_reason:
+              dbStatus === "failed" ? failure.providerMessage : null,
+            metadata: { ...(transaction.metadata || {}), ...data },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("deposit_id", transactionId)
+          .eq("status", transaction.status)
+          .select("id");
+        updated = update.data;
+        updateError = update.error;
+      }
+    } catch (error) {
+      updateError = error;
+    }
 
     if (updateError) {
       log("db-update-failed", { transactionId, error: String(updateError) });
@@ -398,23 +440,6 @@ export async function POST(req: Request) {
             .select("period")
             .eq("id", propertyId)
             .maybeSingle();
-
-          if (propertyRecord?.period !== "day") {
-            const { error: lockError } = await supabase
-              .from("properties")
-              .update({ status: "locked" })
-              .eq("id", propertyId);
-
-            if (lockError) {
-              log("post-payment-lock-failed", {
-                transactionId,
-                propertyId,
-                error: String(lockError),
-              });
-            } else {
-              log("post-payment-lock-success", { transactionId, propertyId });
-            }
-          }
 
           let dailyFinalizeBlocked = false;
           if (propertyRecord?.period === "day") {

@@ -16,6 +16,7 @@ SET search_path = public
 AS $$
 DECLARE
   v_transaction public.transactions%ROWTYPE;
+  v_property_status TEXT;
 BEGIN
   SELECT *
   INTO v_transaction
@@ -35,16 +36,38 @@ BEGIN
   END IF;
 
   IF v_transaction.status = 'completed' THEN
-    -- A callback may have won immediately before this request. Ensure the
-    -- current property is locked, but do not claim its completion side effects.
-    UPDATE public.properties
-    SET status = 'locked'
-    WHERE id = v_transaction.property_id;
+    -- Repair one legacy/partial completion at most once. The marker prevents a
+    -- stale status poll from re-locking a property later in its lifecycle.
+    IF COALESCE(v_transaction.metadata, '{}'::JSONB)
+        ? 'propertyLockFinalizedAt' THEN
+      RETURN QUERY SELECT 'completed'::TEXT, NULL::TEXT, FALSE;
+      RETURN;
+    END IF;
+
+    SELECT status
+    INTO v_property_status
+    FROM public.properties
+    WHERE id = v_transaction.property_id
+    FOR UPDATE;
 
     IF NOT FOUND THEN
       RAISE EXCEPTION 'Property % not found for deposit %',
         v_transaction.property_id, p_deposit_id;
     END IF;
+
+    IF v_property_status = 'en_ligne' THEN
+      UPDATE public.properties
+      SET status = 'locked'
+      WHERE id = v_transaction.property_id;
+    END IF;
+
+    UPDATE public.transactions
+    SET
+      metadata = COALESCE(metadata, '{}'::JSONB) || jsonb_build_object(
+        'propertyLockFinalizedAt', NOW()
+      ),
+      updated_at = NOW()
+    WHERE id = v_transaction.id;
 
     RETURN QUERY SELECT 'completed'::TEXT, NULL::TEXT, FALSE;
     RETURN;
@@ -72,7 +95,7 @@ BEGIN
       CASE
         WHEN p_pawapay IS NULL THEN '{}'::JSONB
         ELSE jsonb_build_object('pawapay', p_pawapay)
-      END,
+      END || jsonb_build_object('propertyLockFinalizedAt', NOW()),
     updated_at = NOW()
   WHERE id = v_transaction.id;
 

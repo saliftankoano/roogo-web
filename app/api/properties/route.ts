@@ -42,6 +42,7 @@ import {
   calculateMonthlyFreeSuccessFee,
   MONTHLY_FREE_SUCCESS_FEE_RATE_BPS,
 } from "@/lib/listing-fees";
+import { listingPaymentMatches } from "@/lib/listing-payment-validation";
 
 const FREE_LISTING_DEFAULT_TIER_ID = "premium";
 const FREE_SUCCESS_FEE_TERMS_VERSION = "monthly-success-fee-2026-08-30";
@@ -429,6 +430,83 @@ export async function POST(req: Request) {
       listingPaymentMode === "upfront_package"
         ? (parsedListingData.tier_id ?? null)
         : FREE_LISTING_DEFAULT_TIER_ID;
+    let listingPaymentTransactionId: string | null = null;
+
+    // A completed listing deposit is a single-use capability. Validate its
+    // owner, purpose and server-priced configuration before creating anything.
+    if (parsedListingData.payment_id) {
+      const { data: paidTransaction, error: paidTransactionError } =
+        await supabase
+          .from("transactions")
+          .select("id, status, type, user_id, property_id, metadata")
+          .eq("deposit_id", parsedListingData.payment_id)
+          .maybeSingle();
+
+      if (paidTransactionError || !paidTransaction) {
+        return errorResponse("Paiement introuvable", 402, req);
+      }
+      if (
+        paidTransaction.user_id !== user.id ||
+        paidTransaction.type !== "listing_submission"
+      ) {
+        return errorResponse(
+          "Ce paiement ne correspond pas à cette annonce",
+          403,
+          req,
+        );
+      }
+      if (paidTransaction.status !== "completed") {
+        return errorResponse(
+          "Le paiement de cette annonce n'est pas confirmé",
+          402,
+          req,
+        );
+      }
+      listingPaymentTransactionId = paidTransaction.id;
+
+      const paymentMetadata =
+        paidTransaction.metadata && typeof paidTransaction.metadata === "object"
+          ? (paidTransaction.metadata as Record<string, unknown>)
+          : {};
+      if (
+        !listingPaymentMatches(paymentMetadata, {
+          tierId: parsedListingData.tier_id ?? null,
+          addOns: effectiveAddOns,
+          frequency: parsedListingData.frequence ?? "",
+          monthlyRent: parsedListingData.prixMensuel,
+        })
+      ) {
+        return errorResponse(
+          "Les détails de l'annonce ne correspondent pas au paiement",
+          409,
+          req,
+        );
+      }
+
+      if (paidTransaction.property_id) {
+        const { data: existingProperty } = await supabase
+          .from("properties")
+          .select("id, status")
+          .eq("id", paidTransaction.property_id)
+          .eq("payment_id", parsedListingData.payment_id)
+          .maybeSingle();
+        if (!existingProperty) {
+          return errorResponse("Ce paiement a déjà été utilisé", 409, req);
+        }
+        return cors(
+          NextResponse.json({
+            success: true,
+            propertyId: existingProperty.id,
+            isVerified: existingProperty.status === "en_ligne",
+            transactionId: parsedListingData.payment_id,
+            listingPaymentMode,
+            deferredSuccessFeeAmount: 0,
+            idempotent: true,
+          }),
+          req,
+        );
+      }
+    }
 
     if (
       isFreeSuccessFeeListing &&
@@ -726,6 +804,55 @@ export async function POST(req: Request) {
       .select()
       .single();
 
+    if (propertyError?.code === "23505" && parsedListingData.payment_id) {
+      const { data: existingProperty } = await supabase
+        .from("properties")
+        .select("id, status")
+        .eq("payment_id", parsedListingData.payment_id)
+        .maybeSingle();
+      if (existingProperty) {
+        const { error: repairTransactionError } = await supabase
+          .from("transactions")
+          .update({
+            property_id: existingProperty.id,
+            updated_at: new Date().toISOString(),
+          })
+          .eq("id", listingPaymentTransactionId!)
+          .is("property_id", null);
+        if (repairTransactionError) {
+          console.error(
+            "Failed to repair listing payment link:",
+            repairTransactionError,
+          );
+          return errorResponse("Failed to link listing payment", 500, req);
+        }
+        await supabase
+          .from("properties")
+          .update({ transaction_id: listingPaymentTransactionId })
+          .eq("id", existingProperty.id);
+        try {
+          await qualifyReferralForTransaction(supabase, {
+            depositId: parsedListingData.payment_id,
+            propertyId: existingProperty.id,
+          });
+        } catch (referralError) {
+          console.error("Error qualifying referral:", referralError);
+        }
+        return cors(
+          NextResponse.json({
+            success: true,
+            propertyId: existingProperty.id,
+            isVerified: existingProperty.status === "en_ligne",
+            transactionId: parsedListingData.payment_id,
+            listingPaymentMode,
+            deferredSuccessFeeAmount: 0,
+            idempotent: true,
+          }),
+          req,
+        );
+      }
+    }
+
     // Slug race: two identical listings created at the same time. Retry once
     // with a random suffix instead of failing the whole creation.
     if (
@@ -882,11 +1009,24 @@ export async function POST(req: Request) {
           updated_at: new Date().toISOString(),
         })
         .eq("deposit_id", parsedListingData.payment_id)
+        .eq("user_id", user.id)
+        .eq("type", "listing_submission")
+        .eq("status", "completed")
+        .is("property_id", null)
         .select()
-        .single();
+        .maybeSingle();
 
-      if (txError) {
+      if (txError || !updatedTransaction) {
         console.error("Error linking transaction to property:", txError);
+        const { data: currentTransaction } = await supabase
+          .from("transactions")
+          .select("property_id")
+          .eq("deposit_id", parsedListingData.payment_id)
+          .maybeSingle();
+        if (currentTransaction?.property_id !== propertyId) {
+          await supabase.from("properties").delete().eq("id", propertyId);
+          return errorResponse("Ce paiement a déjà été utilisé", 409, req);
+        }
       } else if (updatedTransaction) {
         console.log("Transaction linked successfully:", updatedTransaction.id);
         await supabase
