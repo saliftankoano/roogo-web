@@ -12,6 +12,7 @@ import { AcquisitionSourceGate } from "@/components/onboarding/AcquisitionSource
 import { ProfileNameGate } from "@/components/onboarding/ProfileNameGate";
 import {
   ROOGO_MEBO_HOST,
+  ROOGO_PRIMARY_HOST,
   ROOGO_PRIMARY_ORIGIN,
   getForwardedRequestHost,
   isMeboHost,
@@ -20,6 +21,7 @@ import {
 import { AppMotionProvider } from "@/components/motion/AppMotionProvider";
 
 const metaPixelId = process.env.NEXT_PUBLIC_META_PIXEL_ID;
+const googleAnalyticsId = "G-3N95N2MY2F";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -91,6 +93,8 @@ export default async function RootLayout({
   const requestHeaders = await headers();
   const requestHost = getForwardedRequestHost(requestHeaders);
   const isMeboSurface = isMeboHost(requestHost);
+  const enableGoogleAnalytics =
+    requestHost === ROOGO_PRIMARY_HOST || requestHost === "roogobf.com";
   const clerkSatelliteProps = isProductionMeboHost(requestHost)
     ? {
         isSatellite: true as const,
@@ -103,6 +107,24 @@ export default async function RootLayout({
   return (
     <ClerkProvider {...clerkSatelliteProps}>
       <html lang="fr">
+        <head>
+          {enableGoogleAnalytics && (
+            <>
+              <Script
+                src={`https://www.googletagmanager.com/gtag/js?id=${googleAnalyticsId}`}
+                strategy="afterInteractive"
+              />
+              <Script id="google-analytics" strategy="afterInteractive">
+                {`
+                  window.dataLayer = window.dataLayer || [];
+                  function gtag(){dataLayer.push(arguments);}
+                  gtag('js', new Date());
+                  gtag('config', '${googleAnalyticsId}');
+                `}
+              </Script>
+            </>
+          )}
+        </head>
         <body
           className={`${geistSans.variable} ${geistMono.variable} antialiased`}
         >

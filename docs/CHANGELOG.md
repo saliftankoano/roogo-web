@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-09-08
+
+- **Google Analytics connected** (web): Roogo Burkina Web uses measurement ID `G-3N95N2MY2F` across pages on `roogobf.com` and `www.roogobf.com`. The shared layout installs one Google tag; Mebo, localhost, and preview domains do not send traffic to this property.
+
 ## 2026-09-01
 
 - **No-upfront monthly listing economics aligned** (web + mobile + backend + data + docs): every monthly rental now accepts the same one-time 50%-of-listed-rent success fee, including furnished properties; web referral discounts reduce the persisted fee instead of only the preview; owner-sourced and imported renters waive the fee automatically; the UI says 0 FCFA today rather than unqualified “free”; and 7% ongoing rent collection starts enabled on active monthly leases with an owner opt-out for future unpaid rents. Payment APIs enforce the opt-out while preserving a still-due first-rent success fee. Pure fee and collection-access regression tests back both paths. Requires migrations 066 and 067. ([why](./DECISIONS.md#monthly-listing-economics-separate-acquisition-from-default-on-rent-collection--2026-09-01), [how](./SYSTEM.md#how-does-the-no-upfront-monthly-listing-option-earn-revenue))
