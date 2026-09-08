@@ -1,5 +1,7 @@
 # ROO-20 — Property requests
 
+Logbook: [Decisions](./DECISIONS.md) · [System](./SYSTEM.md) · [Changelog](./CHANGELOG.md) · [Domain](./DOMAIN.md) · [Roadmap](./ROADMAP.md)
+
 Issue: https://linear.app/roogo-burkina/issue/ROO-20/roogo-call-for-properties-with-agents-and-web-dashboard-improvement
 
 Mobile counterpart: `roogo`, branch `feat/roo-20-property-requests`.

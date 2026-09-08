@@ -19,6 +19,7 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
   listing; staff reviews it; the listing goes online after its applicable gates
   pass; renters or buyers then work through Roogo's visit, chat, agreement, and
   payment flows.
+- **Property sourcing (ROO-20, pending release):** staff publish an appel à biens; agents or owners propose properties; staff follow up, confirm agent terms and link eligible live listings.
 - **Core hotel workflow:** a hotel team publishes room types and count-based
   inventory; a traveler requests dates directly or through an event code; the
   hotel confirms, the traveler pays, reception operates the stay, and Roogo
@@ -85,6 +86,58 @@ the agreed commercial terms.
 
 **Why it matters for building:** Ownership approval and mandate signature are
 separate sale-publication gates. Passing one never implies the other.
+
+## Property requests
+
+### Appel à biens
+
+**Meaning:** A staff-created call for properties matching a customer's criteria, offered for sale or monthly rent. Mobile labels this surface **Demandes / Requests**. It is separate from a renter's application to an existing listing.
+
+**Origin:** Roogo's local product usage established by ROO-20.
+
+**Why it matters for building:** A call describes demand, not a public annonce. Publishing the call does not publish a property or expose private customer contact details.
+
+**Evidence:** [ROO-20 workflow](./ROO-20.md).
+
+### Proposition / réponse
+
+**Meaning:** One agent or owner's saved property proposal for one appel à biens. Its receipt preserves the submitted details, terms and follow-up status after the call closes.
+
+**Origin:** Roogo's ROO-20 response model and mobile labels.
+
+**Why it matters for building:** A retry retrieves the same proposal instead of replacing it. A response and its linked annonce have separate lifecycles.
+
+**Evidence:** [ROO-20 workflow](./ROO-20.md).
+
+### Apporteur and commission commitment
+
+**Meaning:** In this flow, an agent supplies a property lead as an apporteur. The commission commitment records the rate and conditions acknowledged on submission and subsequently confirmed by staff; an owner response has no agent commission.
+
+**Origin:** Property brokerage language, narrowed by ROO-20's agent role and saved commitment.
+
+**Why it matters for building:** Agent compensation must remain distinct from Roogo's platform fees and referral rewards. A confirmed commitment records terms; it is not a payment, electronic signature or ownership approval.
+
+**Evidence:** [ROO-20 workflow](./ROO-20.md).
+
+### Commission basis
+
+**Meaning:** The amount to which the saved agent rate applies: final sale price (`sale_price`) or one month of rent (`monthly_rent`).
+
+**Origin:** ROO-20's explicit commercial terms.
+
+**Why it matters for building:** Later edits to a call do not change a saved response's basis. A daily-rental listing cannot satisfy a monthly-rent response merely because both use the listing type `louer`.
+
+**Evidence:** [ROO-20 workflow](./ROO-20.md).
+
+### Retenue / Bien publié
+
+**Meaning:** Staff follow-up statuses meaning accepted and linked to a live matching listing, respectively. Retenue confirms the original agent commitment; Bien publié records the listing handoff.
+
+**Origin:** ROO-20's operations labels.
+
+**Why it matters for building:** Neither status replaces the existing ownership review or publication process. Deleting the linked property returns a listed response to accepted and preserves confirmed terms.
+
+**Evidence:** [ROO-20 workflow](./ROO-20.md).
 
 ## Hotel booking and coordinated travel
 

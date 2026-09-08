@@ -7,6 +7,36 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Call editing preserves intent across concurrent staff work — 2026-09-08
+
+**Decision:** Merge the original, local and latest saved call field by field. Adopt unrelated staff updates, require an explicit choice for overlapping edits, and keep unresolved conflicts and drafts through repeated or failed refreshes. Give each editor its own session identity; briefly prevent opening another editor during a save while allowing call browsing.
+
+**Why:** A late save or reload must not erase another draft, reopen a call closed by another operator, or pull the operator back to a previously selected call. Response follow-up drafts also remain independent across sibling saves and filters.
+
+**Ruled out / alternatives:** Blind replacement loses work; last-write-wins can overwrite closure and commission changes. A short editor-switch lock makes save ownership unambiguous without blocking browsing. Compare the full database version, including microseconds.
+
+**Status:** Settled. See [editing behavior](./SYSTEM.md#how-do-staff-edit-calls-without-losing-work) and [release work](./ROADMAP.md#now).
+
+### Deletion preserves commitment history while removing private respondent data — 2026-09-08
+
+**Decision:** Unlink deleted properties and users instead of blocking their deletion or deleting all response history. Anonymize respondent details and queue removed private attachments in the same transaction; retry file removal through the existing storage-cleanup job. Delete listing media only after database deletion succeeds.
+
+**Why:** Existing property and account deletion must continue to work, while saved economic commitments remain explainable. Storage failures must not leave a live listing without its media or misreport a successful database deletion.
+
+**Ruled out / alternatives:** Restrictive foreign keys break deletion; cascading all response data destroys commitment history; removing storage first risks data loss when the database rejects deletion.
+
+**Status:** Settled for ROO-20. Abandoned uploads remain a separate known limitation, not a newly scheduled project. See [retention behavior](./SYSTEM.md#what-survives-property-or-account-deletion).
+
+### Property requests capture explicit agent terms before listing follow-up — 2026-09-08
+
+**Decision:** Staff publish customer needs; agents and owners respond privately once per account and call. Snapshot the agent's acknowledged rate, conditions and sale-price or monthly-rent basis at submission. Staff acceptance confirms those saved terms. Owners acknowledge information and contact consent without earning an agent commission. Linking a listing continues the existing review and publication workflow.
+
+**Why:** Later call edits must not silently change an agent's commitment. A proposal, document declaration, confirmed commitment, published listing and payment are different business events.
+
+**Ruled out / alternatives:** Do not infer agent rates from Roogo's owner success fee, rent-collection fee or referral program. Do not treat acceptance as a payment, signature or ownership verification, or create a second publication workflow.
+
+**Status:** Settled for the draft implementation; release remains pending. See [workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work) and [vocabulary](./DOMAIN.md#property-requests).
+
 ### Monthly listing economics separate acquisition from default-on rent collection — 2026-09-01
 
 **Decision:** Roogo's default monthly-listing offer is “0 FCFA today.” Roogo

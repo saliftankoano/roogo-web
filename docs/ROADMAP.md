@@ -8,10 +8,22 @@ The **Shipped** section below is a high-level, user-benefit view of what
 `roogo-web` does today — derived from the live surfaces (`app/`, `app/api/`,
 `components/`, `vercel.json` crons). It also serves as the **sole backend for the
 mobile app**, so much of this powers `roogo` too; the mobile-side benefit view
-lives in [`roogo/docs/roadmap.md`](../../roogo/docs/roadmap.md). Forward-looking
+lives in [`roogo/docs/ROADMAP.md`](../../roogo/docs/ROADMAP.md). Forward-looking
 work continues in the **Feature Checklist** and detailed sections that follow.
 
 ---
+
+## Now
+
+- [ ] **Finish ROO-20 release validation** — make customer calls usable by agents, owners and operations across both products. As of 2026-09-08, [web PR #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile PR #30](https://github.com/saliftankoano/roogo/pull/30) are reviewed draft implementations, not shipped features. Done when: a deployed test backend with migrations 068 and 069 supports native agent and owner submission, image/PDF selection, real private uploads, receipt access and retry checks; any resulting issues are resolved. Local automated coverage and renter access-denial checks are recorded in the [runbook](./ROO-20.md#validation).
+
+## Next
+
+- [ ] **Roll out the coordinated property-request workflow** — make the reviewed feature available with its backend dependencies in place. Done when: the paired PRs are merged, migrations are applied to the target environment in order, the matching web/API deployment is verified, and the mobile counterpart is released and checked. Staff must supply approved commission terms before opening calls. Record verified release evidence in [CHANGELOG.md](./CHANGELOG.md), then close this item. See [release order](./ROO-20.md#release-order) and [product decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08).
+
+## Later
+
+No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
 ## Recently completed
 
