@@ -21,6 +21,7 @@ import {
   type PaymentCountry,
 } from "@/lib/payment-providers";
 import { roogoMotion } from "@/lib/motion";
+import { paymentFailureMessage } from "@/lib/payment-failures";
 
 interface PropertyPaymentModalProps {
   isOpen: boolean;
@@ -34,13 +35,7 @@ interface PropertyPaymentModalProps {
 }
 
 type PaymentStep =
-  | "country"
-  | "provider"
-  | "phone"
-  | "otp"
-  | "processing"
-  | "success"
-  | "error";
+  "country" | "provider" | "phone" | "otp" | "processing" | "success" | "error";
 
 export default function PropertyPaymentModal({
   isOpen,
@@ -207,7 +202,7 @@ export default function PropertyPaymentModal({
         } else if (data.status === "FAILED" || data.status === "REJECTED") {
           clearInterval(pollingRef.current!);
           pollingRef.current = null;
-          setErrorMessage("Paiement refuse. Veuillez reessayer.");
+          setErrorMessage(paymentFailureMessage(data.failureCode, "fr"));
           setStep("error");
         }
       } catch {

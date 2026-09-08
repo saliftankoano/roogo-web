@@ -167,6 +167,14 @@ export async function POST(
     const currency = "XOF";
 
     const payerClientCode = resolvedCorrespondentCode;
+    const transactionMetadata = {
+      monthlyRent: breakdown.monthlyRent,
+      cautionMois: breakdown.cautionMois,
+      loyerAvanceMois: breakdown.loyerAvanceMois,
+      cautionAmount: breakdown.cautionAmount,
+      advanceRentAmount: breakdown.advanceRentAmount,
+      totalMoveInAmount: breakdown.totalAmount,
+    };
 
     // Persist the same normalized MSISDN sent to PawaPay.
     let formattedPhone = (phoneNumber as string).replace(/\s/g, "");
@@ -176,27 +184,24 @@ export async function POST(
       formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
     }
 
-    const { error: dbError } = await supabase.from("transactions").insert({
-      deposit_id: depositId,
-      amount: paymentAmount,
-      currency: currency,
-      status: "pending",
-      type: "property_lock",
-      provider: payerClientCode,
-      user_id: user.id,
-      property_id: propertyId,
-      payer_phone: formattedPhone,
-      metadata: {
-        monthlyRent: breakdown.monthlyRent,
-        cautionMois: breakdown.cautionMois,
-        loyerAvanceMois: breakdown.loyerAvanceMois,
-        cautionAmount: breakdown.cautionAmount,
-        advanceRentAmount: breakdown.advanceRentAmount,
-        totalMoveInAmount: breakdown.totalAmount,
-      },
-    });
+    const { data: transactionRecord, error: dbError } = await supabase
+      .from("transactions")
+      .insert({
+        deposit_id: depositId,
+        amount: paymentAmount,
+        currency: currency,
+        status: "pending",
+        type: "property_lock",
+        provider: payerClientCode,
+        user_id: user.id,
+        property_id: propertyId,
+        payer_phone: formattedPhone,
+        metadata: transactionMetadata,
+      })
+      .select("id")
+      .single();
 
-    if (dbError) {
+    if (dbError || !transactionRecord) {
       console.error("Database insertion error:", dbError);
       return cors(
         NextResponse.json(
@@ -299,7 +304,7 @@ export async function POST(
           status: "failed",
           failure_code: failure.code,
           failure_reason: failure.providerMessage,
-          metadata: result,
+          metadata: { ...transactionMetadata, pawapay: result },
         })
         .eq("deposit_id", depositId)
         .eq("status", "pending")
@@ -330,6 +335,7 @@ export async function POST(
         failureCode: failure.code,
         payerPhone: formattedPhone,
         userId: user.id,
+        transactionId: transactionRecord.id,
         transactionType: "property_lock",
         propertyId,
       });
@@ -358,7 +364,7 @@ export async function POST(
           status: "failed",
           failure_code: failure.code,
           failure_reason: failure.providerMessage,
-          metadata: result,
+          metadata: { ...transactionMetadata, pawapay: result },
         })
         .eq("deposit_id", depositId)
         .eq("status", "pending")
@@ -387,6 +393,7 @@ export async function POST(
         failureCode: failure.code,
         payerPhone: formattedPhone,
         userId: user.id,
+        transactionId: transactionRecord.id,
         transactionType: "property_lock",
         propertyId,
       });
@@ -403,6 +410,95 @@ export async function POST(
           { status: 422 },
         ),
       );
+    }
+
+    if (immediateStatus === "COMPLETED") {
+      const { data: completionUpdated, error: completionUpdateError } =
+        await supabase
+          .from("transactions")
+          .update({
+            status: "completed",
+            metadata: { ...transactionMetadata, pawapay: result },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("deposit_id", depositId)
+          .eq("status", "pending")
+          .select("id");
+
+      if (completionUpdateError) {
+        console.error(
+          "Failed to persist completed lock payment:",
+          completionUpdateError,
+        );
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+        );
+      }
+
+      if (!completionUpdated?.length) {
+        const { data: current, error: currentError } = await supabase
+          .from("transactions")
+          .select("status, failure_code")
+          .eq("deposit_id", depositId)
+          .single();
+
+        if (currentError || current?.status !== "completed") {
+          if (current?.status === "failed") {
+            const failureCode = current.failure_code || "UNSPECIFIED_FAILURE";
+            return cors(
+              NextResponse.json(
+                {
+                  success: false,
+                  depositId,
+                  status: "FAILED",
+                  error: paymentFailureMessage(failureCode, "fr"),
+                  failureCode,
+                },
+                { status: 422 },
+              ),
+            );
+          }
+          return cors(
+            NextResponse.json(
+              {
+                success: true,
+                depositId,
+                status: "PENDING",
+                raw: { status: "PENDING", depositId },
+              },
+              { status: 202 },
+            ),
+          );
+        }
+      }
+
+      const { error: lockError } = await supabase
+        .from("properties")
+        .update({ status: "locked" })
+        .eq("id", propertyId);
+
+      if (lockError) {
+        console.error("Failed to finalize property lock:", lockError);
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+        );
+      }
     }
 
     return cors(

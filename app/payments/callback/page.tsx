@@ -428,7 +428,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
   // Show a branded "return to app" page instead of a login wall.
   if (isLoaded && !isSignedIn) {
     const appDeepLink = depositId
-      ? `roogo://my-properties?payment_status=completed&depositId=${depositId}`
+      ? `roogo://my-properties?payment_status=pending&depositId=${depositId}`
       : `roogo://my-properties`;
 
     return (
@@ -439,14 +439,19 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
               className="w-16 h-16 rounded-full flex items-center justify-center"
               style={{ backgroundColor: "#FBF0E8" }}
             >
-              <CheckCircle2 className="w-8 h-8" style={{ color: "#C96A2E" }} />
+              <Loader2
+                className="w-8 h-8 animate-spin"
+                style={{ color: "#C96A2E" }}
+              />
             </div>
           </div>
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
-            Paiement terminé
+            Paiement transmis
           </h1>
           <p className="text-gray-500 mb-6">
-            Retournez dans l&apos;application Roogo pour suivre votre annonce.
+            Retournez dans l&apos;application Roogo pour vérifier le statut du
+            paiement. Un paiement transmis n&apos;est confirmé qu&apos;après sa
+            validation par Mobile Money.
           </p>
           <a
             href={appDeepLink}

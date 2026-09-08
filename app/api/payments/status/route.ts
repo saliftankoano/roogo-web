@@ -272,6 +272,26 @@ export async function POST(req: Request) {
                 reason: finalizeResult.reason,
               });
             }
+          } else {
+            // Repair a completed direct lock whose initiating request won the
+            // transaction CAS but could not finish the property write.
+            const { error: lockError } = await supabase
+              .from("properties")
+              .update({ status: "locked" })
+              .eq("id", transaction.property_id);
+            if (lockError) {
+              log("completed-lock-repair-failed", {
+                depositId,
+                propertyId: transaction.property_id,
+                error: String(lockError),
+              });
+              return cors(
+                NextResponse.json(
+                  { success: false, error: "Failed to finalize property lock" },
+                  { status: 500 },
+                ),
+              );
+            }
           }
         }
 
@@ -568,7 +588,10 @@ export async function POST(req: Request) {
       }
 
       if (!updated?.length) {
-        log("db-update-raced", { depositId, previousStatus: transaction.status });
+        log("db-update-raced", {
+          depositId,
+          previousStatus: transaction.status,
+        });
         const { data: current } = await supabase
           .from("transactions")
           .select("status, failure_code")
@@ -802,8 +825,7 @@ export async function POST(req: Request) {
         success: true,
         status: status,
         raw: { status, depositId },
-        failureCode:
-          resolvedDbStatus === "failed" ? failure.code : undefined,
+        failureCode: resolvedDbStatus === "failed" ? failure.code : undefined,
         context,
       }),
     );
