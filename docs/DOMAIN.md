@@ -97,7 +97,7 @@ separate sale-publication gates. Passing one never implies the other.
 
 **Why it matters for building:** A call describes demand, not a public annonce. Publishing the call does not publish a property or expose private customer contact details.
 
-**Evidence:** [ROO-20 workflow](./ROO-20.md).
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
 
 ### Proposition / réponse
 
@@ -107,7 +107,7 @@ separate sale-publication gates. Passing one never implies the other.
 
 **Why it matters for building:** A retry retrieves the same proposal instead of replacing it. A response and its linked annonce have separate lifecycles.
 
-**Evidence:** [ROO-20 workflow](./ROO-20.md).
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
 
 ### Apporteur and commission commitment
 
@@ -117,7 +117,7 @@ separate sale-publication gates. Passing one never implies the other.
 
 **Why it matters for building:** Agent compensation must remain distinct from Roogo's platform fees and referral rewards. A confirmed commitment records terms; it is not a payment, electronic signature or ownership approval.
 
-**Evidence:** [ROO-20 workflow](./ROO-20.md).
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
 
 ### Commission basis
 
@@ -127,7 +127,7 @@ separate sale-publication gates. Passing one never implies the other.
 
 **Why it matters for building:** Later edits to a call do not change a saved response's basis. A daily-rental listing cannot satisfy a monthly-rent response merely because both use the listing type `louer`.
 
-**Evidence:** [ROO-20 workflow](./ROO-20.md).
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
 
 ### Retenue / Bien publié
 
@@ -137,7 +137,7 @@ separate sale-publication gates. Passing one never implies the other.
 
 **Why it matters for building:** Neither status replaces the existing ownership review or publication process. Deleting the linked property returns a listed response to accepted and preserves confirmed terms.
 
-**Evidence:** [ROO-20 workflow](./ROO-20.md).
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
 
 ## Hotel booking and coordinated travel
 

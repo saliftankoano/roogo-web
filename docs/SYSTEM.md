@@ -10,7 +10,7 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 As of 2026-09-08, ROO-20 is implemented and reviewed on draft PRs [web #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile #30](https://github.com/saliftankoano/roogo/pull/30). Shared database migrations and the mobile release have not been performed by this task. Local tests and preview deployments are not production release evidence.
 
-An [appel à biens](./DOMAIN.md#appel-à-biens) captures a customer's property need. Operations owns the call and follow-up; mobile agents and owners supply proposals. The backend authenticates Clerk bearer tokens and enforces identity, role, privacy and submission rules.
+An [appel à biens](./DOMAIN.md#appel-à-biens) captures a customer's property need. Operations owns the call and follow-up in **Opérations → Appels à biens** (`/admin/property-requests`); mobile agents and owners supply proposals. Staff publish a draft by selecting **Ouvert** and close it when no further proposals are needed. The backend authenticates Clerk bearer tokens and enforces identity, role, privacy and submission rules.
 
 | Actor | Access and responsibility |
 | --- | --- |
@@ -24,7 +24,7 @@ A submission records the property details, document declarations and optional pr
 
 Staff move responses through submitted, contacted, accepted, listed or rejected. **Retenue** confirms an agent's saved commitment, which staff can print and the agent can share. Owners have no agent commission. **Bien publié** requires a live listing belonging to the respondent and matching the response's saved transaction basis. Daily rentals cannot fulfill a monthly call. Existing listing creation, ownership review and publication gates still apply; response status alone does not perform those actions or pay anyone.
 
-See the [decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08), [release roadmap](./ROADMAP.md#now), and [ROO-20 runbook](./ROO-20.md) for commands and validation evidence.
+See the [decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08), [release roadmap](./ROADMAP.md#now), and [PR #31](https://github.com/saliftankoano/roogo-web/pull/31) for validation evidence.
 
 ## How do staff edit calls without losing work?
 
@@ -32,17 +32,17 @@ Call editing compares the original version, local draft and latest saved record.
 
 Editor sessions own their asynchronous saves. Opening another editor is disabled while a save is pending, but browsing calls remains available and save completion respects the current selection. Failures release controls and retain the draft. Response drafts are tracked separately so saving one response, filtering, refreshing or typing during an earlier save does not erase newer or sibling work.
 
-See the [concurrency decision](./DECISIONS.md#call-editing-preserves-intent-across-concurrent-staff-work--2026-09-08) and browser regression instructions in [ROO-20](./ROO-20.md#validation).
+See the [concurrency decision](./DECISIONS.md#call-editing-preserves-intent-across-concurrent-staff-work--2026-09-08) and browser regression instructions in [PR #31](https://github.com/saliftankoano/roogo-web/pull/31).
 
 ## What survives property or account deletion?
 
 Deleting a linked property clears its response link and records the deletion. A listed response returns to accepted while retaining its confirmed commission. Deleting a respondent clears their user reference, contact and precise location details, freeform response and staff notes, document declarations and attachment references. Deidentified economic history remains. Deleting a creator or confirmer also clears the reference instead of blocking account deletion.
 
-Removed response files enter a private cleanup queue transactionally. The existing hourly storage-cleanup job retries removal. Listing media removal begins only after successful database deletion. Attachment reads use ten-minute signed URLs; uploads are scoped to the respondent and call and validated before submission. Up to ten JPG, PNG, WebP or PDF attachments are allowed, each at most 10 MB.
+Removed response files enter a private cleanup queue transactionally. The existing hourly `/api/cron/property-storage-cleanup` job retries removal. Listing media removal begins only after successful database deletion. Attachment reads use ten-minute signed URLs; refresh the call to renew them. Uploads use the private `property-request-files` bucket, are scoped to the respondent and call, and are validated before submission. Up to ten JPG, PNG, WebP or PDF attachments are allowed, each at most 10 MB.
 
 **Known limitation:** interrupted or abandoned uploads that never become response attachments can remain unreferenced in storage. The deletion queue does not establish a general orphan-upload cleanup policy.
 
-See the [retention decision](./DECISIONS.md#deletion-preserves-commitment-history-while-removing-private-respondent-data--2026-09-08). The [runbook](./ROO-20.md#release-order) owns migration and deployment details.
+See the [retention decision](./DECISIONS.md#deletion-preserves-commitment-history-while-removing-private-respondent-data--2026-09-08). The [release roadmap](./ROADMAP.md#next) records migration and deployment dependencies.
 
 ## How does the Roogo hotel program work?
 
