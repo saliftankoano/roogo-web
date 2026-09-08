@@ -67,33 +67,59 @@ try {
     updated_at: "2026-09-07T12:00:00.000Z",
     response_count: 0,
   };
+  const secondRecord = {
+    ...record,
+    id: "04040404-0404-4404-8404-040404040404",
+    title: "Deuxième appel de contrôle",
+  };
+  let holdNextMutation = false;
+  let failNextMutation = false;
+  let releaseMutation;
   let revision = 0;
   let failDetailOnce = false;
-  const update = (changes) =>
-    Object.assign(record, changes, {
+  const update = (changes, target = record) =>
+    Object.assign(target, changes, {
       updated_at: new Date(
         Date.parse(record.created_at) + ++revision * 1000,
       ).toISOString(),
     });
   await page.route("**/api/property-requests**", async (route) => {
+    const target = route.request().url().endsWith(secondRecord.id)
+      ? secondRecord
+      : record;
+    if (["PUT", "POST"].includes(route.request().method())) {
+      if (holdNextMutation) {
+        holdNextMutation = false;
+        await new Promise((resolve) => {
+          releaseMutation = resolve;
+        });
+      }
+      if (failNextMutation) {
+        failNextMutation = false;
+        return route.fulfill({
+          status: 500,
+          json: { error: "Échec temporaire de l’enregistrement." },
+        });
+      }
+    }
     if (route.request().method() === "POST") {
       update(JSON.parse(route.request().postData()));
       return route.fulfill({ status: 201, json: { request: record } });
     }
     if (route.request().method() === "PUT") {
       const body = JSON.parse(route.request().postData());
-      if (body.updated_at !== record.updated_at)
+      if (body.updated_at !== target.updated_at)
         return route.fulfill({
           status: 409,
           json: {
             error: "Cet appel a changé. Actualisez avant de le modifier.",
           },
         });
-      update(body);
-      return route.fulfill({ json: { request: record } });
+      update(body, target);
+      return route.fulfill({ json: { request: target } });
     }
     if (route.request().url().endsWith("/api/property-requests"))
-      return route.fulfill({ json: { requests: [record] } });
+      return route.fulfill({ json: { requests: [record, secondRecord] } });
     if (failDetailOnce) {
       failDetailOnce = false;
       return route.fulfill({
@@ -101,7 +127,7 @@ try {
         json: { error: "Temporary failure" },
       });
     }
-    return route.fulfill({ json: { request: record, responses: [] } });
+    return route.fulfill({ json: { request: target, responses: [] } });
   });
   const saveButton = page.getByRole("button", {
     name: "Enregistrer",
@@ -274,7 +300,31 @@ try {
   const created = page.waitForResponse(
     (response) => response.request().method() === "POST",
   );
+  holdNextMutation = true;
+  const postStarted = page.waitForRequest(
+    (request) => request.method() === "POST",
+  );
   await saveButton.click();
+  await postStarted;
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Nouvel appel", exact: true })
+      .isDisabled(),
+    true,
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Modifier", exact: true })
+      .isDisabled(),
+    true,
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Annuler", exact: true })
+      .isDisabled(),
+    true,
+  );
+  releaseMutation();
   assert.equal((await created).status(), 201);
   assert.equal(record.title, "Nouvel appel mensuel");
   assert.equal(record.listing_type, "louer");
@@ -283,6 +333,121 @@ try {
   assert.equal(record.commission_rate, 2.5);
   console.log(
     "PASS: ordinary call creation and publishing still use the entered values and defaults.",
+  );
+
+  await page
+    .getByRole("heading", { name: "Nouvel appel à biens" })
+    .waitFor({ state: "hidden" });
+  await page.getByRole("button", { name: "Modifier", exact: true }).click();
+  await page
+    .getByLabel("Titre de l’appel *")
+    .fill("Enregistrement lent du premier appel");
+  holdNextMutation = true;
+  const putStarted = page.waitForRequest(
+    (request) => request.method() === "PUT",
+  );
+  await saveButton.click();
+  await putStarted;
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Nouvel appel", exact: true })
+      .isDisabled(),
+    true,
+  );
+  await page
+    .getByRole("button", { name: /Deuxième appel de contrôle/ })
+    .click();
+  await page
+    .getByRole("heading", { name: secondRecord.title, exact: true })
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Modifier", exact: true })
+      .isDisabled(),
+    true,
+  );
+  const oldSave = page.waitForResponse(
+    (response) => response.request().method() === "PUT",
+  );
+  releaseMutation();
+  assert.equal((await oldSave).status(), 200);
+  await page
+    .getByRole("heading", { name: "Modifier l’appel" })
+    .waitFor({ state: "hidden" });
+  await page
+    .getByRole("heading", { name: secondRecord.title, exact: true })
+    .waitFor();
+  assert.equal(
+    await page
+      .getByRole("button", { name: /Deuxième appel de contrôle/ })
+      .getAttribute("aria-pressed"),
+    "true",
+  );
+  console.log(
+    "PASS: a pending save prevents editor replacement, and completion preserves a different call being browsed.",
+  );
+
+  await page.getByRole("button", { name: "Modifier", exact: true }).click();
+  await page
+    .getByLabel("Titre de l’appel *")
+    .fill("Brouillon conservé après échec");
+  // Clicking Modifier again for the current call must not reset the current draft.
+  await page.getByRole("button", { name: "Modifier", exact: true }).click();
+  assert.equal(
+    await page.getByLabel("Titre de l’appel *").inputValue(),
+    "Brouillon conservé après échec",
+  );
+  holdNextMutation = true;
+  failNextMutation = true;
+  const failedStarted = page.waitForRequest(
+    (request) => request.method() === "PUT",
+  );
+  await saveButton.click();
+  await failedStarted;
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Nouvel appel", exact: true })
+      .isDisabled(),
+    true,
+  );
+  const failedSave = page.waitForResponse(
+    (response) => response.request().method() === "PUT",
+  );
+  releaseMutation();
+  assert.equal((await failedSave).status(), 500);
+  await page
+    .getByText("Échec temporaire de l’enregistrement.", { exact: true })
+    .waitFor();
+  assert.equal(
+    await page.getByLabel("Titre de l’appel *").inputValue(),
+    "Brouillon conservé après échec",
+  );
+  assert.equal(
+    await page
+      .getByRole("button", { name: "Nouvel appel", exact: true })
+      .isEnabled(),
+    true,
+  );
+  await save(200);
+  await page
+    .getByRole("heading", { name: "Modifier l’appel" })
+    .waitFor({ state: "hidden" });
+  assert.equal(secondRecord.title, "Brouillon conservé après échec");
+  await page.getByRole("button", { name: "Modifier", exact: true }).click();
+  assert.equal(
+    await page.getByLabel("Titre de l’appel *").inputValue(),
+    secondRecord.title,
+  );
+  await page
+    .getByLabel("Titre de l’appel *")
+    .fill("Brouillon de la nouvelle session");
+  await page.getByRole("button", { name: "Modifier", exact: true }).click();
+  assert.equal(
+    await page.getByLabel("Titre de l’appel *").inputValue(),
+    "Brouillon de la nouvelle session",
+  );
+  console.log(
+    "PASS: failed saves preserve the draft and release controls; retries and reopening the same call remain usable.",
   );
 } finally {
   await browser?.close();

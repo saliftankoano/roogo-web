@@ -1,7 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import {
   HouseLineIcon,
   PlusIcon,
@@ -62,13 +68,16 @@ function RequestForm({
   latest,
   onSaved,
   onCancel,
+  onSavingChange,
 }: {
   request: PropertyRequest | null;
   latest: PropertyRequest | null;
   onSaved: (request: PropertyRequest) => void;
   onCancel: () => void;
+  onSavingChange: (saving: boolean) => void;
 }) {
   const [saving, setSaving] = useState(false);
+  const savingRef = useRef(false);
   const [error, setError] = useState("");
   const [model, setModel] = useState(() => ({
     base: request,
@@ -125,7 +134,7 @@ function RequestForm({
     }));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (saving || model.conflicts.length) return;
+    if (savingRef.current || model.conflicts.length) return;
     const value = (key: RequestField) => model.draft[key];
     const optionalNumber = (key: RequestField) =>
       value(key) === "" ? null : Number(value(key));
@@ -148,7 +157,9 @@ function RequestForm({
       status: value("status"),
       ...(model.base ? { updated_at: model.base.updated_at } : {}),
     };
+    savingRef.current = true;
     setSaving(true);
+    onSavingChange(true);
     setError("");
     setNotice("");
     try {
@@ -177,7 +188,9 @@ function RequestForm({
       }
       setError(e instanceof Error ? e.message : "Enregistrement impossible.");
     } finally {
+      savingRef.current = false;
       setSaving(false);
+      onSavingChange(false);
     }
   }
   const textField = (
@@ -695,6 +708,12 @@ function ResponseCard({
   );
 }
 
+type EditorSession = {
+  id: number;
+  request: PropertyRequest | null;
+  saving: boolean;
+};
+
 export default function PropertyRequestsPage() {
   const [requests, setRequests] = useState<PropertyRequest[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
@@ -705,7 +724,29 @@ export default function PropertyRequestsPage() {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [error, setError] = useState("");
-  const [editor, setEditor] = useState<PropertyRequest | "new" | null>(null);
+  const [editor, setEditor] = useState<EditorSession | null>(null);
+  const activeEditor = useRef<EditorSession | null>(null);
+  const editorSequence = useRef(0);
+  const openEditor = (request: PropertyRequest | null) => {
+    const current = activeEditor.current;
+    if (current?.saving || (current && current.request?.id === request?.id))
+      return;
+    const next = { id: ++editorSequence.current, request, saving: false };
+    activeEditor.current = next;
+    setEditor(next);
+  };
+  const closeEditor = (sessionId: number) => {
+    if (activeEditor.current?.id !== sessionId) return false;
+    activeEditor.current = null;
+    setEditor(null);
+    return true;
+  };
+  const setEditorSaving = (sessionId: number, saving: boolean) => {
+    if (activeEditor.current?.id !== sessionId) return;
+    const next = { ...activeEditor.current, saving };
+    activeEditor.current = next;
+    setEditor(next);
+  };
   const [search, setSearch] = useState("");
   const [filter, setFilter] = useState("all");
   const [responseFilter, setResponseFilter] = useState("all");
@@ -783,7 +824,7 @@ export default function PropertyRequestsPage() {
           >
             <ArrowClockwiseIcon size={20} />
           </Button>
-          <Button onClick={() => setEditor("new")}>
+          <Button onClick={() => openEditor(null)} disabled={editor?.saving}>
             <PlusIcon size={18} className="mr-2" />
             Nouvel appel
           </Button>
@@ -817,17 +858,25 @@ export default function PropertyRequestsPage() {
       </div>
       {editor && (
         <RequestForm
-          key={editor === "new" ? "new" : editor.id}
-          request={editor === "new" ? null : editor}
+          key={editor.id}
+          request={editor.request}
           latest={
-            editor === "new"
+            !editor.request
               ? null
-              : requests.find((request) => request.id === editor.id) || editor
+              : requests.find((request) => request.id === editor.request?.id) ||
+                editor.request
           }
-          onCancel={() => setEditor(null)}
+          onCancel={() => {
+            if (!activeEditor.current?.saving) closeEditor(editor.id);
+          }}
+          onSavingChange={(saving) => setEditorSaving(editor.id, saving)}
           onSaved={(request) => {
-            setEditor(null);
-            setSelectedId(request.id);
+            // Completion belongs to this editor session, including when the same call is reopened.
+            if (closeEditor(editor.id)) {
+              setSelectedId((current) =>
+                current === selectedId ? request.id : current,
+              );
+            }
             refresh();
           }}
         />
@@ -923,7 +972,8 @@ export default function PropertyRequestsPage() {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setEditor(detail.request)}
+                    onClick={() => openEditor(detail.request)}
+                    disabled={editor?.saving}
                   >
                     Modifier
                   </Button>
