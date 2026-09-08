@@ -64,3 +64,5 @@ apply_migration*
 
 # Supabase CLI
 supabase/.temp/
+
+!scripts/test-property-request-dashboard.mjs

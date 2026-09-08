@@ -14,6 +14,8 @@ Review all respondents from the call, call or contact them through the displayed
 
 Select an existing announcement belonging to the respondent to connect the response to the listing workflow. **Bien publié** requires a live announcement matching the response’s saved transaction basis; daily rentals cannot fulfill monthly requests. Draft follow-up edits survive saves, filters, and refreshes. Conflicting staff updates return 409 so the operator can inspect the saved version before keeping their draft. Listing creation and ownership verification continue through the existing announcement tools. Close the call when no further proposals are needed; existing respondents retain their submission and follow-up status.
 
+When a call changes during editing, the editor retrieves the latest version and preserves the local draft. Unrelated staff changes (including closure) are retained. If both people edited the same field, the operator must choose the saved value or their draft before saving. Refreshing repeatedly does not dismiss unresolved conflicts, and a failed reload preserves the draft for retry.
+
 ## Release order
 
 1. Apply `supabase/migrations/068_property_requests.sql` and then `069_property_request_deletion_safety.sql` to the target Supabase database through the normal migration process. These create private request/response tables, a service-role-only submission function, the private `property-request-files` storage bucket, and deletion-safe references with a private-file cleanup queue.
@@ -29,10 +31,12 @@ Uploads accept JPG, PNG, WebP and PDF, up to 10 MB per file and 10 attachments p
 
 ## Validation
 
-- `npm test`: 65 tests passed, including API access/privacy, rental frequency, saved transaction basis, stale staff edits, deletion ordering, signed receipts, and cleanup retries.
+- `npm test`: 70 tests passed, including API access/privacy, rental frequency, saved transaction basis, stale staff edits, deletion ordering, signed receipts, cleanup retries, field-level conflict merging and microsecond version ordering.
 - `npm run test:property-requests:db`: migration, role privileges, current-terms acknowledgement, immutable commission snapshots, duplicate retries, closed/draft rejection, owner commission, private bucket, linked-listing deletion, cascading account deletion, anonymized response archives, preserved commission records, and private-file cleanup permissions.
 - `npx tsc --noEmit --incremental false`, focused ESLint and `npm run motion:audit` passed.
 - `npm run build`: production Turbopack build passed.
 - Interactive browser preview with test data: desktop and 390px layouts, respondent/contact display, follow-up save and request creation/publishing form. Preview uses mocked API responses; it does not validate a live Supabase deployment.
 - Browser regression checks confirm sibling drafts survive save/filter/refresh, and concurrent staff conflicts preserve edits until reviewed. New edits also survive a refresh while an earlier save is in flight.
 - Mobile counterpart: 14 tests passed; React Native Web previews exercised feed/search/filter and complete property submission/receipt. The iOS development bundle loaded on iPhone 17 Pro and the signed-in renter was correctly denied access to the new feed. Native agent/owner submission and real storage uploads still require a deployed test backend and an appropriate signed-in account.
+
+Run the repeatable call-editor browser checks with `npm run test:property-requests:browser` after installing Chromium via `npx playwright install chromium`. Alternatively set `CHROME_EXECUTABLE` to an installed Chrome binary. The tests bundle the actual dashboard, use a temporary local server with mocked APIs, and clean up after completion. They cover conflict recovery, repeated and failed refreshes, preserving other staff edits, and ordinary creation/publishing.

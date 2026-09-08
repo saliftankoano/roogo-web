@@ -9,6 +9,13 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import {
+  isNewerRequestVersion,
+  mergeRequestDraft,
+  toRequestDraft,
+  REQUEST_FIELD_LABELS,
+  type RequestField,
+} from "@/lib/property-request-drafts";
+import {
   PROPERTY_REQUEST_TYPES,
   RESPONSE_LABELS,
   RESPONSE_STATUSES,
@@ -24,36 +31,103 @@ const fieldClass =
   "mt-1 w-full rounded-xl border border-neutral-200 bg-white px-3 py-2.5 text-sm font-medium outline-none focus:border-primary focus:ring-1 focus:ring-primary";
 const panelClass = "rounded-3xl border border-neutral-200 bg-white p-5 md:p-6";
 
+class RequestApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message);
+  }
+}
+
 async function api<T>(url: string, init?: RequestInit): Promise<T> {
   const res = await fetch(url, {
     ...init,
     cache: "no-store",
     headers: { "Content-Type": "application/json", ...init?.headers },
   });
-  const data = await res.json();
-  if (!res.ok) throw new Error(data.error || "Opération impossible.");
+  const data = await res.json().catch(() => null);
+  if (!res.ok)
+    throw new RequestApiError(
+      data?.error || "Opération impossible.",
+      res.status,
+    );
+  if (!data)
+    throw new Error("Réponse du serveur invalide. Veuillez réessayer.");
   return data as T;
 }
 
 function RequestForm({
   request,
+  latest,
   onSaved,
   onCancel,
 }: {
   request: PropertyRequest | null;
+  latest: PropertyRequest | null;
   onSaved: (request: PropertyRequest) => void;
   onCancel: () => void;
 }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const [listingType, setListingType] = useState(
-    request?.listing_type || "vendre",
-  );
+  const [model, setModel] = useState(() => ({
+    base: request,
+    draft: toRequestDraft(request),
+    conflicts: [] as RequestField[],
+  }));
+  const [notice, setNotice] = useState("");
+  const listingType = model.draft.listing_type;
+  const receiveLatest = useCallback((incoming: PropertyRequest) => {
+    setModel((current) => {
+      if (
+        !current.base ||
+        incoming.id !== current.base.id ||
+        !isNewerRequestVersion(incoming.updated_at, current.base.updated_at)
+      )
+        return current;
+      return {
+        base: incoming,
+        ...mergeRequestDraft(
+          toRequestDraft(current.base),
+          current.draft,
+          toRequestDraft(incoming),
+          current.conflicts,
+        ),
+      };
+    });
+  }, []);
+  useEffect(() => {
+    if (
+      latest &&
+      model.base &&
+      latest.id === model.base.id &&
+      isNewerRequestVersion(latest.updated_at, model.base.updated_at)
+    ) {
+      receiveLatest(latest);
+      setError("");
+    }
+  }, [latest, model.base, receiveLatest]);
+  const edit = (field: RequestField, value: string) =>
+    setModel((current) => ({
+      ...current,
+      draft: { ...current.draft, [field]: value },
+    }));
+  const resolve = (field: RequestField, useSaved: boolean) =>
+    setModel((current) => ({
+      ...current,
+      draft: {
+        ...current.draft,
+        [field]: useSaved
+          ? toRequestDraft(current.base)[field]
+          : current.draft[field],
+      },
+      conflicts: current.conflicts.filter((key) => key !== field),
+    }));
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    const form = new FormData(event.currentTarget);
-    const value = (key: string) => String(form.get(key) || "");
-    const optionalNumber = (key: string) =>
+    if (saving || model.conflicts.length) return;
+    const value = (key: RequestField) => model.draft[key];
+    const optionalNumber = (key: RequestField) =>
       value(key) === "" ? null : Number(value(key));
     const input = {
       title: value("title"),
@@ -72,10 +146,11 @@ function RequestForm({
       customer_contact: value("customer_contact"),
       internal_notes: value("internal_notes"),
       status: value("status"),
-      ...(request ? { updated_at: request.updated_at } : {}),
+      ...(model.base ? { updated_at: model.base.updated_at } : {}),
     };
     setSaving(true);
     setError("");
+    setNotice("");
     try {
       const result = await api<{ request: PropertyRequest }>(
         `/api/property-requests${request ? `/${request.id}` : ""}`,
@@ -83,6 +158,23 @@ function RequestForm({
       );
       onSaved(result.request);
     } catch (e) {
+      if (e instanceof RequestApiError && e.status === 409 && request) {
+        try {
+          const data = await api<{ request: PropertyRequest }>(
+            `/api/property-requests/${request.id}`,
+          );
+          receiveLatest(data.request);
+          setNotice(
+            "L’appel a été actualisé. Vos modifications sont conservées. Vérifiez les éventuels conflits avant d’enregistrer à nouveau.",
+          );
+          return;
+        } catch {
+          setError(
+            "Impossible d’actualiser l’appel. Votre brouillon est conservé ; utilisez Actualiser puis réessayez.",
+          );
+          return;
+        }
+      }
       setError(e instanceof Error ? e.message : "Enregistrement impossible.");
     } finally {
       setSaving(false);
@@ -104,7 +196,8 @@ function RequestForm({
         maxLength={maxLength}
         min={type === "number" ? (key === "min_bedrooms" ? 0 : 1) : undefined}
         step={key === "min_area" ? "any" : 1}
-        defaultValue={String(request?.[key] ?? "")}
+        value={model.draft[key]}
+        onChange={(e) => edit(key, e.target.value)}
         className={fieldClass}
       />
     </label>
@@ -121,9 +214,7 @@ function RequestForm({
           <select
             name="listing_type"
             value={listingType}
-            onChange={(e) =>
-              setListingType(e.target.value as "vendre" | "louer")
-            }
+            onChange={(e) => edit("listing_type", e.target.value)}
             className={fieldClass}
           >
             <option value="vendre">Achat</option>
@@ -134,7 +225,8 @@ function RequestForm({
           Type de bien
           <select
             name="property_type"
-            defaultValue={request?.property_type || "Maison"}
+            value={model.draft.property_type}
+            onChange={(e) => edit("property_type", e.target.value)}
             className={fieldClass}
           >
             {PROPERTY_REQUEST_TYPES.map((type) => (
@@ -160,7 +252,8 @@ function RequestForm({
             required
             minLength={10}
             maxLength={4000}
-            defaultValue={request?.description}
+            value={model.draft.description}
+            onChange={(e) => edit("description", e.target.value)}
             rows={3}
             className={fieldClass}
           />
@@ -184,7 +277,8 @@ function RequestForm({
               min="0.01"
               max="100"
               step="0.01"
-              defaultValue={request?.commission_rate ?? ""}
+              value={model.draft.commission_rate}
+              onChange={(e) => edit("commission_rate", e.target.value)}
               className={fieldClass}
             />
           </label>
@@ -196,7 +290,8 @@ function RequestForm({
               minLength={20}
               maxLength={3000}
               rows={3}
-              defaultValue={request?.commission_terms}
+              value={model.draft.commission_terms}
+              onChange={(e) => edit("commission_terms", e.target.value)}
               placeholder="Indiquez les conditions, le déclencheur et le délai de paiement de la commission."
               className={fieldClass}
             />
@@ -223,7 +318,8 @@ function RequestForm({
             <textarea
               name="internal_notes"
               maxLength={4000}
-              defaultValue={request?.internal_notes}
+              value={model.draft.internal_notes}
+              onChange={(e) => edit("internal_notes", e.target.value)}
               rows={2}
               className={fieldClass}
             />
@@ -233,7 +329,8 @@ function RequestForm({
           Publication
           <select
             name="status"
-            defaultValue={request?.status || "draft"}
+            value={model.draft.status}
+            onChange={(e) => edit("status", e.target.value)}
             className={fieldClass}
           >
             {Object.entries(statusLabels).map(([key, label]) => (
@@ -248,8 +345,57 @@ function RequestForm({
             {error}
           </p>
         )}
+        {(notice || model.base?.updated_at !== request?.updated_at) && (
+          <p role="status" className="text-sm md:col-span-2">
+            {notice ||
+              "L’appel a été actualisé. Vos modifications sont conservées ; vérifiez les champs avant d’enregistrer."}
+          </p>
+        )}
+        {model.conflicts.length > 0 && (
+          <div
+            role="alert"
+            className="space-y-3 rounded-2xl bg-orange-50 p-4 md:col-span-2"
+          >
+            <p className="font-bold">
+              Cet appel a été modifié par un autre membre de l’équipe.
+              Choisissez la valeur à conserver pour chaque conflit.
+            </p>
+            {model.conflicts.map((field) => (
+              <div
+                key={field}
+                className="space-y-2 border-t border-orange-200 pt-3"
+              >
+                <p className="font-bold">{REQUEST_FIELD_LABELS[field]}</p>
+                <p className="whitespace-pre-wrap break-words text-sm">
+                  Version enregistrée :{" "}
+                  {toRequestDraft(model.base)[field] || "Vide"}
+                </p>
+                <p className="whitespace-pre-wrap break-words text-sm">
+                  Mon brouillon : {model.draft[field] || "Vide"}
+                </p>
+                <div className="flex flex-wrap gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => resolve(field, false)}
+                  >
+                    Garder mon brouillon · {REQUEST_FIELD_LABELS[field]}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => resolve(field, true)}
+                  >
+                    Utiliser la version enregistrée ·{" "}
+                    {REQUEST_FIELD_LABELS[field]}
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
         <div className="flex gap-3 md:col-span-2">
-          <Button type="submit" disabled={saving}>
+          <Button type="submit" disabled={saving || model.conflicts.length > 0}>
             {saving ? "Enregistrement…" : "Enregistrer"}
           </Button>
           <Button
@@ -673,6 +819,11 @@ export default function PropertyRequestsPage() {
         <RequestForm
           key={editor === "new" ? "new" : editor.id}
           request={editor === "new" ? null : editor}
+          latest={
+            editor === "new"
+              ? null
+              : requests.find((request) => request.id === editor.id) || editor
+          }
           onCancel={() => setEditor(null)}
           onSaved={(request) => {
             setEditor(null);
