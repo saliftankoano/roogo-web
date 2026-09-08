@@ -50,6 +50,13 @@ const messageNavItems: AdminNavItem[] = [
 const operationsNavItems: AdminNavItem[] = [
   {
     type: "link",
+    label: "Appels à biens",
+    href: "/admin/property-requests",
+    id: "admin-nav-property-requests",
+    icon: HouseLineIcon,
+  },
+  {
+    type: "link",
     label: "Modifications",
     href: "/admin/modifications",
     id: "admin-nav-modifications",

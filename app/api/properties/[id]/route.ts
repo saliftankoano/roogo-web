@@ -1,8 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  processPropertyStorageCleanupQueue,
-  purgePropertyListingAssets,
-} from "@/lib/property-storage";
+import { processPropertyStorageCleanupQueue } from "@/lib/property-storage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { requireListingFieldsByType } from "@/lib/validations";
@@ -83,15 +80,6 @@ export async function DELETE(
       }
     }
 
-    const preDeleteCleanup = await purgePropertyListingAssets(propertyId);
-
-    if (preDeleteCleanup.errors.length > 0) {
-      console.warn(
-        "Property storage cleanup before delete had errors:",
-        preDeleteCleanup.errors,
-      );
-    }
-
     // --- Delete DB row (cascades to all related tables via migration 010) ---
     const { data: deletedRows, error } = await supabaseAdmin
       .from("properties")
@@ -111,9 +99,13 @@ export async function DELETE(
       );
     }
 
+    // Only delete files after a committed DB delete. The durable queue retries failures.
     const queuedCleanup = await processPropertyStorageCleanupQueue({
       propertyId,
       limit: 10,
+    }).catch((error) => {
+      console.error("Property deleted; storage cleanup remains queued:", error);
+      return { deletedPathCount: 0, failedCount: 1 };
     });
 
     if (queuedCleanup.failedCount > 0) {
@@ -126,8 +118,7 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       storageCleanup: {
-        deletedPathCount:
-          preDeleteCleanup.deletedPathCount + queuedCleanup.deletedPathCount,
+        deletedPathCount: queuedCleanup.deletedPathCount,
         pendingFailures: queuedCleanup.failedCount,
       },
     });
