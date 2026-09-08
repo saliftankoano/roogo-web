@@ -16,6 +16,15 @@ import {
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import { captureServerEvent } from "@/lib/posthog-server";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { unescapeText } from "@/lib/text-sanitize";
+
+type DirectLockCompletion = {
+  payment_status: string | null;
+  failure_code: string | null;
+  transitioned: boolean;
+};
 
 // Use service role for reading config
 //const supabaseAdmin = createClient(
@@ -133,7 +142,9 @@ export async function POST(
     // 4. Validate Property Eligibility (Status must be 'en_ligne')
     const { data: property, error: propError } = await supabase
       .from("properties")
-      .select("price, caution_mois, loyer_avance_mois, status")
+      .select(
+        "price, caution_mois, loyer_avance_mois, status, quartier, address",
+      )
       .eq("id", propertyId)
       .single();
 
@@ -413,17 +424,17 @@ export async function POST(
     }
 
     if (immediateStatus === "COMPLETED") {
-      const { data: completionUpdated, error: completionUpdateError } =
+      // Finalize the payment and property together. This prevents a completed
+      // transaction from being committed without its property lock, and avoids
+      // relying on later status polls that could relock an old property.
+      const { data: completionResult, error: completionUpdateError } =
         await supabase
-          .from("transactions")
-          .update({
-            status: "completed",
-            metadata: { ...transactionMetadata, pawapay: result },
-            updated_at: new Date().toISOString(),
+          .rpc("finalize_direct_property_lock", {
+            p_deposit_id: depositId,
+            p_pawapay: result,
           })
-          .eq("deposit_id", depositId)
-          .eq("status", "pending")
-          .select("id");
+          .maybeSingle();
+      const completion = completionResult as DirectLockCompletion | null;
 
       if (completionUpdateError) {
         console.error(
@@ -443,50 +454,23 @@ export async function POST(
         );
       }
 
-      if (!completionUpdated?.length) {
-        const { data: current, error: currentError } = await supabase
-          .from("transactions")
-          .select("status, failure_code")
-          .eq("deposit_id", depositId)
-          .single();
-
-        if (currentError || current?.status !== "completed") {
-          if (current?.status === "failed") {
-            const failureCode = current.failure_code || "UNSPECIFIED_FAILURE";
-            return cors(
-              NextResponse.json(
-                {
-                  success: false,
-                  depositId,
-                  status: "FAILED",
-                  error: paymentFailureMessage(failureCode, "fr"),
-                  failureCode,
-                },
-                { status: 422 },
-              ),
-            );
-          }
-          return cors(
-            NextResponse.json(
-              {
-                success: true,
-                depositId,
-                status: "PENDING",
-                raw: { status: "PENDING", depositId },
-              },
-              { status: 202 },
-            ),
-          );
-        }
+      if (completion?.payment_status === "failed") {
+        const failureCode = completion.failure_code || "UNSPECIFIED_FAILURE";
+        return cors(
+          NextResponse.json(
+            {
+              success: false,
+              depositId,
+              status: "FAILED",
+              error: paymentFailureMessage(failureCode, "fr"),
+              failureCode,
+            },
+            { status: 422 },
+          ),
+        );
       }
 
-      const { error: lockError } = await supabase
-        .from("properties")
-        .update({ status: "locked" })
-        .eq("id", propertyId);
-
-      if (lockError) {
-        console.error("Failed to finalize property lock:", lockError);
+      if (completion?.payment_status !== "completed") {
         return cors(
           NextResponse.json(
             {
@@ -498,6 +482,49 @@ export async function POST(
             { status: 202 },
           ),
         );
+      }
+
+      // Only the request that changed pending -> completed owns completion
+      // side effects. Webhook/status paths lose that transition and skip them.
+      if (completion.transitioned) {
+        const propertyLabel = unescapeText(
+          property.quartier || property.address,
+        );
+        const sideEffects = await Promise.allSettled([
+          captureServerEvent(user.id, "payment_completed", {
+            deposit_id: depositId,
+            amount: paymentAmount,
+            currency,
+            transaction_type: "property_lock",
+            provider: payerClientCode,
+            property_id: propertyId,
+            source: "payment_initiation",
+          }),
+          notifyUserWithTemplate(
+            user.id,
+            "payments",
+            propertyLabel
+              ? "payments.propertyReserved"
+              : "payments.genericCompleted",
+            propertyLabel ? { propertyLabel } : {},
+            {
+              type: "payment_completed",
+              transactionId: transactionRecord.id,
+              depositId,
+              transactionType: "property_lock",
+              amount: paymentAmount,
+              propertyId,
+            },
+          ),
+        ]);
+        for (const sideEffect of sideEffects) {
+          if (sideEffect.status === "rejected") {
+            console.error(
+              "Completed lock side effect failed without changing payment state:",
+              sideEffect.reason,
+            );
+          }
+        }
       }
     }
 

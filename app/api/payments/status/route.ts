@@ -272,26 +272,6 @@ export async function POST(req: Request) {
                 reason: finalizeResult.reason,
               });
             }
-          } else {
-            // Repair a completed direct lock whose initiating request won the
-            // transaction CAS but could not finish the property write.
-            const { error: lockError } = await supabase
-              .from("properties")
-              .update({ status: "locked" })
-              .eq("id", transaction.property_id);
-            if (lockError) {
-              log("completed-lock-repair-failed", {
-                depositId,
-                propertyId: transaction.property_id,
-                error: String(lockError),
-              });
-              return cors(
-                NextResponse.json(
-                  { success: false, error: "Failed to finalize property lock" },
-                  { status: 500 },
-                ),
-              );
-            }
           }
         }
 

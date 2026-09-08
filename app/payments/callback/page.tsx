@@ -428,7 +428,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
   // Show a branded "return to app" page instead of a login wall.
   if (isLoaded && !isSignedIn) {
     const appDeepLink = depositId
-      ? `roogo://my-properties?payment_status=pending&depositId=${depositId}`
+      ? `roogo://add-property?payment_status=pending&depositId=${depositId}`
       : `roogo://my-properties`;
 
     return (
@@ -561,7 +561,7 @@ function PaymentStatusChecker({ depositId }: { depositId: string | null }) {
           {/* Deep link back to the Roogo mobile app (for users who came from the app) */}
           {status === "success" && (
             <a
-              href={`roogo://my-properties?payment_status=success&depositId=${depositId ?? ""}`}
+              href={`roogo://add-property?payment_status=success&depositId=${depositId ?? ""}`}
               style={{ backgroundColor: "#C75B3A" }}
               className="block w-full text-center text-white font-medium py-3 px-4 rounded-xl hover:opacity-90 transition-opacity"
             >
