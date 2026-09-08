@@ -14,15 +14,20 @@ function normalizedStringSet(value: unknown): string[] {
   ].sort();
 }
 
+export function listingPaymentAddOns(
+  metadata: ListingPaymentMetadata,
+): string[] {
+  const snakeCaseAddOns = normalizedStringSet(metadata.add_ons);
+  return snakeCaseAddOns.length > 0
+    ? snakeCaseAddOns
+    : normalizedStringSet(metadata.addOns);
+}
+
 export function listingPaymentMatches(
   metadata: ListingPaymentMetadata,
   expected: ExpectedListingPayment,
 ): boolean {
-  const snakeCaseAddOns = normalizedStringSet(metadata.add_ons);
-  const paidAddOns =
-    snakeCaseAddOns.length > 0
-      ? snakeCaseAddOns
-      : normalizedStringSet(metadata.addOns);
+  const paidAddOns = listingPaymentAddOns(metadata);
   const paidTier =
     typeof metadata.tier_id === "string" ? metadata.tier_id : null;
   const paidFrequency =

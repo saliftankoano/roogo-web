@@ -24,6 +24,7 @@ import {
   finalizeMonthlyPropertyLock,
   isMonthlyProperty,
 } from "@/lib/property-lock-finalization";
+import { listingPaymentAddOns } from "@/lib/listing-payment-validation";
 
 const PAYMENT_PAGE_NOT_FOUND_GRACE_MS = 15 * 60 * 1000;
 
@@ -151,11 +152,7 @@ export async function POST(req: Request) {
           ? (metadataRaw as Record<string, unknown>)
           : null;
 
-      const addOns = Array.isArray(metadata?.add_ons)
-        ? metadata.add_ons.filter(
-            (value): value is string => typeof value === "string",
-          )
-        : [];
+      const addOns = metadata ? listingPaymentAddOns(metadata) : [];
 
       const tierId =
         typeof metadata?.tier_id === "string" ? metadata.tier_id : null;
@@ -286,6 +283,44 @@ export async function POST(req: Request) {
                 propertyId: transaction.property_id,
                 reason: finalizeResult.reason,
               });
+            }
+          } else if (propertyRecord) {
+            try {
+              const completion = await finalizeMonthlyPropertyLock(
+                depositId,
+                transaction.metadata,
+              );
+              if (completion.paymentStatus !== "completed") {
+                return cors(
+                  NextResponse.json(
+                    {
+                      success: true,
+                      status: "PENDING",
+                      raw: { status: "PENDING", depositId },
+                      context,
+                    },
+                    { status: 202 },
+                  ),
+                );
+              }
+            } catch (error) {
+              log("completed-lock-repair-failed", {
+                depositId,
+                propertyId: transaction.property_id,
+                error: String(error),
+              });
+              // Keep the client polling until payment fulfillment is durable.
+              return cors(
+                NextResponse.json(
+                  {
+                    success: true,
+                    status: "PENDING",
+                    raw: { status: "PENDING", depositId },
+                    context,
+                  },
+                  { status: 202 },
+                ),
+              );
             }
           }
         }
