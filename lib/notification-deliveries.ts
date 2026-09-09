@@ -91,6 +91,7 @@ export async function claimRetryableNotificationDelivery({
   metadata,
 }: NotificationDeliveryReservation) {
   if (!userId) return null;
+  const attemptId = randomUUID();
   const { data, error } = await supabaseAdmin.rpc(
     "claim_retryable_notification_delivery",
     {
@@ -98,15 +99,52 @@ export async function claimRetryableNotificationDelivery({
       p_notification_type: notificationType,
       p_event_type: eventType,
       p_subject_id: subjectId,
-      p_metadata: metadata ?? {},
+      p_metadata: { ...metadata, deliveryAttemptId: attemptId },
       p_lease_seconds: 300,
     },
   );
 
-  if (!error) return data === true;
+  if (!error) return data === true ? attemptId : false;
 
   console.error("Failed to claim retryable notification delivery:", error);
   return null;
+}
+
+export async function beginRetryableNotificationSend(
+  userId: string,
+  eventType: string,
+  subjectId: string,
+  attemptId: string,
+) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "begin_retryable_notification_send",
+    {
+      p_user_id: userId,
+      p_event_type: eventType,
+      p_subject_id: subjectId,
+      p_attempt_id: attemptId,
+    },
+  );
+  if (error) return null;
+  return data === true;
+}
+
+/** Retry the attempt-owned outcome write, never the external send. */
+export async function persistNotificationDeliveryOutcome(
+  update: Parameters<typeof updateNotificationDeliveryMetadata>[0] & {
+    attemptId: string;
+  },
+) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    try {
+      if (await updateNotificationDeliveryMetadata(update)) return true;
+    } catch (error) {
+      console.error("Payment notification outcome write failed:", error);
+    }
+    if (attempt < 2)
+      await new Promise((resolve) => setTimeout(resolve, 100 * (attempt + 1)));
+  }
+  return false;
 }
 
 export async function updateNotificationDeliveryMetadata({

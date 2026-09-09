@@ -16,6 +16,7 @@ import {
 import {
   extractPaymentFailure,
   isUncertainPaymentInitiationFailure,
+  parsePawaPayInitiationResponse,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -184,6 +185,7 @@ export async function POST(req: Request) {
   }
 
   let upstream: Response;
+  let text: string;
   try {
     upstream = await fetch(`${pawa.url}/v2/deposits`, {
       method: "POST",
@@ -193,6 +195,7 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify(payload),
     });
+    text = await upstream.text();
   } catch (err) {
     console.error("[visites-3d/initiate] fetch failed", err);
     return NextResponse.json(
@@ -206,13 +209,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const text = await upstream.text();
-  let result: Record<string, unknown>;
-  try {
-    result = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    result = { raw: text };
-  }
+  const result = parsePawaPayInitiationResponse(text);
 
   if (!upstream.ok) {
     const failure = extractPaymentFailure(result);

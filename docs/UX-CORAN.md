@@ -221,6 +221,11 @@ Principles above are universal; these are ours, earned locally:
 - **Never spend trust to buy conversion.** Every principle in this doc has a
   manipulative twin. The test: would we be comfortable explaining the mechanism
   to the user, in French, to their face? If yes, ship it.
+- **Payment status must name what actually happened (2026-09-09, payment PR #29 pending release).**
+  Direct and hosted payment screens distinguish money received from a confirmed
+  reservation. When staff assistance is required, retain the payment reference,
+  show a support contact, and explicitly say not to pay again. Never label a
+  collected payment as failed or offer another payment as its recovery action.
 - **Copy discipline (2026-07-09).** No em dashes between words mid-sentence in
   user-facing copy: restructure into two sentences, or use a comma or colon. No
   emoji in product copy; it reads as cheap. Polished copy is itself a trust

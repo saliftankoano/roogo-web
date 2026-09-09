@@ -14,7 +14,7 @@ export type PawaPayDepositStatusResult = {
 const GENERIC_FAILURE_CODE = "UNSPECIFIED_FAILURE";
 
 function asRecord(value: unknown): Record<string, unknown> | null {
-  return value && typeof value === "object"
+  return value && typeof value === "object" && !Array.isArray(value)
     ? (value as Record<string, unknown>)
     : null;
 }
@@ -26,6 +26,13 @@ function parseRecord(value: unknown): Record<string, unknown> | null {
   } catch {
     return null;
   }
+}
+
+/** Unreadable initiation bodies are not evidence of a rejected deposit. */
+export function parsePawaPayInitiationResponse(
+  text: string,
+): Record<string, unknown> {
+  return parseRecord(text) ?? {};
 }
 
 /**
@@ -137,24 +144,25 @@ export function extractPaymentPayerPhone(payload: unknown): string | null {
 }
 
 /**
- * PawaPay documents HTTP 5xx + UNKNOWN_ERROR as an indeterminate initiation:
- * the deposit may still have reached them and must be reconciled by deposit ID.
+ * A timeout or server/gateway failure is not proof of rejection, even if the
+ * body is empty, HTML, malformed JSON or contains an unfamiliar failure code.
+ * Reconcile the existing deposit unless PawaPay explicitly rejected it.
  */
 export function isUncertainPaymentInitiationFailure(
   httpStatus: number,
   payload: unknown,
 ) {
-  return (
-    httpStatus >= 500 &&
-    extractPaymentFailure(payload).code === "UNKNOWN_ERROR"
-  );
+  if (httpStatus !== 408 && httpStatus < 500) return false;
+  const status = parsePawaPayDepositStatus(payload).status;
+  const { code } = extractPaymentFailure(payload);
+  const definitiveRejection =
+    (status === "REJECTED" || status === "FAILED") &&
+    code !== "UNKNOWN_ERROR" &&
+    code !== GENERIC_FAILURE_CODE;
+  return !definitiveRejection;
 }
 
-const TERMINAL_PAYMENT_STATUSES = new Set([
-  "completed",
-  "failed",
-  "refunded",
-]);
+const TERMINAL_PAYMENT_STATUSES = new Set(["completed", "failed", "refunded"]);
 
 /** Prevent delayed callbacks from regressing a deposit that already settled. */
 export function shouldApplyPaymentStatus(
@@ -180,15 +188,10 @@ export function shouldRetryPaymentFailureNotification(result: {
   delivered: boolean;
   reason: string;
 }) {
-  return (
-    !result.delivered && RETRYABLE_NOTIFICATION_REASONS.has(result.reason)
-  );
+  return !result.delivered && RETRYABLE_NOTIFICATION_REASONS.has(result.reason);
 }
 
-const FAILURE_MESSAGES: Record<
-  string,
-  Record<PaymentFailureLocale, string>
-> = {
+const FAILURE_MESSAGES: Record<string, Record<PaymentFailureLocale, string>> = {
   INSUFFICIENT_BALANCE: {
     fr: "Solde Mobile Money insuffisant. Approvisionnez le compte puis réessayez.",
     en: "Your Mobile Money balance is insufficient. Add funds and try again.",
@@ -233,9 +236,7 @@ export function paymentFailureSmsMessage(
   locale: PaymentFailureLocale = "fr",
 ) {
   const prefix =
-    locale === "en"
-      ? "Roogo: payment failed. "
-      : "Roogo: paiement echoue. ";
+    locale === "en" ? "Roogo: payment failed. " : "Roogo: paiement echoue. ";
   return `${prefix}${paymentFailureMessage(failureCode, locale)}`
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "");

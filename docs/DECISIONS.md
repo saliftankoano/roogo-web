@@ -7,9 +7,21 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
+
+**Decision:** Treat HTTP 408 and server/gateway errors as uncertain unless the provider explicitly returns a failed/rejected deposit with a concrete failure code. Empty, HTML, malformed and non-object JSON responses do not authorize failure or a new payment. All direct initiation routes normalize response bodies, and interrupted 3D response reads return the saved deposit ID for polling.
+
+**Why:** The provider may have accepted a payment before an intermediary lost its response. Terminally failing that attempt prevents a later completion callback from reconciling it. The same-deposit reconciliation approach follows [PawaPay's deposit guidance](https://docs.pawapay.io/v2/docs/deposits); treating unstructured gateway failures as uncertain is Roogo's conservative application of that rule.
+
+**Ruled out / alternatives:** Do not infer rejection from HTTP status alone or retry initiation with a new deposit ID. Definitive rejection still uses controlled failure copy and the normal retry flow.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Controlled 3D route tests accept completion after 408/500/502/503/504 and interrupted response bodies; no live payment was submitted.
+
 ### Notification uncertainty never authorizes a second send — 2026-09-08
 
 **Decision:** Reserve an attempt identity, then persist a non-reclaimable sending boundary before contacting SMS or push providers. Retry outcome writes separately. Only explicit rejection reopens delivery; accepted sends, lost replies and exhausted outcome writes do not automatically resend. SMS cooldown includes sending and uncertain attempts. Migration 072 preserves pre-boundary pending deliveries as uncertain rather than guessing whether they already sent.
+
+**Conflict refinement (2026-09-09):** The same boundary and shared attempt-owned outcome writer protect each `payments.property_lock_conflict` recipient. Preference/token lookup errors remain retryable before sending; opt-outs and absent tokens are recorded as skipped. Migration 073 marks legacy pending **and failed** conflict attempts uncertain because the old boolean sender could not distinguish rejection from a lost acknowledgment. Drain old conflict workers before applying 073. Unknown/accepted sends cannot be reclaimed after lease expiry; definitive rejection may retry.
 
 **Why:** A lease timeout or failed database write cannot prove the provider rejected a message. Retrying in that situation can send duplicate payment alerts. Attempt ownership also prevents an expired worker from overwriting a newer worker's outcome.
 
@@ -22,6 +34,8 @@ out. Newest first. For what shipped and when, see
 **Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 replaces the legacy repair branch without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments. Normal status reads and lost-update reloads share fulfillment-aware responses, so a completed payment with an unconfirmed reservation remains NEEDS_SUPPORT.
 
 **Recovery refinement (2026-09-08):** The first poll discovering a blocked daily/hotel fulfillment also returns NEEDS_SUPPORT. Stored monthly conflicts re-drive outstanding per-recipient escalation without re-finalizing the reservation. Hosted returns display a terminal support-required state, payment reference and contact action, with no second-payment action or automatic redirect. Polling is serialized and cancelled on navigation so stale responses cannot overwrite that state.
+
+**Direct-screen refinement (2026-09-09):** Direct web and mobile payments use the same paid-but-unfulfilled distinction for initiation and polling. The support state retains the deposit reference, says not to pay again, and offers contact/close actions. Closing and reopening the same modal does not reset that state. Direct polls serialize requests and reject stale responses after cancellation.
 
 **Why:** The property's current status cannot prove whether an old payment was fulfilled. Re-locking a relisted property or flagging an already-reserved property as a conflict changes history. A concurrent pending-to-submitted update is not evidence that a terminal callback was saved.
 

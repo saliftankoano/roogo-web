@@ -6,6 +6,7 @@ import {
   beginPaymentFailureSend,
   claimPaymentFailureSmsCooldown,
   updateNotificationDeliveryMetadata,
+  persistNotificationDeliveryOutcome,
 } from "@/lib/notification-deliveries";
 import {
   paymentFailureMessage,
@@ -109,25 +110,9 @@ export async function notifyPaymentFailure(
   if (!reserved) return { delivered: false, reason: "duplicate" as const };
 
   // Fence every outcome to this lease. Retry only persistence, never the send.
-  const persist = async (
+  const persist = (
     update: Parameters<typeof updateNotificationDeliveryMetadata>[0],
-  ) => {
-    for (let attempt = 0; attempt < 3; attempt++) {
-      try {
-        if (
-          await updateNotificationDeliveryMetadata({
-            ...update,
-            attemptId: reserved,
-          })
-        )
-          return true;
-      } catch (error) {
-        console.error("Payment notification outcome write failed:", error);
-      }
-      if (attempt < 2) await wait(100 * (attempt + 1));
-    }
-    return false;
-  };
+  ) => persistNotificationDeliveryOutcome({ ...update, attemptId: reserved });
 
   let locale: PaymentFailureLocale = input.locale ?? "fr";
   let pushTokens: string[] = [];

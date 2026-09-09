@@ -1,9 +1,15 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   claimRetryableNotificationDelivery,
-  updateNotificationDeliveryMetadata,
+  beginRetryableNotificationSend,
+  persistNotificationDeliveryOutcome,
 } from "@/lib/notification-deliveries";
-import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import {
+  getUserPushNotificationContext,
+  removeUserPushTokens,
+  sendExpoPushNotificationsWithResult,
+} from "@/lib/push-notifications";
+import { renderNotificationCopy } from "@/lib/notification-copy";
 import { unescapeText } from "@/lib/text-sanitize";
 
 export type PropertyLockCompletion = {
@@ -93,25 +99,78 @@ export async function notifyMonthlyPropertyLockConflict(depositId: string) {
       if (claimed === null) throw new Error("Conflict delivery claim failed");
       if (!claimed) return;
 
-      const sent = await notifyUserWithTemplate(
+      const persist = (
+        deliveryStatus: "sent" | "failed" | "uncertain",
+        outcome: Record<string, unknown>,
+      ) =>
+        persistNotificationDeliveryOutcome({
+          eventType: "payments.property_lock_conflict",
+          subjectId: depositId,
+          userId: recipient.userId,
+          attemptId: claimed,
+          metadata: { ...metadata, ...outcome },
+          deliveryStatus,
+        });
+
+      const lookup = await getUserPushNotificationContext(
         recipient.userId,
         "payments",
-        recipient.copyKey,
-        { propertyLabel },
-        {
+      ).catch(() => ({ status: "retry" as const }));
+      if (lookup.status === "retry") {
+        await persist("failed", { channel: "none", reason: "push_context" });
+        return;
+      }
+      const { enabled, tokens, locale } = lookup.context;
+      if (!enabled || !tokens.length) {
+        await persist("sent", {
+          channel: "none",
+          pushSent: false,
+          reason: enabled ? "missing_token" : "push_disabled",
+        });
+        return;
+      }
+      const copy = renderNotificationCopy(recipient.copyKey, locale, {
+        propertyLabel,
+      });
+      const begun = await beginRetryableNotificationSend(
+        recipient.userId,
+        "payments.property_lock_conflict",
+        depositId,
+        claimed,
+      );
+      if (begun === null) throw new Error("Conflict send claim failed");
+      if (!begun) return;
+      // Once sending starts, exceptions and lost acknowledgements are uncertain,
+      // never evidence that a second push is safe.
+      const result = await sendExpoPushNotificationsWithResult({
+        to: tokens,
+        title: copy.title,
+        body: copy.body,
+        sound: "default",
+        data: {
           type: recipient.type,
           depositId,
           propertyId: transaction.property_id,
           customerId: transaction.user_id,
         },
+      }).catch(() => ({
+        accepted: false,
+        outcome: "unknown" as const,
+        invalidTokens: [],
+      }));
+      await persist(
+        result.outcome === "accepted"
+          ? "sent"
+          : result.outcome === "rejected"
+            ? "failed"
+            : "uncertain",
+        {
+          channel: "push",
+          pushSent: result.accepted,
+          outcome: result.outcome,
+        },
       );
-      await updateNotificationDeliveryMetadata({
-        eventType: "payments.property_lock_conflict",
-        subjectId: depositId,
-        userId: recipient.userId,
-        metadata: { ...metadata, channel: "push", pushSent: sent },
-        deliveryStatus: sent ? "sent" : "failed",
-      });
+      await removeUserPushTokens(result.invalidTokens).catch(() => {});
     }),
   );
 }

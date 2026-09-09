@@ -13,6 +13,7 @@ import { normalizePhone } from "@/lib/phone";
 import {
   extractPaymentFailure,
   isUncertainPaymentInitiationFailure,
+  parsePawaPayInitiationResponse,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -303,12 +304,7 @@ export async function POST(
       );
     }
 
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = { message: responseText };
-    }
+    const result = parsePawaPayInitiationResponse(responseText);
 
     if (!response.ok) {
       const failure = extractPaymentFailure(result);

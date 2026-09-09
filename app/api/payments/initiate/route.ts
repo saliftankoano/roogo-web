@@ -44,6 +44,7 @@ import {
 import {
   extractPaymentFailure,
   isUncertainPaymentInitiationFailure,
+  parsePawaPayInitiationResponse,
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
@@ -744,12 +745,7 @@ export async function POST(req: Request) {
       );
     }
 
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = { message: responseText };
-    }
+    const result = parsePawaPayInitiationResponse(responseText);
 
     log("pawapay-response", {
       httpStatus: response.status,
