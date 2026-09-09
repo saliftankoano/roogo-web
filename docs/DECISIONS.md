@@ -7,15 +7,25 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Record executed SQL separately from application release — 2026-09-09
+
+**Decision:** Record only the three explicitly authorized, verified payment migrations in Supabase history and the [execution ledger](../supabase/migrations/README.md). Mark the database prerequisite complete, not the entire payment feature. Keep applied SQL immutable.
+
+**Why:** Roogo already had schema/data but no migration-history table. A blanket push could replay unrelated migrations; fabricating an older baseline would claim evidence we do not have. CLI project access and the production-configured project reference must agree before writes.
+
+**Ruled out / alternatives:** No unrestricted database push, blind history repair, guessed legacy backfill, app deployment or live payment test was included. Initial history-text escaping was corrected separately without re-executing DDL, then compared byte-for-byte. Future history writes should use bound parameters.
+
+**Status:** Settled; executed 070–072 on Roogo. API/client release and the known mobile cold-return fix remain pending in [ROADMAP](./ROADMAP.md#now).
+
 ### Consolidate unapplied payment migrations before first rollout — 2026-09-09
 
-**Decision:** With the user's confirmation that the payment migrations have never run, replace the eight review-era files with three transactional migrations: 070 notification delivery, 071 property-lock payments, and 072 listing payments. Keep only the final function definitions. Leave unrelated property-request migrations 068/069 unchanged.
+**Decision:** With the user's pre-execution confirmation that the payment migrations had never run, replace the eight review-era files with three transactional migrations: 070 notification delivery, 071 property-lock payments, and 072 listing payments. Keep only the final function definitions. Leave unrelated property-request migrations 068/069 unchanged.
 
-**Why:** There is no deployed payment migration history to preserve. Grouping by responsibility removes duplicate numeric versions and prevents operators from installing intermediate, superseded function definitions.
+**Why:** At consolidation time there was no deployed payment migration history to preserve. Grouping by responsibility removed duplicate numeric versions and prevented operators from installing intermediate, superseded function definitions.
 
 **Ruled out / alternatives:** Do not squash already-applied migrations or change the property-request feature. Do not concatenate eight files with nested transaction boundaries. Retain conservative legacy notification uncertainty guards as a defensive measure, but do not claim older payment workers are deployed.
 
-**Status:** Settled for this first rollout, not applied to a remote database. Apply only the new 070 → 071 → 072 chain before server deployment. If any environment actually applied an old payment file, stop and reconcile its migration history separately; these are not upgrade scripts for that environment. See [rollout instructions](./SYSTEM.md#how-are-the-unapplied-payment-migrations-installed).
+**Status:** Settled; 070 → 071 → 072 were subsequently executed and verified on Roogo on 2026-09-09. They are now immutable applied migrations. Application deployment/release is still pending. See the [execution ledger](../supabase/migrations/README.md). If any environment actually applied an old payment file, stop and reconcile its migration history separately; these are not upgrade scripts for that environment. See [rollout instructions](./SYSTEM.md#how-are-payment-migrations-installed-and-recorded).
 
 ### Listing payment consumption survives property deletion — 2026-09-09
 
@@ -27,7 +37,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** Do not block legitimate property deletion or guess which historically deleted listing consumed a deposit. Backfill surviving property/transaction links; contradictory evidence must stop the migration. Already-deleted records with no surviving link require evidence-based reconciliation, not invented consumption history.
 
-**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Apply payment migrations 070 → 071 → 072 before server deployment. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
+**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. Database migrations 070–072 are executed and verified; do not replay them. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
 
 ### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
 
@@ -53,7 +63,7 @@ See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-custo
 
 **Ruled out / alternatives:** Automatic retry of all provider errors favors eventual delivery over duplicate prevention. We prioritize no duplicate submission for sensitive payment alerts. A crash between the durable boundary and the network call can therefore leave an unsent alert uncertain; support must reconcile it using provider evidence, not reset it blindly.
 
-**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. The user confirmed these payment migrations are unapplied; use the consolidated first-rollout sequence. Provider acknowledgment means accepted for processing, not handset delivery; see [Africa's Talking status guidance](https://help.africastalking.com/en/articles/16150386-messaging-error-codes) and [Expo ticket guidance](https://docs.expo.dev/push-notifications/sending-notifications/).
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. The consolidated database migrations were executed and verified on 2026-09-09; the earlier unapplied status is historical. Provider acknowledgment means accepted for processing, not handset delivery; see [Africa's Talking status guidance](https://help.africastalking.com/en/articles/16150386-messaging-error-codes) and [Expo ticket guidance](https://docs.expo.dev/push-notifications/sending-notifications/).
 
 ### Payment recovery preserves historical fulfillment and retries unresolved races — 2026-09-08
 
@@ -67,7 +77,7 @@ See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-custo
 
 **Ruled out / alternatives:** Do not automatically backfill fulfillment from present-day availability or silently acknowledge every lost update. Preserve existing explicit conflicts; historical inconsistencies require evidence-based support reconciliation.
 
-**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not yet deployed. Apply 071 after payment notification migration 070 and before server deployment.
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. Migration 071 was applied after 070 and verified on 2026-09-09.
 
 ### Call editing preserves intent across concurrent staff work — 2026-09-08
 

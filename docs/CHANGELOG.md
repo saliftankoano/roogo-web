@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-09-09
+
+- **Payment database prerequisites executed** (database only): Roogo migrations 070–072 add failure-notification safeguards, atomic reservation finalization, deletion-proof listing-payment consumption and atomic creation amenities. Verified SQL, permissions, indexes/triggers and a two-deposit backfill; no API/mobile deployment or live payment/notification test occurred. [Execution ledger](../supabase/migrations/README.md), [decision](./DECISIONS.md#record-executed-sql-separately-from-application-release--2026-09-09), [remaining release work](./ROADMAP.md#now).
+
 ## 2026-09-08
 
 - **Google Analytics connected** (web): Roogo Burkina Web uses measurement ID `G-3N95N2MY2F` across pages on `roogobf.com` and `www.roogobf.com`. The shared layout installs one Google tag; Mebo, localhost, and preview domains do not send traffic to this property.

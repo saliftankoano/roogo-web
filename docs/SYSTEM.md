@@ -8,7 +8,7 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ## How do failed and uncertain customer payments recover?
 
-Roogo keeps payment collection, reservation fulfillment and notification delivery separate. This behavior is implemented in [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile PR #29](https://github.com/saliftankoano/roogo/pull/29); both remain open as of 2026-09-09. Local tests and the web preview do not establish production release.
+Roogo keeps payment collection, reservation fulfillment and notification delivery separate. This behavior is implemented in [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile PR #29](https://github.com/saliftankoano/roogo/pull/29); both remain open as of 2026-09-09. Database prerequisites 070–072 were executed and verified on Roogo that day; the API/mobile feature has not been released by this task. See the [execution ledger](../supabase/migrations/README.md). Local tests and the web preview do not establish production release.
 
 The shared failure flow covers customer-initiated reservation, rent, listing, boost, hosted-payment and 3D-visit deposits. Owner payouts and refunds are outside this notification feature. The server saves the [deposit reference](./DOMAIN.md#pawapay-deposit) before requesting collection.
 
@@ -34,9 +34,35 @@ Monthly reservation conflicts use the same protection independently for each cus
 
 See the [gateway decision](./DECISIONS.md#gateway-errors-preserve-the-original-deposit-for-reconciliation--2026-09-09), [notification uncertainty decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08), and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08). Deployment gates and sandbox/device checks live in [ROADMAP.md](./ROADMAP.md#now); detailed validation evidence stays in the linked PRs.
 
-## How are the unapplied payment migrations installed?
+### What must future payment changes preserve?
 
-The user confirmed on 2026-09-09 that the review-era payment migrations had not been applied. They are replaced by three files, each with one transaction and only final function definitions:
+The originating support case was an insufficient-balance attempt, not a successful charge: a delivered provider callback means Roogo received the provider event, not that the payer received a notification. Never conflate callback delivery, collection, reservation fulfillment and customer delivery.
+
+| Contract | Implementation boundary | Reason |
+| --- | --- | --- |
+| Normalized failure codes and controlled copy | `lib/payment-failures.ts`, initiation/status/callback routes | Raw provider support messages are not localized customer instructions. |
+| One notification record per deposit | `lib/payment-failure-notifications.ts`, `lib/notification-deliveries.ts`, migration 070 | Initiation, polling and webhook workers can race. Accountless 3D still needs deduplication. |
+| No automatic resend after uncertain provider acceptance | Durable send boundary plus Expo/AT outcome parsers | Provider acknowledgment can be lost after a send; retry persistence, not the external send. |
+| Collection does not prove reservation fulfillment | `lib/property-lock-finalization.ts`, migration 071, direct/hosted support screens | Historical completed payments must not re-lock relisted properties. |
+| One paid listing survives retries/deletion | `app/api/properties/route.ts`, migration 072 | Recover the original property; deleted listings must not restore a paid credit. |
+| Browser returns are hints | Mobile hosted-status parser, listing draft and recovery helpers | Verify ownership/purpose and preserve a different unresolved attempt. |
+
+Safe messages cover `INSUFFICIENT_BALANCE`, `PAYMENT_NOT_APPROVED`, `PAYMENT_IN_PROGRESS`, `PAYER_NOT_FOUND` and `PROVIDER_TEMPORARILY_UNAVAILABLE`; other codes use the generic failure copy. A failure code describes why one attempt failed, not permission to regress a completed transaction.
+
+Notification work is best-effort and bounded: two delayed retries (2.5 and 7.5 seconds) follow the initial attempt when safely retryable. This is not an indefinitely running delivery queue. Eligibility lookup failure is retryable, opt-out suppresses the alert rather than bypassing it with SMS, and missing contact data is recorded without altering payment processing. Provider acceptance is not handset delivery. Do not promise exactly-once receipt, guaranteed arrival or automatic recovery of an uncertain send.
+
+### Support and release limitations
+
+- A failed charge can offer payment retry. An unverified deposit offers status reconciliation. A collected but unfulfilled reservation offers support with the existing reference.
+- Investigate using deposit/transaction references, controlled failure code and delivery channel/outcome. Never log credentials or raw payer numbers; phone hashes are still sensitive identifiers, not anonymous data.
+- On listing-link outages, retry submission against the original deposit. Do not delete the property or reset its consumption to force success.
+- Historical deleted listing links, missing original amenities and old reservation conflicts cannot be reconstructed from present-day state; require original/provider evidence.
+- **Open mobile review finding:** reopening an old successful hosted link with no original draft calls submission with incomplete fields, then persists a nondismissible paid state. Before release, recognize an already-linked property and allow missing-draft repair without discarding the deposit or authorizing another charge. Existing cold-return tests mocked submission and missed this path.
+- Native-device and live-provider acceptance remain unverified. Run the agreed sandbox scenario in an explicitly configured sandbox backend; production PawaPay configuration uses live credentials, so a test number alone does not establish sandbox safety.
+
+## How are payment migrations installed and recorded?
+
+Before consolidation, the user confirmed on 2026-09-09 that the review-era payment migrations had not been applied. They are replaced by three files, each with one transaction and only final function definitions:
 
 | Order | File | Responsibility | Replaces review-era payment files |
 | --- | --- | --- | --- |
@@ -44,9 +70,9 @@ The user confirmed on 2026-09-09 that the review-era payment migrations had not 
 | 2 | `071_atomic_property_lock_payments.sql` | Reservation claims, release and atomic finalization preserving completed history | 069, 071 |
 | 3 | `072_atomic_listing_payments.sql` | Unique deposit index, durable consumption backfill/trigger and atomic creation amenities | 070, 074, 075 |
 
-These are in `supabase/migrations/`. Unrelated `068_property_requests.sql` and `069_property_request_deletion_safety.sql` remain unchanged; they are separate features, not prerequisites introduced by payment SQL. A full repository rollout still follows all migration versions in order.
+These are in `supabase/migrations/`. Unrelated `068_property_requests.sql` and `069_property_request_deletion_safety.sql` remain unchanged; they are separate features, not prerequisites introduced by payment SQL. The execution ledger records only verified migrations, not an assumed baseline for the rest of the repository.
 
-Before applying 072, run these read-only preflights. Both must return zero rows; conflicting evidence requires investigation, not deletion or choosing a winner:
+For an environment where the chain has not run, first confirm the target/history and run these read-only preflights before 072. Both must return zero rows; conflicting evidence requires investigation, not deletion or choosing a winner:
 
 ```sql
 SELECT payment_id, COUNT(*) AS properties
@@ -68,7 +94,7 @@ FROM evidence GROUP BY deposit_id HAVING COUNT(DISTINCT property_id) > 1;
 
 Schedule 072 for a maintenance window: it blocks property and transaction writes while indexing/backfilling. A conflict rolls back that entire migration, not the preceding 070/071 transactions. Previously deleted listings with no surviving payment link cannot be reconstructed; reconcile from external evidence. No existing amenities are inferred from later retry input.
 
-Apply 070 → 071 → 072, verify completion, deploy the backend, then release mobile and run the sandbox/device checks in [ROADMAP.md](./ROADMAP.md#now). Do not deploy the backend after only part of this chain. Do not run deleted review-era SQL or edit the database's migration history to force a match. If any other environment already ran an old payment migration or experimental notification workers, stop for a separate history/data reconciliation; this regrouping is intended for the confirmed unapplied rollout. No remote migration or production deployment was performed as part of regrouping.
+Apply 070 → 071 → 072, verify completion, deploy the backend, then release mobile and run the sandbox/device checks in [ROADMAP.md](./ROADMAP.md#now). Do not deploy the backend after only part of this chain. Do not run deleted review-era SQL or edit the database's migration history to force a match. If any other environment already ran an old payment migration or experimental notification workers, stop for a separate history/data reconciliation; this regrouping is intended for the confirmed unapplied rollout. Regrouping itself did not execute SQL. The subsequent authorized execution applied 070–072 to Roogo and verified their effects; see the [execution ledger](../supabase/migrations/README.md). No application deployment was performed. Because the existing database had no migration history, only these three entries were established; older migrations require a separate baseline audit before broad CLI push.
 
 See the [consolidation decision](./DECISIONS.md#consolidate-unapplied-payment-migrations-before-first-rollout--2026-09-09).
 

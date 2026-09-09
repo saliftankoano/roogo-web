@@ -54,6 +54,26 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
 
 **Evidence:** [Payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08).
 
+### Listing-payment consumption
+
+**Meaning:** Permanent evidence that a deposit funded a particular listing. It survives property deletion and cannot be restored as reusable credit by clearing a payment link.
+
+**Origin:** Roogo's single-use paid-listing contract, made durable by migration 072.
+
+**Why it matters for building:** Retrying submission recovers the original property. A lost response, failed link repair or deletion never authorizes funding a replacement listing with the same payment.
+
+**Evidence:** [Consumption decision](./DECISIONS.md#listing-payment-consumption-survives-property-deletion--2026-09-09).
+
+### Notification acceptance and uncertain delivery
+
+**Meaning:** Acceptance means Expo or Africa's Talking accepted a send for processing, not that the customer read or received it. An uncertain outcome means Roogo cannot safely prove whether the provider accepted the send.
+
+**Origin:** Provider delivery semantics applied to Roogo's payment alerts.
+
+**Why it matters for building:** Callback delivered, payment completed and customer notified are different facts. Do not resend automatically after uncertainty, or treat a notification error as a payment failure.
+
+**Evidence:** [Send-boundary decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08).
+
 ## Listings and property review
 
 ### Annonce
