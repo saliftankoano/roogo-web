@@ -483,28 +483,43 @@ export async function POST(req: Request) {
         );
       }
 
-      if (paidTransaction.property_id) {
-        const { data: existingProperty } = await supabase
-          .from("properties")
-          .select("id, status")
-          .eq("id", paidTransaction.property_id)
-          .eq("payment_id", parsedListingData.payment_id)
-          .maybeSingle();
+      const { data: consumption, error: consumptionError } = await supabase
+        .from("listing_payment_consumptions")
+        .select("property_id")
+        .eq("deposit_id", parsedListingData.payment_id)
+        .maybeSingle();
+      if (consumptionError) {
+        return errorResponse("Impossible de vérifier ce paiement", 503, req);
+      }
+      const consumedPropertyId =
+        consumption?.property_id || paidTransaction.property_id;
+      if (consumedPropertyId) {
+        const { data: existingProperty, error: existingPropertyError } =
+          await supabase
+            .from("properties")
+            .select("id, status")
+            .eq("id", consumedPropertyId)
+            .eq("payment_id", parsedListingData.payment_id)
+            .maybeSingle();
+        if (existingPropertyError) {
+          return errorResponse("Impossible de vérifier ce paiement", 503, req);
+        }
         if (!existingProperty) {
           return errorResponse("Ce paiement a déjà été utilisé", 409, req);
         }
-        return cors(
-          NextResponse.json({
-            success: true,
-            propertyId: existingProperty.id,
-            isVerified: existingProperty.status === "en_ligne",
-            transactionId: parsedListingData.payment_id,
-            listingPaymentMode,
-            deferredSuccessFeeAmount: 0,
-            idempotent: true,
-          }),
-          req,
-        );
+        if (paidTransaction.property_id)
+          return cors(
+            NextResponse.json({
+              success: true,
+              propertyId: existingProperty.id,
+              isVerified: existingProperty.status === "en_ligne",
+              transactionId: parsedListingData.payment_id,
+              listingPaymentMode,
+              deferredSuccessFeeAmount: 0,
+              idempotent: true,
+            }),
+            req,
+          );
       }
     }
 
@@ -1024,8 +1039,13 @@ export async function POST(req: Request) {
           .eq("deposit_id", parsedListingData.payment_id)
           .maybeSingle();
         if (currentTransaction?.property_id !== propertyId) {
-          await supabase.from("properties").delete().eq("id", propertyId);
-          return errorResponse("Ce paiement a déjà été utilisé", 409, req);
+          // The insert atomically consumed this deposit. Preserve its property
+          // on a link/reload outage so an idempotent retry can recover it.
+          return errorResponse(
+            "Impossible de finaliser le lien du paiement",
+            503,
+            req,
+          );
         }
       } else if (updatedTransaction) {
         console.log("Transaction linked successfully:", updatedTransaction.id);

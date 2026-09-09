@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Listing payment consumption survives property deletion — 2026-09-09
+
+**Decision:** Migration 074 records each deposit's consuming property in a private ledger without a property foreign key. A database trigger consumes the reference atomically with property insertion; deletion or changing the property's payment cannot restore the credit. Retries may recover the still-existing property, not create a replacement. Preserve inserted paid properties on transaction-link outages so retries can repair the link.
+
+**Why:** The live-property unique index alone loses its evidence when a property is deleted, and the existing transaction foreign key becomes null. A consumed package must not become reusable credit.
+
+**Ruled out / alternatives:** Do not block legitimate property deletion or guess which historically deleted listing consumed a deposit. Backfill surviving property/transaction links; contradictory evidence must stop the migration. Already-deleted records with no surviving link require evidence-based reconciliation, not invented consumption history.
+
+**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Apply 074 after 068–073 and before server deployment. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
+
 ### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
 
 See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover), [domain terms](./DOMAIN.md#customer-payments), and [release gates](./ROADMAP.md#now).
