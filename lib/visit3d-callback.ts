@@ -205,11 +205,37 @@ export async function handleVisit3dDepositCallback(
   if (!updated?.length) {
     const { data: current, error: currentError } = await supabaseAdmin
       .from("bookings")
-      .select("payment_status, payment_failure_code")
+      .select("payment_status, payment_failure_code, payment_payer_phone")
       .eq("id", row.id)
       .single();
     if (currentError) {
       return { handled: true, bookingId: row.id, error: String(currentError) };
+    }
+    if (
+      !current ||
+      (current.payment_status !== payment_status &&
+        (!TERMINAL_PAYMENT_STATUSES.includes(current.payment_status) ||
+          (current.payment_status === "completed" &&
+            payment_status === "refunded")))
+    ) {
+      // A pending -> submitted race must not swallow the terminal callback.
+      // The webhook route returns an error so PawaPay will retry this deposit.
+      return {
+        handled: true,
+        bookingId: row.id,
+        error: "Payment update unresolved; retry callback",
+      };
+    }
+    if (current.payment_status === "failed") {
+      await queuePaymentFailureNotification({
+        depositId,
+        failureCode:
+          current.payment_failure_code || extractPaymentFailure(payload).code,
+        payerPhone:
+          current.payment_payer_phone || row.payment_payer_phone || row.phone,
+        locale: "fr",
+        transactionType: "visit3d",
+      });
     }
     return {
       handled: true,

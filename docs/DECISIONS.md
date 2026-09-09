@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Payment recovery preserves historical fulfillment and retries unresolved races — 2026-09-08
+
+**Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 replaces the legacy repair branch without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments.
+
+**Why:** The property's current status cannot prove whether an old payment was fulfilled. Re-locking a relisted property or flagging an already-reserved property as a conflict changes history. A concurrent pending-to-submitted update is not evidence that a terminal callback was saved.
+
+**Ruled out / alternatives:** Do not automatically backfill fulfillment from present-day availability or silently acknowledge every lost update. Preserve existing explicit conflicts; historical inconsistencies require evidence-based support reconciliation.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not yet deployed. Apply 071 after 069 and before server deployment, including on databases that already applied 069.
+
 ### Call editing preserves intent across concurrent staff work — 2026-09-08
 
 **Decision:** Merge the original, local and latest saved call field by field. Adopt unrelated staff updates, require an explicit choice for overlapping edits, and keep unresolved conflicts and drafts through repeated or failed refreshes. Give each editor its own session identity; briefly prevent opening another editor during a save while allowing call browsing.

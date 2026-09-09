@@ -369,6 +369,42 @@ export async function POST(req: Request) {
         previousStatus: transaction.status,
         attemptedStatus: dbStatus,
       });
+      // A lost compare-and-set is not necessarily a duplicate: a poll may have
+      // advanced pending -> submitted while this terminal callback was in flight.
+      // Only acknowledge after checking the winner; otherwise ask PawaPay to retry.
+      const { data: current, error: reloadError } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("deposit_id", transactionId)
+        .single();
+      if (
+        reloadError ||
+        !current ||
+        (current.status !== dbStatus &&
+          shouldApplyPaymentStatus(current.status, dbStatus))
+      ) {
+        log("status-update-retry-required", {
+          transactionId,
+          currentStatus: current?.status ?? null,
+          attemptedStatus: dbStatus,
+          reloadFailed: Boolean(reloadError),
+        });
+        return NextResponse.json(
+          { error: "Payment update unresolved; retry callback" },
+          { status: 503 },
+        );
+      }
+      if (current.status === "failed") {
+        await queuePaymentFailureNotification({
+          depositId: transactionId,
+          failureCode: current.failure_code || failure.code,
+          payerPhone: current.payer_phone || payerPhone,
+          userId: current.user_id,
+          transactionId: current.id,
+          transactionType: current.type,
+          propertyId: current.property_id,
+        });
+      }
       return NextResponse.json({ received: true, statusIgnored: true });
     }
 

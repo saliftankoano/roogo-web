@@ -342,7 +342,8 @@ export async function POST(req: Request) {
     await supabase
       .from("bookings")
       .update({ payment_status: "submitted" })
-      .eq("id", inserted.id);
+      .eq("id", inserted.id)
+      .eq("payment_status", "pending");
   } else if (
     pawaStatus === "FAILED" ||
     pawaStatus === "CANCELLED" ||
