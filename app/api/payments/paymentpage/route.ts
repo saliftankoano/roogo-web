@@ -26,6 +26,8 @@ import {
   paymentFailureMessage,
 } from "@/lib/payment-failures";
 import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
+import { claimMonthlyPropertyLockPayment } from "@/lib/property-lock-finalization";
 
 // Valid PawaPay 3-letter country codes for payment page
 const VALID_PAYMENT_PAGE_COUNTRIES = ["BFA", "CIV", "SEN"] as const;
@@ -195,7 +197,7 @@ export async function POST(req: Request) {
     } = validatedData;
 
     const pawaPayCountry: PaymentPageCountry = requestedCountry ?? "BFA";
-    const resolvedMetadata: Record<string, unknown> = metadata || {};
+    let resolvedMetadata: Record<string, unknown> = metadata || {};
     const supabase = getSupabaseClient();
     const normalizedReferralCode = normalizeReferralCode(
       referralCode || resolvedMetadata.referralCode,
@@ -237,10 +239,15 @@ export async function POST(req: Request) {
       }
     }
 
-    if (transactionType === "property_lock" && propertyId) {
+    if (transactionType === "property_lock") {
+      if (!propertyId) {
+        return errorResponse("Property is required for this payment", 400, req);
+      }
       const { data: propertyRecord, error: propertyError } = await supabase
         .from("properties")
-        .select("period")
+        .select(
+          "status, price, caution_mois, loyer_avance_mois, period, quartier, address",
+        )
         .eq("id", propertyId)
         .maybeSingle();
 
@@ -255,6 +262,30 @@ export async function POST(req: Request) {
           req,
         );
       }
+
+      if (propertyRecord.status !== "en_ligne") {
+        return errorResponse("Property is no longer available", 409, req);
+      }
+
+      const breakdown = getMoveInPaymentBreakdown({
+        monthlyRent: propertyRecord.price,
+        cautionMois: propertyRecord.caution_mois,
+        loyerAvanceMois: propertyRecord.loyer_avance_mois,
+      });
+      if (breakdown.totalAmount <= 0) {
+        return errorResponse("Property payment amount is invalid", 409, req);
+      }
+      resolvedAmount = breakdown.totalAmount;
+      resolvedMetadata = {
+        ...resolvedMetadata,
+        originalClientAmount: amount,
+        monthlyRent: breakdown.monthlyRent,
+        cautionMois: breakdown.cautionMois,
+        loyerAvanceMois: breakdown.loyerAvanceMois,
+        cautionAmount: breakdown.cautionAmount,
+        advanceRentAmount: breakdown.advanceRentAmount,
+        totalMoveInAmount: breakdown.totalAmount,
+      };
     }
 
     log("request-validated", {
@@ -377,8 +408,7 @@ export async function POST(req: Request) {
         .slice(0, 50)
         .replace(/[^a-zA-Z0-9\s]/g, ""),
     };
-    const failureLocale =
-      requestedLocale?.toUpperCase() === "EN" ? "en" : "fr";
+    const failureLocale = requestedLocale?.toUpperCase() === "EN" ? "en" : "fr";
 
     const finalizePaymentPageFailure = async (
       failurePayload: unknown,
@@ -426,7 +456,7 @@ export async function POST(req: Request) {
         source: "payment_page",
       });
 
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId,
         failureCode: failure.code,
         userId: user.id,
@@ -462,6 +492,29 @@ export async function POST(req: Request) {
 
     let response: Response;
     let responseText: string;
+    if (transactionType === "property_lock" && propertyId) {
+      const claimed = await claimMonthlyPropertyLockPayment(
+        propertyId,
+        depositId,
+      );
+      if (!claimed) {
+        if (transactionRecord?.id) {
+          await voidPendingReferralForTransaction(
+            supabase,
+            transactionRecord.id,
+          );
+        }
+        await supabase
+          .from("transactions")
+          .delete()
+          .eq("deposit_id", depositId);
+        return errorResponse(
+          "Un autre paiement est déjà en cours pour ce bien",
+          409,
+          req,
+        );
+      }
+    }
     try {
       response = await fetch(`${pawaUrl}/v2/paymentpage`, {
         method: "POST",

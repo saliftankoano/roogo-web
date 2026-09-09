@@ -48,13 +48,19 @@ export type PaymentFailureNotificationInput = {
   locale?: PaymentFailureLocale;
 };
 
-export function queuePaymentFailureNotification(
+export async function queuePaymentFailureNotification(
   input: PaymentFailureNotificationInput,
 ) {
-  after(async () => {
+  // A property reservation claim is payment state, not notification state.
+  // Release it before returning a failure response so an immediate retry is
+  // never blocked by optional background delivery work.
+  if (input.transactionType === "property_lock") {
     await releaseMonthlyPropertyLockPayment(input.depositId).catch((error) => {
       console.error("Failed to release property payment claim:", error);
     });
+  }
+
+  after(async () => {
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
       const result = await notifyPaymentFailure(input, {
         fallbackToSmsOnPushFailure: attempt === RETRY_DELAYS_MS.length,

@@ -55,7 +55,7 @@ export async function POST(req: Request) {
   }
   if (row.payment_status === "failed" || row.payment_status === "cancelled") {
     if (row.payment_status === "failed") {
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId,
         failureCode: row.payment_failure_code || "UNSPECIFIED_FAILURE",
         payerPhone: row.payment_payer_phone || row.phone,

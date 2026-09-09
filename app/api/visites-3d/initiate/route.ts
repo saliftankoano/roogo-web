@@ -250,7 +250,7 @@ export async function POST(req: Request) {
         { status: 202 },
       );
     }
-    queuePaymentFailureNotification({
+    await queuePaymentFailureNotification({
       depositId,
       failureCode: failure.code,
       payerPhone: payerPhoneFormatted,

@@ -149,7 +149,7 @@ export async function handleVisit3dDepositCallback(
     if (!isRefundOfCompleted) {
       if (row.payment_status === "failed") {
         const failure = extractPaymentFailure(payload);
-        queuePaymentFailureNotification({
+        await queuePaymentFailureNotification({
           depositId,
           failureCode: row.payment_failure_code || failure.code,
           payerPhone:
@@ -221,7 +221,7 @@ export async function handleVisit3dDepositCallback(
 
   if (payment_status === "failed") {
     const failure = extractPaymentFailure(payload);
-    queuePaymentFailureNotification({
+    await queuePaymentFailureNotification({
       depositId,
       failureCode: failure.code,
       payerPhone:

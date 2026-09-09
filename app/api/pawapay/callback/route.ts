@@ -289,7 +289,7 @@ export async function POST(req: Request) {
       // after its lease expires. The dispatcher still deduplicates successful
       // sends by deposit ID.
       if (transaction.status === "failed") {
-        queuePaymentFailureNotification({
+        await queuePaymentFailureNotification({
           depositId: transactionId,
           failureCode: transaction.failure_code || failure.code,
           payerPhone,
@@ -590,7 +590,7 @@ export async function POST(req: Request) {
     }
 
     if (dbStatus === "failed") {
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId: transactionId,
         failureCode: failure.code,
         payerPhone,

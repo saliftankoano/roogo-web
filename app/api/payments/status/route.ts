@@ -248,7 +248,7 @@ export async function POST(req: Request) {
             : null;
 
         if (failure) {
-          queuePaymentFailureNotification({
+          await queuePaymentFailureNotification({
             depositId,
             failureCode: failure.code,
             payerPhone: transaction.payer_phone,
@@ -515,7 +515,7 @@ export async function POST(req: Request) {
         },
       );
 
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId,
         failureCode,
         payerPhone: transaction.payer_phone,
@@ -726,7 +726,7 @@ export async function POST(req: Request) {
             .eq("transaction_id", transaction.id);
         }
 
-        queuePaymentFailureNotification({
+        await queuePaymentFailureNotification({
           depositId,
           failureCode: failure.code,
           payerPhone,

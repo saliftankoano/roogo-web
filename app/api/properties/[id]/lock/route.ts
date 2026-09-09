@@ -265,7 +265,10 @@ export async function POST(
 
     let response: Response;
     let responseText: string;
-    const claimed = await claimMonthlyPropertyLockPayment(propertyId, depositId);
+    const claimed = await claimMonthlyPropertyLockPayment(
+      propertyId,
+      depositId,
+    );
     if (!claimed) {
       await supabase.from("transactions").delete().eq("deposit_id", depositId);
       return cors(
@@ -349,7 +352,7 @@ export async function POST(
 
       const errorMessage = paymentFailureMessage(failure.code, "fr");
 
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId,
         failureCode: failure.code,
         payerPhone: formattedPhone,
@@ -407,7 +410,7 @@ export async function POST(
         );
       }
 
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId,
         failureCode: failure.code,
         payerPhone: formattedPhone,

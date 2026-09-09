@@ -699,9 +699,15 @@ export async function POST(req: Request) {
       );
       if (!claimed) {
         if (transactionRecord?.id) {
-          await voidPendingReferralForTransaction(supabase, transactionRecord.id);
+          await voidPendingReferralForTransaction(
+            supabase,
+            transactionRecord.id,
+          );
         }
-        await supabase.from("transactions").delete().eq("deposit_id", depositId);
+        await supabase
+          .from("transactions")
+          .delete()
+          .eq("deposit_id", depositId);
         return errorResponse(
           "Un autre paiement est déjà en cours pour ce bien",
           409,
@@ -841,7 +847,7 @@ export async function POST(req: Request) {
         failure_reason: errorMessage,
       });
 
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId,
         failureCode: failure.code,
         payerPhone: formattedPhone,
@@ -915,7 +921,7 @@ export async function POST(req: Request) {
           .eq("transaction_id", transactionRecord.id);
       }
 
-      queuePaymentFailureNotification({
+      await queuePaymentFailureNotification({
         depositId,
         failureCode: failure.code,
         payerPhone: formattedPhone,
