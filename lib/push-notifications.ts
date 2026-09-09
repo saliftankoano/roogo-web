@@ -7,6 +7,7 @@ import {
 import {
   getInvalidExpoPushTokens,
   isExpoPushResponseAccepted,
+  isExpoPushResponseRejected,
 } from "@/lib/expo-push-response";
 
 export interface PushNotificationPayload {
@@ -50,6 +51,7 @@ export type UserPushNotificationContextResult =
  */
 export type ExpoPushSendResult = {
   accepted: boolean;
+  outcome: "accepted" | "rejected" | "unknown";
   invalidTokens: string[];
 };
 
@@ -75,18 +77,32 @@ export async function sendExpoPushNotificationsWithResult(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Expo Push API error: ${response.status}`, errorText);
-      return { accepted: false, invalidTokens: [] };
+      return {
+        accepted: false,
+        invalidTokens: [],
+        outcome:
+          response.status >= 400 &&
+          response.status < 500 &&
+          response.status !== 408
+            ? "rejected"
+            : "unknown",
+      };
     }
 
     const result = await response.json();
     console.log("Expo Push API response:", JSON.stringify(result, null, 2));
     return {
       accepted: isExpoPushResponseAccepted(result),
+      outcome: isExpoPushResponseAccepted(result)
+        ? "accepted"
+        : isExpoPushResponseRejected(result, targetTokens.length)
+          ? "rejected"
+          : "unknown",
       invalidTokens: getInvalidExpoPushTokens(result, targetTokens),
     };
   } catch (error) {
     console.error("Failed to send Expo push notifications:", error);
-    return { accepted: false, invalidTokens: [] };
+    return { accepted: false, invalidTokens: [], outcome: "unknown" };
   }
 }
 

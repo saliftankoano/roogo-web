@@ -1,4 +1,5 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { randomUUID } from "node:crypto";
 import type { NotificationType } from "@/lib/push-notifications";
 
 export type NotificationDeliveryReservation = {
@@ -46,6 +47,7 @@ export async function claimPaymentFailureDelivery({
   subjectId,
   metadata,
 }: NotificationDeliveryReservation) {
+  const attemptId = randomUUID();
   const { data, error } = await supabaseAdmin.rpc(
     "claim_payment_failure_delivery",
     {
@@ -53,15 +55,32 @@ export async function claimPaymentFailureDelivery({
       p_notification_type: notificationType,
       p_event_type: eventType,
       p_subject_id: subjectId,
-      p_metadata: metadata ?? {},
+      p_metadata: { ...metadata, deliveryAttemptId: attemptId },
       p_lease_seconds: 300,
     },
   );
 
-  if (!error) return data === true;
+  if (!error) return data === true ? attemptId : false;
 
   console.error("Failed to claim payment-failure delivery:", error);
   return null;
+}
+
+export async function beginPaymentFailureSend(
+  subjectId: string,
+  attemptId: string,
+  channel: "sms" | "push",
+) {
+  const { data, error } = await supabaseAdmin.rpc(
+    "begin_payment_failure_send",
+    {
+      p_subject_id: subjectId,
+      p_attempt_id: attemptId,
+      p_channel: channel,
+    },
+  );
+  if (error) return null;
+  return data === true;
 }
 
 export async function claimRetryableNotificationDelivery({
@@ -97,15 +116,21 @@ export async function updateNotificationDeliveryMetadata({
   metadata,
   deliveryStatus,
   releaseSmsClaim = false,
+  attemptId,
 }: {
   eventType: string;
   subjectId: string;
   userId?: string | null;
   metadata: Record<string, unknown>;
-  deliveryStatus?: "sent" | "failed";
+  deliveryStatus?: "sent" | "failed" | "uncertain";
   releaseSmsClaim?: boolean;
+  attemptId?: string;
 }) {
-  const patch: Record<string, unknown> = { metadata };
+  const patch: Record<string, unknown> = {
+    metadata: attemptId
+      ? { ...metadata, deliveryAttemptId: attemptId }
+      : metadata,
+  };
   if (deliveryStatus) {
     patch.delivery_status = deliveryStatus;
     patch.lease_expires_at =
@@ -113,6 +138,7 @@ export async function updateNotificationDeliveryMetadata({
         ? new Date(Date.now() + 2_000).toISOString()
         : null;
     if (deliveryStatus === "sent") patch.sent_at = new Date().toISOString();
+    if (deliveryStatus === "failed") patch.send_started_at = null;
   }
   if (releaseSmsClaim) {
     patch.sms_cooldown_key = null;
@@ -127,11 +153,20 @@ export async function updateNotificationDeliveryMetadata({
   if (userId !== undefined) {
     query = userId ? query.eq("user_id", userId) : query.is("user_id", null);
   }
+  if (attemptId) {
+    const { data, error } = await query
+      .eq("metadata->>deliveryAttemptId", attemptId)
+      .select("id");
+    if (error)
+      console.error("Failed to persist payment notification outcome:", error);
+    return !error && Boolean(data?.length);
+  }
   const { error } = await query;
 
   if (error && error.code !== "42P01") {
     console.error("Failed to update notification delivery:", error);
   }
+  return !error;
 }
 
 export async function claimPaymentFailureSmsCooldown({
@@ -139,19 +174,22 @@ export async function claimPaymentFailureSmsCooldown({
   phoneHash,
   failureCode,
   since,
+  attemptId,
 }: {
   subjectId: string;
   phoneHash: string;
   failureCode: string;
   since: Date;
+  attemptId: string;
 }) {
   const cooldownKey = `${phoneHash}:${failureCode}`;
   const { data, error } = await supabaseAdmin.rpc(
-    "claim_payment_failure_sms_cooldown",
+    "claim_payment_failure_sms_cooldown_attempt",
     {
       p_subject_id: subjectId,
       p_cooldown_key: cooldownKey,
       p_since: since.toISOString(),
+      p_attempt_id: attemptId,
     },
   );
 

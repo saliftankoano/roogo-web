@@ -1,8 +1,9 @@
 import { createHash } from "node:crypto";
 import { after } from "next/server";
-import { sendTransactionalSms } from "@/lib/africastalking";
+import { sendTransactionalSmsWithResult } from "@/lib/africastalking";
 import {
   claimPaymentFailureDelivery,
+  beginPaymentFailureSend,
   claimPaymentFailureSmsCooldown,
   updateNotificationDeliveryMetadata,
 } from "@/lib/notification-deliveries";
@@ -61,13 +62,16 @@ export async function queuePaymentFailureNotification(
   }
 
   after(async () => {
+    let pushRejected = false;
     for (let attempt = 0; attempt <= RETRY_DELAYS_MS.length; attempt += 1) {
       const result = await notifyPaymentFailure(input, {
-        fallbackToSmsOnPushFailure: attempt === RETRY_DELAYS_MS.length,
+        fallbackToSmsOnPushFailure:
+          pushRejected && attempt === RETRY_DELAYS_MS.length,
       }).catch((error) => {
         console.error("Failed-payment notification failed:", error);
         return { delivered: false, reason: "claim_failed" as const };
       });
+      if (result.reason === "push" && !result.delivered) pushRejected = true;
       if (!shouldRetryPaymentFailureNotification(result)) return;
 
       const delayMs = RETRY_DELAYS_MS[attempt];
@@ -104,6 +108,27 @@ export async function notifyPaymentFailure(
   }
   if (!reserved) return { delivered: false, reason: "duplicate" as const };
 
+  // Fence every outcome to this lease. Retry only persistence, never the send.
+  const persist = async (
+    update: Parameters<typeof updateNotificationDeliveryMetadata>[0],
+  ) => {
+    for (let attempt = 0; attempt < 3; attempt++) {
+      try {
+        if (
+          await updateNotificationDeliveryMetadata({
+            ...update,
+            attemptId: reserved,
+          })
+        )
+          return true;
+      } catch (error) {
+        console.error("Payment notification outcome write failed:", error);
+      }
+      if (attempt < 2) await wait(100 * (attempt + 1));
+    }
+    return false;
+  };
+
   let locale: PaymentFailureLocale = input.locale ?? "fr";
   let pushTokens: string[] = [];
   let pushEnabled = true;
@@ -115,7 +140,7 @@ export async function notifyPaymentFailure(
       "payments",
     );
     if (pushLookup.status === "retry") {
-      await updateNotificationDeliveryMetadata({
+      await persist({
         eventType: EVENT_TYPE,
         subjectId: input.depositId,
         metadata: {
@@ -136,7 +161,7 @@ export async function notifyPaymentFailure(
   }
 
   if (input.userId && !pushEnabled) {
-    await updateNotificationDeliveryMetadata({
+    await persist({
       eventType: EVENT_TYPE,
       subjectId: input.depositId,
       metadata: {
@@ -151,7 +176,18 @@ export async function notifyPaymentFailure(
     return { delivered: false, reason: "push_disabled" as const };
   }
 
-  if (pushTokens.length > 0) {
+  if (pushTokens.length > 0 && !options.fallbackToSmsOnPushFailure) {
+    const begun = await beginPaymentFailureSend(
+      input.depositId,
+      reserved,
+      "push",
+    );
+    if (!begun)
+      return {
+        delivered: false,
+        reason:
+          begun === null ? ("claim_failed" as const) : ("duplicate" as const),
+      };
     pushAttempted = true;
     const pushResult = await sendExpoPushNotificationsWithResult({
       to: pushTokens,
@@ -167,10 +203,10 @@ export async function notifyPaymentFailure(
       },
       sound: "default",
     });
-    await removeUserPushTokens(pushResult.invalidTokens);
+    await removeUserPushTokens(pushResult.invalidTokens).catch(() => {});
 
-    if (pushResult.accepted || !options.fallbackToSmsOnPushFailure) {
-      await updateNotificationDeliveryMetadata({
+    {
+      await persist({
         eventType: EVENT_TYPE,
         subjectId: input.depositId,
         metadata: {
@@ -181,14 +217,25 @@ export async function notifyPaymentFailure(
           invalidPushTokens: pushResult.invalidTokens.length,
           smsSent: false,
         },
-        deliveryStatus: pushResult.accepted ? "sent" : "failed",
+        deliveryStatus:
+          pushResult.outcome === "accepted"
+            ? "sent"
+            : pushResult.outcome === "rejected"
+              ? "failed"
+              : "uncertain",
       });
-      return { delivered: pushResult.accepted, reason: "push" as const };
+      return {
+        delivered: pushResult.accepted,
+        reason:
+          pushResult.outcome === "unknown"
+            ? ("push_unknown" as const)
+            : ("push" as const),
+      };
     }
   }
 
   if (!phone || !phoneHash) {
-    await updateNotificationDeliveryMetadata({
+    await persist({
       eventType: EVENT_TYPE,
       subjectId: input.depositId,
       metadata: {
@@ -208,9 +255,10 @@ export async function notifyPaymentFailure(
     phoneHash,
     failureCode,
     since: new Date(Date.now() - SMS_COOLDOWN_MS),
+    attemptId: reserved,
   });
   if (smsClaimed === null) {
-    await updateNotificationDeliveryMetadata({
+    await persist({
       eventType: EVENT_TYPE,
       subjectId: input.depositId,
       metadata: {
@@ -224,14 +272,27 @@ export async function notifyPaymentFailure(
     return { delivered: false, reason: "sms_claim_failed" as const };
   }
   const onCooldown = !smsClaimed;
-  const smsSent = onCooldown
-    ? false
-    : await sendTransactionalSms(
-        phone,
-        paymentFailureSmsMessage(failureCode, locale),
-      );
+  let smsOutcome: "accepted" | "rejected" | "unknown" = "rejected";
+  if (!onCooldown) {
+    const begun = await beginPaymentFailureSend(
+      input.depositId,
+      reserved,
+      "sms",
+    );
+    if (!begun)
+      return {
+        delivered: false,
+        reason:
+          begun === null ? ("claim_failed" as const) : ("duplicate" as const),
+      };
+    smsOutcome = await sendTransactionalSmsWithResult(
+      phone,
+      paymentFailureSmsMessage(failureCode, locale),
+    );
+  }
+  const smsSent = smsOutcome === "accepted";
 
-  await updateNotificationDeliveryMetadata({
+  await persist({
     eventType: EVENT_TYPE,
     subjectId: input.depositId,
     metadata: {
@@ -242,12 +303,21 @@ export async function notifyPaymentFailure(
       smsCooldownSuppressed: onCooldown,
       smsSent,
     },
-    deliveryStatus: onCooldown || smsSent ? "sent" : "failed",
-    releaseSmsClaim: !onCooldown && !smsSent,
+    deliveryStatus:
+      onCooldown || smsSent
+        ? "sent"
+        : smsOutcome === "rejected"
+          ? "failed"
+          : "uncertain",
+    releaseSmsClaim: !onCooldown && smsOutcome === "rejected",
   });
 
   return {
     delivered: smsSent,
-    reason: onCooldown ? "sms_cooldown" : "sms",
+    reason: onCooldown
+      ? "sms_cooldown"
+      : smsOutcome === "unknown"
+        ? "sms_unknown"
+        : "sms",
   } as const;
 }

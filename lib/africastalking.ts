@@ -1,7 +1,7 @@
 // Africa's Talking SMS helper — used by the Visites 3D booking API.
 // Docs: https://developers.africastalking.com/docs/sms/sending
 
-import { isSmsRecipientAccepted } from "@/lib/africastalking-response";
+import { smsRecipientOutcome } from "@/lib/africastalking-response";
 
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const AfricasTalking = require("africastalking");
@@ -52,20 +52,34 @@ function client(): ATClient["SMS"] {
 }
 
 async function send(to: string, message: string): Promise<boolean> {
+  return (await sendTransactionalSmsWithResult(to, message)) === "accepted";
+}
+
+export async function sendTransactionalSmsWithResult(
+  to: string,
+  message: string,
+): Promise<"accepted" | "rejected" | "unknown"> {
   const from = process.env.AT_SENDER_ID || undefined;
+  let sms: ATClient["SMS"];
   try {
-    const response = await client().send({ to, message, from });
-    const accepted = isSmsRecipientAccepted(response, to);
-    if (!accepted) {
+    sms = client();
+  } catch (err) {
+    console.error("[africastalking] client unavailable", err);
+    return "rejected"; // No request was sent.
+  }
+  try {
+    const response = await sms.send({ to, message, from });
+    const outcome = smsRecipientOutcome(response, to);
+    if (outcome !== "accepted") {
       console.error("[africastalking] recipient was not accepted", {
         phoneSuffix: to.replace(/\D/g, "").slice(-4),
       });
     }
-    return accepted;
+    return outcome;
   } catch (err) {
     // We don't want an SMS provider hiccup to fail a booking write — log and continue.
     console.error("[africastalking] send failed", err);
-    return false;
+    return "unknown";
   }
 }
 

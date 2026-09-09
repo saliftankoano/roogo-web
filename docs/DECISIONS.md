@@ -7,9 +7,19 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Notification uncertainty never authorizes a second send — 2026-09-08
+
+**Decision:** Reserve an attempt identity, then persist a non-reclaimable sending boundary before contacting SMS or push providers. Retry outcome writes separately. Only explicit rejection reopens delivery; accepted sends, lost replies and exhausted outcome writes do not automatically resend. SMS cooldown includes sending and uncertain attempts. Migration 072 preserves pre-boundary pending deliveries as uncertain rather than guessing whether they already sent.
+
+**Why:** A lease timeout or failed database write cannot prove the provider rejected a message. Retrying in that situation can send duplicate payment alerts. Attempt ownership also prevents an expired worker from overwriting a newer worker's outcome.
+
+**Ruled out / alternatives:** Automatic retry of all provider errors favors eventual delivery over duplicate prevention. We prioritize no duplicate submission for sensitive payment alerts. A crash between the durable boundary and the network call can therefore leave an unsent alert uncertain; support must reconcile it using provider evidence, not reset it blindly.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Drain older payment-notification workers before applying 072 and deploying this revision. Provider acknowledgment means accepted for processing, not handset delivery; see [Africa's Talking status guidance](https://help.africastalking.com/en/articles/16150386-messaging-error-codes) and [Expo ticket guidance](https://docs.expo.dev/push-notifications/sending-notifications/).
+
 ### Payment recovery preserves historical fulfillment and retries unresolved races — 2026-09-08
 
-**Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 replaces the legacy repair branch without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments.
+**Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 replaces the legacy repair branch without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments. Normal status reads and lost-update reloads share fulfillment-aware responses, so a completed payment with an unconfirmed reservation remains NEEDS_SUPPORT.
 
 **Why:** The property's current status cannot prove whether an old payment was fulfilled. Re-locking a relisted property or flagging an already-reserved property as a conflict changes history. A concurrent pending-to-submitted update is not evidence that a terminal callback was saved.
 

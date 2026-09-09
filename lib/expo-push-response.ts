@@ -18,6 +18,18 @@ export function isExpoPushResponseAccepted(response: unknown) {
   );
 }
 
+export function isExpoPushResponseRejected(
+  response: unknown,
+  targetCount: number,
+) {
+  const tickets = getTickets(response);
+  return (
+    targetCount > 0 &&
+    tickets.length === targetCount &&
+    tickets.every((ticket) => ticket?.status === "error")
+  );
+}
+
 /** Tokens Expo has definitively rejected and that must no longer be used. */
 export function getInvalidExpoPushTokens(response: unknown, tokens: string[]) {
   return getTickets(response).flatMap((ticket, index) => {
