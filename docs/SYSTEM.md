@@ -22,9 +22,9 @@ The shared failure flow covers customer-initiated reservation, rent, listing, bo
 
 Initiation, polling and callbacks share failed-payment notification dispatch. One `payments.failed` record belongs to the deposit, including accountless 3D bookings. Account notification preferences are honored; a preference/token lookup outage is retryable, not evidence of consent or an absent token. Use push when eligible tokens exist, otherwise the normalized Mobile Money payer number for SMS. After definitively rejected push attempts, the bounded retry path may use SMS. Matching SMS alerts share a 15-minute cooldown per hashed payer phone and failure code. Delivery records retain channel, outcome, phone hash and code; optional notification failures do not change the payment result. No notification inbox is added.
 
-Listing deposits have a separate permanent consumption ledger, created by migration 074. Its property reference intentionally survives property deletion. Consumption commits or rolls back with the property insert; an already-consumed deposit can recover its existing listing but cannot create another, including after deletion. Transaction-link outages preserve that listing for idempotent repair. Historical backfill uses only surviving property/payment links and fails on conflicting evidence. See the [consumption decision](./DECISIONS.md#listing-payment-consumption-survives-property-deletion--2026-09-09).
+Listing deposits have a separate permanent consumption ledger, created by migration 072. Its property reference intentionally survives property deletion. Consumption commits or rolls back with the property insert; an already-consumed deposit can recover its existing listing but cannot create another, including after deletion. Transaction-link outages preserve that listing for idempotent repair. Historical backfill uses only surviving property/payment links and fails on conflicting evidence. See the [consumption decision](./DECISIONS.md#listing-payment-consumption-survives-property-deletion--2026-09-09).
 
-Migration 075 makes creation-time amenities atomic with that insert. The API supplies a sale-filtered names snapshot; the insert trigger attaches the matching amenities, so database failure rolls back both listing and consumption. Retries verify the transaction's property link and the property's transaction link, returning a retryable error if either cannot be confirmed. They neither replace amenities from changed retry input nor restore amenities removed by later edits. Initial analytics/matching-listing announcements remain best-effort and run before payment linking; payment-link retries do not re-announce old listings. Legacy writers can omit the nullable snapshot. No existing amenities are inferred or backfilled.
+Migration 072 also makes creation-time amenities atomic with that insert. The API supplies a sale-filtered names snapshot; the insert trigger attaches the matching amenities, so database failure rolls back both listing and consumption. Retries verify the transaction's property link and the property's transaction link, returning a retryable error if either cannot be confirmed. They neither replace amenities from changed retry input nor restore amenities removed by later edits. Initial analytics/matching-listing announcements remain best-effort and run before payment linking; payment-link retries do not re-announce old listings. Legacy writers can omit the nullable snapshot. No existing amenities are inferred or backfilled.
 
 ### Why can an alert remain uncertain rather than retry automatically?
 
@@ -33,6 +33,44 @@ The dispatcher records an attempt-owned, non-reclaimable sending boundary before
 Monthly reservation conflicts use the same protection independently for each customer/staff recipient. Stored conflict status reads retry eligible outstanding escalation without re-finalizing the payment. Preference opt-outs and absent tokens are recorded as skipped, while pre-send lookup errors remain retryable. Failed-payment SMS cooldown remains separate from these push-only conflict alerts.
 
 See the [gateway decision](./DECISIONS.md#gateway-errors-preserve-the-original-deposit-for-reconciliation--2026-09-09), [notification uncertainty decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08), and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08). Deployment gates and sandbox/device checks live in [ROADMAP.md](./ROADMAP.md#now); detailed validation evidence stays in the linked PRs.
+
+## How are the unapplied payment migrations installed?
+
+The user confirmed on 2026-09-09 that the review-era payment migrations had not been applied. They are replaced by three files, each with one transaction and only final function definitions:
+
+| Order | File | Responsibility | Replaces review-era payment files |
+| --- | --- | --- | --- |
+| 1 | `070_payment_failure_notifications.sql` | Failure fields, accountless delivery records, leases, SMS cooldown and attempt-fenced failure/conflict sends | 068, 072, 073 |
+| 2 | `071_atomic_property_lock_payments.sql` | Reservation claims, release and atomic finalization preserving completed history | 069, 071 |
+| 3 | `072_atomic_listing_payments.sql` | Unique deposit index, durable consumption backfill/trigger and atomic creation amenities | 070, 074, 075 |
+
+These are in `supabase/migrations/`. Unrelated `068_property_requests.sql` and `069_property_request_deletion_safety.sql` remain unchanged; they are separate features, not prerequisites introduced by payment SQL. A full repository rollout still follows all migration versions in order.
+
+Before applying 072, run these read-only preflights. Both must return zero rows; conflicting evidence requires investigation, not deletion or choosing a winner:
+
+```sql
+SELECT payment_id, COUNT(*) AS properties
+FROM public.properties
+WHERE payment_id IS NOT NULL
+GROUP BY payment_id HAVING COUNT(*) > 1;
+
+WITH evidence AS (
+  SELECT payment_id AS deposit_id, id AS property_id
+  FROM public.properties WHERE payment_id IS NOT NULL
+  UNION
+  SELECT deposit_id, property_id FROM public.transactions
+  WHERE type = 'listing_submission'
+    AND deposit_id IS NOT NULL AND property_id IS NOT NULL
+)
+SELECT deposit_id, COUNT(DISTINCT property_id) AS properties
+FROM evidence GROUP BY deposit_id HAVING COUNT(DISTINCT property_id) > 1;
+```
+
+Schedule 072 for a maintenance window: it blocks property and transaction writes while indexing/backfilling. A conflict rolls back that entire migration, not the preceding 070/071 transactions. Previously deleted listings with no surviving payment link cannot be reconstructed; reconcile from external evidence. No existing amenities are inferred from later retry input.
+
+Apply 070 → 071 → 072, verify completion, deploy the backend, then release mobile and run the sandbox/device checks in [ROADMAP.md](./ROADMAP.md#now). Do not deploy the backend after only part of this chain. Do not run deleted review-era SQL or edit the database's migration history to force a match. If any other environment already ran an old payment migration or experimental notification workers, stop for a separate history/data reconciliation; this regrouping is intended for the confirmed unapplied rollout. No remote migration or production deployment was performed as part of regrouping.
+
+See the [consolidation decision](./DECISIONS.md#consolidate-unapplied-payment-migrations-before-first-rollout--2026-09-09).
 
 ## How do property requests connect mobile supply to staff work?
 

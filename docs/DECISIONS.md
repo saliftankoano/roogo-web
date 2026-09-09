@@ -7,17 +7,27 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Consolidate unapplied payment migrations before first rollout — 2026-09-09
+
+**Decision:** With the user's confirmation that the payment migrations have never run, replace the eight review-era files with three transactional migrations: 070 notification delivery, 071 property-lock payments, and 072 listing payments. Keep only the final function definitions. Leave unrelated property-request migrations 068/069 unchanged.
+
+**Why:** There is no deployed payment migration history to preserve. Grouping by responsibility removes duplicate numeric versions and prevents operators from installing intermediate, superseded function definitions.
+
+**Ruled out / alternatives:** Do not squash already-applied migrations or change the property-request feature. Do not concatenate eight files with nested transaction boundaries. Retain conservative legacy notification uncertainty guards as a defensive measure, but do not claim older payment workers are deployed.
+
+**Status:** Settled for this first rollout, not applied to a remote database. Apply only the new 070 → 071 → 072 chain before server deployment. If any environment actually applied an old payment file, stop and reconcile its migration history separately; these are not upgrade scripts for that environment. See [rollout instructions](./SYSTEM.md#how-are-the-unapplied-payment-migrations-installed).
+
 ### Listing payment consumption survives property deletion — 2026-09-09
 
-**Decision:** Migration 074 records each deposit's consuming property in a private ledger without a property foreign key. A database trigger consumes the reference atomically with property insertion; deletion or changing the property's payment cannot restore the credit. Retries may recover the still-existing property, not create a replacement. Preserve inserted paid properties on transaction-link outages so retries can repair the link.
+**Decision:** Migration 072 records each deposit's consuming property in a private ledger without a property foreign key. A database trigger consumes the reference atomically with property insertion; deletion or changing the property's payment cannot restore the credit. Retries may recover the still-existing property, not create a replacement. Preserve inserted paid properties on transaction-link outages so retries can repair the link.
 
 **Why:** The live-property unique index alone loses its evidence when a property is deleted, and the existing transaction foreign key becomes null. A consumed package must not become reusable credit.
 
-**Creation recovery refinement (2026-09-09):** Migration 075 snapshots creation-time amenity names and attaches their links in the property insert transaction. An amenity write failure rolls back the property and its consumption; a later transaction-link failure preserves both. All paid creation/retry paths verify both transaction/property links before success. Optional creation announcements run before the link step and do not run again on replay. Existing properties are not backfilled from retry input: it may have changed, or amenities may have been intentionally removed since creation.
+**Creation recovery refinement (2026-09-09):** Migration 072 snapshots creation-time amenity names and attaches their links in the property insert transaction. An amenity write failure rolls back the property and its consumption; a later transaction-link failure preserves both. All paid creation/retry paths verify both transaction/property links before success. Optional creation announcements run before the link step and do not run again on replay. Existing properties are not backfilled from retry input: it may have changed, or amenities may have been intentionally removed since creation.
 
 **Ruled out / alternatives:** Do not block legitimate property deletion or guess which historically deleted listing consumed a deposit. Backfill surviving property/transaction links; contradictory evidence must stop the migration. Already-deleted records with no surviving link require evidence-based reconciliation, not invented consumption history.
 
-**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Apply 074 after 068–073, then 075 before server deployment. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
+**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Apply payment migrations 070 → 071 → 072 before server deployment. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
 
 ### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
 
@@ -35,19 +45,19 @@ See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-custo
 
 ### Notification uncertainty never authorizes a second send — 2026-09-08
 
-**Decision:** Reserve an attempt identity, then persist a non-reclaimable sending boundary before contacting SMS or push providers. Retry outcome writes separately. Only explicit rejection reopens delivery; accepted sends, lost replies and exhausted outcome writes do not automatically resend. SMS cooldown includes sending and uncertain attempts. Migration 072 preserves pre-boundary pending deliveries as uncertain rather than guessing whether they already sent.
+**Decision:** Reserve an attempt identity, then persist a non-reclaimable sending boundary before contacting SMS or push providers. Retry outcome writes separately. Only explicit rejection reopens delivery; accepted sends, lost replies and exhausted outcome writes do not automatically resend. SMS cooldown includes sending and uncertain attempts. Migration 070 preserves pre-boundary pending deliveries as uncertain rather than guessing whether they already sent.
 
-**Conflict refinement (2026-09-09):** The same boundary and shared attempt-owned outcome writer protect each `payments.property_lock_conflict` recipient. Preference/token lookup errors remain retryable before sending; opt-outs and absent tokens are recorded as skipped. Migration 073 marks legacy pending **and failed** conflict attempts uncertain because the old boolean sender could not distinguish rejection from a lost acknowledgment. Drain old conflict workers before applying 073. Unknown/accepted sends cannot be reclaimed after lease expiry; definitive rejection may retry.
+**Conflict refinement (2026-09-09):** The same boundary and shared attempt-owned outcome writer protect each `payments.property_lock_conflict` recipient. Preference/token lookup errors remain retryable before sending; opt-outs and absent tokens are recorded as skipped. Migration 070 marks legacy pending **and failed** conflict attempts uncertain because the old boolean sender could not distinguish rejection from a lost acknowledgment. If an environment ran older experimental conflict workers, stop and reconcile its migration history before rollout. Unknown/accepted sends cannot be reclaimed after lease expiry; definitive rejection may retry.
 
 **Why:** A lease timeout or failed database write cannot prove the provider rejected a message. Retrying in that situation can send duplicate payment alerts. Attempt ownership also prevents an expired worker from overwriting a newer worker's outcome.
 
 **Ruled out / alternatives:** Automatic retry of all provider errors favors eventual delivery over duplicate prevention. We prioritize no duplicate submission for sensitive payment alerts. A crash between the durable boundary and the network call can therefore leave an unsent alert uncertain; support must reconcile it using provider evidence, not reset it blindly.
 
-**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Drain older payment-notification workers before applying 072 and deploying this revision. Provider acknowledgment means accepted for processing, not handset delivery; see [Africa's Talking status guidance](https://help.africastalking.com/en/articles/16150386-messaging-error-codes) and [Expo ticket guidance](https://docs.expo.dev/push-notifications/sending-notifications/).
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. The user confirmed these payment migrations are unapplied; use the consolidated first-rollout sequence. Provider acknowledgment means accepted for processing, not handset delivery; see [Africa's Talking status guidance](https://help.africastalking.com/en/articles/16150386-messaging-error-codes) and [Expo ticket guidance](https://docs.expo.dev/push-notifications/sending-notifications/).
 
 ### Payment recovery preserves historical fulfillment and retries unresolved races — 2026-09-08
 
-**Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 replaces the legacy repair branch without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments. Normal status reads and lost-update reloads share fulfillment-aware responses, so a completed payment with an unconfirmed reservation remains NEEDS_SUPPORT.
+**Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 installs the finalizer without a legacy repair branch and without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments. Normal status reads and lost-update reloads share fulfillment-aware responses, so a completed payment with an unconfirmed reservation remains NEEDS_SUPPORT.
 
 **Recovery refinement (2026-09-08):** The first poll discovering a blocked daily/hotel fulfillment also returns NEEDS_SUPPORT. Stored monthly conflicts re-drive outstanding per-recipient escalation without re-finalizing the reservation. Hosted returns display a terminal support-required state, payment reference and contact action, with no second-payment action or automatic redirect. Polling is serialized and cancelled on navigation so stale responses cannot overwrite that state.
 
@@ -57,7 +67,7 @@ See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-custo
 
 **Ruled out / alternatives:** Do not automatically backfill fulfillment from present-day availability or silently acknowledge every lost update. Preserve existing explicit conflicts; historical inconsistencies require evidence-based support reconciliation.
 
-**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not yet deployed. Apply 071 after 069 and before server deployment, including on databases that already applied 069.
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not yet deployed. Apply 071 after payment notification migration 070 and before server deployment.
 
 ### Call editing preserves intent across concurrent staff work — 2026-09-08
 

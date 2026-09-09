@@ -1,7 +1,18 @@
--- A property may be deleted, but that must not restore its paid listing credit.
+-- Unapplied payment migrations consolidated on 2026-09-09.
+-- Apply 070, 071, then 072 before deploying the payment backend.
+-- Single-use listing deposits, deletion-proof history and atomic amenities.
+-- Preflight duplicate deposits and contradictory historical property links.
 BEGIN;
 LOCK TABLE public.properties IN SHARE ROW EXCLUSIVE MODE;
 LOCK TABLE public.transactions IN SHARE ROW EXCLUSIVE MODE;
+
+-- A hosted listing payment can fund at most one property. This closes both
+-- concurrent submission races and stale browser/deep-link replay.
+CREATE UNIQUE INDEX IF NOT EXISTS properties_payment_id_unique
+  ON public.properties(payment_id)
+  WHERE payment_id IS NOT NULL;
+
+-- A property may be deleted, but that must not restore its paid listing credit.
 
 CREATE TABLE public.listing_payment_consumptions (
   deposit_id TEXT PRIMARY KEY,
@@ -47,4 +58,24 @@ REVOKE ALL ON FUNCTION public.consume_listing_payment() FROM PUBLIC, anon, authe
 CREATE TRIGGER consume_listing_payment
 AFTER INSERT OR UPDATE OF payment_id ON public.properties
 FOR EACH ROW EXECUTE FUNCTION public.consume_listing_payment();
+
+-- Capture creation-time amenities in the same transaction as the property and
+-- its payment-consumption record. Older writers omit this nullable snapshot.
+ALTER TABLE public.properties ADD COLUMN creation_amenity_names TEXT[];
+
+CREATE FUNCTION public.attach_creation_amenities()
+RETURNS TRIGGER LANGUAGE plpgsql SECURITY DEFINER SET search_path = public AS $$
+BEGIN
+  INSERT INTO public.property_amenities(property_id, amenity_id)
+  SELECT NEW.id, amenity.id
+  FROM public.amenities AS amenity
+  WHERE amenity.name = ANY(NEW.creation_amenity_names);
+  RETURN NEW;
+END;
+$$;
+REVOKE ALL ON FUNCTION public.attach_creation_amenities() FROM PUBLIC, anon, authenticated;
+CREATE TRIGGER attach_creation_amenities
+AFTER INSERT ON public.properties
+FOR EACH ROW EXECUTE FUNCTION public.attach_creation_amenities();
+
 COMMIT;
