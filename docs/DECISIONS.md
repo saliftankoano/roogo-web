@@ -9,6 +9,8 @@ out. Newest first. For what shipped and when, see
 
 ### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
 
+See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover), [domain terms](./DOMAIN.md#customer-payments), and [release gates](./ROADMAP.md#now).
+
 **Decision:** Treat HTTP 408 and server/gateway errors as uncertain unless the provider explicitly returns a failed/rejected deposit with a concrete failure code. Empty, HTML, malformed and non-object JSON responses do not authorize failure or a new payment. All direct initiation routes normalize response bodies, and interrupted 3D response reads return the saved deposit ID for polling.
 
 **Why:** The provider may have accepted a payment before an intermediary lost its response. Terminally failing that attempt prevents a later completion callback from reconciling it. The same-deposit reconciliation approach follows [PawaPay's deposit guidance](https://docs.pawapay.io/v2/docs/deposits); treating unstructured gateway failures as uncertain is Roogo's conservative application of that rule.

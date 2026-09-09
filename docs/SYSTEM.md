@@ -6,6 +6,29 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How do failed and uncertain customer payments recover?
+
+Roogo keeps payment collection, reservation fulfillment and notification delivery separate. This behavior is implemented in [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile PR #29](https://github.com/saliftankoano/roogo/pull/29); both remain open as of 2026-09-09. Local tests and the web preview do not establish production release.
+
+The shared failure flow covers customer-initiated reservation, rent, listing, boost, hosted-payment and 3D-visit deposits. Owner payouts and refunds are outside this notification feature. The server saves the [deposit reference](./DOMAIN.md#pawapay-deposit) before requesting collection.
+
+| Observed result | Meaning and handling |
+| --- | --- |
+| Ambiguous initiation response | Preserve the saved deposit for polling/callback reconciliation. HTTP 408/5xx without a definitive provider rejection, unreadable bodies and interrupted response reads do not establish failure. |
+| Definitive failure | Persist the normalized failure code, show Roogo-controlled French/English copy, and allow the failure retry flow. Never display the provider's raw support-oriented message. |
+| Collected and fulfilled | Return normal completion; historical completed monthly reservations are not re-locked based on present-day property availability. |
+| Collected but reservation unconfirmed | Return [NEEDS_SUPPORT](./DOMAIN.md#payment-received-assistance-required). Retain the payment reference, explain that money was received, and offer support instead of repayment. |
+
+Initiation, polling and callbacks share failed-payment notification dispatch. One `payments.failed` record belongs to the deposit, including accountless 3D bookings. Account notification preferences are honored; a preference/token lookup outage is retryable, not evidence of consent or an absent token. Use push when eligible tokens exist, otherwise the normalized Mobile Money payer number for SMS. After definitively rejected push attempts, the bounded retry path may use SMS. Matching SMS alerts share a 15-minute cooldown per hashed payer phone and failure code. Delivery records retain channel, outcome, phone hash and code; optional notification failures do not change the payment result. No notification inbox is added.
+
+### Why can an alert remain uncertain rather than retry automatically?
+
+The dispatcher records an attempt-owned, non-reclaimable sending boundary before contacting a provider. It retries outcome persistence without repeating the send. Only definite rejection permits a new attempt; provider acceptance, a lost reply or an exhausted outcome write cannot prove resending is safe. Provider acceptance is not proof of handset delivery. A crash between that boundary and the network call can leave an unsent alert uncertain; resolve it from provider evidence, never by blindly resetting its state.
+
+Monthly reservation conflicts use the same protection independently for each customer/staff recipient. Stored conflict status reads retry eligible outstanding escalation without re-finalizing the payment. Preference opt-outs and absent tokens are recorded as skipped, while pre-send lookup errors remain retryable. Failed-payment SMS cooldown remains separate from these push-only conflict alerts.
+
+See the [gateway decision](./DECISIONS.md#gateway-errors-preserve-the-original-deposit-for-reconciliation--2026-09-09), [notification uncertainty decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08), and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08). Deployment gates and sandbox/device checks live in [ROADMAP.md](./ROADMAP.md#now); detailed validation evidence stays in the linked PRs.
+
 ## How do property requests connect mobile supply to staff work?
 
 As of 2026-09-08, ROO-20 is implemented and reviewed on draft PRs [web #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile #30](https://github.com/saliftankoano/roogo/pull/30). Shared database migrations and the mobile release have not been performed by this task. Local tests and preview deployments are not production release evidence.
