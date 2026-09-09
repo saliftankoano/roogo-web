@@ -13,9 +13,11 @@ out. Newest first. For what shipped and when, see
 
 **Why:** The live-property unique index alone loses its evidence when a property is deleted, and the existing transaction foreign key becomes null. A consumed package must not become reusable credit.
 
+**Creation recovery refinement (2026-09-09):** Migration 075 snapshots creation-time amenity names and attaches their links in the property insert transaction. An amenity write failure rolls back the property and its consumption; a later transaction-link failure preserves both. All paid creation/retry paths verify both transaction/property links before success. Optional creation announcements run before the link step and do not run again on replay. Existing properties are not backfilled from retry input: it may have changed, or amenities may have been intentionally removed since creation.
+
 **Ruled out / alternatives:** Do not block legitimate property deletion or guess which historically deleted listing consumed a deposit. Backfill surviving property/transaction links; contradictory evidence must stop the migration. Already-deleted records with no surviving link require evidence-based reconciliation, not invented consumption history.
 
-**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Apply 074 after 068–073 and before server deployment. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
+**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Apply 074 after 068–073, then 075 before server deployment. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
 
 ### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
 

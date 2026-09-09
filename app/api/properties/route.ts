@@ -393,6 +393,90 @@ export async function POST(req: Request) {
     // 6. Get Supabase client (service role - bypasses RLS)
     const supabase = getSupabaseClient();
 
+    // Initial creation uses persisted fields. Recovery must not re-announce an
+    // old listing to new recipients. Optional side effects cannot fail creation.
+    const announceCreatedProperty = async (
+      property: Record<string, unknown>,
+      paymentMode: ListingPaymentMode,
+      deferredFee = 0,
+    ) => {
+      await captureServerEvent(user.id, "property_listing_created", {
+        $insert_id: `property-listing-created:${property.id}`,
+        property_id: String(property.id),
+        property_type: String(property.property_type || ""),
+        price: Number(property.price || 0),
+        city: String(property.city || ""),
+        quartier: String(property.quartier || ""),
+        tier_id: String(property.tier_id || ""),
+        listing_payment_mode: paymentMode,
+        deferred_success_fee_amount: deferredFee,
+        status: String(property.status || ""),
+        creator_type: user.user_type,
+        is_boosted: property.is_boosted === true,
+        photo_limit: Number(property.photo_limit || 0),
+        slot_limit: Number(property.slot_limit || 0),
+        open_house_limit: Number(property.open_house_limit || 0),
+      }).catch((error) =>
+        console.error("Listing creation analytics failed:", error),
+      );
+      if (property.status === "en_ligne") {
+        await notifyRentersOfNewMatchingProperty(String(property.id)).catch(
+          (error) => {
+            console.error("New matching property notification failed:", error);
+          },
+        );
+      }
+    };
+
+    const finishPaidListing = async (
+      propertyId: string,
+      depositId: string,
+      transactionId: string,
+    ) => {
+      const { error: linkError } = await supabase
+        .from("transactions")
+        .update({
+          property_id: propertyId,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", transactionId)
+        .eq("user_id", user.id)
+        .eq("type", "listing_submission")
+        .eq("status", "completed")
+        .is("property_id", null);
+      const { data: linked, error: readError } = await supabase
+        .from("transactions")
+        .select("property_id")
+        .eq("id", transactionId)
+        .eq("user_id", user.id)
+        .eq("status", "completed")
+        .maybeSingle();
+      if (readError || linked?.property_id !== propertyId) {
+        console.error(
+          "Failed to link listing payment:",
+          linkError || readError,
+        );
+        return false;
+      }
+      const { data: property, error: propertyError } = await supabase
+        .from("properties")
+        .update({ transaction_id: transactionId })
+        .eq("id", propertyId)
+        .eq("payment_id", depositId)
+        .select("id")
+        .maybeSingle();
+      if (propertyError || !property) return false;
+      try {
+        await qualifyReferralForTransaction(supabase, {
+          depositId,
+          propertyId,
+        });
+      } catch (error) {
+        console.error("Error qualifying referral:", error);
+      }
+      return true;
+    };
+
     // 7. Map interdiction IDs to labels (plain text). Interdictions and house
     // rules are tenant concepts — force them empty on sales so older app
     // builds (which render those form sections for every listing) can't write
@@ -507,7 +591,16 @@ export async function POST(req: Request) {
         if (!existingProperty) {
           return errorResponse("Ce paiement a déjà été utilisé", 409, req);
         }
-        if (paidTransaction.property_id)
+        if (paidTransaction.property_id) {
+          if (
+            !(await finishPaidListing(
+              existingProperty.id,
+              parsedListingData.payment_id,
+              paidTransaction.id,
+            ))
+          ) {
+            return errorResponse("Failed to link listing payment", 503, req);
+          }
           return cors(
             NextResponse.json({
               success: true,
@@ -520,6 +613,7 @@ export async function POST(req: Request) {
             }),
             req,
           );
+        }
       }
     }
 
@@ -790,6 +884,13 @@ export async function POST(req: Request) {
         false,
       has_premium_badge: selectedTier?.has_badge || false,
       payment_id: parsedListingData.payment_id || null,
+      // The database attaches these in the property INSERT transaction. A
+      // later payment-link outage cannot strand a listing without amenities.
+      creation_amenity_names: isSaleListing
+        ? (parsedListingData.equipements ?? []).filter((e) =>
+            (SALE_EQUIPEMENT_IDS as readonly string[]).includes(e),
+          )
+        : (parsedListingData.equipements ?? []),
       // Boost information
       is_boosted: isBoosted,
       boost_expires_at: boostExpiresAt,
@@ -826,32 +927,14 @@ export async function POST(req: Request) {
         .eq("payment_id", parsedListingData.payment_id)
         .maybeSingle();
       if (existingProperty) {
-        const { error: repairTransactionError } = await supabase
-          .from("transactions")
-          .update({
-            property_id: existingProperty.id,
-            updated_at: new Date().toISOString(),
-          })
-          .eq("id", listingPaymentTransactionId!)
-          .is("property_id", null);
-        if (repairTransactionError) {
-          console.error(
-            "Failed to repair listing payment link:",
-            repairTransactionError,
-          );
-          return errorResponse("Failed to link listing payment", 500, req);
-        }
-        await supabase
-          .from("properties")
-          .update({ transaction_id: listingPaymentTransactionId })
-          .eq("id", existingProperty.id);
-        try {
-          await qualifyReferralForTransaction(supabase, {
-            depositId: parsedListingData.payment_id,
-            propertyId: existingProperty.id,
-          });
-        } catch (referralError) {
-          console.error("Error qualifying referral:", referralError);
+        if (
+          !(await finishPaidListing(
+            existingProperty.id,
+            parsedListingData.payment_id,
+            listingPaymentTransactionId!,
+          ))
+        ) {
+          return errorResponse("Failed to link listing payment", 503, req);
         }
         return cors(
           NextResponse.json({
@@ -1012,111 +1095,27 @@ export async function POST(req: Request) {
       }
     }
 
+    await announceCreatedProperty(
+      property,
+      listingPaymentMode,
+      deferredSuccessFeeAmount,
+    );
+
     if (parsedListingData.payment_id) {
-      console.log(
-        "Linking transaction to property:",
-        parsedListingData.payment_id,
-      );
-      const { data: updatedTransaction, error: txError } = await supabase
-        .from("transactions")
-        .update({
-          property_id: propertyId,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("deposit_id", parsedListingData.payment_id)
-        .eq("user_id", user.id)
-        .eq("type", "listing_submission")
-        .eq("status", "completed")
-        .is("property_id", null)
-        .select()
-        .maybeSingle();
-
-      if (txError || !updatedTransaction) {
-        console.error("Error linking transaction to property:", txError);
-        const { data: currentTransaction } = await supabase
-          .from("transactions")
-          .select("property_id")
-          .eq("deposit_id", parsedListingData.payment_id)
-          .maybeSingle();
-        if (currentTransaction?.property_id !== propertyId) {
-          // The insert atomically consumed this deposit. Preserve its property
-          // on a link/reload outage so an idempotent retry can recover it.
-          return errorResponse(
-            "Impossible de finaliser le lien du paiement",
-            503,
-            req,
-          );
-        }
-      } else if (updatedTransaction) {
-        console.log("Transaction linked successfully:", updatedTransaction.id);
-        await supabase
-          .from("properties")
-          .update({ transaction_id: updatedTransaction.id })
-          .eq("id", propertyId);
-
-        try {
-          await qualifyReferralForTransaction(supabase, {
-            depositId: parsedListingData.payment_id,
-            propertyId,
-          });
-        } catch (referralError) {
-          console.error("Error qualifying referral:", referralError);
-        }
+      if (
+        !(await finishPaidListing(
+          propertyId,
+          parsedListingData.payment_id,
+          listingPaymentTransactionId!,
+        ))
+      ) {
+        // Property, amenities and consumed deposit remain intact for retry.
+        return errorResponse(
+          "Impossible de finaliser le lien du paiement",
+          503,
+          req,
+        );
       }
-    }
-
-    // 11. Link amenities. Sales only carry physical-asset amenities — rental
-    // perks (wifi, meuble) selected before a client toggled to "vendre" are
-    // stripped here, mirroring the interdictions/dos_and_donts guards above.
-    const effectiveEquipements = isSaleListing
-      ? (parsedListingData.equipements ?? []).filter((e) =>
-          (SALE_EQUIPEMENT_IDS as readonly string[]).includes(e),
-        )
-      : (parsedListingData.equipements ?? []);
-    if (effectiveEquipements.length > 0) {
-      console.log("Linking amenities:", effectiveEquipements);
-      const { data: amenities, error: amenitiesError } = await supabase
-        .from("amenities")
-        .select("id, name")
-        .in("name", effectiveEquipements);
-
-      if (!amenitiesError && amenities && amenities.length > 0) {
-        const propertyAmenities = amenities.map((amenity) => ({
-          property_id: propertyId,
-          amenity_id: amenity.id,
-        }));
-
-        const { error: linkError } = await supabase
-          .from("property_amenities")
-          .insert(propertyAmenities);
-
-        if (linkError) {
-          console.error("Error linking amenities:", linkError);
-        }
-      }
-    }
-
-    await captureServerEvent(user.id, "property_listing_created", {
-      property_id: propertyId,
-      property_type: parsedListingData.type || null,
-      price: parsedListingData.prixMensuel || 0,
-      city: parsedListingData.ville || null,
-      quartier: parsedListingData.quartier || null,
-      tier_id: selectedTier?.id || null,
-      listing_payment_mode: listingPaymentMode,
-      deferred_success_fee_amount: deferredSuccessFeeAmount,
-      status: propertyStatus,
-      creator_type: user.user_type,
-      is_boosted: isBoosted,
-      photo_limit: photoLimit || 0,
-      slot_limit: slotLimit || 0,
-      open_house_limit: openHouseLimit || 0,
-    });
-
-    if (propertyStatus === "en_ligne") {
-      await notifyRentersOfNewMatchingProperty(propertyId).catch((error) => {
-        console.error("New matching property notification failed:", error);
-      });
     }
 
     // 12. Return success response
