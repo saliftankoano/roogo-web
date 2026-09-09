@@ -23,6 +23,7 @@ import { queuePaymentFailureNotification } from "@/lib/payment-failure-notificat
 import {
   finalizeMonthlyPropertyLock,
   isMonthlyProperty,
+  notifyMonthlyPropertyLockConflict,
 } from "@/lib/property-lock-finalization";
 import { listingPaymentAddOns } from "@/lib/listing-payment-validation";
 
@@ -196,7 +197,7 @@ export async function POST(req: Request) {
       .from("transactions")
       .select("*")
       .eq("deposit_id", depositId)
-      .single();
+      .maybeSingle();
 
     type StoredPaymentTransaction = NonNullable<typeof transaction>;
     // All stored-state reads, including CAS losers, use the same fulfillment-aware response.
@@ -241,6 +242,10 @@ export async function POST(req: Request) {
           transaction.metadata?.propertyLockConflict === true &&
           transaction.metadata?.propertyLockFinalizedAt
         ) {
+          // Fulfillment is already durable, but recipient delivery may need retry.
+          await notifyMonthlyPropertyLockConflict(depositId).catch((error) => {
+            log("conflict-notification-retry-failed", { error: String(error) });
+          });
           return cors(
             NextResponse.json({
               success: true,
@@ -380,6 +385,14 @@ export async function POST(req: Request) {
         errorCode: fetchError?.code,
         errorDetails: fetchError?.details,
       });
+      if (fetchError) {
+        return cors(
+          NextResponse.json(
+            { error: "Failed to read payment" },
+            { status: 503 },
+          ),
+        );
+      }
       return cors(
         NextResponse.json({ error: "Payment not found" }, { status: 404 }),
       );
@@ -780,7 +793,6 @@ export async function POST(req: Request) {
           propertyId: transaction.property_id,
         });
 
-        let suppressPaymentNotification = false;
         let notificationCopyKey: NotificationCopyKey =
           "payments.genericCompleted";
         let notificationParams: Record<string, string | number> = {};
@@ -840,7 +852,14 @@ export async function POST(req: Request) {
           // refused to confirm; finalize already notified the renter and
           // opened a support issue.
           if (dailyFinalizeBlocked) {
-            suppressPaymentNotification = true;
+            return cors(
+              NextResponse.json({
+                success: true,
+                status: "NEEDS_SUPPORT",
+                raw: { status: "NEEDS_SUPPORT", depositId },
+                context: await getPaymentContext(transaction),
+              }),
+            );
           }
         } else if (
           transaction.type === "listing_submission" &&
@@ -878,7 +897,7 @@ export async function POST(req: Request) {
         }
 
         // Send payment confirmation notification
-        if (transaction.user_id && !suppressPaymentNotification) {
+        if (transaction.user_id) {
           log("sending-payment-notification", {
             userId: transaction.user_id,
             depositId,

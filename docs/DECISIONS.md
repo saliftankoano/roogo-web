@@ -21,6 +21,8 @@ out. Newest first. For what shipped and when, see
 
 **Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 replaces the legacy repair branch without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments. Normal status reads and lost-update reloads share fulfillment-aware responses, so a completed payment with an unconfirmed reservation remains NEEDS_SUPPORT.
 
+**Recovery refinement (2026-09-08):** The first poll discovering a blocked daily/hotel fulfillment also returns NEEDS_SUPPORT. Stored monthly conflicts re-drive outstanding per-recipient escalation without re-finalizing the reservation. Hosted returns display a terminal support-required state, payment reference and contact action, with no second-payment action or automatic redirect. Polling is serialized and cancelled on navigation so stale responses cannot overwrite that state.
+
 **Why:** The property's current status cannot prove whether an old payment was fulfilled. Re-locking a relisted property or flagging an already-reserved property as a conflict changes history. A concurrent pending-to-submitted update is not evidence that a terminal callback was saved.
 
 **Ruled out / alternatives:** Do not automatically backfill fulfillment from present-day availability or silently acknowledge every lost update. Preserve existing explicit conflicts; historical inconsistencies require evidence-based support reconciliation.

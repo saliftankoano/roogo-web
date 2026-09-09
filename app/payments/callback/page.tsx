@@ -63,10 +63,9 @@ function PaymentStatusChecker({
   const { user } = useUser();
   const router = useRouter();
   const [status, setStatus] = useState<
-    "loading" | "success" | "failed" | "pending"
+    "loading" | "success" | "failed" | "pending" | "needs_support"
   >("loading");
   const [message, setMessage] = useState("Vérification du paiement...");
-  const [attempts, setAttempts] = useState(0);
   const [isRedirecting, setIsRedirecting] = useState(false);
   const [paymentContext, setPaymentContext] = useState<PaymentContext | null>(
     null,
@@ -102,8 +101,12 @@ function PaymentStatusChecker({
     }
 
     let timeoutId: ReturnType<typeof setTimeout>;
+    let cancelled = false;
+    let pollAttempts = 0;
 
     const checkStatus = async () => {
+      if (cancelled) return;
+      pollAttempts += 1;
       try {
         const token = await getToken();
         const response = await fetch("/api/payments/status", {
@@ -116,6 +119,7 @@ function PaymentStatusChecker({
         });
 
         const data = await response.json();
+        if (cancelled) return;
 
         if (response.ok && data.success) {
           const context = (data.context as PaymentContext | undefined) || null;
@@ -124,6 +128,11 @@ function PaymentStatusChecker({
           if (data.status === "COMPLETED") {
             setStatus("success");
             setMessage("Paiement réussi !");
+          } else if (data.status === "NEEDS_SUPPORT") {
+            setStatus("needs_support");
+            setMessage(
+              "Votre paiement a été reçu, mais la réservation n'est pas confirmée. Ne payez pas à nouveau. Contactez le support Roogo avec la référence ci-dessous.",
+            );
           } else if (
             data.status === "FAILED" ||
             data.status === "CANCELLED" ||
@@ -132,10 +141,9 @@ function PaymentStatusChecker({
             setStatus("failed");
             setMessage(paymentFailureMessage(data.failureCode, "fr"));
           } else {
-            if (attempts < 10) {
+            if (pollAttempts < 10) {
               setStatus("pending");
               setMessage("Paiement en cours de traitement...");
-              setAttempts((prev) => prev + 1);
               timeoutId = setTimeout(checkStatus, 3000);
             } else {
               setStatus("pending");
@@ -146,27 +154,36 @@ function PaymentStatusChecker({
           }
         } else {
           console.error("Status check failed:", data);
-          if (attempts < 5) {
-            setAttempts((prev) => prev + 1);
+          if (pollAttempts < 5) {
             timeoutId = setTimeout(checkStatus, 3000);
           } else {
-            setStatus("failed");
-            setMessage("Impossible de vérifier le statut du paiement.");
+            setStatus("pending");
+            setMessage(
+              "Impossible de vérifier le paiement pour le moment. Ne payez pas à nouveau avant vérification.",
+            );
           }
         }
       } catch (error) {
+        if (cancelled) return;
         console.error("Error checking status:", error);
-        if (attempts < 5) {
-          setAttempts((prev) => prev + 1);
+        if (pollAttempts < 5) {
           timeoutId = setTimeout(checkStatus, 3000);
+        } else {
+          setStatus("pending");
+          setMessage(
+            "Impossible de vérifier le paiement pour le moment. Ne payez pas à nouveau avant vérification.",
+          );
         }
       }
     };
 
     checkStatus();
 
-    return () => clearTimeout(timeoutId);
-  }, [depositId, isLoaded, isSignedIn, attempts, getToken]);
+    return () => {
+      cancelled = true;
+      clearTimeout(timeoutId);
+    };
+  }, [depositId, isLoaded, isSignedIn, getToken]);
 
   useEffect(() => {
     if (status !== "success") return;
@@ -490,6 +507,10 @@ function PaymentStatusChecker({
             <div className="w-16 h-16 bg-green-50 rounded-full flex items-center justify-center">
               <CheckCircle2 className="w-8 h-8 text-green-500" />
             </div>
+          ) : status === "needs_support" ? (
+            <div className="w-16 h-16 bg-amber-50 rounded-full flex items-center justify-center">
+              <AlertCircle className="w-8 h-8 text-amber-600" />
+            </div>
           ) : (
             <div className="w-16 h-16 bg-red-50 rounded-full flex items-center justify-center">
               <XCircle className="w-8 h-8 text-red-500" />
@@ -504,48 +525,59 @@ function PaymentStatusChecker({
               ? "Paiement en cours"
               : status === "success"
                 ? "Paiement Réussi"
-                : "Échec du paiement"}
+                : status === "needs_support"
+                  ? "Paiement reçu, assistance requise"
+                  : "Échec du paiement"}
         </h1>
 
         <p className="text-gray-500 mb-4">{message}</p>
 
-        {paymentContext && (status === "success" || status === "failed") && (
-          <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-left space-y-2">
-            {purchaseTitle && (
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Objet:</span>{" "}
-                {purchaseTitle}
-              </div>
-            )}
-            {paymentContext.propertyLabel && (
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">
-                  Bien concerné:
-                </span>{" "}
-                {paymentContext.propertyLabel}
-              </div>
-            )}
-            {paymentContext.tierId && (
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Pack:</span>{" "}
-                {paymentContext.tierId}
-              </div>
-            )}
-            {paymentContext.addOns.length > 0 && (
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Options:</span>{" "}
-                {paymentContext.addOns.join(", ")}
-              </div>
-            )}
-            {paymentContext.amount !== null && (
-              <div className="text-sm text-gray-700">
-                <span className="font-semibold text-gray-900">Montant:</span>{" "}
-                {paymentContext.amount.toLocaleString()}{" "}
-                {paymentContext.currency}
-              </div>
-            )}
-          </div>
+        {status === "needs_support" && (
+          <p className="text-sm text-gray-700 mb-4 break-all">
+            Référence du paiement : {depositId}
+          </p>
         )}
+
+        {paymentContext &&
+          (status === "success" ||
+            status === "failed" ||
+            status === "needs_support") && (
+            <div className="mb-6 rounded-xl border border-gray-200 bg-gray-50 p-4 text-left space-y-2">
+              {purchaseTitle && (
+                <div className="text-sm text-gray-700">
+                  <span className="font-semibold text-gray-900">Objet:</span>{" "}
+                  {purchaseTitle}
+                </div>
+              )}
+              {paymentContext.propertyLabel && (
+                <div className="text-sm text-gray-700">
+                  <span className="font-semibold text-gray-900">
+                    Bien concerné:
+                  </span>{" "}
+                  {paymentContext.propertyLabel}
+                </div>
+              )}
+              {paymentContext.tierId && (
+                <div className="text-sm text-gray-700">
+                  <span className="font-semibold text-gray-900">Pack:</span>{" "}
+                  {paymentContext.tierId}
+                </div>
+              )}
+              {paymentContext.addOns.length > 0 && (
+                <div className="text-sm text-gray-700">
+                  <span className="font-semibold text-gray-900">Options:</span>{" "}
+                  {paymentContext.addOns.join(", ")}
+                </div>
+              )}
+              {paymentContext.amount !== null && (
+                <div className="text-sm text-gray-700">
+                  <span className="font-semibold text-gray-900">Montant:</span>{" "}
+                  {paymentContext.amount.toLocaleString()}{" "}
+                  {paymentContext.currency}
+                </div>
+              )}
+            </div>
+          )}
 
         {(status === "success" || status === "failed") && (
           <p className="text-xs text-gray-400 mb-4">
@@ -554,6 +586,14 @@ function PaymentStatusChecker({
         )}
 
         <div className="space-y-3">
+          {status === "needs_support" && (
+            <a
+              href="/nous-contacter"
+              className="block w-full bg-black text-white font-medium py-3 px-4 rounded-xl hover:bg-gray-800 transition-colors"
+            >
+              Contacter le support
+            </a>
+          )}
           {status === "success" && (
             <button
               onClick={() => {

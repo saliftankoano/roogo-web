@@ -37,7 +37,7 @@ export async function releaseMonthlyPropertyLockPayment(depositId: string) {
   if (error) throw error;
 }
 
-async function notifyMonthlyPropertyLockConflict(depositId: string) {
+export async function notifyMonthlyPropertyLockConflict(depositId: string) {
   const { data: transaction, error: transactionError } = await supabaseAdmin
     .from("transactions")
     .select("id, user_id, property_id")
