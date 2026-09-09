@@ -15,6 +15,7 @@ The shared failure flow covers customer-initiated reservation, rent, listing, bo
 | Observed result | Meaning and handling |
 | --- | --- |
 | Ambiguous initiation response | Preserve the saved deposit for polling/callback reconciliation. HTTP 408/5xx without a definitive provider rejection, unreadable bodies and interrupted response reads do not establish failure. |
+| Unsuccessful status lookup | Leave the saved payment unchanged. An upstream HTTP 404/4xx/5xx is not proof of a missing deposit; only a successful parsed `NOT_FOUND` can enter not-found reconciliation. Generic upstream HTTP failures return retryable 502 responses, while 3D remains pending. |
 | Definitive failure | Persist the normalized failure code, show Roogo-controlled French/English copy, and allow the failure retry flow. Never display the provider's raw support-oriented message. |
 | Collected and fulfilled | Return normal completion; historical completed monthly reservations are not re-locked based on present-day property availability. |
 | Collected but reservation unconfirmed | Return [NEEDS_SUPPORT](./DOMAIN.md#payment-received-assistance-required). Retain the payment reference, explain that money was received, and offer support instead of repayment. |

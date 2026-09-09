@@ -11,7 +11,9 @@ out. Newest first. For what shipped and when, see
 
 See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover), [domain terms](./DOMAIN.md#customer-payments), and [release gates](./ROADMAP.md#now).
 
-**Decision:** Treat HTTP 408 and server/gateway errors as uncertain unless the provider explicitly returns a failed/rejected deposit with a concrete failure code. Empty, HTML, malformed and non-object JSON responses do not authorize failure or a new payment. All direct initiation routes normalize response bodies, and interrupted 3D response reads return the saved deposit ID for polling.
+**Decision:** For initiation, treat HTTP 408 and server/gateway errors as uncertain unless the provider explicitly returns a failed/rejected deposit with a concrete failure code. Empty, HTML, malformed and non-object JSON responses do not authorize failure or a new payment. All direct initiation routes normalize response bodies, and interrupted 3D response reads return the saved deposit ID for polling.
+
+**Status-lookup refinement (2026-09-09):** Only a successful, parsed lookup can establish a deposit outcome. HTTP 404 and other unsuccessful status responses are not PawaPay's documented JSON `NOT_FOUND` result. Leave the saved payment unchanged so a later completion can reconcile it; generic status requests expose upstream HTTP failures as retryable 502 responses, not local record/ownership errors. The 3D status route stays pending on failed lookups or interrupted bodies. A genuine successful `NOT_FOUND` still follows existing reconciliation and hosted-page grace rules. See the [PawaPay status contract](https://docs.pawapay.io/v2/api-reference/deposits/check-deposit-status).
 
 **Why:** The provider may have accepted a payment before an intermediary lost its response. Terminally failing that attempt prevents a later completion callback from reconciling it. The same-deposit reconciliation approach follows [PawaPay's deposit guidance](https://docs.pawapay.io/v2/docs/deposits); treating unstructured gateway failures as uncertain is Roogo's conservative application of that rule.
 

@@ -119,14 +119,18 @@ export async function POST(req: Request) {
     return NextResponse.json({ status: "PENDING" });
   }
 
-  if (upstream.status === 404) {
-    return finalizeNotFound();
+  // Only a successful status lookup can establish a terminal payment state.
+  // A gateway/resource 404 is not PawaPay's v2 NOT_FOUND response.
+  if (!upstream.ok) {
+    console.error("[visites-3d/status] upstream lookup", {
+      httpStatus: upstream.status,
+    });
+    return NextResponse.json({ status: "PENDING" });
   }
 
-  const text = await upstream.text();
   let result: unknown;
   try {
-    result = JSON.parse(text);
+    result = JSON.parse(await upstream.text());
   } catch {
     return NextResponse.json({ status: "PENDING" });
   }

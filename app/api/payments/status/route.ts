@@ -590,10 +590,8 @@ export async function POST(req: Request) {
     };
 
     if (!response.ok) {
-      if (response.status === 404) {
-        return reconcileNotFound();
-      }
-
+      // HTTP errors describe the lookup, not the deposit. In particular, an
+      // upstream 404 is not the successful v2 { status: "NOT_FOUND" } result.
       log("pawapay-error", { depositId, httpStatus: response.status, result });
       const failure = extractPaymentFailure(result);
       return cors(
@@ -603,7 +601,9 @@ export async function POST(req: Request) {
             error: "Failed to check status",
             failureCode: failure.code,
           },
-          { status: response.status },
+          // Do not expose an upstream 404/401 as a missing/unauthorized Roogo
+          // record: hosted recovery uses those statuses to reject return hints.
+          { status: 502 },
         ),
       );
     }
