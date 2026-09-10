@@ -15,6 +15,13 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Now
 
+- [ ] **Release clear, duplicate-safe payment failure notices** — customers can understand a failed charge and distinguish it from a paid reservation needing support. As of 2026-09-09, [web #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile #29](https://github.com/saliftankoano/roogo/pull/29) are open, implemented PRs, not a verified production release.
+  - [x] **Database prerequisite (2026-09-09):** preflights passed; 070 → 071 → 072 were executed and verified on Roogo. [Execution ledger](../supabase/migrations/README.md). Do not rerun applied files or fabricate older history.
+  - **Historical-evidence boundary:** the verified backfill preserved two consumed deposits with no conflicting surviving links. Previously deleted links and missing original amenities remain evidence-based support cases; they were not reconstructed.
+  - [ ] **Resolve the mobile cold-return blocker:** an old successful hosted link without its original draft must reach the already-created property or allow draft repair without losing the deposit or charging again. Add a regression using the real submission handler, not just a mocked handoff.
+  - **Validation gate:** run the accepted sandbox scenario `22602345048` / `INSUFFICIENT_BALANCE`; verify localized screen copy, eligible push/SMS fallback, opt-outs, cooldown, accountless 3D and webhook/poll deduplication. Validate direct/hosted failure and support recovery on a device, then record actual deployment/release evidence in [CHANGELOG.md](./CHANGELOG.md) before marking complete. No live payment or messaging was performed by the implementation task.
+  - **Dependencies:** [system behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [send-boundary decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08). Migration 070 preserves legacy notification uncertainty; do not reset uncertain sends or rewrite historical fulfillment without provider evidence.
+
 - [ ] **Finish ROO-20 release validation** — make customer calls usable by agents, owners and operations across both products. As of 2026-09-08, [web PR #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile PR #30](https://github.com/saliftankoano/roogo/pull/30) are reviewed draft implementations, not shipped features. Done when: a deployed test backend with migrations 068 and 069 supports native agent and owner submission, image/PDF selection, real private uploads, receipt access and retry checks; any resulting issues are resolved. Local automated coverage and renter access-denial checks are recorded in [PR #31](https://github.com/saliftankoano/roogo-web/pull/31).
 
 ## Next
@@ -26,6 +33,8 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
 ## Recently completed
+
+- [x] **Payment database prerequisites** — 070–072 executed and verified on Roogo on 2026-09-09. This is not the API/client feature release. See [CHANGELOG](./CHANGELOG.md#2026-09-09) and the [execution ledger](../supabase/migrations/README.md).
 
 - [x] **Hotel booking, operations, trust, events, and groups** — verified and
   merged on 2026-08-30 across mobile PRs

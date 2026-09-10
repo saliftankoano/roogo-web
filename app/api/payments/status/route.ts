@@ -1,7 +1,7 @@
 import { cors, corsOptions } from "@/lib/api-helpers";
 import { NextResponse } from "next/server";
 import { verifyToken } from "@clerk/backend";
-import { getSupabaseClient } from "@/lib/user-sync";
+import { getOrSyncUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import type { NotificationCopyKey } from "@/lib/notification-copy";
 import { captureServerEvent } from "@/lib/posthog-server";
@@ -14,6 +14,28 @@ import {
   finalizeDailyBookingAfterPayment,
   isBlockedDailyFinalize,
 } from "@/lib/daily-bookings";
+import {
+  extractPaymentFailure,
+  extractPaymentPayerPhone,
+  parsePawaPayDepositStatus,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import {
+  finalizeMonthlyPropertyLock,
+  isMonthlyProperty,
+  notifyMonthlyPropertyLockConflict,
+} from "@/lib/property-lock-finalization";
+import { listingPaymentAddOns } from "@/lib/listing-payment-validation";
+
+const PAYMENT_PAGE_NOT_FOUND_GRACE_MS = 15 * 60 * 1000;
+
+function storedStatusToApi(status: string | null | undefined) {
+  if (status === "completed") return "COMPLETED";
+  if (status === "failed") return "FAILED";
+  if (status === "refunded") return "REFUNDED";
+  if (status === "submitted") return "SUBMITTED";
+  return "PENDING";
+}
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -71,6 +93,12 @@ export async function POST(req: Request) {
     log("checking-status", { depositId });
 
     const supabase = getSupabaseClient();
+    const requestingUser = await getOrSyncUserByClerkId(clerkUserId);
+    if (!requestingUser) {
+      return cors(
+        NextResponse.json({ error: "User not found" }, { status: 404 }),
+      );
+    }
     const getPropertyLabel = async (propertyId: string) => {
       const { data: propertyData } = await supabase
         .from("properties")
@@ -125,11 +153,7 @@ export async function POST(req: Request) {
           ? (metadataRaw as Record<string, unknown>)
           : null;
 
-      const addOns = Array.isArray(metadata?.add_ons)
-        ? metadata.add_ons.filter(
-            (value): value is string => typeof value === "string",
-          )
-        : [];
+      const addOns = metadata ? listingPaymentAddOns(metadata) : [];
 
       const tierId =
         typeof metadata?.tier_id === "string" ? metadata.tier_id : null;
@@ -173,7 +197,186 @@ export async function POST(req: Request) {
       .from("transactions")
       .select("*")
       .eq("deposit_id", depositId)
-      .single();
+      .maybeSingle();
+
+    type StoredPaymentTransaction = NonNullable<typeof transaction>;
+    // All stored-state reads, including CAS losers, use the same fulfillment-aware response.
+    const storedPaymentResponse = async (
+      transaction: StoredPaymentTransaction,
+    ) => {
+      const pawaPayStatus = storedStatusToApi(transaction.status);
+
+      log("returning-db-status", {
+        depositId,
+        status: pawaPayStatus,
+        source: "database",
+      });
+
+      const context = await getPaymentContext(
+        transaction as Record<string, unknown>,
+      );
+
+      const failure =
+        transaction.status === "failed"
+          ? extractPaymentFailure(transaction)
+          : null;
+
+      if (failure) {
+        await queuePaymentFailureNotification({
+          depositId,
+          failureCode: failure.code,
+          payerPhone: transaction.payer_phone,
+          userId: transaction.user_id,
+          transactionId: transaction.id,
+          transactionType: transaction.type,
+          propertyId: transaction.property_id,
+        });
+      }
+
+      if (
+        transaction.status === "completed" &&
+        transaction.type === "property_lock" &&
+        transaction.property_id
+      ) {
+        if (
+          transaction.metadata?.propertyLockConflict === true &&
+          transaction.metadata?.propertyLockFinalizedAt
+        ) {
+          // Fulfillment is already durable, but recipient delivery may need retry.
+          await notifyMonthlyPropertyLockConflict(depositId).catch((error) => {
+            log("conflict-notification-retry-failed", { error: String(error) });
+          });
+          return cors(
+            NextResponse.json({
+              success: true,
+              status: "NEEDS_SUPPORT",
+              error:
+                "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+              raw: { status: "NEEDS_SUPPORT", depositId },
+              context,
+            }),
+          );
+        }
+        const { data: propertyRecord, error: propertyError } = await supabase
+          .from("properties")
+          .select("period")
+          .eq("id", transaction.property_id)
+          .maybeSingle();
+
+        if (propertyError) {
+          return cors(
+            NextResponse.json(
+              { success: false, error: "Failed to verify payment fulfillment" },
+              { status: 503 },
+            ),
+          );
+        }
+
+        if (propertyRecord?.period === "day") {
+          // Escalation (support issue + renter notification) for a blocked
+          // late payment lives inside finalize and fires exactly once, so
+          // this poll-repeated path only needs the structured log.
+          const finalizeResult = await finalizeDailyBookingAfterPayment(
+            transaction.id,
+          );
+          if (isBlockedDailyFinalize(finalizeResult)) {
+            log("post-payment-daily-booking-unconfirmed", {
+              depositId,
+              propertyId: transaction.property_id,
+              reason: finalizeResult.reason,
+            });
+            return cors(
+              NextResponse.json({
+                success: true,
+                status: "NEEDS_SUPPORT",
+                raw: { status: "NEEDS_SUPPORT", depositId },
+                context,
+              }),
+            );
+          }
+        } else if (propertyRecord) {
+          try {
+            const completion = await finalizeMonthlyPropertyLock(
+              depositId,
+              transaction.metadata,
+            );
+            if (completion.fulfillmentConflict) {
+              return cors(
+                NextResponse.json({
+                  success: true,
+                  status: "NEEDS_SUPPORT",
+                  error:
+                    "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+                  raw: { status: "NEEDS_SUPPORT", depositId },
+                  context,
+                }),
+              );
+            }
+            if (completion.paymentStatus !== "completed") {
+              return cors(
+                NextResponse.json(
+                  {
+                    success: true,
+                    status: "PENDING",
+                    raw: { status: "PENDING", depositId },
+                    context,
+                  },
+                  { status: 202 },
+                ),
+              );
+            }
+          } catch (error) {
+            log("completed-lock-repair-failed", {
+              depositId,
+              propertyId: transaction.property_id,
+              error: String(error),
+            });
+            // Keep the client polling until payment fulfillment is durable.
+            return cors(
+              NextResponse.json(
+                {
+                  success: true,
+                  status: "PENDING",
+                  raw: { status: "PENDING", depositId },
+                  context,
+                },
+                { status: 202 },
+              ),
+            );
+          }
+        }
+      }
+
+      return cors(
+        NextResponse.json({
+          success: true,
+          status: pawaPayStatus,
+          raw: { status: pawaPayStatus, depositId },
+          failureCode: failure?.code,
+          context,
+        }),
+      );
+    };
+
+    const reloadPaymentResponse = async () => {
+      const { data: current, error } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("deposit_id", depositId)
+        .single();
+      if (error || !current) {
+        return cors(
+          NextResponse.json(
+            { success: false, error: "Failed to reload payment status" },
+            { status: 503 },
+          ),
+        );
+      }
+      if (current.user_id !== requestingUser.id) {
+        return cors(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+      }
+      return storedPaymentResponse(current);
+    };
 
     if (fetchError || !transaction) {
       log("transaction-not-found-in-db", {
@@ -182,8 +385,21 @@ export async function POST(req: Request) {
         errorCode: fetchError?.code,
         errorDetails: fetchError?.details,
       });
-      // Continue to check PawaPay API - transaction might exist there
+      if (fetchError) {
+        return cors(
+          NextResponse.json(
+            { error: "Failed to read payment" },
+            { status: 503 },
+          ),
+        );
+      }
+      return cors(
+        NextResponse.json({ error: "Payment not found" }, { status: 404 }),
+      );
     } else {
+      if (transaction.user_id !== requestingUser.id) {
+        return cors(NextResponse.json({ error: "Forbidden" }, { status: 403 }));
+      }
       log("db-status", {
         depositId,
         dbStatus: transaction.status,
@@ -197,59 +413,7 @@ export async function POST(req: Request) {
         transaction.status === "failed" ||
         transaction.status === "refunded"
       ) {
-        const pawaPayStatus =
-          transaction.status === "completed"
-            ? "COMPLETED"
-            : transaction.status === "failed"
-              ? "FAILED"
-              : "REFUNDED";
-
-        log("returning-db-status", {
-          depositId,
-          status: pawaPayStatus,
-          source: "database",
-        });
-
-        const context = await getPaymentContext(
-          transaction as Record<string, unknown>,
-        );
-
-        if (
-          transaction.status === "completed" &&
-          transaction.type === "property_lock" &&
-          transaction.property_id
-        ) {
-          const { data: propertyRecord } = await supabase
-            .from("properties")
-            .select("period")
-            .eq("id", transaction.property_id)
-            .maybeSingle();
-
-          if (propertyRecord?.period === "day") {
-            // Escalation (support issue + renter notification) for a blocked
-            // late payment lives inside finalize and fires exactly once, so
-            // this poll-repeated path only needs the structured log.
-            const finalizeResult = await finalizeDailyBookingAfterPayment(
-              transaction.id,
-            );
-            if (isBlockedDailyFinalize(finalizeResult)) {
-              log("post-payment-daily-booking-unconfirmed", {
-                depositId,
-                propertyId: transaction.property_id,
-                reason: finalizeResult.reason,
-              });
-            }
-          }
-        }
-
-        return cors(
-          NextResponse.json({
-            success: true,
-            status: pawaPayStatus,
-            raw: { status: pawaPayStatus, ...(transaction.metadata || {}) },
-            context,
-          }),
-        );
+        return storedPaymentResponse(transaction);
       }
     }
 
@@ -304,37 +468,155 @@ export async function POST(req: Request) {
       result: JSON.stringify(result).slice(0, 500),
     });
 
-    if (!response.ok) {
-      if (response.status === 404) {
-        log("deposit-not-found", { depositId });
+    const reconcileNotFound = async () => {
+      log("deposit-not-found", { depositId });
+
+      if (!transaction) {
+        return cors(
+          NextResponse.json({
+            success: true,
+            status: "NOT_FOUND",
+            error: "Deposit not found in PawaPay system",
+            raw: { status: "NOT_FOUND", depositId },
+          }),
+        );
+      }
+
+      const metadata =
+        transaction.metadata && typeof transaction.metadata === "object"
+          ? (transaction.metadata as Record<string, unknown>)
+          : {};
+      const createdAt = Date.parse(String(transaction.created_at || ""));
+      const isPaymentPage = metadata.source === "payment_page";
+      if (
+        isPaymentPage &&
+        Number.isFinite(createdAt) &&
+        Date.now() - createdAt < PAYMENT_PAGE_NOT_FOUND_GRACE_MS
+      ) {
+        return cors(
+          NextResponse.json({
+            success: true,
+            status: "PENDING",
+            raw: { status: "PENDING", depositId },
+            context: await getPaymentContext(
+              transaction as Record<string, unknown>,
+            ),
+          }),
+        );
+      }
+
+      const failureCode = "UNSPECIFIED_FAILURE";
+      const { data: updated, error: updateError } = await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          failure_code: failureCode,
+          failure_reason: null,
+          updated_at: new Date().toISOString(),
+        })
+        .eq("deposit_id", depositId)
+        .eq("status", transaction.status)
+        .select("id");
+
+      if (updateError) {
+        log("not-found-finalize-failed", {
+          depositId,
+          error: String(updateError),
+        });
         return cors(
           NextResponse.json(
-            {
-              success: true,
-              status: "NOT_FOUND",
-              error: "Deposit not found in PawaPay system",
-              raw: result,
-            },
-            { status: 200 },
+            { success: false, error: "Failed to reconcile payment" },
+            { status: 500 },
           ),
         );
       }
 
+      if (!updated?.length) {
+        return reloadPaymentResponse();
+      }
+
+      await voidPendingReferralForTransaction(supabase, transaction.id);
+      const dailyBookingRequestId =
+        typeof metadata.dailyBookingRequestId === "string"
+          ? metadata.dailyBookingRequestId
+          : null;
+      if (dailyBookingRequestId) {
+        await supabase
+          .from("daily_booking_requests")
+          .update({
+            status: "approved_awaiting_payment",
+            transaction_id: null,
+          })
+          .eq("id", dailyBookingRequestId)
+          .eq("transaction_id", transaction.id);
+      }
+
+      await captureServerEvent(
+        transaction.user_id || clerkUserId || depositId,
+        "payment_failed",
+        {
+          deposit_id: depositId,
+          amount: transaction.amount || 0,
+          currency: transaction.currency || "XOF",
+          transaction_type: transaction.type || "unknown",
+          provider: transaction.provider || "unknown",
+          property_id: transaction.property_id || null,
+          failure_reason: "Deposit not found during reconciliation",
+          source: "status_polling_not_found",
+        },
+      );
+
+      await queuePaymentFailureNotification({
+        depositId,
+        failureCode,
+        payerPhone: transaction.payer_phone,
+        userId: transaction.user_id,
+        transactionId: transaction.id,
+        transactionType: transaction.type,
+        propertyId: transaction.property_id,
+      });
+
+      return cors(
+        NextResponse.json({
+          success: true,
+          status: "FAILED",
+          failureCode,
+          raw: { status: "FAILED", depositId },
+          context: await getPaymentContext(
+            transaction as Record<string, unknown>,
+          ),
+        }),
+      );
+    };
+
+    if (!response.ok) {
+      // HTTP errors describe the lookup, not the deposit. In particular, an
+      // upstream 404 is not the successful v2 { status: "NOT_FOUND" } result.
       log("pawapay-error", { depositId, httpStatus: response.status, result });
+      const failure = extractPaymentFailure(result);
       return cors(
         NextResponse.json(
           {
             success: false,
             error: "Failed to check status",
-            details: result,
+            failureCode: failure.code,
           },
-          { status: response.status },
+          // Do not expose an upstream 404/401 as a missing/unauthorized Roogo
+          // record: hosted recovery uses those statuses to reject return hints.
+          { status: 502 },
         ),
       );
     }
 
-    const statusData = Array.isArray(result) ? result[0] : result;
-    const status = statusData?.status || statusData?.depositStatus;
+    const checked = parsePawaPayDepositStatus(result);
+    if (checked.lookupStatus === "NOT_FOUND") return reconcileNotFound();
+
+    const statusData = checked.deposit;
+    const status = checked.status;
+    const failure = extractPaymentFailure(statusData);
+    const payerPhone =
+      extractPaymentPayerPhone(statusData) ?? transaction?.payer_phone ?? null;
+    let resolvedDbStatus: string | null = null;
 
     log("status-extracted", {
       depositId,
@@ -345,7 +627,11 @@ export async function POST(req: Request) {
     if (status && transaction) {
       let dbStatus = "pending";
       if (status === "COMPLETED") dbStatus = "completed";
-      if (status === "ACCEPTED" || status === "SUBMITTED")
+      if (
+        status === "ACCEPTED" ||
+        status === "SUBMITTED" ||
+        status === "PROCESSING"
+      )
         dbStatus = "submitted";
       if (
         status === "FAILED" ||
@@ -354,6 +640,7 @@ export async function POST(req: Request) {
       )
         dbStatus = "failed";
       if (status === "REFUNDED") dbStatus = "refunded";
+      resolvedDbStatus = dbStatus;
 
       log("db-update", {
         depositId,
@@ -364,21 +651,92 @@ export async function POST(req: Request) {
 
       const inferredProvider = resolveWebProvider(statusData);
 
-      const { error: updateError } = await supabase
-        .from("transactions")
-        .update({
-          status: dbStatus,
-          provider: inferredProvider || transaction.provider,
-          metadata: {
-            ...((transaction.metadata as Record<string, unknown>) || {}),
-            pawapay: statusData,
-          },
-          updated_at: new Date().toISOString(),
-        })
-        .eq("deposit_id", depositId);
+      let updated: { id: string }[] | null = null;
+      let updateError: unknown = null;
+      try {
+        const atomicMonthlyLock =
+          dbStatus === "completed" &&
+          transaction.type === "property_lock" &&
+          (await isMonthlyProperty(transaction.property_id));
+
+        if (atomicMonthlyLock) {
+          const completion = await finalizeMonthlyPropertyLock(
+            depositId,
+            statusData,
+          );
+          if (completion.fulfillmentConflict) {
+            return cors(
+              NextResponse.json({
+                success: true,
+                status: "NEEDS_SUPPORT",
+                error:
+                  "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+                raw: { status: "NEEDS_SUPPORT", depositId },
+                context: await getPaymentContext(
+                  transaction as Record<string, unknown>,
+                ),
+              }),
+            );
+          }
+          updated = completion.transitioned ? [{ id: transaction.id }] : [];
+          if (completion.paymentStatus === "completed") {
+            const { error: enrichmentError } = await supabase
+              .from("transactions")
+              .update({
+                provider: inferredProvider || transaction.provider,
+                payer_phone: payerPhone,
+              })
+              .eq("id", transaction.id)
+              .eq("status", "completed");
+            if (enrichmentError) {
+              log("completed-lock-enrichment-failed", {
+                depositId,
+                error: String(enrichmentError),
+              });
+            }
+          }
+        } else {
+          const update = await supabase
+            .from("transactions")
+            .update({
+              status: dbStatus,
+              provider: inferredProvider || transaction.provider,
+              payer_phone: payerPhone,
+              failure_code: dbStatus === "failed" ? failure.code : null,
+              failure_reason:
+                dbStatus === "failed" ? failure.providerMessage : null,
+              metadata: {
+                ...((transaction.metadata as Record<string, unknown>) || {}),
+                pawapay: statusData,
+              },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("deposit_id", depositId)
+            .eq("status", transaction.status)
+            .select("id");
+          updated = update.data;
+          updateError = update.error;
+        }
+      } catch (error) {
+        updateError = error;
+      }
 
       if (updateError) {
         log("db-update-failed", { depositId, error: String(updateError) });
+        return cors(
+          NextResponse.json(
+            { success: false, error: "Failed to reconcile payment" },
+            { status: 500 },
+          ),
+        );
+      }
+
+      if (!updated?.length) {
+        log("db-update-raced", {
+          depositId,
+          previousStatus: transaction.status,
+        });
+        return reloadPaymentResponse();
       }
 
       if (dbStatus === "failed") {
@@ -401,6 +759,16 @@ export async function POST(req: Request) {
             .eq("id", dailyBookingRequestId)
             .eq("transaction_id", transaction.id);
         }
+
+        await queuePaymentFailureNotification({
+          depositId,
+          failureCode: failure.code,
+          payerPhone,
+          userId: transaction.user_id,
+          transactionId: transaction.id,
+          transactionType: transaction.type,
+          propertyId: transaction.property_id,
+        });
       }
 
       // Handle post-payment logic if it just became completed
@@ -425,7 +793,6 @@ export async function POST(req: Request) {
           propertyId: transaction.property_id,
         });
 
-        let suppressPaymentNotification = false;
         let notificationCopyKey: NotificationCopyKey =
           "payments.genericCompleted";
         let notificationParams: Record<string, string | number> = {};
@@ -460,12 +827,7 @@ export async function POST(req: Request) {
             .maybeSingle();
 
           let dailyFinalizeBlocked = false;
-          if (propertyRecord?.period !== "day") {
-            await supabase
-              .from("properties")
-              .update({ status: "locked" })
-              .eq("id", transaction.property_id);
-          } else {
+          if (propertyRecord?.period === "day") {
             const finalizeResult = await finalizeDailyBookingAfterPayment(
               transaction.id,
             );
@@ -490,7 +852,14 @@ export async function POST(req: Request) {
           // refused to confirm; finalize already notified the renter and
           // opened a support issue.
           if (dailyFinalizeBlocked) {
-            suppressPaymentNotification = true;
+            return cors(
+              NextResponse.json({
+                success: true,
+                status: "NEEDS_SUPPORT",
+                raw: { status: "NEEDS_SUPPORT", depositId },
+                context: await getPaymentContext(transaction),
+              }),
+            );
           }
         } else if (
           transaction.type === "listing_submission" &&
@@ -528,7 +897,7 @@ export async function POST(req: Request) {
         }
 
         // Send payment confirmation notification
-        if (transaction.user_id && !suppressPaymentNotification) {
+        if (transaction.user_id) {
           log("sending-payment-notification", {
             userId: transaction.user_id,
             depositId,
@@ -562,10 +931,7 @@ export async function POST(req: Request) {
             transaction_type: transaction.type || "unknown",
             provider: transaction.provider || "unknown",
             property_id: transaction.property_id || null,
-            failure_reason:
-              statusData?.failureReason?.failureMessage ||
-              statusData?.failureReason ||
-              "Payment failed",
+            failure_reason: failure.providerMessage || "Payment failed",
             source: "status_polling",
           },
         );
@@ -586,7 +952,8 @@ export async function POST(req: Request) {
       NextResponse.json({
         success: true,
         status: status,
-        raw: statusData,
+        raw: { status, depositId },
+        failureCode: resolvedDbStatus === "failed" ? failure.code : undefined,
         context,
       }),
     );

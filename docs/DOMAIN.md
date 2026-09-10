@@ -30,6 +30,49 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
 - **External records and rails:** identity, ownership, RCCM business evidence,
   contracts, and Mobile Money records are kept as distinct evidence; government
   per-diem ceilings constrain eligible event rates.
+- **Payment evidence:** collection, reservation fulfillment and notification receipt are distinct. The payment-safety PRs remain pending release; see [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover).
+
+## Customer payments
+
+### PawaPay deposit
+
+**Meaning:** One customer-to-Roogo Mobile Money collection attempt, identified by a `depositId`. It can fund rent, a reservation, a listing, a boost or a 3D visit; it does not necessarily mean a rental security deposit (caution).
+
+**Origin:** PawaPay's payment terminology, used locally for customer collections.
+
+**Why it matters for building:** Keep the same reference when reconciling an uncertain attempt. An accepted initiation is not evidence that money was collected, and an HTTP error is not by itself proof of rejection.
+
+**Evidence:** [Payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [reconciliation decision](./DECISIONS.md#gateway-errors-preserve-the-original-deposit-for-reconciliation--2026-09-09).
+
+### Payment received, assistance required
+
+**Meaning:** Roogo's `NEEDS_SUPPORT` outcome: payment collection succeeded, but the reservation was not confirmed and needs human resolution. It is neither a failed charge nor proof that the customer can occupy the property.
+
+**Origin:** Roogo's paid-but-unfulfilled reservation state in the payment PRs.
+
+**Why it matters for building:** Keep the paid reference visible and offer support, not another payment or a successful-reservation handoff. Payment status and fulfillment status cannot be collapsed into one success flag.
+
+**Evidence:** [Payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08).
+
+### Listing-payment consumption
+
+**Meaning:** Permanent evidence that a deposit funded a particular listing. It survives property deletion and cannot be restored as reusable credit by clearing a payment link.
+
+**Origin:** Roogo's single-use paid-listing contract, made durable by migration 072.
+
+**Why it matters for building:** Retrying submission recovers the original property. A lost response, failed link repair or deletion never authorizes funding a replacement listing with the same payment.
+
+**Evidence:** [Consumption decision](./DECISIONS.md#listing-payment-consumption-survives-property-deletion--2026-09-09).
+
+### Notification acceptance and uncertain delivery
+
+**Meaning:** Acceptance means Expo or Africa's Talking accepted a send for processing, not that the customer read or received it. An uncertain outcome means Roogo cannot safely prove whether the provider accepted the send.
+
+**Origin:** Provider delivery semantics applied to Roogo's payment alerts.
+
+**Why it matters for building:** Callback delivered, payment completed and customer notified are different facts. Do not resend automatically after uncertainty, or treat a notification error as a payment failure.
+
+**Evidence:** [Send-boundary decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08).
 
 ## Listings and property review
 

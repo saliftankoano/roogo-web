@@ -1,110 +1,65 @@
-## Backend for Clerk privateMetadata sync
+# Roogo Web and Backend
 
-02345678
+Roogo's public property website, owner/agent workspace and staff operations dashboard for Burkina Faso. This Next.js repository also owns the authenticated API and database migrations used by the [Roogo mobile app](https://github.com/saliftankoano/roogo).
 
-### Stack
+## Repository responsibilities
 
-- **Next.js (App Router, TypeScript)**
-- **@clerk/backend** for token verification and user updates
+- Property rental/sale discovery, listing creation, review and publication.
+- Agreements, rent collection, reservations, hotels, sale operations and 3D visits.
+- Clerk authentication and user synchronization, Supabase data/storage and server-side authorization.
+- PawaPay customer payments, payment reconciliation and notification delivery.
+- Staff/founder operations and the host-specific Roogo Mebo advertising surface.
 
-### Environment
+The mobile app is a client of this backend. Server rules, not client prices or browser-return parameters, decide payment ownership, price, status and fulfillment.
 
-Create a `.env` file with the following variables:
+## Failed-payment notifications and safe recovery
 
-```
-# Clerk Configuration
-CLERK_SECRET_KEY=sk_test_xxx
-CLERK_WEBHOOK_SECRET=whsec_xxx
+[Backend PR #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile PR #29](https://github.com/saliftankoano/roogo/pull/29) add clear failure explanations and recovery that preserves an unresolved or already-paid deposit.
 
-# Supabase Configuration (use either naming convention)
-EXPO_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+The feature covers customer-initiated reservations, rent, listings, boosts, hosted payments and 3D visits. Owner payouts, refunds and a notification inbox are outside its scope.
 
-# Or use these variable names (both work):
-# SUPABASE_URL=https://your-project.supabase.co
-# SUPABASE_SERVICE_ROLE_KEY=your-service-role-key
+- **Explain a definitive failure:** controlled French/English messages for insufficient balance, payment not approved, another payment in progress, payer/provider mismatch and provider unavailability. Unknown codes use a safe generic message. Provider support text is never customer copy.
+- **Notify without duplicate sends:** one delivery record per deposit; push for eligible registered tokens, otherwise SMS to the normalized Mobile Money payer number. Payment notification opt-outs are honored. SMS alerts sharing a phone hash and failure code have a 15-minute cooldown.
+- **Keep uncertainty separate from failure:** timeouts, malformed responses and unsuccessful HTTP status lookups retain the original deposit for reconciliation. They do not authorize another charge.
+- **Separate payment from fulfillment:** `NEEDS_SUPPORT` means money was collected but the reservation is unconfirmed. Retain the reference and offer support, not another payment.
+- **Protect paid listings:** one deposit funds one listing, even after property deletion. Creation amenities commit atomically; submission/link failures recover the original listing rather than charge again.
+- **Recover mobile browser handoffs:** persist the deposit/page URL before opening the browser; Verify status and Resume payment are independent actions.
 
-# CORS Configuration
-CORS_ORIGIN=http://localhost:19006
+### Current status
 
-# Property translations
-OPENAI_API_KEY=sk_xxx
-PROPERTY_TRANSLATION_MODEL=gpt-5-mini
-```
+**Database prerequisites executed and verified on Roogo on 2026-09-09; feature release still pending.**
 
-### Development
+| Migration | Status | Database responsibility |
+| --- | --- | --- |
+| [070](./supabase/migrations/070_payment_failure_notifications.sql) | Executed | Failure fields, delivery claims, cooldown and send boundaries |
+| [071](./supabase/migrations/071_atomic_property_lock_payments.sql) | Executed | Atomic property reservation/finalization |
+| [072](./supabase/migrations/072_atomic_listing_payments.sql) | Executed | Single-use listing payments, durable consumption and atomic amenities |
 
-```bash
+See the [execution ledger](./supabase/migrations/README.md) for the exact project, UTC times, checksums and verification. Applying SQL does not deploy the PR's API/screens or prove push/SMS delivery. These applied files are now immutable; future database changes require a new migration.
+
+**Open release blocker:** mobile can become trapped after reopening an old successful payment link without its original listing draft. This documentation/migration task did not fix that review finding. Backend deployment, the mobile fix/release and native/provider acceptance checks remain in [ROADMAP.md](./docs/ROADMAP.md#now).
+
+## Development
+
+```sh
 npm install
 npm run dev
+npm test
+npx tsc --noEmit --incremental false
+npm run lint -- --max-warnings=0
 ```
 
-Local server runs at `http://localhost:3000`.
+The development server listens on port 3000. See [.env.example](./.env.example) and [CLAUDE.md](./CLAUDE.md) for configuration and architecture. Keep Clerk, Supabase service-role, payment and messaging credentials server-side; never place them in mobile `EXPO_PUBLIC_*` variables.
 
-### Endpoints
+Current production migration history records only 070–072: older schema existed without a history table. **Do not run an unrestricted `supabase db push` or mark 001–069 applied by assumption.** Older history needs a separate audit before adopting a full CLI migration baseline.
 
-- **GET `/api/health`** → `{"ok": true}`
+## Project memory
 
-- **POST `/api/clerk/users/me/metadata`**
-  - **Headers**: `Authorization: Bearer <Clerk session token>`, `Content-Type: application/json`
-  - **Body**:
-    ```json
-    { "privateMetadata": { "userType": "agent" } }
-    ```
-  - **Responses**:
-    - `200` → `{ "ok": true }`
-    - `400/401` → `{ "error": "message" }`
-  - **CORS**: Allows `POST, OPTIONS`, headers `Content-Type, Authorization`, origin `CORS_ORIGIN`.
-
-- **POST `/api/clerk/webhook`**
-  - **Headers**: `svix-id`, `svix-timestamp`, `svix-signature` (from Clerk webhooks)
-  - **Body**: Clerk webhook payload
-  - **Purpose**: Automatically syncs user data between Clerk and Supabase
-  - **Events**: `user.created`, `user.updated`, `user.deleted`
-  - **User Type Mapping**:
-    - Clerk `"owner"` → Supabase `"agent"`
-    - Clerk `"renter"` → Supabase `"buyer"`
-  - **Security**: Uses `svix` library to verify webhook signatures
-
-### Security
-
-- Uses `CLERK_SECRET_KEY` server-side only.
-- Validates payload; only `privateMetadata.userType` of `agent` or `regular` is accepted.
-
-### Client Contract (Expo)
-
-Call after signup/SSO:
-
-```http
-POST {EXPO_PUBLIC_API_URL}/api/clerk/users/me/metadata
-Authorization: Bearer <token>
-Content-Type: application/json
-
-{ "privateMetadata": { "userType": "agent" } }
-```
-
-### Webhook Setup
-
-1. **Configure Clerk Webhook**:
-   - Go to your Clerk Dashboard → Webhooks
-   - Create a new webhook endpoint: `https://your-domain.com/api/clerk/webhook`
-   - Select events: `user.created`, `user.updated`, `user.deleted`
-   - Copy the webhook signing secret to `CLERK_WEBHOOK_SECRET`
-
-2. **Supabase Configuration**:
-   - Get your Supabase URL and service role key from your project settings
-   - Add them to your `.env` file
-
-3. **Test Webhook**:
-   - Create a test user in Clerk
-   - Check your Supabase `users` table for the new record
-   - Update user details in Clerk and verify sync
-
-### Verify locally
-
-- `GET /api/health` → `{ ok: true }`
-- Test POST with a valid Clerk session token.
-- Test webhook by creating/updating users in Clerk Dashboard.
+- [DOMAIN](./docs/DOMAIN.md): payment, fulfillment and listing-consumption vocabulary.
+- [SYSTEM](./docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover): contracts, recovery, operational boundaries and code map.
+- [DECISIONS](./docs/DECISIONS.md): why uncertainty must not cause another charge/send.
+- [CHANGELOG](./docs/CHANGELOG.md): verified database changes and released behavior.
+- [ROADMAP](./docs/ROADMAP.md#now): known blockers and unfinished release checks.
 
 ## Payment Testing Scenarios (Web + Mobile)
 

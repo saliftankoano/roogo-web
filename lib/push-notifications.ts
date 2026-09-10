@@ -4,6 +4,11 @@ import {
   renderNotificationCopy,
   type NotificationCopyKey,
 } from "@/lib/notification-copy";
+import {
+  getInvalidExpoPushTokens,
+  isExpoPushResponseAccepted,
+  isExpoPushResponseRejected,
+} from "@/lib/expo-push-response";
 
 export interface PushNotificationPayload {
   to: string | string[];
@@ -28,18 +33,35 @@ interface OnboardingData {
   preferredLocale?: string;
 }
 
-type UserNotificationSettings = {
+export type UserNotificationSettings = {
   enabled: boolean;
   locale: string;
 };
 
+export type UserPushNotificationContext = UserNotificationSettings & {
+  tokens: string[];
+};
+
+export type UserPushNotificationContextResult =
+  | { status: "ready"; context: UserPushNotificationContext }
+  | { status: "retry" };
+
 /**
  * Sends a push notification to specific Expo push tokens
  */
-export async function sendExpoPushNotifications(
+export type ExpoPushSendResult = {
+  accepted: boolean;
+  outcome: "accepted" | "rejected" | "unknown";
+  invalidTokens: string[];
+};
+
+export async function sendExpoPushNotificationsWithResult(
   payloads: PushNotificationPayload | PushNotificationPayload[],
-) {
+): Promise<ExpoPushSendResult> {
   const finalPayloads = Array.isArray(payloads) ? payloads : [payloads];
+  const targetTokens = finalPayloads.flatMap((payload) =>
+    Array.isArray(payload.to) ? payload.to : [payload.to],
+  );
 
   try {
     const response = await fetch("https://exp.host/--/api/v2/push/send", {
@@ -55,16 +77,48 @@ export async function sendExpoPushNotifications(
     if (!response.ok) {
       const errorText = await response.text();
       console.error(`Expo Push API error: ${response.status}`, errorText);
-      return false;
+      return {
+        accepted: false,
+        invalidTokens: [],
+        outcome:
+          response.status >= 400 &&
+          response.status < 500 &&
+          response.status !== 408
+            ? "rejected"
+            : "unknown",
+      };
     }
 
     const result = await response.json();
     console.log("Expo Push API response:", JSON.stringify(result, null, 2));
-    return true;
+    return {
+      accepted: isExpoPushResponseAccepted(result),
+      outcome: isExpoPushResponseAccepted(result)
+        ? "accepted"
+        : isExpoPushResponseRejected(result, targetTokens.length)
+          ? "rejected"
+          : "unknown",
+      invalidTokens: getInvalidExpoPushTokens(result, targetTokens),
+    };
   } catch (error) {
     console.error("Failed to send Expo push notifications:", error);
-    return false;
+    return { accepted: false, invalidTokens: [], outcome: "unknown" };
   }
+}
+
+export async function sendExpoPushNotifications(
+  payloads: PushNotificationPayload | PushNotificationPayload[],
+) {
+  return (await sendExpoPushNotificationsWithResult(payloads)).accepted;
+}
+
+export async function removeUserPushTokens(tokens: string[]) {
+  if (tokens.length === 0) return;
+  const { error } = await getSupabaseClient()
+    .from("user_push_tokens")
+    .delete()
+    .in("expo_push_token", tokens);
+  if (error) console.error("Failed to remove invalid Expo push tokens:", error);
 }
 
 /**
@@ -96,45 +150,92 @@ function getLocaleFromMetadata({
   return match ?? "fr";
 }
 
-async function getUserNotificationSettings(
+async function loadUserNotificationSettings(
+  clerkId: string,
+  notificationType: NotificationType,
+): Promise<UserNotificationSettings> {
+  const client = await clerkClient();
+  const user = await client.users.getUser(clerkId);
+  const privateMetadata = user.privateMetadata as Record<string, unknown>;
+  const publicMetadata = user.publicMetadata as Record<string, unknown>;
+
+  const onboardingData =
+    (privateMetadata.mobileOnboardingData as OnboardingData | undefined) ??
+    (privateMetadata.webOnboardingData as OnboardingData | undefined) ??
+    (privateMetadata.onboardingData as OnboardingData | undefined) ??
+    (publicMetadata.onboardingData as OnboardingData | undefined);
+  const preferences = onboardingData?.notifications;
+  const locale = getLocaleFromMetadata({
+    onboardingData,
+    privateMetadata,
+    publicMetadata,
+  });
+
+  // If no preferences set, default to enabled (opt-out model)
+  if (!preferences || typeof preferences !== "object") {
+    return { enabled: true, locale };
+  }
+
+  // Check specific notification type preference
+  const isEnabled = preferences[notificationType];
+  return {
+    enabled: isEnabled !== false, // Default to true if not explicitly set to false
+    locale,
+  };
+}
+
+export async function getUserNotificationSettings(
   clerkId: string,
   notificationType: NotificationType,
 ): Promise<UserNotificationSettings> {
   try {
-    const client = await clerkClient();
-    const user = await client.users.getUser(clerkId);
-    const privateMetadata = user.privateMetadata as Record<string, unknown>;
-    const publicMetadata = user.publicMetadata as Record<string, unknown>;
-
-    const onboardingData = (
-      (privateMetadata.mobileOnboardingData as OnboardingData | undefined) ??
-      (privateMetadata.webOnboardingData as OnboardingData | undefined) ??
-      (privateMetadata.onboardingData as OnboardingData | undefined) ??
-      (publicMetadata.onboardingData as OnboardingData | undefined)
-    );
-    const preferences = onboardingData?.notifications;
-    const locale = getLocaleFromMetadata({
-      onboardingData,
-      privateMetadata,
-      publicMetadata,
-    });
-
-    // If no preferences set, default to enabled (opt-out model)
-    if (!preferences || typeof preferences !== "object") {
-      return { enabled: true, locale };
-    }
-
-    // Check specific notification type preference
-    const isEnabled = preferences[notificationType];
-    return {
-      enabled: isEnabled !== false, // Default to true if not explicitly set to false
-      locale,
-    };
+    return await loadUserNotificationSettings(clerkId, notificationType);
   } catch (error) {
     console.error("Error checking notification preference:", error);
     // On error, default to sending notification (fail-open)
     return { enabled: true, locale: "fr" };
   }
+}
+
+export async function getUserPushNotificationContext(
+  userId: string,
+  notificationType: NotificationType,
+): Promise<UserPushNotificationContextResult> {
+  const supabase = getSupabaseClient();
+  const userRecord = await getUserRecord(userId);
+  if (!userRecord) return { status: "retry" };
+
+  let settings: UserNotificationSettings;
+  try {
+    // Failed-payment delivery must fail closed: a transient Clerk error cannot
+    // be interpreted as consent to send sensitive payment details.
+    settings = await loadUserNotificationSettings(
+      userRecord.clerk_id,
+      notificationType,
+    );
+  } catch (error) {
+    console.error("Error loading push notification context:", error);
+    return { status: "retry" };
+  }
+  const { data: tokens, error } = await supabase
+    .from("user_push_tokens")
+    .select("expo_push_token")
+    .eq("user_id", userId);
+
+  if (error) {
+    console.error("Error fetching user tokens:", error);
+    // A token lookup failure is not evidence that the user has no token. Let
+    // the caller retry instead of incorrectly falling back to paid SMS.
+    return { status: "retry" };
+  }
+
+  return {
+    status: "ready",
+    context: {
+      ...settings,
+      tokens: (tokens ?? []).map((token) => token.expo_push_token),
+    },
+  };
 }
 
 async function getUserRecord(userId: string) {
@@ -247,11 +348,7 @@ export async function notifyUserWithTemplate(
     return false;
   }
 
-  const renderedCopy = renderNotificationCopy(
-    copyKey,
-    settings.locale,
-    params,
-  );
+  const renderedCopy = renderNotificationCopy(copyKey, settings.locale, params);
 
   return sendExpoPushNotifications({
     to: tokens.map((t) => t.expo_push_token),

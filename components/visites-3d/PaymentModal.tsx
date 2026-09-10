@@ -17,6 +17,7 @@ import {
   type Visit3dBookingInput,
   type Visit3dPaymentProvider,
 } from "@/lib/visites-3d";
+import { paymentFailureMessage } from "@/lib/payment-failures";
 
 type Step = "provider" | "phone" | "otp" | "processing" | "success" | "error";
 
@@ -126,10 +127,15 @@ export function PaymentModal({
         depositId?: string;
         status?: string;
         error?: string;
+        failureCode?: string;
       };
 
       if (!res.ok) {
-        setErrorMsg(body.error ?? "Paiement impossible. Réessayez.");
+        setErrorMsg(
+          body.failureCode
+            ? paymentFailureMessage(body.failureCode, "fr")
+            : body.error ?? "Paiement impossible. Réessayez.",
+        );
         setStep("error");
         return;
       }
@@ -171,14 +177,17 @@ export function PaymentModal({
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ depositId }),
         });
-        const data = (await res.json()) as { status?: string };
+        const data = (await res.json()) as {
+          status?: string;
+          failureCode?: string;
+        };
         if (data.status === "COMPLETED") {
           stopPolling();
           setStep("success");
           scheduleSuccess();
         } else if (data.status === "FAILED") {
           stopPolling();
-          setErrorMsg("Paiement refusé. Vérifiez votre solde puis réessayez.");
+          setErrorMsg(paymentFailureMessage(data.failureCode, "fr"));
           setStep("error");
         }
       } catch {

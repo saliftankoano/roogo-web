@@ -6,6 +6,98 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How do failed and uncertain customer payments recover?
+
+Roogo keeps payment collection, reservation fulfillment and notification delivery separate. This behavior is implemented in [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile PR #29](https://github.com/saliftankoano/roogo/pull/29); both remain open as of 2026-09-09. Database prerequisites 070–072 were executed and verified on Roogo that day; the API/mobile feature has not been released by this task. See the [execution ledger](../supabase/migrations/README.md). Local tests and the web preview do not establish production release.
+
+The shared failure flow covers customer-initiated reservation, rent, listing, boost, hosted-payment and 3D-visit deposits. Owner payouts and refunds are outside this notification feature. The server saves the [deposit reference](./DOMAIN.md#pawapay-deposit) before requesting collection.
+
+| Observed result | Meaning and handling |
+| --- | --- |
+| Ambiguous initiation response | Preserve the saved deposit for polling/callback reconciliation. HTTP 408/5xx without a definitive provider rejection, unreadable bodies and interrupted response reads do not establish failure. |
+| Unsuccessful status lookup | Leave the saved payment unchanged. An upstream HTTP 404/4xx/5xx is not proof of a missing deposit; only a successful parsed `NOT_FOUND` can enter not-found reconciliation. Generic upstream HTTP failures return retryable 502 responses, while 3D remains pending. |
+| Definitive failure | Persist the normalized failure code, show Roogo-controlled French/English copy, and allow the failure retry flow. Never display the provider's raw support-oriented message. |
+| Collected and fulfilled | Return normal completion; historical completed monthly reservations are not re-locked based on present-day property availability. |
+| Collected but reservation unconfirmed | Return [NEEDS_SUPPORT](./DOMAIN.md#payment-received-assistance-required). Retain the payment reference, explain that money was received, and offer support instead of repayment. |
+
+Initiation, polling and callbacks share failed-payment notification dispatch. One `payments.failed` record belongs to the deposit, including accountless 3D bookings. Account notification preferences are honored; a preference/token lookup outage is retryable, not evidence of consent or an absent token. Use push when eligible tokens exist, otherwise the normalized Mobile Money payer number for SMS. After definitively rejected push attempts, the bounded retry path may use SMS. Matching SMS alerts share a 15-minute cooldown per hashed payer phone and failure code. Delivery records retain channel, outcome, phone hash and code; optional notification failures do not change the payment result. No notification inbox is added.
+
+Listing deposits have a separate permanent consumption ledger, created by migration 072. Its property reference intentionally survives property deletion. Consumption commits or rolls back with the property insert; an already-consumed deposit can recover its existing listing but cannot create another, including after deletion. Transaction-link outages preserve that listing for idempotent repair. Historical backfill uses only surviving property/payment links and fails on conflicting evidence. See the [consumption decision](./DECISIONS.md#listing-payment-consumption-survives-property-deletion--2026-09-09).
+
+Migration 072 also makes creation-time amenities atomic with that insert. The API supplies a sale-filtered names snapshot; the insert trigger attaches the matching amenities, so database failure rolls back both listing and consumption. Retries verify the transaction's property link and the property's transaction link, returning a retryable error if either cannot be confirmed. They neither replace amenities from changed retry input nor restore amenities removed by later edits. Initial analytics/matching-listing announcements remain best-effort and run before payment linking; payment-link retries do not re-announce old listings. Legacy writers can omit the nullable snapshot. No existing amenities are inferred or backfilled.
+
+### Why can an alert remain uncertain rather than retry automatically?
+
+The dispatcher records an attempt-owned, non-reclaimable sending boundary before contacting a provider. It retries outcome persistence without repeating the send. Only definite rejection permits a new attempt; provider acceptance, a lost reply or an exhausted outcome write cannot prove resending is safe. Provider acceptance is not proof of handset delivery. A crash between that boundary and the network call can leave an unsent alert uncertain; resolve it from provider evidence, never by blindly resetting its state.
+
+Monthly reservation conflicts use the same protection independently for each customer/staff recipient. Stored conflict status reads retry eligible outstanding escalation without re-finalizing the payment. Preference opt-outs and absent tokens are recorded as skipped, while pre-send lookup errors remain retryable. Failed-payment SMS cooldown remains separate from these push-only conflict alerts.
+
+See the [gateway decision](./DECISIONS.md#gateway-errors-preserve-the-original-deposit-for-reconciliation--2026-09-09), [notification uncertainty decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08), and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08). Deployment gates and sandbox/device checks live in [ROADMAP.md](./ROADMAP.md#now); detailed validation evidence stays in the linked PRs.
+
+### What must future payment changes preserve?
+
+The originating support case was an insufficient-balance attempt, not a successful charge: a delivered provider callback means Roogo received the provider event, not that the payer received a notification. Never conflate callback delivery, collection, reservation fulfillment and customer delivery.
+
+| Contract | Implementation boundary | Reason |
+| --- | --- | --- |
+| Normalized failure codes and controlled copy | `lib/payment-failures.ts`, initiation/status/callback routes | Raw provider support messages are not localized customer instructions. |
+| One notification record per deposit | `lib/payment-failure-notifications.ts`, `lib/notification-deliveries.ts`, migration 070 | Initiation, polling and webhook workers can race. Accountless 3D still needs deduplication. |
+| No automatic resend after uncertain provider acceptance | Durable send boundary plus Expo/AT outcome parsers | Provider acknowledgment can be lost after a send; retry persistence, not the external send. |
+| Collection does not prove reservation fulfillment | `lib/property-lock-finalization.ts`, migration 071, direct/hosted support screens | Historical completed payments must not re-lock relisted properties. |
+| One paid listing survives retries/deletion | `app/api/properties/route.ts`, migration 072 | Recover the original property; deleted listings must not restore a paid credit. |
+| Browser returns are hints | Mobile hosted-status parser, listing draft and recovery helpers | Verify ownership/purpose and preserve a different unresolved attempt. |
+
+Safe messages cover `INSUFFICIENT_BALANCE`, `PAYMENT_NOT_APPROVED`, `PAYMENT_IN_PROGRESS`, `PAYER_NOT_FOUND` and `PROVIDER_TEMPORARILY_UNAVAILABLE`; other codes use the generic failure copy. A failure code describes why one attempt failed, not permission to regress a completed transaction.
+
+Notification work is best-effort and bounded: two delayed retries (2.5 and 7.5 seconds) follow the initial attempt when safely retryable. This is not an indefinitely running delivery queue. Eligibility lookup failure is retryable, opt-out suppresses the alert rather than bypassing it with SMS, and missing contact data is recorded without altering payment processing. Provider acceptance is not handset delivery. Do not promise exactly-once receipt, guaranteed arrival or automatic recovery of an uncertain send.
+
+### Support and release limitations
+
+- A failed charge can offer payment retry. An unverified deposit offers status reconciliation. A collected but unfulfilled reservation offers support with the existing reference.
+- Investigate using deposit/transaction references, controlled failure code and delivery channel/outcome. Never log credentials or raw payer numbers; phone hashes are still sensitive identifiers, not anonymous data.
+- On listing-link outages, retry submission against the original deposit. Do not delete the property or reset its consumption to force success.
+- Historical deleted listing links, missing original amenities and old reservation conflicts cannot be reconstructed from present-day state; require original/provider evidence.
+- **Open mobile review finding:** reopening an old successful hosted link with no original draft calls submission with incomplete fields, then persists a nondismissible paid state. Before release, recognize an already-linked property and allow missing-draft repair without discarding the deposit or authorizing another charge. Existing cold-return tests mocked submission and missed this path.
+- Native-device and live-provider acceptance remain unverified. Run the agreed sandbox scenario in an explicitly configured sandbox backend; production PawaPay configuration uses live credentials, so a test number alone does not establish sandbox safety.
+
+## How are payment migrations installed and recorded?
+
+Before consolidation, the user confirmed on 2026-09-09 that the review-era payment migrations had not been applied. They are replaced by three files, each with one transaction and only final function definitions:
+
+| Order | File | Responsibility | Replaces review-era payment files |
+| --- | --- | --- | --- |
+| 1 | `070_payment_failure_notifications.sql` | Failure fields, accountless delivery records, leases, SMS cooldown and attempt-fenced failure/conflict sends | 068, 072, 073 |
+| 2 | `071_atomic_property_lock_payments.sql` | Reservation claims, release and atomic finalization preserving completed history | 069, 071 |
+| 3 | `072_atomic_listing_payments.sql` | Unique deposit index, durable consumption backfill/trigger and atomic creation amenities | 070, 074, 075 |
+
+These are in `supabase/migrations/`. Unrelated `068_property_requests.sql` and `069_property_request_deletion_safety.sql` remain unchanged; they are separate features, not prerequisites introduced by payment SQL. The execution ledger records only verified migrations, not an assumed baseline for the rest of the repository.
+
+For an environment where the chain has not run, first confirm the target/history and run these read-only preflights before 072. Both must return zero rows; conflicting evidence requires investigation, not deletion or choosing a winner:
+
+```sql
+SELECT payment_id, COUNT(*) AS properties
+FROM public.properties
+WHERE payment_id IS NOT NULL
+GROUP BY payment_id HAVING COUNT(*) > 1;
+
+WITH evidence AS (
+  SELECT payment_id AS deposit_id, id AS property_id
+  FROM public.properties WHERE payment_id IS NOT NULL
+  UNION
+  SELECT deposit_id, property_id FROM public.transactions
+  WHERE type = 'listing_submission'
+    AND deposit_id IS NOT NULL AND property_id IS NOT NULL
+)
+SELECT deposit_id, COUNT(DISTINCT property_id) AS properties
+FROM evidence GROUP BY deposit_id HAVING COUNT(DISTINCT property_id) > 1;
+```
+
+Schedule 072 for a maintenance window: it blocks property and transaction writes while indexing/backfilling. A conflict rolls back that entire migration, not the preceding 070/071 transactions. Previously deleted listings with no surviving payment link cannot be reconstructed; reconcile from external evidence. No existing amenities are inferred from later retry input.
+
+Apply 070 → 071 → 072, verify completion, deploy the backend, then release mobile and run the sandbox/device checks in [ROADMAP.md](./ROADMAP.md#now). Do not deploy the backend after only part of this chain. Do not run deleted review-era SQL or edit the database's migration history to force a match. If any other environment already ran an old payment migration or experimental notification workers, stop for a separate history/data reconciliation; this regrouping is intended for the confirmed unapplied rollout. Regrouping itself did not execute SQL. The subsequent authorized execution applied 070–072 to Roogo and verified their effects; see the [execution ledger](../supabase/migrations/README.md). No application deployment was performed. Because the existing database had no migration history, only these three entries were established; older migrations require a separate baseline audit before broad CLI push.
+
+See the [consolidation decision](./DECISIONS.md#consolidate-unapplied-payment-migrations-before-first-rollout--2026-09-09).
+
 ## How do property requests connect mobile supply to staff work?
 
 As of 2026-09-08, ROO-20 is implemented and reviewed on draft PRs [web #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile #30](https://github.com/saliftankoano/roogo/pull/30). Shared database migrations and the mobile release have not been performed by this task. Local tests and preview deployments are not production release evidence.

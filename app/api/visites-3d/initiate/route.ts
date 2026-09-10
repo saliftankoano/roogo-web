@@ -9,7 +9,17 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import { checkRateLimit, paymentLimiter } from "@/lib/rate-limit";
 import { captureServerEvent } from "@/lib/posthog-server";
-import { finalizeVisit3dCompletion } from "@/lib/visit3d-callback";
+import {
+  finalizeVisit3dCompletion,
+  handleVisit3dDepositCallback,
+} from "@/lib/visit3d-callback";
+import {
+  extractPaymentFailure,
+  isUncertainPaymentInitiationFailure,
+  parsePawaPayInitiationResponse,
+  paymentFailureMessage,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -52,7 +62,10 @@ export async function POST(req: Request) {
   const parsed = visit3dPaymentInitiateSchema.safeParse(raw);
   if (!parsed.success) {
     return NextResponse.json(
-      { error: "Validation échouée", issues: parsed.error.flatten().fieldErrors },
+      {
+        error: "Validation échouée",
+        issues: parsed.error.flatten().fieldErrors,
+      },
       { status: 400 },
     );
   }
@@ -113,6 +126,7 @@ export async function POST(req: Request) {
       status: "pending_payment",
       payment_status: "pending",
       payment_provider: d.payment_provider,
+      payment_payer_phone: payerPhoneFormatted,
       payment_deposit_id: depositId,
       held_until: heldUntil,
     })
@@ -171,6 +185,7 @@ export async function POST(req: Request) {
   }
 
   let upstream: Response;
+  let text: string;
   try {
     upstream = await fetch(`${pawa.url}/v2/deposits`, {
       method: "POST",
@@ -180,40 +195,70 @@ export async function POST(req: Request) {
       },
       body: JSON.stringify(payload),
     });
+    text = await upstream.text();
   } catch (err) {
     console.error("[visites-3d/initiate] fetch failed", err);
-    await rollback(inserted.id);
     return NextResponse.json(
-      { error: "Impossible de joindre PawaPay. Réessayez." },
-      { status: 502 },
+      {
+        success: true,
+        depositId,
+        status: "PENDING",
+        bookingId: inserted.id,
+      },
+      { status: 202 },
     );
   }
 
-  const text = await upstream.text();
-  let result: Record<string, unknown>;
-  try {
-    result = JSON.parse(text) as Record<string, unknown>;
-  } catch {
-    result = { raw: text };
-  }
+  const result = parsePawaPayInitiationResponse(text);
 
   if (!upstream.ok) {
-    const details = result.details as Record<string, unknown> | undefined;
-    const failureReason = details?.failureReason as
-      | { failureMessage?: string; failureCode?: string }
-      | undefined;
-    const message =
-      failureReason?.failureMessage ||
-      (details?.errorMessage as string | undefined) ||
-      (result.message as string | undefined) ||
-      "Échec de l'initiation du paiement.";
+    const failure = extractPaymentFailure(result);
+    const message = paymentFailureMessage(failure.code, "fr");
 
-    await rollback(inserted.id, String(message));
+    if (isUncertainPaymentInitiationFailure(upstream.status, result)) {
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
+
+    const rollbackResult = await rollback(
+      inserted.id,
+      failure.code,
+      failure.providerMessage,
+    );
+    if (rollbackResult.error || !rollbackResult.updated) {
+      console.error(
+        "[visites-3d/initiate] failure persistence uncertain",
+        rollbackResult.error,
+      );
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
+    await queuePaymentFailureNotification({
+      depositId,
+      failureCode: failure.code,
+      payerPhone: payerPhoneFormatted,
+      locale: "fr",
+      transactionType: "visit3d",
+    });
 
     return NextResponse.json(
       {
         error: message,
-        failureCode: failureReason?.failureCode,
+        failureCode: failure.code,
       },
       { status: upstream.status },
     );
@@ -227,7 +272,7 @@ export async function POST(req: Request) {
   // polling on an immediate COMPLETED, and the webhook's guard would then
   // skip them too.
   if (pawaStatus === "COMPLETED") {
-    const result = await finalizeVisit3dCompletion(
+    const completion = await finalizeVisit3dCompletion(
       {
         id: inserted.id,
         date: d.date,
@@ -243,14 +288,115 @@ export async function POST(req: Request) {
       },
       depositId,
     );
-    if (result.error) {
-      console.error("[visites-3d/initiate] finalize failed", result.error);
+    if (completion.error) {
+      console.error("[visites-3d/initiate] finalize failed", completion.error);
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
+    if (!completion.finalized) {
+      const { data: current, error: currentError } = await supabaseAdmin
+        .from("bookings")
+        .select("payment_status, payment_failure_code")
+        .eq("id", inserted.id)
+        .single();
+      if (currentError || current?.payment_status !== "completed") {
+        if (currentError) {
+          console.error("[visites-3d/initiate] race reload", currentError);
+        }
+        if (current?.payment_status === "failed") {
+          const failureCode =
+            current.payment_failure_code || "UNSPECIFIED_FAILURE";
+          return NextResponse.json(
+            {
+              success: false,
+              depositId,
+              status: "FAILED",
+              error: paymentFailureMessage(failureCode, "fr"),
+              failureCode,
+            },
+            { status: 422 },
+          );
+        }
+        return NextResponse.json(
+          {
+            success: true,
+            depositId,
+            status: "PENDING",
+            bookingId: inserted.id,
+          },
+          { status: 202 },
+        );
+      }
     }
   } else if (pawaStatus === "SUBMITTED") {
     await supabase
       .from("bookings")
       .update({ payment_status: "submitted" })
-      .eq("id", inserted.id);
+      .eq("id", inserted.id)
+      .eq("payment_status", "pending");
+  } else if (
+    pawaStatus === "FAILED" ||
+    pawaStatus === "CANCELLED" ||
+    pawaStatus === "REJECTED"
+  ) {
+    const failure = extractPaymentFailure(result);
+    const callbackResult = await handleVisit3dDepositCallback(
+      depositId,
+      pawaStatus,
+      result,
+    );
+    if (callbackResult.error) {
+      console.error(
+        "[visites-3d/initiate] failure persistence uncertain",
+        callbackResult.error,
+      );
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
+    if (callbackResult.paymentStatus === "completed") {
+      return NextResponse.json({
+        success: true,
+        depositId,
+        status: "COMPLETED",
+        bookingId: inserted.id,
+      });
+    }
+    if (callbackResult.paymentStatus !== "failed") {
+      return NextResponse.json(
+        {
+          success: true,
+          depositId,
+          status: "PENDING",
+          bookingId: inserted.id,
+        },
+        { status: 202 },
+      );
+    }
+    const persistedFailureCode = callbackResult.failureCode || failure.code;
+    return NextResponse.json(
+      {
+        success: false,
+        depositId,
+        status: "FAILED",
+        error: paymentFailureMessage(persistedFailureCode, "fr"),
+        failureCode: persistedFailureCode,
+      },
+      { status: 422 },
+    );
   }
 
   await captureServerEvent(depositId, "visit3d_payment_initiated", {
@@ -273,13 +419,25 @@ export async function POST(req: Request) {
   );
 }
 
-async function rollback(bookingId: string, reason?: string) {
-  await supabaseAdmin
+async function rollback(
+  bookingId: string,
+  failureCode?: string,
+  failureReason?: string | null,
+) {
+  const { data, error } = await supabaseAdmin
     .from("bookings")
     .update({
       status: "cancelled",
       payment_status: "failed",
-      notes: reason ? `[cancelled after initiate] ${reason}` : undefined,
+      payment_failure_code: failureCode,
+      payment_failure_reason: failureReason,
     })
-    .eq("id", bookingId);
+    .eq("id", bookingId)
+    .in("payment_status", ["pending", "submitted"])
+    .select("id");
+
+  return {
+    error: error ? String(error) : null,
+    updated: Boolean(data?.length),
+  };
 }

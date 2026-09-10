@@ -41,6 +41,19 @@ import {
   validateReferralForUser,
   voidPendingReferralForTransaction,
 } from "@/lib/referrals";
+import {
+  extractPaymentFailure,
+  isUncertainPaymentInitiationFailure,
+  parsePawaPayInitiationResponse,
+  paymentFailureMessage,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import {
+  claimMonthlyPropertyLockPayment,
+  finalizeMonthlyPropertyLock,
+} from "@/lib/property-lock-finalization";
+import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { unescapeText } from "@/lib/text-sanitize";
 
 interface PawaPayDepositPayload {
   depositId: string;
@@ -197,7 +210,10 @@ export async function POST(req: Request) {
       (legacyProvider === "ORANGE_MONEY" ? "ORANGE_BFA" : "MOOV_BFA");
 
     if (!ALLOWED_CORRESPONDENT_CODES.has(resolvedCorrespondentCode)) {
-      log("error", { error: "Unknown correspondent", resolvedCorrespondentCode });
+      log("error", {
+        error: "Unknown correspondent",
+        resolvedCorrespondentCode,
+      });
       return errorResponse("Opérateur de paiement non reconnu", 400, req);
     }
 
@@ -229,8 +245,11 @@ export async function POST(req: Request) {
     let resolvedAmount = amount;
     let resolvedPropertyId = propertyId || null;
     let resolvedMetadata: Record<string, unknown> = metadata || {};
-    let appliedReferral = null as ReturnType<typeof applyReferralToQuote> | null;
+    let appliedReferral = null as ReturnType<
+      typeof applyReferralToQuote
+    > | null;
     let dailyBookingRequestId: string | null = null;
+    let monthlyPropertyLock = false;
 
     if (transactionType === "rent_payment") {
       const scheduleId =
@@ -238,7 +257,11 @@ export async function POST(req: Request) {
           ? resolvedMetadata.scheduleId
           : null;
       if (!scheduleId) {
-        return errorResponse("scheduleId is required for rent payments", 400, req);
+        return errorResponse(
+          "scheduleId is required for rent payments",
+          400,
+          req,
+        );
       }
 
       const { data: schedule, error: scheduleError } = await supabase
@@ -262,7 +285,11 @@ export async function POST(req: Request) {
         return errorResponse("Rent schedule not found", 404, req);
       }
       if (schedule.renter_id !== user.id) {
-        return errorResponse("This rent schedule belongs to another renter", 403, req);
+        return errorResponse(
+          "This rent schedule belongs to another renter",
+          403,
+          req,
+        );
       }
       if (!["upcoming", "overdue"].includes(schedule.status)) {
         return errorResponse("This rent schedule is not payable", 409, req);
@@ -283,8 +310,7 @@ export async function POST(req: Request) {
         return errorResponse("Rental agreement not found", 404, req);
       }
 
-      const rentCollectionEnabled =
-        agreement.rent_collection_enabled !== false;
+      const rentCollectionEnabled = agreement.rent_collection_enabled !== false;
       let hasPendingSuccessFee = false;
       let firstUnpaidScheduleId: string | null = null;
 
@@ -299,7 +325,11 @@ export async function POST(req: Request) {
           .maybeSingle();
 
         if (pendingFeeError) {
-          return errorResponse("Unable to verify rent collection terms", 500, req);
+          return errorResponse(
+            "Unable to verify rent collection terms",
+            500,
+            req,
+          );
         }
         hasPendingSuccessFee = Boolean(pendingFee);
 
@@ -353,7 +383,7 @@ export async function POST(req: Request) {
       const { data: propertyRecord, error: propertyError } = await supabase
         .from("properties")
         .select(
-          "price, caution_mois, loyer_avance_mois, period, caution_type, caution_valeur",
+          "price, caution_mois, loyer_avance_mois, period, caution_type, caution_valeur, quartier, address",
         )
         .eq("id", propertyId)
         .maybeSingle();
@@ -363,6 +393,7 @@ export async function POST(req: Request) {
       }
 
       if (propertyRecord.period !== "day") {
+        monthlyPropertyLock = true;
         const breakdown = getMoveInPaymentBreakdown({
           monthlyRent: propertyRecord.price,
           cautionMois: propertyRecord.caution_mois,
@@ -411,7 +442,11 @@ export async function POST(req: Request) {
           bookingRequest.property_id !== propertyId ||
           bookingRequest.renter_id !== user.id
         ) {
-          return errorResponse("Booking request does not match payment", 403, req);
+          return errorResponse(
+            "Booking request does not match payment",
+            403,
+            req,
+          );
         }
 
         if (
@@ -419,7 +454,11 @@ export async function POST(req: Request) {
             bookingRequest.status,
           )
         ) {
-          return errorResponse("Booking request is not awaiting payment", 409, req);
+          return errorResponse(
+            "Booking request is not awaiting payment",
+            409,
+            req,
+          );
         }
 
         if (
@@ -439,9 +478,7 @@ export async function POST(req: Request) {
         const payoutPhoneRaw =
           typeof meta.payoutPhone === "string" ? meta.payoutPhone : null;
         const payoutProviderRaw =
-          typeof meta.payoutProvider === "string"
-            ? meta.payoutProvider
-            : null;
+          typeof meta.payoutProvider === "string" ? meta.payoutProvider : null;
         const payoutProvider = payoutProviderRaw
           ? normalizePawaPayProvider(payoutProviderRaw)
           : null;
@@ -482,6 +519,11 @@ export async function POST(req: Request) {
 
     if (transactionType === "listing_submission") {
       const meta = (metadata || {}) as Record<string, unknown>;
+      const snakeCaseAddOns = Array.isArray(meta.add_ons)
+        ? meta.add_ons.filter(
+            (item): item is string => typeof item === "string",
+          )
+        : [];
       const listingQuote = await computeListingSubmissionQuote(supabase, {
         tierId:
           typeof meta.tier_id === "string"
@@ -489,12 +531,16 @@ export async function POST(req: Request) {
             : typeof meta.tierId === "string"
               ? meta.tierId
               : null,
-        addOns: Array.isArray(meta.add_ons)
-          ? meta.add_ons.filter((item): item is string => typeof item === "string")
-          : Array.isArray(meta.addOns)
-            ? meta.addOns.filter((item): item is string => typeof item === "string")
-          : undefined,
-        frequence: typeof meta.frequence === "string" ? meta.frequence : "mensuel",
+        addOns:
+          snakeCaseAddOns.length > 0
+            ? snakeCaseAddOns
+            : Array.isArray(meta.addOns)
+              ? meta.addOns.filter(
+                  (item): item is string => typeof item === "string",
+                )
+              : undefined,
+        frequence:
+          typeof meta.frequence === "string" ? meta.frequence : "mensuel",
         monthlyRent:
           typeof meta.monthlyRent === "number"
             ? meta.monthlyRent
@@ -529,6 +575,15 @@ export async function POST(req: Request) {
 
     const payerClientCode = resolvedCorrespondentCode;
 
+    // Persist the same normalized MSISDN sent to PawaPay so polling and
+    // failure notifications always target the payer's actual account.
+    let formattedPhone = phoneNumber.replace(/\s/g, "");
+    const countryIso = correspondentConfig?.countryIso ?? "BF";
+    if (formattedPhone.length <= 8) {
+      const e164 = normalizePhone(formattedPhone, countryIso);
+      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
+    }
+
     const { data: transactionRecord, error: dbError } = await supabase
       .from("transactions")
       .insert({
@@ -540,7 +595,7 @@ export async function POST(req: Request) {
         provider: payerClientCode,
         user_id: user.id,
         property_id: resolvedPropertyId,
-        payer_phone: phoneNumber,
+        payer_phone: formattedPhone,
         otp_code: preAuthorisationCode || null,
         metadata: resolvedMetadata,
       })
@@ -596,16 +651,6 @@ export async function POST(req: Request) {
       url: pawaUrl,
     });
 
-    // Build MSISDN: if already a full MSISDN (length > 8), use as-is; otherwise
-    // normalise via libphonenumber using the correspondent's country.
-    let formattedPhone = phoneNumber.replace(/\s/g, "");
-    const countryIso = correspondentConfig?.countryIso ?? "BF";
-    if (formattedPhone.length <= 8) {
-      // National number — prepend country code via libphonenumber
-      const e164 = normalizePhone(formattedPhone, countryIso);
-      formattedPhone = (e164 ?? formattedPhone).replace(/^\+/, "");
-    }
-
     const customerMessage = preAuthorisationCode
       ? `${preAuthorisationCode} ${(description || "Roogo Payment").replace(/[^a-zA-Z0-9\s]/g, "")}`.slice(
           0,
@@ -642,22 +687,65 @@ export async function POST(req: Request) {
       hasOTP: !!preAuthorisationCode,
     });
 
-    const response = await fetch(`${pawaUrl}/v2/deposits`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${pawaToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const responseText = await response.text();
-    let result;
-    try {
-      result = JSON.parse(responseText);
-    } catch {
-      result = { message: responseText };
+    let response: Response;
+    let responseText: string;
+    if (
+      transactionType === "property_lock" &&
+      monthlyPropertyLock &&
+      resolvedPropertyId
+    ) {
+      const claimed = await claimMonthlyPropertyLockPayment(
+        resolvedPropertyId,
+        depositId,
+      );
+      if (!claimed) {
+        if (transactionRecord?.id) {
+          await voidPendingReferralForTransaction(
+            supabase,
+            transactionRecord.id,
+          );
+        }
+        await supabase
+          .from("transactions")
+          .delete()
+          .eq("deposit_id", depositId);
+        return errorResponse(
+          "Un autre paiement est déjà en cours pour ce bien",
+          409,
+          req,
+        );
+      }
     }
+    try {
+      response = await fetch(`${pawaUrl}/v2/deposits`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pawaToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      responseText = await response.text();
+    } catch (error) {
+      log("pawapay-response-uncertain", {
+        depositId,
+        error: String(error),
+      });
+      return cors(
+        NextResponse.json(
+          {
+            success: true,
+            depositId,
+            status: "PENDING",
+            raw: { status: "PENDING", depositId },
+          },
+          { status: 202 },
+        ),
+        req,
+      );
+    }
+
+    const result = parsePawaPayInitiationResponse(responseText);
 
     log("pawapay-response", {
       httpStatus: response.status,
@@ -675,23 +763,58 @@ export async function POST(req: Request) {
         result,
       });
 
-      // Extract detailed failure information from PawaPay response
-      let detailedFailure = result.message || "API call failed";
-      if (result.details?.failureReason) {
-        const fr = result.details.failureReason;
-        detailedFailure = `${fr.failureCode || "ERROR"}: ${fr.failureMessage || result.message || "Unknown error"}`;
-      } else if (result.details?.errorMessage) {
-        detailedFailure = result.details.errorMessage;
+      const failure = extractPaymentFailure(result);
+
+      if (isUncertainPaymentInitiationFailure(response.status, result)) {
+        log("pawapay-status-uncertain", {
+          depositId,
+          failureCode: failure.code,
+        });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
       }
 
-      await getSupabaseClient()
-        .from("transactions")
-        .update({
-          status: "failed",
-          failure_reason: detailedFailure,
-          metadata: { ...resolvedMetadata, ...result },
-        })
-        .eq("deposit_id", depositId);
+      const { data: failureUpdated, error: failureUpdateError } =
+        await getSupabaseClient()
+          .from("transactions")
+          .update({
+            status: "failed",
+            failure_code: failure.code,
+            failure_reason: failure.providerMessage,
+            metadata: { ...resolvedMetadata, ...result },
+          })
+          .eq("deposit_id", depositId)
+          .eq("status", "pending")
+          .select("id");
+
+      if (failureUpdateError || !failureUpdated?.length) {
+        log("failure-persistence-uncertain", {
+          depositId,
+          error: String(failureUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
+      }
 
       if (transactionRecord?.id) {
         await voidPendingReferralForTransaction(supabase, transactionRecord.id);
@@ -708,12 +831,7 @@ export async function POST(req: Request) {
           .eq("transaction_id", transactionRecord.id);
       }
 
-      const failureReason = result.details?.failureReason;
-      const errorMessage =
-        failureReason?.failureMessage ||
-        result.details?.errorMessage ||
-        result.error ||
-        "Payment initiation failed";
+      const errorMessage = paymentFailureMessage(failure.code, "fr");
 
       await captureServerEvent(user.id, "payment_failed", {
         deposit_id: depositId,
@@ -725,14 +843,100 @@ export async function POST(req: Request) {
         failure_reason: errorMessage,
       });
 
+      await queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        payerPhone: formattedPhone,
+        userId: user.id,
+        transactionId: transactionRecord?.id,
+        transactionType,
+        propertyId: resolvedPropertyId,
+      });
+
       return cors(
         NextResponse.json(
           {
             error: errorMessage,
-            details: result,
-            failureCode: failureReason?.failureCode,
+            failureCode: failure.code,
           },
           { status: response.status },
+        ),
+        req,
+      );
+    }
+
+    const immediateStatus = String(result.status || "").toUpperCase();
+    if (
+      immediateStatus === "FAILED" ||
+      immediateStatus === "CANCELLED" ||
+      immediateStatus === "REJECTED"
+    ) {
+      const failure = extractPaymentFailure(result);
+      const { data: failureUpdated, error: failureUpdateError } = await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
+          metadata: { ...resolvedMetadata, ...result },
+        })
+        .eq("deposit_id", depositId)
+        .eq("status", "pending")
+        .select("id");
+
+      if (failureUpdateError || !failureUpdated?.length) {
+        log("failure-persistence-uncertain", {
+          depositId,
+          error: String(failureUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
+      }
+
+      if (transactionRecord?.id) {
+        await voidPendingReferralForTransaction(supabase, transactionRecord.id);
+      }
+      if (dailyBookingRequestId && transactionRecord?.id) {
+        await supabase
+          .from("daily_booking_requests")
+          .update({
+            status: "approved_awaiting_payment",
+            transaction_id: null,
+          })
+          .eq("id", dailyBookingRequestId)
+          .eq("transaction_id", transactionRecord.id);
+      }
+
+      await queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        payerPhone: formattedPhone,
+        userId: user.id,
+        transactionId: transactionRecord?.id,
+        transactionType,
+        propertyId: resolvedPropertyId,
+      });
+
+      return cors(
+        NextResponse.json(
+          {
+            success: false,
+            depositId,
+            status: immediateStatus,
+            error: paymentFailureMessage(failure.code, "fr"),
+            failureCode: failure.code,
+          },
+          { status: 422 },
         ),
         req,
       );
@@ -752,16 +956,124 @@ export async function POST(req: Request) {
 
     // 7. Update status only if PawaPay COMPLETED immediately
     // Note: ACCEPTED just means queued, not confirmed - must poll for final status
-    if (result.status === "COMPLETED") {
+    if (immediateStatus === "COMPLETED") {
       log("immediate-completion", { depositId });
-      await supabase
-        .from("transactions")
-        .update({
-          status: "completed",
-          metadata: { ...resolvedMetadata, ...result },
-          updated_at: new Date().toISOString(),
-        })
-        .eq("deposit_id", depositId);
+      let completionUpdated: { id: string }[] | null = null;
+      let completionUpdateError: unknown = null;
+      try {
+        if (transactionType === "property_lock" && monthlyPropertyLock) {
+          const completion = await finalizeMonthlyPropertyLock(
+            depositId,
+            result,
+          );
+          if (completion.fulfillmentConflict) {
+            return cors(
+              NextResponse.json(
+                {
+                  success: true,
+                  depositId,
+                  status: "NEEDS_SUPPORT",
+                  error:
+                    "Le paiement a été reçu, mais le bien est déjà réservé. Le support Roogo vous contactera.",
+                  raw: { status: "NEEDS_SUPPORT", depositId },
+                },
+                { status: 202 },
+              ),
+              req,
+            );
+          }
+          completionUpdated = completion.transitioned
+            ? [{ id: transactionRecord.id }]
+            : [];
+        } else {
+          const completion = await supabase
+            .from("transactions")
+            .update({
+              status: "completed",
+              metadata: { ...resolvedMetadata, ...result },
+              updated_at: new Date().toISOString(),
+            })
+            .eq("deposit_id", depositId)
+            .eq("status", "pending")
+            .select("id");
+          completionUpdated = completion.data;
+          completionUpdateError = completion.error;
+        }
+      } catch (error) {
+        completionUpdateError = error;
+      }
+
+      if (completionUpdateError) {
+        log("completion-persistence-uncertain", {
+          depositId,
+          error: String(completionUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            {
+              success: true,
+              depositId,
+              status: "PENDING",
+              raw: { status: "PENDING", depositId },
+            },
+            { status: 202 },
+          ),
+          req,
+        );
+      }
+
+      if (!completionUpdated?.length) {
+        const { data: current, error: currentError } = await supabase
+          .from("transactions")
+          .select("status, failure_code")
+          .eq("deposit_id", depositId)
+          .single();
+        if (
+          currentError ||
+          (current?.status !== "completed" && current?.status !== "failed")
+        ) {
+          return cors(
+            NextResponse.json(
+              {
+                success: true,
+                depositId,
+                status: "PENDING",
+                raw: { status: "PENDING", depositId },
+              },
+              { status: 202 },
+            ),
+            req,
+          );
+        }
+        if (current.status === "failed") {
+          const failureCode = current.failure_code || "UNSPECIFIED_FAILURE";
+          return cors(
+            NextResponse.json(
+              {
+                success: false,
+                depositId,
+                status: "FAILED",
+                error: paymentFailureMessage(failureCode, "fr"),
+                failureCode,
+              },
+              { status: 422 },
+            ),
+            req,
+          );
+        }
+
+        // The webhook or poller won the completion transition and owns the
+        // one-time fulfillment side effects.
+        return cors(
+          NextResponse.json({
+            success: true,
+            depositId,
+            status: "COMPLETED",
+            raw: { status: "COMPLETED", depositId },
+          }),
+          req,
+        );
+      }
 
       await captureServerEvent(user.id, "payment_completed", {
         deposit_id: depositId,
@@ -786,9 +1098,7 @@ export async function POST(req: Request) {
           })
           .eq("id", propertyId);
       } else if (transactionType === "rent_payment" && resolvedMetadata) {
-        const scheduleId = resolvedMetadata.scheduleId as
-          | string
-          | undefined;
+        const scheduleId = resolvedMetadata.scheduleId as string | undefined;
         if (scheduleId) {
           const { data: completedTransaction } = await supabase
             .from("transactions")
@@ -810,6 +1120,40 @@ export async function POST(req: Request) {
         }
       } else if (transactionType === "property_lock" && dailyBookingRequestId) {
         await finalizeDailyBookingAfterPaymentDepositId(depositId);
+      } else if (
+        transactionType === "property_lock" &&
+        monthlyPropertyLock &&
+        resolvedPropertyId
+      ) {
+        const { data: lockedProperty } = await supabase
+          .from("properties")
+          .select("quartier, address")
+          .eq("id", resolvedPropertyId)
+          .maybeSingle();
+        const propertyLabel = unescapeText(
+          lockedProperty?.quartier || lockedProperty?.address,
+        );
+        await notifyUserWithTemplate(
+          user.id,
+          "payments",
+          propertyLabel
+            ? "payments.propertyReserved"
+            : "payments.genericCompleted",
+          propertyLabel ? { propertyLabel } : {},
+          {
+            type: "payment_completed",
+            transactionId: transactionRecord.id,
+            depositId,
+            transactionType,
+            amount: resolvedAmount,
+            propertyId: resolvedPropertyId,
+          },
+        ).catch((error) => {
+          log("immediate-lock-notification-failed", {
+            depositId,
+            error: String(error),
+          });
+        });
       }
     }
 
@@ -823,7 +1167,10 @@ export async function POST(req: Request) {
         success: true,
         depositId: result.depositId || depositId,
         status: result.status || "PENDING",
-        raw: result,
+        raw: {
+          status: result.status || "PENDING",
+          depositId: result.depositId || depositId,
+        },
       }),
       req,
     );

@@ -4,6 +4,11 @@ import {
   sendTeamNotification,
 } from "@/lib/africastalking";
 import { captureServerEvent } from "@/lib/posthog-server";
+import {
+  extractPaymentFailure,
+  extractPaymentPayerPhone,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
 
 // Visites 3D bookings share the PawaPay callback endpoint with rent/listing
 // transactions. Deposit IDs are UUIDs with unique indexes in both tables, so
@@ -22,18 +27,26 @@ export type Visit3dBookingRow = {
   total_amount: number;
   status: string;
   payment_status: string;
+  payment_failure_code?: string | null;
+  payment_failure_reason?: string | null;
+  payment_payer_phone?: string | null;
 };
 
-const TERMINAL_PAYMENT_STATUSES = ["completed", "failed", "cancelled", "refunded"];
+const TERMINAL_PAYMENT_STATUSES = [
+  "completed",
+  "failed",
+  "cancelled",
+  "refunded",
+];
 
 /**
  * Atomically transition a booking to confirmed/completed and fire the
  * one-time side-effects (SMS + analytics).
  *
  * The webhook, the client status poll, and the initiate route can all observe
- * a deposit turn COMPLETED concurrently. The `.neq("payment_status",
- * "completed")` guard makes the DB the arbiter: exactly one caller gets the
- * updated row back and dispatches the side-effects; the others no-op.
+ * a deposit turn COMPLETED concurrently. The pending/submitted guard makes
+ * the DB the arbiter: exactly one caller gets the updated row back and
+ * dispatches the side-effects; the others no-op.
  */
 export async function finalizeVisit3dCompletion(
   row: Visit3dBookingRow,
@@ -43,7 +56,7 @@ export async function finalizeVisit3dCompletion(
     .from("bookings")
     .update({ status: "confirmed", payment_status: "completed" })
     .eq("id", row.id)
-    .neq("payment_status", "completed")
+    .in("payment_status", ["pending", "submitted"])
     .select("id");
 
   if (updErr) {
@@ -86,9 +99,12 @@ export async function finalizeVisit3dCompletion(
 export async function handleVisit3dDepositCallback(
   depositId: string,
   pawaPayStatus: string,
+  payload?: unknown,
 ): Promise<{
   handled: boolean;
   bookingId?: string;
+  paymentStatus?: string;
+  failureCode?: string | null;
   /** The bookings lookup itself failed — the caller must NOT ack the webhook
    *  as "not found", or PawaPay will never retry. */
   dbError?: string;
@@ -100,14 +116,18 @@ export async function handleVisit3dDepositCallback(
   if (status === "COMPLETED") payment_status = "completed";
   else if (status === "SUBMITTED") payment_status = "submitted";
   else if (status === "ACCEPTED") payment_status = "pending";
-  else if (status === "FAILED" || status === "CANCELLED" || status === "REJECTED")
+  else if (
+    status === "FAILED" ||
+    status === "CANCELLED" ||
+    status === "REJECTED"
+  )
     payment_status = "failed";
   else if (status === "REFUNDED") payment_status = "refunded";
 
   const { data: row, error: fetchErr } = await supabaseAdmin
     .from("bookings")
     .select(
-      "id, date, slot, name, company, phone, address, room_count, total_amount, status, payment_status",
+      "id, date, slot, name, company, phone, address, room_count, total_amount, status, payment_status, payment_failure_code, payment_failure_reason, payment_payer_phone",
     )
     .eq("payment_deposit_id", depositId)
     .maybeSingle<Visit3dBookingRow>();
@@ -127,7 +147,25 @@ export async function handleVisit3dDepositCallback(
     const isRefundOfCompleted =
       status === "REFUNDED" && row.payment_status === "completed";
     if (!isRefundOfCompleted) {
-      return { handled: true, bookingId: row.id };
+      if (row.payment_status === "failed") {
+        const failure = extractPaymentFailure(payload);
+        await queuePaymentFailureNotification({
+          depositId,
+          failureCode: row.payment_failure_code || failure.code,
+          payerPhone:
+            row.payment_payer_phone ||
+            extractPaymentPayerPhone(payload) ||
+            row.phone,
+          locale: "fr",
+          transactionType: "visit3d",
+        });
+      }
+      return {
+        handled: true,
+        bookingId: row.id,
+        paymentStatus: row.payment_status,
+        failureCode: row.payment_failure_code,
+      };
     }
   }
 
@@ -136,22 +174,96 @@ export async function handleVisit3dDepositCallback(
     if (result.error) {
       return { handled: true, bookingId: row.id, error: result.error };
     }
-    return { handled: true, bookingId: row.id };
+    return {
+      handled: true,
+      bookingId: row.id,
+      paymentStatus: result.finalized ? "completed" : undefined,
+    };
   }
 
   const patch: Record<string, unknown> = { payment_status };
   if (payment_status === "failed" && row.status === "pending_payment") {
     patch.status = "cancelled";
+    const failure = extractPaymentFailure(payload);
+    patch.payment_failure_code = failure.code;
+    patch.payment_failure_reason = failure.providerMessage;
+    patch.payment_payer_phone =
+      extractPaymentPayerPhone(payload) ?? row.payment_payer_phone;
   }
 
-  const { error: updErr } = await supabaseAdmin
+  const { data: updated, error: updErr } = await supabaseAdmin
     .from("bookings")
     .update(patch)
-    .eq("id", row.id);
+    .eq("id", row.id)
+    .eq("payment_status", row.payment_status)
+    .select("id");
 
   if (updErr) {
     return { handled: true, bookingId: row.id, error: String(updErr) };
   }
 
-  return { handled: true, bookingId: row.id };
+  if (!updated?.length) {
+    const { data: current, error: currentError } = await supabaseAdmin
+      .from("bookings")
+      .select("payment_status, payment_failure_code, payment_payer_phone")
+      .eq("id", row.id)
+      .single();
+    if (currentError) {
+      return { handled: true, bookingId: row.id, error: String(currentError) };
+    }
+    if (
+      !current ||
+      (current.payment_status !== payment_status &&
+        (!TERMINAL_PAYMENT_STATUSES.includes(current.payment_status) ||
+          (current.payment_status === "completed" &&
+            payment_status === "refunded")))
+    ) {
+      // A pending -> submitted race must not swallow the terminal callback.
+      // The webhook route returns an error so PawaPay will retry this deposit.
+      return {
+        handled: true,
+        bookingId: row.id,
+        error: "Payment update unresolved; retry callback",
+      };
+    }
+    if (current.payment_status === "failed") {
+      await queuePaymentFailureNotification({
+        depositId,
+        failureCode:
+          current.payment_failure_code || extractPaymentFailure(payload).code,
+        payerPhone:
+          current.payment_payer_phone || row.payment_payer_phone || row.phone,
+        locale: "fr",
+        transactionType: "visit3d",
+      });
+    }
+    return {
+      handled: true,
+      bookingId: row.id,
+      paymentStatus: current?.payment_status,
+      failureCode: current?.payment_failure_code,
+    };
+  }
+
+  if (payment_status === "failed") {
+    const failure = extractPaymentFailure(payload);
+    await queuePaymentFailureNotification({
+      depositId,
+      failureCode: failure.code,
+      payerPhone:
+        extractPaymentPayerPhone(payload) ??
+        row.payment_payer_phone ??
+        row.phone,
+      locale: "fr",
+      transactionType: "visit3d",
+    });
+  }
+
+  return {
+    handled: true,
+    bookingId: row.id,
+    paymentStatus: payment_status,
+    failureCode:
+      payment_status === "failed" ? extractPaymentFailure(payload).code : null,
+  };
 }

@@ -21,6 +21,13 @@ import {
   validateReferralForUser,
   voidPendingReferralForTransaction,
 } from "@/lib/referrals";
+import {
+  extractPaymentFailure,
+  paymentFailureMessage,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import { getMoveInPaymentBreakdown } from "@/lib/move-in-payment";
+import { claimMonthlyPropertyLockPayment } from "@/lib/property-lock-finalization";
 
 // Valid PawaPay 3-letter country codes for payment page
 const VALID_PAYMENT_PAGE_COUNTRIES = ["BFA", "CIV", "SEN"] as const;
@@ -190,7 +197,7 @@ export async function POST(req: Request) {
     } = validatedData;
 
     const pawaPayCountry: PaymentPageCountry = requestedCountry ?? "BFA";
-    const resolvedMetadata: Record<string, unknown> = metadata || {};
+    let resolvedMetadata: Record<string, unknown> = metadata || {};
     const supabase = getSupabaseClient();
     const normalizedReferralCode = normalizeReferralCode(
       referralCode || resolvedMetadata.referralCode,
@@ -232,10 +239,15 @@ export async function POST(req: Request) {
       }
     }
 
-    if (transactionType === "property_lock" && propertyId) {
+    if (transactionType === "property_lock") {
+      if (!propertyId) {
+        return errorResponse("Property is required for this payment", 400, req);
+      }
       const { data: propertyRecord, error: propertyError } = await supabase
         .from("properties")
-        .select("period")
+        .select(
+          "status, price, caution_mois, loyer_avance_mois, period, quartier, address",
+        )
         .eq("id", propertyId)
         .maybeSingle();
 
@@ -250,6 +262,30 @@ export async function POST(req: Request) {
           req,
         );
       }
+
+      if (propertyRecord.status !== "en_ligne") {
+        return errorResponse("Property is no longer available", 409, req);
+      }
+
+      const breakdown = getMoveInPaymentBreakdown({
+        monthlyRent: propertyRecord.price,
+        cautionMois: propertyRecord.caution_mois,
+        loyerAvanceMois: propertyRecord.loyer_avance_mois,
+      });
+      if (breakdown.totalAmount <= 0) {
+        return errorResponse("Property payment amount is invalid", 409, req);
+      }
+      resolvedAmount = breakdown.totalAmount;
+      resolvedMetadata = {
+        ...resolvedMetadata,
+        originalClientAmount: amount,
+        monthlyRent: breakdown.monthlyRent,
+        cautionMois: breakdown.cautionMois,
+        loyerAvanceMois: breakdown.loyerAvanceMois,
+        cautionAmount: breakdown.cautionAmount,
+        advanceRentAmount: breakdown.advanceRentAmount,
+        totalMoveInAmount: breakdown.totalAmount,
+      };
     }
 
     log("request-validated", {
@@ -353,7 +389,11 @@ export async function POST(req: Request) {
       }
     }
 
-    const returnUrl = validatedExplicitReturnUrl || fallbackReturnUrl;
+    const returnUrlObject = new URL(
+      validatedExplicitReturnUrl || fallbackReturnUrl,
+    );
+    returnUrlObject.searchParams.set("flow", transactionType);
+    const returnUrl = returnUrlObject.toString();
 
     const payload = {
       depositId,
@@ -368,6 +408,78 @@ export async function POST(req: Request) {
         .slice(0, 50)
         .replace(/[^a-zA-Z0-9\s]/g, ""),
     };
+    const failureLocale = requestedLocale?.toUpperCase() === "EN" ? "en" : "fr";
+
+    const finalizePaymentPageFailure = async (
+      failurePayload: unknown,
+      httpStatus: number,
+    ) => {
+      const failure = extractPaymentFailure(failurePayload);
+      const failureMessage = paymentFailureMessage(failure.code, failureLocale);
+
+      const { error: failureUpdateError } = await supabase
+        .from("transactions")
+        .update({
+          status: "failed",
+          failure_code: failure.code,
+          failure_reason: failure.providerMessage,
+          metadata: { ...transactionMetadata, pawapay: failurePayload },
+        })
+        .eq("deposit_id", depositId);
+
+      if (failureUpdateError) {
+        log("failure-update-failed", {
+          depositId,
+          error: String(failureUpdateError),
+        });
+        return cors(
+          NextResponse.json(
+            { error: "Failed to reconcile payment" },
+            { status: 500 },
+          ),
+          req,
+        );
+      }
+
+      if (transactionRecord?.id) {
+        await voidPendingReferralForTransaction(supabase, transactionRecord.id);
+      }
+
+      await captureServerEvent(user.id, "payment_failed", {
+        deposit_id: depositId,
+        amount: resolvedAmount,
+        currency,
+        transaction_type: transactionType,
+        provider,
+        property_id: propertyId || null,
+        failure_reason: failureMessage,
+        source: "payment_page",
+      });
+
+      await queuePaymentFailureNotification({
+        depositId,
+        failureCode: failure.code,
+        userId: user.id,
+        transactionId: transactionRecord?.id,
+        transactionType,
+        propertyId: propertyId || null,
+        locale: failureLocale,
+      });
+
+      return cors(
+        NextResponse.json(
+          {
+            success: false,
+            depositId,
+            status: "FAILED",
+            error: failureMessage,
+            failureCode: failure.code,
+          },
+          { status: httpStatus },
+        ),
+        req,
+      );
+    };
 
     log("pawapay-request", {
       url: `${pawaUrl}/v2/paymentpage`,
@@ -378,16 +490,51 @@ export async function POST(req: Request) {
       currency: payload.amountDetails.currency,
     });
 
-    const response = await fetch(`${pawaUrl}/v2/paymentpage`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${pawaToken}`,
-      },
-      body: JSON.stringify(payload),
-    });
-
-    const responseText = await response.text();
+    let response: Response;
+    let responseText: string;
+    if (transactionType === "property_lock" && propertyId) {
+      const claimed = await claimMonthlyPropertyLockPayment(
+        propertyId,
+        depositId,
+      );
+      if (!claimed) {
+        if (transactionRecord?.id) {
+          await voidPendingReferralForTransaction(
+            supabase,
+            transactionRecord.id,
+          );
+        }
+        await supabase
+          .from("transactions")
+          .delete()
+          .eq("deposit_id", depositId);
+        return errorResponse(
+          "Un autre paiement est déjà en cours pour ce bien",
+          409,
+          req,
+        );
+      }
+    }
+    try {
+      response = await fetch(`${pawaUrl}/v2/paymentpage`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization: `Bearer ${pawaToken}`,
+        },
+        body: JSON.stringify(payload),
+      });
+      responseText = await response.text();
+    } catch (error) {
+      log("pawapay-response-unavailable", {
+        depositId,
+        error: String(error),
+      });
+      return finalizePaymentPageFailure(
+        { failureReason: { failureCode: "UNKNOWN_ERROR" } },
+        503,
+      );
+    }
     let result;
     try {
       result = JSON.parse(responseText);
@@ -409,43 +556,22 @@ export async function POST(req: Request) {
         result,
       });
 
-      const failureMessage =
-        typeof result?.failureReason?.failureMessage === "string"
-          ? result.failureReason.failureMessage
-          : typeof result?.message === "string"
-            ? result.message
-            : "Payment page creation failed";
+      return finalizePaymentPageFailure(result, response.status);
+    }
 
-      await getSupabaseClient()
-        .from("transactions")
-        .update({
-          status: "failed",
-          failure_reason: failureMessage,
-          metadata: { ...transactionMetadata, pawapay: result },
-        })
-        .eq("deposit_id", depositId);
+    const immediateStatus = String(result.status || "").toUpperCase();
+    if (
+      immediateStatus === "FAILED" ||
+      immediateStatus === "CANCELLED" ||
+      immediateStatus === "REJECTED"
+    ) {
+      return finalizePaymentPageFailure(result, 422);
+    }
 
-      if (transactionRecord?.id) {
-        await voidPendingReferralForTransaction(supabase, transactionRecord.id);
-      }
-
-      await captureServerEvent(user.id, "payment_failed", {
-        deposit_id: depositId,
-        amount,
-        currency,
-        transaction_type: transactionType,
-        provider,
-        property_id: propertyId || null,
-        failure_reason: failureMessage,
-        source: "payment_page",
-      });
-
-      return cors(
-        NextResponse.json(
-          { error: failureMessage, details: result },
-          { status: response.status },
-        ),
-        req,
+    if (typeof result.redirectUrl !== "string" || !result.redirectUrl.trim()) {
+      return finalizePaymentPageFailure(
+        { failureReason: { failureCode: "UNKNOWN_ERROR" } },
+        502,
       );
     }
 

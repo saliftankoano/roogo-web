@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   XIcon,
@@ -21,6 +21,7 @@ import {
   type PaymentCountry,
 } from "@/lib/payment-providers";
 import { roogoMotion } from "@/lib/motion";
+import { paymentFailureMessage } from "@/lib/payment-failures";
 
 interface PropertyPaymentModalProps {
   isOpen: boolean;
@@ -40,7 +41,8 @@ type PaymentStep =
   | "otp"
   | "processing"
   | "success"
-  | "error";
+  | "error"
+  | "needs_support";
 
 export default function PropertyPaymentModal({
   isOpen,
@@ -62,8 +64,10 @@ export default function PropertyPaymentModal({
   const [phoneNational, setPhoneNational] = useState("");
   const [otpCode, setOtpCode] = useState("");
   const [errorMessage, setErrorMessage] = useState("");
+  const [depositId, setDepositId] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const attemptCountRef = useRef(0);
+  const pollingGenerationRef = useRef(0);
 
   const breakdown = getMoveInPaymentBreakdown({
     monthlyRent: rentAmount,
@@ -72,17 +76,11 @@ export default function PropertyPaymentModal({
   });
   const totalAmount = breakdown.totalAmount;
 
-  useEffect(() => {
-    if (!isOpen) resetModal();
-  }, [isOpen]);
-
-  useEffect(() => {
-    return () => {
-      if (pollingRef.current) clearInterval(pollingRef.current);
-    };
-  }, []);
-
-  const resetModal = () => {
+  const resetModal = useCallback(() => {
+    // Closing/reopening the same modal must not offer a second payment after
+    // funds were collected but the reservation needs human intervention.
+    if (step === "needs_support") return;
+    pollingGenerationRef.current += 1;
     setStep("country");
     setSelectedCountry(
       PAYMENT_COUNTRIES.find((c) => c.iso === DEFAULT_PAYMENT_COUNTRY_ISO)!,
@@ -91,12 +89,24 @@ export default function PropertyPaymentModal({
     setPhoneNational("");
     setOtpCode("");
     setErrorMessage("");
+    setDepositId(null);
     attemptCountRef.current = 0;
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
     }
-  };
+  }, [step]);
+
+  useEffect(() => {
+    if (!isOpen) resetModal();
+  }, [isOpen, resetModal]);
+
+  useEffect(() => {
+    return () => {
+      pollingGenerationRef.current += 1;
+      if (pollingRef.current) clearInterval(pollingRef.current);
+    };
+  }, []);
 
   const handleCountrySelect = (country: PaymentCountry) => {
     setSelectedCountry(country);
@@ -120,6 +130,7 @@ export default function PropertyPaymentModal({
   };
 
   const handleInitiatePayment = async () => {
+    if (step === "needs_support" || step === "processing") return;
     if (!selectedCorrespondent) return;
     setStep("processing");
     setErrorMessage("");
@@ -157,6 +168,12 @@ export default function PropertyPaymentModal({
       }
 
       const id = data.depositId;
+      setDepositId(id);
+
+      if (data.status === "NEEDS_SUPPORT") {
+        setStep("needs_support");
+        return;
+      }
 
       if (data.status === "COMPLETED") {
         setStep("success");
@@ -172,12 +189,19 @@ export default function PropertyPaymentModal({
   };
 
   const startPolling = (id: string) => {
+    const generation = ++pollingGenerationRef.current;
+    if (pollingRef.current) clearInterval(pollingRef.current);
+    let inFlight = false;
+    let stopped = false;
     attemptCountRef.current = 0;
-    pollingRef.current = setInterval(async () => {
+    const interval = setInterval(async () => {
+      if (stopped || inFlight || generation !== pollingGenerationRef.current)
+        return;
       attemptCountRef.current += 1;
 
       if (attemptCountRef.current > 20) {
-        clearInterval(pollingRef.current!);
+        stopped = true;
+        clearInterval(interval);
         pollingRef.current = null;
         setErrorMessage(
           "Delai d&apos;attente depasse. Veuillez verifier votre telephone.",
@@ -186,6 +210,7 @@ export default function PropertyPaymentModal({
         return;
       }
 
+      inFlight = true;
       try {
         const token = await getToken();
         const res = await fetch("/api/payments/status", {
@@ -198,22 +223,34 @@ export default function PropertyPaymentModal({
         });
 
         const data = await res.json();
+        if (generation !== pollingGenerationRef.current || stopped) return;
+        if (!res.ok || data.success === false) return;
 
         if (data.status === "COMPLETED") {
-          clearInterval(pollingRef.current!);
+          stopped = true;
+          clearInterval(interval);
           pollingRef.current = null;
           setStep("success");
           onSuccess(id);
         } else if (data.status === "FAILED" || data.status === "REJECTED") {
-          clearInterval(pollingRef.current!);
+          stopped = true;
+          clearInterval(interval);
           pollingRef.current = null;
-          setErrorMessage("Paiement refuse. Veuillez reessayer.");
+          setErrorMessage(paymentFailureMessage(data.failureCode, "fr"));
           setStep("error");
+        } else if (data.status === "NEEDS_SUPPORT") {
+          stopped = true;
+          clearInterval(interval);
+          pollingRef.current = null;
+          setStep("needs_support");
         }
       } catch {
         // keep polling on network errors
+      } finally {
+        inFlight = false;
       }
     }, 3000);
+    pollingRef.current = interval;
   };
 
   const formatAmount = (amount: number) => amount.toLocaleString("fr-FR");
@@ -533,6 +570,44 @@ export default function PropertyPaymentModal({
                 <button
                   onClick={onClose}
                   className="w-full bg-green-600 hover:bg-green-700 text-white font-black py-4 rounded-2xl transition-all text-sm"
+                >
+                  Fermer
+                </button>
+              </div>
+            )}
+
+            {step === "needs_support" && (
+              <div
+                className="flex flex-col items-center py-6 gap-4 text-center"
+                role="status"
+              >
+                <WarningCircleIcon
+                  size={48}
+                  weight="fill"
+                  className="text-primary"
+                />
+                <p className="font-black text-neutral-900">
+                  Paiement reçu, assistance requise
+                </p>
+                <p className="text-sm text-neutral-600">
+                  Votre paiement a été reçu, mais la réservation n&apos;est pas
+                  confirmée. Le support Roogo vous contactera. Ne payez pas à
+                  nouveau pour cette réservation.
+                </p>
+                <p className="text-xs text-neutral-600 break-all">
+                  Référence du paiement : {depositId}
+                </p>
+                <a
+                  href="/nous-contacter"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="w-full bg-primary text-white font-bold py-4 rounded-2xl text-sm"
+                >
+                  Contacter le support
+                </a>
+                <button
+                  onClick={onClose}
+                  className="w-full bg-neutral-100 text-neutral-900 font-bold py-4 rounded-2xl text-sm"
                 >
                   Fermer
                 </button>

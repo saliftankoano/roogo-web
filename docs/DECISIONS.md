@@ -7,6 +7,78 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Record executed SQL separately from application release — 2026-09-09
+
+**Decision:** Record only the three explicitly authorized, verified payment migrations in Supabase history and the [execution ledger](../supabase/migrations/README.md). Mark the database prerequisite complete, not the entire payment feature. Keep applied SQL immutable.
+
+**Why:** Roogo already had schema/data but no migration-history table. A blanket push could replay unrelated migrations; fabricating an older baseline would claim evidence we do not have. CLI project access and the production-configured project reference must agree before writes.
+
+**Ruled out / alternatives:** No unrestricted database push, blind history repair, guessed legacy backfill, app deployment or live payment test was included. Initial history-text escaping was corrected separately without re-executing DDL, then compared byte-for-byte. Future history writes should use bound parameters.
+
+**Status:** Settled; executed 070–072 on Roogo. API/client release and the known mobile cold-return fix remain pending in [ROADMAP](./ROADMAP.md#now).
+
+### Consolidate unapplied payment migrations before first rollout — 2026-09-09
+
+**Decision:** With the user's pre-execution confirmation that the payment migrations had never run, replace the eight review-era files with three transactional migrations: 070 notification delivery, 071 property-lock payments, and 072 listing payments. Keep only the final function definitions. Leave unrelated property-request migrations 068/069 unchanged.
+
+**Why:** At consolidation time there was no deployed payment migration history to preserve. Grouping by responsibility removed duplicate numeric versions and prevented operators from installing intermediate, superseded function definitions.
+
+**Ruled out / alternatives:** Do not squash already-applied migrations or change the property-request feature. Do not concatenate eight files with nested transaction boundaries. Retain conservative legacy notification uncertainty guards as a defensive measure, but do not claim older payment workers are deployed.
+
+**Status:** Settled; 070 → 071 → 072 were subsequently executed and verified on Roogo on 2026-09-09. They are now immutable applied migrations. Application deployment/release is still pending. See the [execution ledger](../supabase/migrations/README.md). If any environment actually applied an old payment file, stop and reconcile its migration history separately; these are not upgrade scripts for that environment. See [rollout instructions](./SYSTEM.md#how-are-payment-migrations-installed-and-recorded).
+
+### Listing payment consumption survives property deletion — 2026-09-09
+
+**Decision:** Migration 072 records each deposit's consuming property in a private ledger without a property foreign key. A database trigger consumes the reference atomically with property insertion; deletion or changing the property's payment cannot restore the credit. Retries may recover the still-existing property, not create a replacement. Preserve inserted paid properties on transaction-link outages so retries can repair the link.
+
+**Why:** The live-property unique index alone loses its evidence when a property is deleted, and the existing transaction foreign key becomes null. A consumed package must not become reusable credit.
+
+**Creation recovery refinement (2026-09-09):** Migration 072 snapshots creation-time amenity names and attaches their links in the property insert transaction. An amenity write failure rolls back the property and its consumption; a later transaction-link failure preserves both. All paid creation/retry paths verify both transaction/property links before success. Optional creation announcements run before the link step and do not run again on replay. Existing properties are not backfilled from retry input: it may have changed, or amenities may have been intentionally removed since creation.
+
+**Ruled out / alternatives:** Do not block legitimate property deletion or guess which historically deleted listing consumed a deposit. Backfill surviving property/transaction links; contradictory evidence must stop the migration. Already-deleted records with no surviving link require evidence-based reconciliation, not invented consumption history.
+
+**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. Database migrations 070–072 are executed and verified; do not replay them. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
+
+### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
+
+See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover), [domain terms](./DOMAIN.md#customer-payments), and [release gates](./ROADMAP.md#now).
+
+**Decision:** For initiation, treat HTTP 408 and server/gateway errors as uncertain unless the provider explicitly returns a failed/rejected deposit with a concrete failure code. Empty, HTML, malformed and non-object JSON responses do not authorize failure or a new payment. All direct initiation routes normalize response bodies, and interrupted 3D response reads return the saved deposit ID for polling.
+
+**Status-lookup refinement (2026-09-09):** Only a successful, parsed lookup can establish a deposit outcome. HTTP 404 and other unsuccessful status responses are not PawaPay's documented JSON `NOT_FOUND` result. Leave the saved payment unchanged so a later completion can reconcile it; generic status requests expose upstream HTTP failures as retryable 502 responses, not local record/ownership errors. The 3D status route stays pending on failed lookups or interrupted bodies. A genuine successful `NOT_FOUND` still follows existing reconciliation and hosted-page grace rules. See the [PawaPay status contract](https://docs.pawapay.io/v2/api-reference/deposits/check-deposit-status).
+
+**Why:** The provider may have accepted a payment before an intermediary lost its response. Terminally failing that attempt prevents a later completion callback from reconciling it. The same-deposit reconciliation approach follows [PawaPay's deposit guidance](https://docs.pawapay.io/v2/docs/deposits); treating unstructured gateway failures as uncertain is Roogo's conservative application of that rule.
+
+**Ruled out / alternatives:** Do not infer rejection from HTTP status alone or retry initiation with a new deposit ID. Definitive rejection still uses controlled failure copy and the normal retry flow.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Controlled 3D route tests accept completion after 408/500/502/503/504 and interrupted response bodies; no live payment was submitted.
+
+### Notification uncertainty never authorizes a second send — 2026-09-08
+
+**Decision:** Reserve an attempt identity, then persist a non-reclaimable sending boundary before contacting SMS or push providers. Retry outcome writes separately. Only explicit rejection reopens delivery; accepted sends, lost replies and exhausted outcome writes do not automatically resend. SMS cooldown includes sending and uncertain attempts. Migration 070 preserves pre-boundary pending deliveries as uncertain rather than guessing whether they already sent.
+
+**Conflict refinement (2026-09-09):** The same boundary and shared attempt-owned outcome writer protect each `payments.property_lock_conflict` recipient. Preference/token lookup errors remain retryable before sending; opt-outs and absent tokens are recorded as skipped. Migration 070 marks legacy pending **and failed** conflict attempts uncertain because the old boolean sender could not distinguish rejection from a lost acknowledgment. If an environment ran older experimental conflict workers, stop and reconcile its migration history before rollout. Unknown/accepted sends cannot be reclaimed after lease expiry; definitive rejection may retry.
+
+**Why:** A lease timeout or failed database write cannot prove the provider rejected a message. Retrying in that situation can send duplicate payment alerts. Attempt ownership also prevents an expired worker from overwriting a newer worker's outcome.
+
+**Ruled out / alternatives:** Automatic retry of all provider errors favors eventual delivery over duplicate prevention. We prioritize no duplicate submission for sensitive payment alerts. A crash between the durable boundary and the network call can therefore leave an unsent alert uncertain; support must reconcile it using provider evidence, not reset it blindly.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. The consolidated database migrations were executed and verified on 2026-09-09; the earlier unapplied status is historical. Provider acknowledgment means accepted for processing, not handset delivery; see [Africa's Talking status guidance](https://help.africastalking.com/en/articles/16150386-messaging-error-codes) and [Expo ticket guidance](https://docs.expo.dev/push-notifications/sending-notifications/).
+
+### Payment recovery preserves historical fulfillment and retries unresolved races — 2026-09-08
+
+**Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 installs the finalizer without a legacy repair branch and without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments. Normal status reads and lost-update reloads share fulfillment-aware responses, so a completed payment with an unconfirmed reservation remains NEEDS_SUPPORT.
+
+**Recovery refinement (2026-09-08):** The first poll discovering a blocked daily/hotel fulfillment also returns NEEDS_SUPPORT. Stored monthly conflicts re-drive outstanding per-recipient escalation without re-finalizing the reservation. Hosted returns display a terminal support-required state, payment reference and contact action, with no second-payment action or automatic redirect. Polling is serialized and cancelled on navigation so stale responses cannot overwrite that state.
+
+**Direct-screen refinement (2026-09-09):** Direct web and mobile payments use the same paid-but-unfulfilled distinction for initiation and polling. The support state retains the deposit reference, says not to pay again, and offers contact/close actions. Closing and reopening the same modal does not reset that state. Direct polls serialize requests and reject stale responses after cancellation.
+
+**Why:** The property's current status cannot prove whether an old payment was fulfilled. Re-locking a relisted property or flagging an already-reserved property as a conflict changes history. A concurrent pending-to-submitted update is not evidence that a terminal callback was saved.
+
+**Ruled out / alternatives:** Do not automatically backfill fulfillment from present-day availability or silently acknowledge every lost update. Preserve existing explicit conflicts; historical inconsistencies require evidence-based support reconciliation.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. Migration 071 was applied after 070 and verified on 2026-09-09.
+
 ### Call editing preserves intent across concurrent staff work — 2026-09-08
 
 **Decision:** Merge the original, local and latest saved call field by field. Adopt unrelated staff updates, require an explicit choice for overlapping edits, and keep unresolved conflicts and drafts through repeated or failed refreshes. Give each editor its own session identity; briefly prevent opening another editor during a save while allowing call browsing.
