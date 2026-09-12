@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
+import type { ReactNode } from "react";
 import {
   ArrowRightIcon,
   BuildingsIcon,
@@ -15,9 +16,7 @@ import {
   WarningCircleIcon,
 } from "@phosphor-icons/react";
 import { Hero } from "./Hero";
-import { PropertyCard } from "./PropertyCard";
 import { Footer } from "./Footer";
-import { Property } from "../lib/data";
 import { homeFaqItems } from "../lib/home-content";
 import { Button } from "./ui/Button";
 import {
@@ -32,7 +31,7 @@ import {
 import { marketingAssets } from "./marketing/assets";
 
 interface HomeClientProps {
-  featuredProperties: Property[];
+  featuredProperties: ReactNode;
 }
 
 const painPoints = [
@@ -351,23 +350,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
               </Link>
             </div>
 
-            <motion.div
-              className="mt-12 grid grid-cols-1 gap-6 sm:grid-cols-2 lg:grid-cols-4"
-              variants={container}
-              initial="hidden"
-              whileInView="show"
-              viewport={{ once: true, margin: "-80px" }}
-            >
-              {featuredProperties.map((property) => (
-                <motion.div key={property.id} variants={item}>
-                  <PropertyCard
-                    property={property}
-                    // max-w-7xl, px-6, gap-6, and the card's padding/border.
-                    imageSizes="(max-width: 639px) calc(100vw - 82px), (max-width: 1023px) calc(50vw - 70px), (max-width: 1279px) calc(25vw - 64px), 256px"
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
+            {featuredProperties}
           </div>
         </section>
 
