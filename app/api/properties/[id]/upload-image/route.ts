@@ -4,7 +4,7 @@ import { getSupabaseClient } from "@/lib/user-sync";
 import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
 import { MAX_LISTING_PHOTOS } from "@/lib/validations";
 import {
-  createPublicListingImagePath,
+  createContentAddressedListingImagePath,
   PUBLIC_LISTING_IMAGE_CACHE_CONTROL,
 } from "@/lib/public-listing-images";
 
@@ -74,6 +74,25 @@ export async function POST(
       return cors(json({ error: "Forbidden" }, 403));
     }
 
+    const buffer = Buffer.from(base64Data, "base64");
+    const fileName = createContentAddressedListingImagePath(propertyId, ext || "jpg", buffer);
+    const { data: { publicUrl } } = supabase.storage.from("listing").getPublicUrl(fileName);
+    const findLinkedImage = () => supabase
+      .from("property_images")
+      .select("url, width, height")
+      .eq("property_id", propertyId)
+      .eq("url", publicUrl)
+      .maybeSingle();
+
+    // Check before the limit: replaying the last allowed photo must still succeed.
+    const { data: existingImage, error: existingImageError } = await findLinkedImage();
+    if (existingImageError) {
+      return cors(json({ error: "Unable to verify existing photo" }, 500));
+    }
+    if (existingImage) {
+      return cors(json({ success: true, ...existingImage }));
+    }
+
     const { count: existingImageCount, error: imageCountError } = await supabase
       .from("property_images")
       .select("id", { count: "exact", head: true })
@@ -97,9 +116,14 @@ export async function POST(
       );
     }
 
-    // 5. Convert base64 to buffer
-    const buffer = Buffer.from(base64Data, "base64");
-    const fileName = createPublicListingImagePath(propertyId, ext || "jpg");
+    const { count: primaryCount, error: primaryError } = await supabase
+      .from("property_images")
+      .select("id", { count: "exact", head: true })
+      .eq("property_id", propertyId)
+      .eq("is_primary", true);
+    if (primaryError) {
+      return cors(json({ error: "Unable to verify primary photo" }, 500));
+    }
 
     // Determine content type
     const contentType =
@@ -121,16 +145,17 @@ export async function POST(
       });
 
     if (uploadError) {
+      // Another request may have finished while this one was uploading. Storage
+      // rejects the shared content key, so only its creator inserts a DB row.
+      const { data: linkedImage, error: linkedImageError } = await findLinkedImage();
+      if (!linkedImageError && linkedImage) {
+        return cors(json({ success: true, ...linkedImage }));
+      }
       console.error("Error uploading image:", uploadError);
       return cors(
         json({ error: `Failed to upload image: ${uploadError.message}` }, 500)
       );
     }
-
-    // 7. Get public URL
-    const {
-      data: { publicUrl },
-    } = supabase.storage.from("listing").getPublicUrl(fileName);
 
     // 8. Create image record in database
     const imageRecord = {
@@ -138,7 +163,7 @@ export async function POST(
       url: publicUrl,
       width: width || 1024,
       height: height || 768,
-      is_primary: index === 0,
+      is_primary: index === 0 && (primaryCount || 0) === 0,
     };
 
     const { error: imagesError } = await supabase
@@ -147,7 +172,18 @@ export async function POST(
 
     if (imagesError) {
       console.error("Error creating image record:", imagesError);
-      // Still return success with URL even if DB insert fails
+      // A lost DB response can report an error after the row was committed.
+      const { data: linkedImage, error: lookupError } = await findLinkedImage();
+      if (!lookupError && linkedImage) {
+        return cors(json({ success: true, ...linkedImage }));
+      }
+      // This request owns the new object. Release its key so a retry can upload
+      // again, but only after confirming no DB row references it.
+      if (!lookupError) {
+        const { error: cleanupError } = await supabase.storage.from("listing").remove([fileName]);
+        if (cleanupError) console.error("Error cleaning up unlinked photo:", cleanupError);
+      }
+      return cors(json({ error: "Failed to link photo. Please retry." }, 500));
     }
 
     // 9. Return success
