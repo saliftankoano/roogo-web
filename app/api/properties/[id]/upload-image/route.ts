@@ -27,7 +27,7 @@ export async function OPTIONS(req: Request) {
  */
 export async function POST(
   req: Request,
-  { params }: { params: Promise<{ id: string }> }
+  { params }: { params: Promise<{ id: string }> },
 ) {
   try {
     const { id: propertyId } = await params;
@@ -66,7 +66,7 @@ export async function POST(
     if (propertyError || !property) {
       console.error("Property not found:", propertyError);
       return cors(
-        json({ error: "Property not found or you don't have permission" }, 404)
+        json({ error: "Property not found or you don't have permission" }, 404),
       );
     }
 
@@ -75,17 +75,25 @@ export async function POST(
     }
 
     const buffer = Buffer.from(base64Data, "base64");
-    const fileName = createContentAddressedListingImagePath(propertyId, ext || "jpg", buffer);
-    const { data: { publicUrl } } = supabase.storage.from("listing").getPublicUrl(fileName);
-    const findLinkedImage = () => supabase
-      .from("property_images")
-      .select("url, width, height")
-      .eq("property_id", propertyId)
-      .eq("url", publicUrl)
-      .maybeSingle();
+    const fileName = createContentAddressedListingImagePath(
+      propertyId,
+      ext || "jpg",
+      buffer,
+    );
+    const {
+      data: { publicUrl },
+    } = supabase.storage.from("listing").getPublicUrl(fileName);
+    const findLinkedImage = () =>
+      supabase
+        .from("property_images")
+        .select("url, width, height")
+        .eq("property_id", propertyId)
+        .eq("url", publicUrl)
+        .maybeSingle();
 
     // Check before the limit: replaying the last allowed photo must still succeed.
-    const { data: existingImage, error: existingImageError } = await findLinkedImage();
+    const { data: existingImage, error: existingImageError } =
+      await findLinkedImage();
     if (existingImageError) {
       return cors(json({ error: "Unable to verify existing photo" }, 500));
     }
@@ -130,10 +138,19 @@ export async function POST(
       ext === "png"
         ? "image/png"
         : ext === "heic"
-        ? "image/heic"
-        : "image/jpeg";
+          ? "image/heic"
+          : "image/jpeg";
 
     console.log(`Uploading image: ${fileName} (${buffer.length} bytes)`);
+
+    // Prepare image record for database (used in both success and conflict-recovery paths)
+    const imageRecord = {
+      property_id: propertyId,
+      url: publicUrl,
+      width: width || 1024,
+      height: height || 768,
+      is_primary: index === 0 && (primaryCount || 0) === 0,
+    };
 
     // 6. Upload to Supabase Storage using service role
     const { error: uploadError } = await supabase.storage
@@ -147,24 +164,48 @@ export async function POST(
     if (uploadError) {
       // Another request may have finished while this one was uploading. Storage
       // rejects the shared content key, so only its creator inserts a DB row.
-      const { data: linkedImage, error: linkedImageError } = await findLinkedImage();
+      const { data: linkedImage, error: linkedImageError } =
+        await findLinkedImage();
       if (!linkedImageError && linkedImage) {
         return cors(json({ success: true, ...linkedImage }));
       }
+
+      // If the storage conflict is due to an orphaned file (exists in storage but
+      // not linked in DB), insert the missing DB row to make the retry succeed.
+      const isConflict =
+        uploadError.message?.toLowerCase().includes("already exists") ||
+        uploadError.message?.toLowerCase().includes("duplicate");
+
+      if (isConflict && !linkedImageError) {
+        const { error: insertError } = await supabase
+          .from("property_images")
+          .insert(imageRecord);
+
+        if (!insertError) {
+          return cors(
+            json({
+              success: true,
+              url: publicUrl,
+              width: imageRecord.width,
+              height: imageRecord.height,
+            }),
+          );
+        }
+
+        // If insert also failed, check one more time in case another request just created it
+        const { data: finalCheck } = await findLinkedImage();
+        if (finalCheck) {
+          return cors(json({ success: true, ...finalCheck }));
+        }
+      }
+
       console.error("Error uploading image:", uploadError);
       return cors(
-        json({ error: `Failed to upload image: ${uploadError.message}` }, 500)
+        json({ error: `Failed to upload image: ${uploadError.message}` }, 500),
       );
     }
 
     // 8. Create image record in database
-    const imageRecord = {
-      property_id: propertyId,
-      url: publicUrl,
-      width: width || 1024,
-      height: height || 768,
-      is_primary: index === 0 && (primaryCount || 0) === 0,
-    };
 
     const { error: imagesError } = await supabase
       .from("property_images")
@@ -180,8 +221,11 @@ export async function POST(
       // This request owns the new object. Release its key so a retry can upload
       // again, but only after confirming no DB row references it.
       if (!lookupError) {
-        const { error: cleanupError } = await supabase.storage.from("listing").remove([fileName]);
-        if (cleanupError) console.error("Error cleaning up unlinked photo:", cleanupError);
+        const { error: cleanupError } = await supabase.storage
+          .from("listing")
+          .remove([fileName]);
+        if (cleanupError)
+          console.error("Error cleaning up unlinked photo:", cleanupError);
       }
       return cors(json({ error: "Failed to link photo. Please retry." }, 500));
     }
@@ -193,7 +237,7 @@ export async function POST(
         url: publicUrl,
         width: imageRecord.width,
         height: imageRecord.height,
-      })
+      }),
     );
   } catch (error) {
     console.error("Error in POST /api/properties/[id]/upload-image:", error);
@@ -205,8 +249,8 @@ export async function POST(
               ? error.message
               : "An unexpected error occurred",
         },
-        500
-      )
+        500,
+      ),
     );
   }
 }
