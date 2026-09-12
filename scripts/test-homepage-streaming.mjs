@@ -5,8 +5,31 @@ import { spawn } from "node:child_process";
 import { createServer } from "node:http";
 import { createRequire } from "node:module";
 import { once } from "node:events";
+import { cp, mkdtemp, realpath, rm, symlink } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import { join, relative } from "node:path";
+import { fileURLToPath } from "node:url";
 
 const require = createRequire(import.meta.url);
+const projectRoot = fileURLToPath(new URL("../", import.meta.url));
+const { loadEnvConfig } = require("@next/env");
+const testEnv = loadEnvConfig(projectRoot, true).combinedEnv;
+const testRoot = await mkdtemp(join(tmpdir(), "roogo-homepage-streaming-"));
+try {
+  await cp(projectRoot, testRoot, {
+    recursive: true,
+    filter(source) {
+      const top = relative(projectRoot, source).split(/[\\/]/)[0];
+      return ![".git", ".next", ".clerk", "node_modules"].includes(top) && !top.startsWith(".env");
+    },
+  });
+  // Webpack dev supports an external dependency directory. Only generated
+  // files in the disposable copy are changed, even with another server running.
+  await symlink(await realpath(join(projectRoot, "node_modules")), join(testRoot, "node_modules"), "dir");
+} catch (error) {
+  await rm(testRoot, { recursive: true, force: true });
+  throw error;
+}
 let mode = "success";
 let databaseFinishedAt = 0;
 const fixture = createServer(async (_request, response) => {
@@ -45,9 +68,9 @@ await new Promise(resolve => probe.close(resolve));
 
 let output = "";
 const next = spawn(process.execPath, [require.resolve("next/dist/bin/next"), "dev", "--port", String(appPort)], {
-  cwd: new URL("../", import.meta.url),
+  cwd: testRoot,
   env: {
-    ...process.env,
+    ...testEnv,
     NEXT_PUBLIC_SUPABASE_URL: `http://127.0.0.1:${fixturePort}`,
     NEXT_PUBLIC_SUPABASE_ANON_KEY: "local-fixture-key",
   },
@@ -85,8 +108,10 @@ try {
     assert.ok(fallbackAt > 0 && fallbackAt < databaseFinishedAt, "listing skeleton must stream in the shell");
     assert.ok(html.includes("roogo-hero-dusk-home.jpg") && html.includes('rel="preload"'), "hero preload must remain available");
     if (mode === "success") assert.ok(html.includes("STREAMED_LISTING_MARKER"), "resolved listings must appear in the response");
-    else if (mode === "malformed") assert.ok(html.includes("Les annonces sont momentanément indisponibles"));
-    else assert.ok(html.includes("Aucun bien en vedette pour le moment"));
+    else if (mode === "malformed" || mode === "error") {
+      assert.ok(html.includes("Les annonces sont momentanément indisponibles"));
+      assert.ok(!html.includes("Aucun bien en vedette pour le moment"), "database failures must not look like empty results");
+    } else assert.ok(html.includes("Aucun bien en vedette pour le moment"));
     console.log(`${mode}: hero at ${Math.round(heroAt - startedAt)} ms; listing query finished at ${Math.round(databaseFinishedAt - startedAt)} ms`);
   }
 } catch (error) {
@@ -100,4 +125,5 @@ try {
   clearTimeout(timeout);
   fixture.closeAllConnections();
   await new Promise(resolve => fixture.close(resolve));
+  await rm(testRoot, { recursive: true, force: true });
 }

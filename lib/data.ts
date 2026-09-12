@@ -193,6 +193,7 @@ export async function fetchProperties(options?: {
   page?: number;
   limit?: number;
   status?: string;
+  throwOnError?: boolean;
 }): Promise<{ properties: Property[]; total: number }> {
   const page = options?.page || 1;
   const limit = options?.limit || 20;
@@ -219,6 +220,9 @@ export async function fetchProperties(options?: {
       error.details,
       error.hint,
     );
+    if (options?.throwOnError) {
+      throw new Error("Unable to fetch properties", { cause: error });
+    }
     return { properties: [], total: 0 };
   }
 
@@ -243,6 +247,7 @@ export async function fetchFeaturedProperties(
   const { properties } = await fetchProperties({
     limit,
     status: "en_ligne",
+    throwOnError: true,
   });
   return properties;
 }
