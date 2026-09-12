@@ -143,7 +143,7 @@ export async function POST(
 
     console.log(`Uploading image: ${fileName} (${buffer.length} bytes)`);
 
-    // Prepare image record for database (used in both success and conflict-recovery paths)
+    // The database uniquely constrains content-addressed URLs for this property.
     const imageRecord = {
       property_id: propertyId,
       url: publicUrl,
@@ -162,42 +162,38 @@ export async function POST(
       });
 
     if (uploadError) {
-      // Another request may have finished while this one was uploading. Storage
-      // rejects the shared content key, so only its creator inserts a DB row.
       const { data: linkedImage, error: linkedImageError } =
         await findLinkedImage();
       if (!linkedImageError && linkedImage) {
         return cors(json({ success: true, ...linkedImage }));
       }
 
-      console.error("Error uploading image:", uploadError);
-      return cors(
-        json({ error: `Failed to upload image: ${uploadError.message}` }, 500),
-      );
+      const isConflict =
+        uploadError.message?.toLowerCase().includes("already exists") ||
+        uploadError.message?.toLowerCase().includes("duplicate");
+      if (!isConflict || linkedImageError) {
+        console.error("Error uploading image:", uploadError);
+        return cors(
+          json({ error: `Failed to upload image: ${uploadError.message}` }, 500),
+        );
+      }
+      // An orphan and an in-flight upload are indistinguishable here. Let both
+      // attempt the link: migration 073 ensures only one record can commit.
     }
-
-    // 8. Create image record in database
 
     const { error: imagesError } = await supabase
       .from("property_images")
       .insert(imageRecord);
 
     if (imagesError) {
-      console.error("Error creating image record:", imagesError);
-      // A lost DB response can report an error after the row was committed.
+      // A competing insert or a lost response may already have committed it.
       const { data: linkedImage, error: lookupError } = await findLinkedImage();
       if (!lookupError && linkedImage) {
         return cors(json({ success: true, ...linkedImage }));
       }
-      // This request owns the new object. Release its key so a retry can upload
-      // again, but only after confirming no DB row references it.
-      if (!lookupError) {
-        const { error: cleanupError } = await supabase.storage
-          .from("listing")
-          .remove([fileName]);
-        if (cleanupError)
-          console.error("Error cleaning up unlinked photo:", cleanupError);
-      }
+      console.error("Error creating image record:", imagesError);
+      // Keep the immutable object for recovery on the next attempt. Removing it
+      // could delete an object another request has linked since our lookup.
       return cors(json({ error: "Failed to link photo. Please retry." }, 500));
     }
 

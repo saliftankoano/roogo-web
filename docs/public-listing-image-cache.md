@@ -5,6 +5,18 @@ photos with immutable filenames, `upsert: false`, and 30-day `cacheControl`.
 Single-photo uploads use a SHA-256 content key: an identical retry returns the
 linked photo, even when the gallery is full. Changed bytes get a different URL.
 Batch and room-type photos continue to use unique UUID filenames.
+
+Apply migration `073_unique_content_addressed_listing_photos.sql` before deploying
+this route. Its partial unique index covers only SHA-256 photo URLs and leaves
+legacy and UUID URLs unchanged. If duplicate SHA-256 references already exist,
+the migration fails rather than silently discarding records; reconcile them
+before applying it.
+
+Concurrent identical uploads may both attempt to link the shared object; the
+unique index permits only one record, and the other request returns that record.
+A failed link retains the immutable object so a retry can recover it. The route
+never removes that shared object after a failed link, since another request may
+be linking it concurrently. Abandoned unlinked objects require separate cleanup.
 The returned URL remains the source of truth; clients must not reconstruct
 filenames from an image index. Deletion continues to use the stored URL.
 
@@ -36,8 +48,9 @@ extend the lifetime of old index-based filenames without verifying every writer.
    their URLs differ, their contents are distinct, and both records reference
    the returned URLs. Repeat for batch and room-type uploads.
    Replay an identical single upload and verify it returns the same URL without
-   a second record or another primary image. A concurrent request may need to
-   retry if the first request is still linking the object.
+   a second record or another primary image. Repeat with overlapping requests
+   and a storage object whose initial database link failed; both must recover
+   without duplicate references.
 2. Read the new public source URL and confirm `max-age=2592000`. Request an
    optimized variant and confirm its cache headers/status in the deployed
    environment. Existing variants are not expected to change immediately.
