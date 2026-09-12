@@ -12,9 +12,16 @@ interface PropertyCardProps {
   onClick?: () => void;
   showStatus?: boolean;
   className?: string;
+  imageSizes?: string;
 }
 
-export function PropertyCard({ property, onClick, showStatus = false, className }: PropertyCardProps) {
+export function PropertyCard({
+  property,
+  onClick,
+  showStatus = false,
+  className,
+  imageSizes = "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw",
+}: PropertyCardProps) {
   const [timePosted, setTimePosted] = useState("");
 
   useEffect(() => {
@@ -87,7 +94,7 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
             src={property.image}
             alt={`Propriété à ${property.location}`}
             fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            sizes={imageSizes}
             className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
           />
           {/* Sponsored Badge */}
