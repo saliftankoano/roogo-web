@@ -4,6 +4,10 @@ import { getSupabaseClient } from "@/lib/user-sync";
 import { captureServerEvent } from "@/lib/posthog-server";
 import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
 import { MAX_LISTING_PHOTOS } from "@/lib/validations";
+import {
+  createPublicListingImagePath,
+  PUBLIC_LISTING_IMAGE_CACHE_CONTROL,
+} from "@/lib/public-listing-images";
 
 // Increase body size limit for image uploads (Next.js App Router)
 export const maxDuration = 60; // 60 seconds
@@ -126,8 +130,7 @@ export async function POST(
 
       // Convert base64 to buffer
       const buffer = Buffer.from(base64Data, "base64");
-      const uniqueSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
-      const fileName = `${propertyId}/${index}-${uniqueSuffix}.${ext || "jpg"}`;
+      const fileName = createPublicListingImagePath(propertyId, ext || "jpg");
 
       // Determine content type
       const contentType =
@@ -144,6 +147,7 @@ export async function POST(
         .from("listing")
         .upload(fileName, buffer, {
           contentType,
+          cacheControl: PUBLIC_LISTING_IMAGE_CACHE_CONTROL,
           upsert: false,
         });
 
