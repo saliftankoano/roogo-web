@@ -3,6 +3,10 @@ import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
 import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
 import { MAX_LISTING_PHOTOS } from "@/lib/validations";
+import {
+  createPublicListingImagePath,
+  PUBLIC_LISTING_IMAGE_CACHE_CONTROL,
+} from "@/lib/public-listing-images";
 
 // Increase timeout for image uploads
 export const maxDuration = 60; // 60 seconds
@@ -95,7 +99,7 @@ export async function POST(
 
     // 5. Convert base64 to buffer
     const buffer = Buffer.from(base64Data, "base64");
-    const fileName = `${propertyId}/${index ?? 0}.${ext || "jpg"}`;
+    const fileName = createPublicListingImagePath(propertyId, ext || "jpg");
 
     // Determine content type
     const contentType =
@@ -112,6 +116,7 @@ export async function POST(
       .from("listing")
       .upload(fileName, buffer, {
         contentType,
+        cacheControl: PUBLIC_LISTING_IMAGE_CACHE_CONTROL,
         upsert: false,
       });
 
