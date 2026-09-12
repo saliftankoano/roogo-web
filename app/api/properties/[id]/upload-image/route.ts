@@ -170,35 +170,6 @@ export async function POST(
         return cors(json({ success: true, ...linkedImage }));
       }
 
-      // If the storage conflict is due to an orphaned file (exists in storage but
-      // not linked in DB), insert the missing DB row to make the retry succeed.
-      const isConflict =
-        uploadError.message?.toLowerCase().includes("already exists") ||
-        uploadError.message?.toLowerCase().includes("duplicate");
-
-      if (isConflict && !linkedImageError) {
-        const { error: insertError } = await supabase
-          .from("property_images")
-          .insert(imageRecord);
-
-        if (!insertError) {
-          return cors(
-            json({
-              success: true,
-              url: publicUrl,
-              width: imageRecord.width,
-              height: imageRecord.height,
-            }),
-          );
-        }
-
-        // If insert also failed, check one more time in case another request just created it
-        const { data: finalCheck } = await findLinkedImage();
-        if (finalCheck) {
-          return cors(json({ success: true, ...finalCheck }));
-        }
-      }
-
       console.error("Error uploading image:", uploadError);
       return cors(
         json({ error: `Failed to upload image: ${uploadError.message}` }, 500),
