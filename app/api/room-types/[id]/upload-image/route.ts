@@ -3,6 +3,10 @@ import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getAuthenticatedUser } from "@/lib/api-auth";
 import { getHotelMembershipForProperty } from "@/lib/hotel-auth";
+import {
+  createPublicListingImagePath,
+  PUBLIC_LISTING_IMAGE_CACHE_CONTROL,
+} from "@/lib/public-listing-images";
 
 export const maxDuration = 60;
 export const runtime = "nodejs";
@@ -57,14 +61,13 @@ export async function POST(
 
     const buffer = Buffer.from(base64Data, "base64");
     const ext = body?.ext === "png" ? "png" : "jpg";
-    const fileName = `room-types/${id}/${Date.now()}-${Math.random()
-      .toString(36)
-      .slice(2, 8)}.${ext}`;
+    const fileName = createPublicListingImagePath(`room-types/${id}`, ext);
 
     const { error: uploadError } = await supabaseAdmin.storage
       .from("listing")
       .upload(fileName, buffer, {
         contentType: ext === "png" ? "image/png" : "image/jpeg",
+        cacheControl: PUBLIC_LISTING_IMAGE_CACHE_CONTROL,
         upsert: false,
       });
     if (uploadError) {
