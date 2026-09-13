@@ -360,7 +360,11 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
             >
               {featuredProperties.map((property) => (
                 <motion.div key={property.id} variants={item}>
-                  <PropertyCard property={property} />
+                  <PropertyCard
+                    property={property}
+                    // max-w-7xl, px-6, gap-6, and the card's padding/border.
+                    imageSizes="(max-width: 639px) calc(100vw - 82px), (max-width: 1023px) calc(50vw - 70px), (max-width: 1279px) calc(25vw - 64px), 256px"
+                  />
                 </motion.div>
               ))}
             </motion.div>

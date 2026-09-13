@@ -400,7 +400,7 @@ export function PropertyDetailClient({
                 </>
               )}
               <div className="relative w-[90%] h-[90%]">
-                <Image src={images[fullscreenIndex]} alt={`Propriété à ${listing.location}`} fill className="object-contain" />
+                <Image src={images[fullscreenIndex]} alt={`Propriété à ${listing.location}`} fill sizes="90vw" className="object-contain" />
               </div>
             </div>
           )}
@@ -459,7 +459,7 @@ export function PropertyDetailClient({
                       onClick={() => { setFullscreenIndex(currentImageIndex); setIsFullscreen(true); }}>
                       <Image src={images[currentImageIndex]} alt={`Propriété à ${listing.location}`} fill
                         className="object-cover group-hover:scale-[1.015] transition-transform duration-300"
-                        sizes="(max-width: 768px) 100vw, 66vw" priority />
+                        sizes="(max-width: 1023px) calc(100vw - 98px), (max-width: 1279px) calc(66.666667vw - 95.333333px), 758px" priority />
                       <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors" />
                       <div className="absolute top-4 right-4 px-3 py-1 bg-black/50 rounded-full text-white text-xs font-bold">
                         {currentImageIndex + 1} / {images.length}

@@ -639,7 +639,12 @@ function PropertiesPageContent({
                   transition={roogoMotion.deliberate}
                 >
                   <Link href={route} className="block relative group">
-                    <PropertyCard property={property} showStatus={showStatus} />
+                    <PropertyCard
+                      property={property}
+                      showStatus={showStatus}
+                      // max-w-7xl, px-6, gap-8, and the card's padding/border.
+                      imageSizes="(max-width: 639px) calc(100vw - 82px), (max-width: 1023px) calc(50vw - 74px), (max-width: 1279px) calc(33.333333vw - 71.333333px), 355.333333px"
+                    />
                   </Link>
                 </motion.div>
               );
