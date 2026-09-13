@@ -15,7 +15,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** A global cache-floor change would affect unrelated files; overwriting a cached photo URL could serve stale content. A legacy backfill and abandoned-object cleanup were not performed. Local stream-order tests and preview checks do not establish production LCP or cost savings.
 
-**Status:** Settled. [#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC; [#34](https://github.com/saliftankoano/roogo-web/pull/34) remains pending merge. See [image behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover), [changelog](./CHANGELOG.md#2026-09-13) and [remaining release gate](./ROADMAP.md#now).
+**Status:** Settled. [#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC; [#34](https://github.com/saliftankoano/roogo-web/pull/34) merged at 00:42:44 UTC the same day. All three implementation tickets are complete; production deployment verification remains open. See [image behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover), [changelog](./CHANGELOG.md#2026-09-13) and [remaining release gate](./ROADMAP.md#now).
 
 ### Executed migration filenames preserve SQL and the source of execution evidence — 2026-09-13
 

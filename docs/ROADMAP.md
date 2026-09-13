@@ -17,7 +17,7 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Now
 
-- [ ] **Finish the homepage image-loading release** — visitors see the hero promptly while featured annonces load. [#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC; migration 073 is operator-confirmed executed. Done when: Salif merges [#34](https://github.com/saliftankoano/roogo-web/pull/34), the matching deployment is checked for hero/featured-result behavior and source/optimized cache headers, and the release evidence is recorded in [CHANGELOG](./CHANGELOG.md). Compare actual image usage/load measurements without claiming dev-fixture timings as production LCP. [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23), [system behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
+- [ ] **Verify the deployed image-loading rollout** — visitors see the hero promptly while featured annonces load. [#32](https://github.com/saliftankoano/roogo-web/pull/32), [#33](https://github.com/saliftankoano/roogo-web/pull/33) and [#34](https://github.com/saliftankoano/roogo-web/pull/34) merged on 2026-09-13 UTC; all implementation tickets are Done and migration 073 is operator-confirmed executed. Vercel production deployment was pending at merge verification. Done when: the matching deployment succeeds and is checked for hero/featured-result behavior and source/optimized cache headers, and the release evidence is recorded in [CHANGELOG](./CHANGELOG.md). Compare actual image usage/load measurements without claiming dev-fixture timings as production LCP. [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23), [system behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
 
 - [ ] **Release clear, duplicate-safe payment failure notices** — customers can understand a failed charge and distinguish it from a paid reservation needing support. As of 2026-09-09, [web #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile #29](https://github.com/saliftankoano/roogo/pull/29) are open, implemented PRs, not a verified production release.
   - [x] **Database prerequisite (2026-09-09):** preflights passed; 070 → 071 → 072 were executed and verified on Roogo. [Execution ledger](../supabase/migrations/README.md). Do not rerun applied files or fabricate older history.
@@ -38,7 +38,7 @@ No additional ROO-20 follow-up has been accepted. Existing unrelated commitments
 
 ## Recently completed
 
-- [x] **Public listing sizing and immutable photo retry recovery** — #32/#33 merged on 2026-09-13 UTC; migration 073 is operator-confirmed applied. Homepage streaming #34 remains in Now. See [CHANGELOG](./CHANGELOG.md#2026-09-13) and [ROO-21](https://linear.app/roogo-burkina/issue/ROO-21)/[ROO-22](https://linear.app/roogo-burkina/issue/ROO-22).
+- [x] **Public listing sizing, photo retry recovery and homepage streaming implemented** — #32/#33/#34 merged on 2026-09-13 UTC; migration 073 is operator-confirmed applied. Deployment verification remains in Now. See [CHANGELOG](./CHANGELOG.md#2026-09-13) and [ROO-21](https://linear.app/roogo-burkina/issue/ROO-21)/[ROO-22](https://linear.app/roogo-burkina/issue/ROO-22).
 
 - [x] **Payment database prerequisites** — 070–072 executed and verified on Roogo on 2026-09-09. This is not the API/client feature release. See [CHANGELOG](./CHANGELOG.md#2026-09-09) and the [execution ledger](../supabase/migrations/README.md).
 
