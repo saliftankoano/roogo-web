@@ -1,4 +1,6 @@
-import { fetchFeaturedProperties } from "../lib/data";
+import { Suspense } from "react";
+import FeaturedProperties from "./FeaturedProperties";
+import { FeaturedPropertiesSkeleton } from "../components/FeaturedPropertyGrid";
 import HomeClient from "../components/HomeClient";
 import { Metadata } from "next";
 import JsonLd from "../components/JsonLd";
@@ -20,13 +22,17 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function Home() {
-  const featuredProperties = await fetchFeaturedProperties(4);
-
+export default function Home() {
   return (
     <>
       <JsonLd schema={getHomePageSchema()} />
-      <HomeClient featuredProperties={featuredProperties} />
+      <HomeClient
+        featuredProperties={
+          <Suspense fallback={<FeaturedPropertiesSkeleton />}>
+            <FeaturedProperties />
+          </Suspense>
+        }
+      />
     </>
   );
 }

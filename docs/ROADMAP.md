@@ -13,7 +13,11 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ---
 
+**Current migration record (2026-09-13 UTC):** Salif confirms all 001–073 have run on Roogo. Earlier migration-pending statements below are historical snapshots; app/device QA remains separate. See the [ledger](../supabase/migrations/README.md) before applying SQL to any target.
+
 ## Now
+
+- [ ] **Finish the homepage image-loading release** — visitors see the hero promptly while featured annonces load. [#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC; migration 073 is operator-confirmed executed. Done when: Salif merges [#34](https://github.com/saliftankoano/roogo-web/pull/34), the matching deployment is checked for hero/featured-result behavior and source/optimized cache headers, and the release evidence is recorded in [CHANGELOG](./CHANGELOG.md). Compare actual image usage/load measurements without claiming dev-fixture timings as production LCP. [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23), [system behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
 
 - [ ] **Release clear, duplicate-safe payment failure notices** — customers can understand a failed charge and distinguish it from a paid reservation needing support. As of 2026-09-09, [web #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile #29](https://github.com/saliftankoano/roogo/pull/29) are open, implemented PRs, not a verified production release.
   - [x] **Database prerequisite (2026-09-09):** preflights passed; 070 → 071 → 072 were executed and verified on Roogo. [Execution ledger](../supabase/migrations/README.md). Do not rerun applied files or fabricate older history.
@@ -26,13 +30,15 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Next
 
-- [ ] **Roll out the coordinated property-request workflow** — make the reviewed feature available with its backend dependencies in place. Done when: the paired PRs are merged, `supabase/migrations/068_property_requests.sql` then `069_property_request_deletion_safety.sql` are applied to the target database, the matching web/API deployment is verified, and only then the mobile counterpart is released and checked. No new environment variables are required. Staff must supply approved commission terms before opening calls. Record verified release evidence in [CHANGELOG.md](./CHANGELOG.md), then close this item. See the [product decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08).
+- [ ] **Roll out the coordinated property-request workflow** — make the reviewed feature available with its backend dependencies in place. Done when: the paired PRs are merged, the matching web/API deployment is verified (Roogo migrations 068/069 are now operator-confirmed executed; another target requires its own history check), and only then the mobile counterpart is released and checked. No new environment variables are required. Staff must supply approved commission terms before opening calls. Record verified release evidence in [CHANGELOG.md](./CHANGELOG.md), then close this item. See the [product decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08).
 
 ## Later
 
 No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
 ## Recently completed
+
+- [x] **Public listing sizing and immutable photo retry recovery** — #32/#33 merged on 2026-09-13 UTC; migration 073 is operator-confirmed applied. Homepage streaming #34 remains in Now. See [CHANGELOG](./CHANGELOG.md#2026-09-13) and [ROO-21](https://linear.app/roogo-burkina/issue/ROO-21)/[ROO-22](https://linear.app/roogo-burkina/issue/ROO-22).
 
 - [x] **Payment database prerequisites** — 070–072 executed and verified on Roogo on 2026-09-09. This is not the API/client feature release. See [CHANGELOG](./CHANGELOG.md#2026-09-09) and the [execution ledger](../supabase/migrations/README.md).
 
@@ -254,11 +260,11 @@ owners day-to-day control over their annonces.
 
 Migrations:
 
-- `supabase/migrations/031_property_pending_edits.sql` — table + partial unique
+- `supabase/migrations/031_property_pending_edits_executed.sql` — table + partial unique
   index (one pending row per property)
-- `supabase/migrations/032_unescape_html_entities_in_text_fields.sql` — one-pass
+- `supabase/migrations/032_unescape_html_entities_in_text_fields_executed.sql` — one-pass
   decode of legacy HTML-encoded French text in `properties`
-- `supabase/migrations/033_pending_edits_fixes.sql` — `updated_at` trigger on
+- `supabase/migrations/033_pending_edits_fixes_executed.sql` — `updated_at` trigger on
   pending edits; looped entity re-decode (max 3 passes) for double-escaped strings
 
 Table `property_pending_edits`:
@@ -499,7 +505,7 @@ processor fees.
 
 Migration:
 
-- `supabase/migrations/024_referral_program.sql`
+- `supabase/migrations/024_referral_program_executed.sql`
 
 Tables:
 
@@ -584,7 +590,7 @@ Mobile:
 
 ### Rollout Checklist
 
-- Apply `024_referral_program.sql` to Supabase.
+- Apply `024_referral_program_executed.sql` to Supabase.
 - Confirm `referrer-verification` bucket exists and remains private.
 - Verify service role access can create signed ID image URLs for admin review.
 - Confirm staff can approve/reject/suspend referrers.

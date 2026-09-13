@@ -6,8 +6,8 @@ Single-photo uploads use a SHA-256 content key: an identical retry returns the
 linked photo, even when the gallery is full. Changed bytes get a different URL.
 Batch and room-type photos continue to use unique UUID filenames.
 
-Apply migration `073_unique_content_addressed_listing_photos.sql` before deploying
-this route. Its partial unique index covers only SHA-256 photo URLs and leaves
+Migration `073_unique_content_addressed_listing_photos_executed.sql` is required before deploying
+this route. Salif confirmed it ran on Roogo on 2026-09-13 UTC; see the [execution ledger](../supabase/migrations/README.md). Confirm a different target separately. Its partial unique index covers only SHA-256 photo URLs and leaves
 legacy and UUID URLs unchanged. If duplicate SHA-256 references already exist,
 the migration fails rather than silently discarding records; reconcile them
 before applying it.

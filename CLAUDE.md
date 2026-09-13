@@ -95,7 +95,7 @@ lib/
   navigation/              # Route helpers
 
 supabase/
-  migrations/              # SQL migrations (numbered, e.g. 014_user_property_cascade_cleanup.sql)
+  migrations/              # SQL migrations (numbered, e.g. 014_user_property_cascade_cleanup_executed.sql)
 
 middleware.ts              # Clerk auth + onboarding gate
 next.config.ts             # Images, redirects, experimental body-size config
@@ -233,3 +233,8 @@ No Clerk tokens, PawaPay API keys, Supabase service keys, or raw user PII in `co
 ## Project logbook
 
 Product memory lives in `docs/DECISIONS.md` (why), `docs/SYSTEM.md` (how it works), `docs/CHANGELOG.md` (what shipped, when), `docs/DOMAIN.md` (project language), and `docs/ROADMAP.md` (accepted future commitments). After any non-obvious decision, answered conceptual question, shipped feature/fix, newly coined or clarified domain term, or accepted future commitment, use the `logbook` skill to record it. Keep feature documentation within these five files and validation evidence in PR descriptions; do not add per-issue handoff documents.
+
+
+## Executed migrations
+
+All Roogo migrations 001–073 are operator-confirmed executed and named `*_executed.sql`; see `supabase/migrations/README.md` for dates and evidence. Preserve applied SQL bytes and numeric versions. Add future schema changes as a new migration, initially without the suffix. The suffix is specific to Roogo and does not reconcile another target’s database history. Tests and links must use the current filename.

@@ -31,9 +31,9 @@ The feature covers customer-initiated reservations, rent, listings, boosts, host
 
 | Migration | Status | Database responsibility |
 | --- | --- | --- |
-| [070](./supabase/migrations/070_payment_failure_notifications.sql) | Executed | Failure fields, delivery claims, cooldown and send boundaries |
-| [071](./supabase/migrations/071_atomic_property_lock_payments.sql) | Executed | Atomic property reservation/finalization |
-| [072](./supabase/migrations/072_atomic_listing_payments.sql) | Executed | Single-use listing payments, durable consumption and atomic amenities |
+| [070](./supabase/migrations/070_payment_failure_notifications_executed.sql) | Executed | Failure fields, delivery claims, cooldown and send boundaries |
+| [071](./supabase/migrations/071_atomic_property_lock_payments_executed.sql) | Executed | Atomic property reservation/finalization |
+| [072](./supabase/migrations/072_atomic_listing_payments_executed.sql) | Executed | Single-use listing payments, durable consumption and atomic amenities |
 
 See the [execution ledger](./supabase/migrations/README.md) for the exact project, UTC times, checksums and verification. Applying SQL does not deploy the PR's API/screens or prove push/SMS delivery. These applied files are now immutable; future database changes require a new migration.
 

@@ -7,6 +7,26 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Public listing image loading uses layout sizing, immutable sources and a streaming shell — 2026-09-13
+
+**Decision:** Match Next image-size hints to the rendered public layouts; give new public photo uploads immutable URLs and a 30-day source-cache lifetime; resolve featured listings behind Suspense so the static homepage hero can stream first. Single-photo retries use a content key and database uniqueness to recover one linked photo.
+
+**Why:** Broad width hints requested unnecessarily large variants, short source lifetimes encouraged repeated optimizer work, and waiting for listings delayed the entire homepage. A storage conflict alone cannot distinguish an orphan from an upload in progress. Database uniqueness closes that race; retaining an unlinked shared object lets later attempts recover without deleting a competing request's photo.
+
+**Ruled out / alternatives:** A global cache-floor change would affect unrelated files; overwriting a cached photo URL could serve stale content. A legacy backfill and abandoned-object cleanup were not performed. Local stream-order tests and preview checks do not establish production LCP or cost savings.
+
+**Status:** Settled. [#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC; [#34](https://github.com/saliftankoano/roogo-web/pull/34) remains pending merge. See [image behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover), [changelog](./CHANGELOG.md#2026-09-13) and [remaining release gate](./ROADMAP.md#now).
+
+### Executed migration filenames preserve SQL and the source of execution evidence — 2026-09-13
+
+**Decision:** Rename all numbered SQL files 001–073 to end in `_executed.sql`, following Salif's explicit confirmation that all have run on Roogo. Preserve every SQL file byte-for-byte, including historical header comments, and retain the numeric migration version. Update repository references and fixtures to the new filenames.
+
+**Why:** The suffix makes the operator-confirmed execution status visible in the file browser. It supplements the [execution ledger](../supabase/migrations/README.md), which retains independent verification for 070–072 and distinguishes the newer operator report for the remaining versions.
+
+**Ruled out / alternatives:** Renaming files does not execute SQL, rewrite database migration names/history, audit older schemas or confirm execution in another environment. New schema changes require a new version rather than editing or replaying an executed file.
+
+**Status:** Settled on operator confirmation dated 2026-09-13 UTC. See [filename handling](./SYSTEM.md#how-are-executed-migration-filenames-recorded).
+
 ### Record executed SQL separately from application release — 2026-09-09
 
 **Decision:** Record only the three explicitly authorized, verified payment migrations in Supabase history and the [execution ledger](../supabase/migrations/README.md). Mark the database prerequisite complete, not the entire payment feature. Keep applied SQL immutable.

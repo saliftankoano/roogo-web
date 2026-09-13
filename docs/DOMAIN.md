@@ -19,6 +19,7 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
   listing; staff reviews it; the listing goes online after its applicable gates
   pass; renters or buyers then work through Roogo's visit, chat, agreement, and
   payment flows.
+- **Public property discovery:** visitors browse public annonces with cached photos; the homepage hero and featured-annonce results have separate loading states. Photo loading does not change publication or private-document gates. See [image behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
 - **Property sourcing (ROO-20, pending release):** staff publish an appel à biens; agents or owners propose properties; staff follow up, confirm agent terms and link eligible live listings.
 - **Core hotel workflow:** a hotel team publishes room types and count-based
   inventory; a traveler requests dates directly or through an event code; the
