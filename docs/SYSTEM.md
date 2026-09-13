@@ -6,6 +6,28 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How do public listing photos load and recover?
+
+Public discovery uses a photo variant that matches its layout, an immutable source URL for each new photo, and a homepage shell that can render while featured annonces load. [Annonce](./DOMAIN.md#annonce) is a public listing, not private ownership evidence.
+
+On the homepage and search page, responsive image hints include the container padding, grid gaps and card borders. Detail and fullscreen images have separate hints. Other PropertyCard callers retain their existing default. The optimizer chooses an available variant from these hints; this change does not replace the optimizer or alter photo quality/loading priority.
+
+New property single/batch and room-type uploads set `cacheControl=2592000` and disable overwrites. Single uploads derive their URL from the photo bytes; edited content gets a new URL. Batch and room-type uploads use UUID filenames. Existing photos keep their prior headers. Private documents, avatars and the global Next cache floor retain their policies.
+
+An identical single-photo retry returns the linked record before checking the gallery cap. If the storage object exists without a link, the route attempts to recover the link. Migration 073 permits one content-addressed URL per property: competing inserts return the record that committed. A failed insert keeps the shared object available for later recovery; removing it after a lookup could delete another request's linked photo. Lost database responses also recheck the link. Deletion still follows the saved URL, and already cached public copies may remain until expiry. Abandoned unlinked objects and legacy backfill remain limitations, not cleanup work delivered here.
+
+The homepage passes an async featured-listing section through a ReactNode slot behind Suspense. The hero and its preload can stream first; the section separately shows a skeleton, a genuine empty result or an unavailable message on query/malformed-data failure. Other property-query callers keep their previous error handling. The real-route regression test runs in a disposable source copy, so generated Next output cannot overwrite the working checkout's production build.
+
+[#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC. [#34](https://github.com/saliftankoano/roogo-web/pull/34) is pending merge. Salif reports migration 073 applied; see the [execution ledger](../supabase/migrations/README.md). Layout measurements, 14 image tests and four delayed-query streaming scenarios passed. Production cache headers, stream behavior and measured savings remain release checks. See the [decision](./DECISIONS.md#public-listing-image-loading-uses-layout-sizing-immutable-sources-and-a-streaming-shell--2026-09-13) and [release gate](./ROADMAP.md#now).
+
+## How are executed migration filenames recorded?
+
+Files named `<version>_<name>_executed.sql` represent migrations confirmed executed on Roogo. The suffix is an operational record for that database; it does not mean that a fresh or test database already has the schema. New migrations omit the suffix until their execution is confirmed and recorded.
+
+All 001–073 are marked on Salif's confirmation dated 2026-09-13 UTC. The [ledger](../supabase/migrations/README.md) preserves the stronger SQL/history/effects verification for 070–072 from 2026-09-09 and labels the remainder as operator-reported. Each renamed SQL file remains byte-identical; tests and links read its new path, while original names in SQL comments remain historical. Database migration-history names and recorded SQL are unchanged. Renaming files is not history reconciliation and does not make an unrestricted database push safe.
+
+Treat earlier production-migration checklist wording as a historical snapshot when it conflicts with this current execution record. App/device validation gates remain separate. Consult the target environment's actual history/schema before applying any SQL; future changes use a new numeric version. See the [filename decision](./DECISIONS.md#executed-migration-filenames-preserve-sql-and-the-source-of-execution-evidence--2026-09-13).
+
 ## How do failed and uncertain customer payments recover?
 
 Roogo keeps payment collection, reservation fulfillment and notification delivery separate. This behavior is implemented in [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile PR #29](https://github.com/saliftankoano/roogo/pull/29); both remain open as of 2026-09-09. Database prerequisites 070–072 were executed and verified on Roogo that day; the API/mobile feature has not been released by this task. See the [execution ledger](../supabase/migrations/README.md). Local tests and the web preview do not establish production release.
@@ -66,11 +88,11 @@ Before consolidation, the user confirmed on 2026-09-09 that the review-era payme
 
 | Order | File | Responsibility | Replaces review-era payment files |
 | --- | --- | --- | --- |
-| 1 | `070_payment_failure_notifications.sql` | Failure fields, accountless delivery records, leases, SMS cooldown and attempt-fenced failure/conflict sends | 068, 072, 073 |
-| 2 | `071_atomic_property_lock_payments.sql` | Reservation claims, release and atomic finalization preserving completed history | 069, 071 |
-| 3 | `072_atomic_listing_payments.sql` | Unique deposit index, durable consumption backfill/trigger and atomic creation amenities | 070, 074, 075 |
+| 1 | `070_payment_failure_notifications_executed.sql` | Failure fields, accountless delivery records, leases, SMS cooldown and attempt-fenced failure/conflict sends | 068, 072, 073 |
+| 2 | `071_atomic_property_lock_payments_executed.sql` | Reservation claims, release and atomic finalization preserving completed history | 069, 071 |
+| 3 | `072_atomic_listing_payments_executed.sql` | Unique deposit index, durable consumption backfill/trigger and atomic creation amenities | 070, 074, 075 |
 
-These are in `supabase/migrations/`. Unrelated `068_property_requests.sql` and `069_property_request_deletion_safety.sql` remain unchanged; they are separate features, not prerequisites introduced by payment SQL. The execution ledger records only verified migrations, not an assumed baseline for the rest of the repository.
+These are in `supabase/migrations/`. Unrelated `068_property_requests_executed.sql` and `069_property_request_deletion_safety_executed.sql` remain unchanged; they are separate features, not prerequisites introduced by payment SQL. The execution ledger records only verified migrations, not an assumed baseline for the rest of the repository.
 
 For an environment where the chain has not run, first confirm the target/history and run these read-only preflights before 072. Both must return zero rows; conflicting evidence requires investigation, not deletion or choosing a winner:
 
@@ -604,7 +626,7 @@ the endpoint after approval. Never bump the runtime for an OTA-only release.
 **Bottom line:** the kazedra site and roogo-web have always pointed at the **same
 Supabase project**, so when the 3D-visits service migrated to Roogo (2026-07-06) the
 `bookings` table, its indexes, the `booking_slots_view` and every past booking were
-already "ours" — no data moved. Migration `045_visites_3d_bookings.sql` still needs
+already "ours" — no data moved. Migration `045_visites_3d_bookings_executed.sql` still needs
 to be run once, for two reasons:
 
 1. **One real change:** `drop column with_roogo` — the old dual-pricing flag

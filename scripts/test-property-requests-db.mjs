@@ -19,7 +19,7 @@ try {
   await db.exec(
     await readFile(
       new URL(
-        "../supabase/migrations/068_property_requests.sql",
+        "../supabase/migrations/068_property_requests_executed.sql",
         import.meta.url,
       ),
       "utf8",
@@ -28,7 +28,7 @@ try {
   await db.exec(
     await readFile(
       new URL(
-        "../supabase/migrations/069_property_request_deletion_safety.sql",
+        "../supabase/migrations/069_property_request_deletion_safety_executed.sql",
         import.meta.url,
       ),
       "utf8",
