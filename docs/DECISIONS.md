@@ -7,6 +7,26 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Roogo Sell v3 guarantees the seller's net price — 2026-09-27
+
+**Decision:** Replace the v2 desired-price commission with a guaranteed net. The seller receives exactly the net named in the mandate. Roogo lists at net +30%, targets +20%, the team may accept down to +15%, the founder alone may approve +15% to +10%, and anything below +10% is refused. From the margin, as a share of the final price: notary 2% (always), buyer referrer 2% and seller referrer 1% (only when present); Roogo keeps the rest. A sale within 12 months of signing to a buyer Roogo introduced owes Roogo 10% of the sale price. Approved by Salif on 2026-09-27; business record in the vault note `08 Decisions/2026-09-27 Roogo Sell guaranteed seller price.md`.
+
+Implementation choices (Salif's answers to the plan's open questions, same date): display and published ladder prices round to the nearest 50,000 FCFA while exact values are stored and checked; the seller is not shown Roogo's exact listing price in the mandate, which says instead that Roogo sets a higher price and the margin covers notary, referrers and Roogo; existing v2 mandates stay on v2.
+
+**Why:** A guaranteed number is easier for owners to trust and compare than a percentage off their price plus a surplus split, and the ladder gives staff a clear negotiating range with a single founder-controlled exception zone. Paying notary and referrers from the final price keeps every party's share predictable at closing.
+
+**Engineering calls made during implementation:**
+- The ladder and fee percentages live in a new service-role-only `sale_economics_config` table instead of `listing_config` as the plan proposed, because `listing_config` is readable with the public anon key; a public +30% markup would let any buyer compute a seller's net and Roogo's floors. Only the seller-facing bypass terms are on `listing_config`.
+- Mandates also snapshot the target and team-floor markups (the plan listed listing and hard floor only), so a closing's approval rule never depends on live settings.
+- Sellers read their own mandate through a column grant that excludes the ladder and fee snapshots; the mandate API returns a seller-safe projection and nothing to buyers (it previously returned the full row, including staff notes, to any conversation participant).
+- Signing does not write the net into `properties.seller_asking_price` (plan step 3): `public_property_details` exposes every `properties` column to anon, so the net would become public. The existing owner-entered `seller_asking_price` is already public for sale listings; this is a known exposure to fix separately.
+- Displayed floors round up, not to nearest, so staff never quote below a real floor.
+- One live closing per property (a cancelled closing can be replaced) rather than a plain unique `property_id`.
+
+**Ruled out / alternatives:** Re-signing existing v2 mandates under v3 (declined by Salif). Keeping v2 fields editable (kept read-only as history). Trusting client-computed closing numbers (the API recomputes, and database CHECKs repeat the floor, margin and approval rules).
+
+**Status:** Implemented on branch `feat/sale-v3-guaranteed-price` (web and mobile), **not merged or deployed**. Migration 075 is written but not executed. The mandate terms text needs a legal read by someone who knows Burkina Faso contract law before the first real v3 mandate is sent. Sale referrals (registration, attestation, payouts) are the next plan. See [how it works](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work) and [plan](./sale-guaranteed-price-plan.md).
+
 ### Public listing image loading uses layout sizing, immutable sources and a streaming shell — 2026-09-13
 
 **Decision:** Match Next image-size hints to the rendered public layouts; give new public photo uploads immutable URLs and a 30-day source-cache lifetime; resolve featured listings behind Suspense so the static homepage hero can stream first. Single-photo retries use a content key and database uniqueness to recover one linked photo.
@@ -515,7 +535,7 @@ already know (receipts on the table, split the surplus, everyone shakes hands).
 - _Keeping 100% of the surplus_ — that's the démarcheur move the model
   deliberately breaks with.
 
-**Status:** Settled 2026-07-09, shipped as migration 050 + full-stack v2. The six
+**Status:** Superseded for new mandates by [v3, guaranteed net](#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27) (2026-09-27, implemented on branch, not deployed); existing v2 mandates stay on v2. Settled 2026-07-09, shipped as migration 050 + full-stack v2. The six
 open points were resolved: (1) base % fixed at 10% but modular — a founder-editable
 platform setting on `listing_config` (like the rent commission), read live by web
 and mobile, snapshotted per mandate at send time; (2) staff/founders list at

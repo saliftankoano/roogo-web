@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## Unreleased (branch `feat/sale-v3-guaranteed-price`, not deployed)
+
+- **Roogo Sell v3, guaranteed seller price** (web + mobile + data; implemented on branch, not merged, not deployed): mandates now carry a guaranteed net, snapshot the price ladder (+30/+20/+15/+10%), fee and bypass terms, and publish at net +30% on signing; staff see the ladder and target-price split when sending; a new closing panel records the final price, buyer and referrers with server-computed notary/referral fees and Roogo margin, founder approval between +15% and +10%, refusal below +10%, and bypass sales at 10%. Old v2 mandates and chat cards keep working. Requires migration 075 (written, not executed) and a legal read of the terms text before the first real mandate. [Why](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27), [how](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work).
+
 ## 2026-09-13
 
 - **Homepage hero streaming** (web, merged #34 at 00:42:44 UTC): the hero and preload render before the featured-annonce query resolves, with separate loading, empty and unavailable states. Includes the rollout logbook and executed migration filename record; production verification remains in [ROADMAP](./ROADMAP.md#now). [System](./SYSTEM.md#how-do-public-listing-photos-load-and-recover), [PR #34](https://github.com/saliftankoano/roogo-web/pull/34), [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23).

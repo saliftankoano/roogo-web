@@ -666,35 +666,71 @@ a blocker. Full flow reference: [visites-3d.md](./visites-3d.md).
 
 ## How does Roogo Sell (the broker model) work?
 
-**Bottom line:** Roogo is the sole intermediary between sellers and buyers — they
-never talk to each other. Since economics v2 (2026-07-09, migration 050), Roogo
-earns a **disclosed commission**: a base percentage (default 10%) of the seller's
-desired price, plus a share (default 50%) of any surplus when the sale closes above
-that price. The old buy-low/sell-high spread model is retired.
+**Bottom line:** Roogo is the sole intermediary between sellers and buyers; they
+never talk to each other. Economics v3 (approved 2026-09-27, migration 075,
+**implemented on branch `feat/sale-v3-guaranteed-price`, not deployed**): the seller
+names a **net price that is guaranteed**. Roogo lists above it; the margin pays the
+notary, any referrers and Roogo. Mandates sent before v3 stay on v2 (below).
 
-**Economics (v2):** seller nets `D × (1 − base%) + (P − D) × (1 − split)` where `D`
-is their desired price and `P` the final sale price. Example at 10%/50%: desired 3M,
-sold 10M → seller walks away with 6.2M, Roogo earns 3.8M. The percentages are
-platform settings on `listing_config` (founder-editable in `/admin/parametres`,
-read live by web and mobile) and are **snapshotted onto each mandate at send time**,
-so changing a setting never rewrites an agreed mandate. `sale_notary_price_basis`
-records which amount the notary act uses (`desired` for now; switchable). Notary
-fees are paid by Roogo. See
-[the decision](./DECISIONS.md#roogo-sell-economics-v2-base-commission--5050-surplus-split--2026-07-09).
+**Economics v3:** with net `N` and final sale price `P`:
+
+- Price ladder (markups over `N`): listing +30% (published on signing, rounded to the
+  nearest 50,000 FCFA), target +20%, team may accept down to +15%, between +15% and
+  +10% only with the founder's approval, below +10% refused. Displayed floors round
+  UP to 50,000 FCFA so staff never quote below a real floor.
+- From the margin, as a share of `P`: notary 2% (always), buyer referrer 2% (only if a
+  referrer brought the buyer), seller referrer 1% (only if a referrer referred the
+  seller). Roogo keeps `P − N − fees`. Seller receives exactly `N`.
+- Bypass: if the property is sold within 12 months of signing to a buyer Roogo
+  introduced (evidence: a `visit_requests` row for that buyer and property), Roogo is
+  owed 10% of `P`; no floor applies.
+- Example, net 35M: sold 42M with a referrer bringing the buyer → notary 0.84M,
+  referrer 0.84M, seller 35M, Roogo 5.32M.
+
+The calculation is one pure module, byte-identical in `lib/sale-economics.ts` (web)
+and `roogo/constants/sale-economics.ts` (mobile), unit-tested against the approved
+35M table. Settings: the ladder and fee percentages live in `sale_economics_config`
+(service role only, because `listing_config` is readable with the public anon key
+and a public markup would reveal every seller's net and Roogo's floors); the
+seller-facing bypass terms (`sale_bypass_fee_pct`, `sale_bypass_months`) live on
+`listing_config`. All are founder-editable in `/admin/parametres` ("Vente (v3)") and
+**snapshotted onto each mandate** (`economics_version = 'v3'`, `seller_net_price`,
+`*_markup_pct`, fee and bypass columns). Sellers can read their own mandate rows
+only through a column grant that excludes the ladder and fee snapshots, and the
+mandate API returns a seller-safe projection (buyers get no mandate at all).
+
+**Closing:** `sale_closings` holds one live record per sold property (final price,
+buyer, referrer flags and free-text labels until sale referrals exist, computed fees,
+Roogo margin, bypass flag). Staff record it on the admin listing page; the API
+recomputes every number, refuses anything below the hard floor, and only a founder
+can approve a draft between the hard and team floors. Status: `draft → approved →
+notarized → (Roogo paid) → settled`, or `cancelled`. Database CHECKs repeat the floor,
+margin and approval rules. The table is service-role only (it contains buyer PII).
+
+**Economics v2 (history, migration 050):** seller netted `D × (1 − base%) + (P − D)
+× (1 − split)` where `D` was their desired price (defaults 10% / 50%). Existing v2
+mandates keep `economics_version = 'v2'`, still sign with v2 behaviour
+(`properties.price = desired_price`), and their chat cards keep the v2 layout. The
+v2 settings remain on `listing_config` read-only. See
+[the v2 decision](./DECISIONS.md#roogo-sell-economics-v2-base-commission--5050-surplus-split--2026-07-09)
+and [the v3 decision](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27).
 
 **Seller flow:**
 
-1. Owner submits a `vendre` listing with the **amount they want to receive**
-   (their desired price), plus ownership proof — primarily the **PUH** (_Permis
-   Urbain d'Habiter_). The commission model is disclosed before they submit.
+1. Owner submits a `vendre` listing with the **amount they want to receive**, plus
+   ownership proof, primarily the **PUH** (_Permis Urbain d'Habiter_). Before
+   submitting, the app explains the guaranteed net, that Roogo sets a higher sale
+   price, and the bypass clause.
 2. A seller↔Roogo chat (one thread per property) opens automatically. Roogo reviews
    the ownership docs.
-3. Roogo sends a **mandate** (desired price + commission percentages + an
-   exclusivity period). The owner **signs it in-app** (tap-to-confirm + typed name).
-   Signing publishes the listing at the desired price.
-4. Only then is the listing publishable and photographed by Roogo. Staff may then
-   adjust the public price (`properties.price`) freely to experiment; the seller is
-   deliberately NOT shown or notified of Roogo's listing price.
+3. Staff send a **mandate** with the guaranteed net and an exclusivity period (90
+   days by default). The card shows the net, exclusivity and bypass clause, with the
+   full terms (versioned by `MANDATE_TERMS_VERSION = "2026-10-v3"`) behind "Lire les
+   conditions". The owner **signs it in-app** (typed name). Signing publishes the
+   listing at the +30% listing price.
+4. Only then is the listing publishable. Staff may adjust `properties.price`
+   afterwards. The mandate never states Roogo's exact listing price, but the public
+   listing itself shows it (the seller can see their own public annonce).
 
 **Buyer flow:**
 
@@ -724,5 +760,5 @@ Both sale gates live in `app/api/properties/[id]/status/route.ts` and apply only
 moderation (and any payment/tier requirements).
 
 The practical consequence: an owner can post a property without proving who they are,
-but Roogo will not publish a sale — and cannot take its spread — until it has verified
+but Roogo will not publish a sale — and cannot earn its margin — until it has verified
 the property's ownership and the owner has signed the mandate.
