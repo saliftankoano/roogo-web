@@ -118,7 +118,7 @@ No app deployment, PawaPay collection, push or SMS was performed. No customer re
 
 ## 075: Roogo Sell v3, guaranteed seller price (2026-09-27)
 
-Salif reported on **2026-09-27** that he ran `075_sale_guaranteed_price_executed.sql` in the Supabase SQL editor on the Roogo project. **Operator-reported; the post-run verification query result has not yet been recorded here.** Pre-run state (read-only query run by Salif the same day): 075 and 076 objects absent, 13 mandates (12 signed), 17 properties with `seller_asking_price` set.
+Salif reported on **2026-09-27** that he ran `075_sale_guaranteed_price_executed.sql` in the Supabase SQL editor on the Roogo project. **Verified the same day** by Salif's post-run query: 1 `sale_economics_config` row with ladder 0.30/0.20/0.15/0.10; 13 mandates `v2`, 0 `v3`; `sale_closings` present; anon cannot read `sale_economics_config`. Pre-run state (read-only query run by Salif the same day): 075 and 076 objects absent, 13 mandates (12 signed), 17 properties with `seller_asking_price` set.
 
 Expected after 075: one `sale_economics_config` row (ladder 0.30/0.20/0.15/0.10), all 13 existing mandates `economics_version = 'v2'`, `sale_closings` present, no anon read on `sale_economics_config`.
 
