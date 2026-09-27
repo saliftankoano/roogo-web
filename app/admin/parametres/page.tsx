@@ -33,6 +33,10 @@ import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { cn } from "@/lib/utils";
+import {
+  validateSaleEconomics,
+  type SaleEconomicsSnapshot,
+} from "@/lib/sale-economics";
 
 interface Tier {
   id: string;
@@ -57,6 +61,21 @@ interface Addon {
   updated_at: string;
 }
 
+const SALE_ECONOMICS_FIELDS: {
+  key: keyof SaleEconomicsSnapshot;
+  label: string;
+}[] = [
+  { key: "listingMarkupPct", label: "Prix affiché (majoration)" },
+  { key: "targetMarkupPct", label: "Prix cible (majoration)" },
+  { key: "teamFloorMarkupPct", label: "Plancher équipe" },
+  { key: "hardFloorMarkupPct", label: "Plancher absolu (fondateur)" },
+  { key: "notaryFeePct", label: "Notaire" },
+  { key: "buyerReferralPct", label: "Apporteur acheteur" },
+  { key: "sellerReferralPct", label: "Apporteur vendeur" },
+  { key: "bypassFeePct", label: "Frais de contournement" },
+  { key: "bypassMonths", label: "Durée de la clause" },
+];
+
 export default function AdminSettingsPage() {
   const { user, isLoaded } = useUser();
   const router = useRouter();
@@ -67,14 +86,15 @@ export default function AdminSettingsPage() {
   >(null);
   const [dailyOwnerCommissionPercentage, setDailyOwnerCommissionPercentage] =
     useState<number | null>(null);
-  // Roogo Sell (vente) knobs — decimal fractions, edited as percents.
-  const [saleBaseCommissionPercentage, setSaleBaseCommissionPercentage] =
-    useState<number | null>(null);
-  const [saleSurplusSplitPercentage, setSaleSurplusSplitPercentage] =
-    useState<number | null>(null);
-  const [saleNotaryPriceBasis, setSaleNotaryPriceBasis] = useState<
-    "desired" | "list"
-  >("desired");
+  // Roogo Sell v3 settings (decimal fractions, edited as percents). Null until
+  // migration 075 has run.
+  const [saleEconomics, setSaleEconomics] =
+    useState<SaleEconomicsSnapshot | null>(null);
+  // Roogo Sell v2 knobs (migration 050): read-only history.
+  const [saleV2History, setSaleV2History] = useState<{
+    base: number | null;
+    split: number | null;
+  }>({ base: null, split: null });
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<{
@@ -108,18 +128,21 @@ export default function AdminSettingsPage() {
             data.dailyOwnerCommissionPercentage,
           );
         }
-        if (typeof data.saleBaseCommissionPercentage === "number") {
-          setSaleBaseCommissionPercentage(data.saleBaseCommissionPercentage);
-        }
-        if (typeof data.saleSurplusSplitPercentage === "number") {
-          setSaleSurplusSplitPercentage(data.saleSurplusSplitPercentage);
-        }
-        if (
-          data.saleNotaryPriceBasis === "desired" ||
-          data.saleNotaryPriceBasis === "list"
-        ) {
-          setSaleNotaryPriceBasis(data.saleNotaryPriceBasis);
-        }
+        setSaleEconomics(
+          data.saleEconomics && typeof data.saleEconomics === "object"
+            ? (data.saleEconomics as SaleEconomicsSnapshot)
+            : null,
+        );
+        setSaleV2History({
+          base:
+            typeof data.saleBaseCommissionPercentage === "number"
+              ? data.saleBaseCommissionPercentage
+              : null,
+          split:
+            typeof data.saleSurplusSplitPercentage === "number"
+              ? data.saleSurplusSplitPercentage
+              : null,
+        });
       } catch (error) {
         console.error("Error loading pricing:", error);
         setMessage({
@@ -168,19 +191,34 @@ export default function AdminSettingsPage() {
     setDailyOwnerCommissionPercentage(percentage / 100);
   };
 
-  const handleSaleBaseCommissionChange = (newPercentage: string) => {
-    const percentage = parseFloat(newPercentage);
-    if (isNaN(percentage) || percentage < 0 || percentage > 100) return;
-    setSaleBaseCommissionPercentage(percentage / 100);
+  const handleSaleEconomicsChange = (
+    key: keyof SaleEconomicsSnapshot,
+    raw: string,
+  ) => {
+    const value = parseFloat(raw);
+    if (isNaN(value) || value < 0) return;
+    setSaleEconomics((current) => {
+      if (!current) return current;
+      if (key === "bypassMonths") {
+        return { ...current, bypassMonths: Math.round(value) };
+      }
+      if (value > 100) return current;
+      return { ...current, [key]: value / 100 };
+    });
   };
 
-  const handleSaleSurplusSplitChange = (newPercentage: string) => {
-    const percentage = parseFloat(newPercentage);
-    if (isNaN(percentage) || percentage < 0 || percentage > 100) return;
-    setSaleSurplusSplitPercentage(percentage / 100);
-  };
+  const saleEconomicsProblems = saleEconomics
+    ? validateSaleEconomics(saleEconomics)
+    : [];
 
   const handleSave = async () => {
+    if (saleEconomicsProblems.length > 0) {
+      setMessage({
+        type: "error",
+        text: "Paramètres de vente invalides : vérifiez l'ordre des marges et les frais.",
+      });
+      return;
+    }
     setSaving(true);
     setMessage(null);
 
@@ -194,10 +232,7 @@ export default function AdminSettingsPage() {
           commissionPercentage: commissionPercentage ?? undefined,
           dailyOwnerCommissionPercentage:
             dailyOwnerCommissionPercentage ?? undefined,
-          saleBaseCommissionPercentage:
-            saleBaseCommissionPercentage ?? undefined,
-          saleSurplusSplitPercentage: saleSurplusSplitPercentage ?? undefined,
-          saleNotaryPriceBasis,
+          saleEconomics: saleEconomics ?? undefined,
         }),
       });
 
@@ -659,7 +694,7 @@ export default function AdminSettingsPage() {
                 </CardContent>
               </Card>
 
-              {/* Sale (Roogo Sell) commission */}
+              {/* Sale (Roogo Sell v3): guaranteed seller net price */}
               <Card className="border-neutral-200/60 shadow-sm overflow-hidden rounded-3xl bg-[#3A2A1E] text-white border-none">
                 <CardHeader className="pb-4">
                   <div className="flex items-center gap-3">
@@ -668,88 +703,84 @@ export default function AdminSettingsPage() {
                     </div>
                     <div>
                       <CardTitle className="text-xl text-white">
-                        Commission vente
+                        Vente (v3)
                       </CardTitle>
                       <CardDescription className="text-neutral-400">
-                        Roogo Sell: mandat sur le prix désiré du vendeur
+                        Prix net garanti au vendeur, marge Roogo au-dessus
                       </CardDescription>
                     </div>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-6">
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <Label className="text-neutral-300 font-medium">
-                        Commission de base
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          value={(
-                            (saleBaseCommissionPercentage ?? 0) * 100
-                          ).toFixed(1)}
-                          onChange={(e) =>
-                            handleSaleBaseCommissionChange(e.target.value)
-                          }
-                          className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                        />
-                        <span className="text-neutral-400 font-bold text-lg">
-                          %
-                        </span>
-                      </div>
+                  {saleEconomics ? (
+                    <div className="space-y-4">
+                      {SALE_ECONOMICS_FIELDS.map((field) => (
+                        <div
+                          key={field.key}
+                          className="flex items-center justify-between gap-3"
+                        >
+                          <Label className="text-neutral-300 font-medium">
+                            {field.label}
+                          </Label>
+                          <div className="flex items-center gap-2">
+                            <Input
+                              type="number"
+                              value={
+                                field.key === "bypassMonths"
+                                  ? String(saleEconomics.bypassMonths)
+                                  : (saleEconomics[field.key] * 100).toFixed(1)
+                              }
+                              onChange={(e) =>
+                                handleSaleEconomicsChange(
+                                  field.key,
+                                  e.target.value,
+                                )
+                              }
+                              className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
+                              min="0"
+                              max={field.key === "bypassMonths" ? "60" : "100"}
+                              step={field.key === "bypassMonths" ? "1" : "0.5"}
+                            />
+                            <span className="w-10 text-neutral-400 font-bold text-lg">
+                              {field.key === "bypassMonths" ? "mois" : "%"}
+                            </span>
+                          </div>
+                        </div>
+                      ))}
+                      {saleEconomicsProblems.length > 0 && (
+                        <p className="rounded-xl bg-red-500/20 px-3 py-2 text-xs font-semibold text-red-100">
+                          Paramètres invalides : le plancher absolu doit être
+                          inférieur ou égal au plancher équipe, lui-même
+                          inférieur ou égal à la cible et au prix affiché. Les
+                          frais au plancher absolu ne doivent pas dépasser la
+                          marge.
+                        </p>
+                      )}
+                      <Separator className="bg-white/10" />
+                      <p className="text-xs text-neutral-400 leading-relaxed italic">
+                        Les majorations s&apos;appliquent au prix net du
+                        vendeur. Les frais (notaire, apporteurs) sont calculés
+                        sur le prix de vente final et payés sur la marge. Les
+                        mandats déjà envoyés conservent les valeurs en vigueur
+                        au moment de l&apos;envoi.
+                      </p>
                     </div>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-neutral-300 font-medium">
-                        Part Roogo du surplus
-                      </Label>
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          value={(
-                            (saleSurplusSplitPercentage ?? 0) * 100
-                          ).toFixed(1)}
-                          onChange={(e) =>
-                            handleSaleSurplusSplitChange(e.target.value)
-                          }
-                          className="w-24 h-12 bg-white/5 border-white/10 text-white text-right font-bold text-xl rounded-xl focus-visible:ring-white/20"
-                          min="0"
-                          max="100"
-                          step="0.1"
-                        />
-                        <span className="text-neutral-400 font-bold text-lg">
-                          %
-                        </span>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between">
-                      <Label className="text-neutral-300 font-medium">
-                        Base de calcul notaire
-                      </Label>
-                      <select
-                        value={saleNotaryPriceBasis}
-                        onChange={(e) =>
-                          setSaleNotaryPriceBasis(
-                            e.target.value === "list" ? "list" : "desired",
-                          )
-                        }
-                        className="h-12 rounded-xl bg-white/5 border border-white/10 text-white px-3 text-sm font-semibold"
-                      >
-                        <option value="desired">Prix désiré (vendeur)</option>
-                        <option value="list">Prix affiché (Roogo)</option>
-                      </select>
-                    </div>
-                    <Separator className="bg-white/10" />
-                    <p className="text-xs text-neutral-400 leading-relaxed italic">
-                      La commission de base est calculée sur le montant que le
-                      vendeur souhaite recevoir. Tout ce qui est vendu au-dessus
-                      de ce montant est partagé selon la part du surplus. Les
-                      mandats déjà envoyés conservent les pourcentages en
-                      vigueur au moment de l&apos;envoi.
+                  ) : (
+                    <p className="text-sm text-neutral-300">
+                      La migration 075 n&apos;est pas encore appliquée : les
+                      paramètres de vente v3 ne sont pas disponibles.
                     </p>
-                  </div>
+                  )}
+                  {(saleV2History.base != null ||
+                    saleV2History.split != null) && (
+                    <p className="text-[11px] text-neutral-500 leading-relaxed">
+                      Historique v2 (lecture seule, mandats antérieurs) :
+                      commission de base{" "}
+                      {((saleV2History.base ?? 0) * 100).toFixed(1)} %, part
+                      Roogo du surplus{" "}
+                      {((saleV2History.split ?? 0) * 100).toFixed(0)} %.
+                    </p>
+                  )}
                 </CardContent>
               </Card>
 

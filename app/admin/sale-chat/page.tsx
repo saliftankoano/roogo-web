@@ -13,6 +13,12 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import {
+  priceLadder,
+  settle,
+  type SaleEconomicsSnapshot,
+} from "@/lib/sale-economics";
+import { formatSalePct } from "@/lib/sale";
 
 type Kind = "seller" | "buyer";
 
@@ -112,7 +118,7 @@ function convTitle(c: ConversationSummary | null) {
 
 function mandateFailureMessage(error: unknown) {
   if (typeof error !== "string") return "Impossible d’envoyer le mandat.";
-  if (error === "invalid_price") return "Saisissez un prix désiré valide.";
+  if (error === "invalid_price") return "Saisissez un prix net vendeur valide.";
   if (error === "owner_not_linked")
     return "Rattachez d’abord un propriétaire à cette annonce.";
   if (error === "no_conversation")
@@ -132,13 +138,14 @@ export default function AdminSaleChatPage() {
 
   // Action panels
   const [showMandate, setShowMandate] = useState(false);
-  const [desired, setDesired] = useState("");
+  // v3: the owner's guaranteed net price.
+  const [netPrice, setNetPrice] = useState("");
   const [days, setDays] = useState("90");
   const [mandateSending, setMandateSending] = useState(false);
   const [mandateError, setMandateError] = useState<string | null>(null);
-  // Live sale commission (decimal fractions) for the computed preview line.
-  const [saleBasePct, setSaleBasePct] = useState<number | null>(null);
-  const [saleSplitPct, setSaleSplitPct] = useState<number | null>(null);
+  // Live v3 sale economics (staff only) for the ladder preview.
+  const [saleEconomics, setSaleEconomics] =
+    useState<SaleEconomicsSnapshot | null>(null);
   const [showNotary, setShowNotary] = useState(false);
   const [notaryAt, setNotaryAt] = useState("");
   const [notaryName, setNotaryName] = useState("");
@@ -173,16 +180,13 @@ export default function AdminSaleChatPage() {
     return () => clearInterval(interval);
   }, [loadConversations]);
 
-  // Current sale commission settings (null until migration 050 has run).
+  // Current v3 sale economics (null until migration 075 has run).
   useEffect(() => {
-    fetch("/api/pricing")
+    fetch("/api/admin/sales/config")
       .then((r) => (r.ok ? r.json() : null))
       .then((d) => {
-        if (typeof d?.saleBaseCommissionPercentage === "number") {
-          setSaleBasePct(d.saleBaseCommissionPercentage);
-        }
-        if (typeof d?.saleSurplusSplitPercentage === "number") {
-          setSaleSplitPct(d.saleSurplusSplitPercentage);
+        if (d?.saleEconomics && typeof d.saleEconomics === "object") {
+          setSaleEconomics(d.saleEconomics as SaleEconomicsSnapshot);
         }
       })
       .catch(() => {});
@@ -275,12 +279,9 @@ export default function AdminSaleChatPage() {
 
   const handleOpenMandate = () => {
     if (!selected) return;
-    const propertyPrice = Number(selected.property?.price);
-    setDesired(
-      Number.isFinite(propertyPrice) && propertyPrice > 0
-        ? String(Math.round(propertyPrice))
-        : "",
-    );
+    // Never prefill from properties.price: after a v3 signature it is Roogo's
+    // listing price (net + markup), not the owner's net.
+    setNetPrice("");
     setDays("90");
     setMandateError(null);
     setShowNotary(false);
@@ -289,9 +290,9 @@ export default function AdminSaleChatPage() {
 
   const handleSendMandate = async () => {
     if (!selected || mandateSending) return;
-    const desiredPrice = Number(desired);
-    if (!Number.isFinite(desiredPrice) || desiredPrice <= 0) {
-      setMandateError("Saisissez un prix désiré valide.");
+    const sellerNetPrice = Number(netPrice);
+    if (!Number.isFinite(sellerNetPrice) || sellerNetPrice <= 0) {
+      setMandateError("Saisissez un prix net vendeur valide.");
       return;
     }
 
@@ -304,7 +305,7 @@ export default function AdminSaleChatPage() {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            desiredPrice,
+            sellerNetPrice,
             exclusivityDays: Number(days) || 90,
           }),
         },
@@ -317,7 +318,7 @@ export default function AdminSaleChatPage() {
       await loadThread(selected.id);
       await loadConversations();
       setShowMandate(false);
-      setDesired("");
+      setNetPrice("");
       setDays("90");
     } catch (err) {
       setMandateError(
@@ -602,9 +603,9 @@ export default function AdminSaleChatPage() {
 
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
                 <Field
-                  label="Prix désiré (FCFA)"
-                  value={desired}
-                  onChange={setDesired}
+                  label="Prix net vendeur garanti (FCFA)"
+                  value={netPrice}
+                  onChange={setNetPrice}
                   autoFocus
                 />
                 <Field
@@ -614,24 +615,17 @@ export default function AdminSaleChatPage() {
                 />
               </div>
 
-              {saleBasePct != null && Number(desired) > 0 && (
-                <div className="rounded-2xl border border-[#C96A2E]/20 bg-[#C96A2E]/5 p-4 text-sm text-neutral-700">
-                  <p className="font-semibold text-neutral-900">
-                    Résumé des conditions
-                  </p>
-                  <p className="mt-1 leading-relaxed">
-                    Commission Roogo : {(saleBasePct * 100).toFixed(1)}% ={" "}
-                    {fmtFCFA(Number(desired) * saleBasePct)}. Le vendeur reçoit
-                    au minimum{" "}
-                    {fmtFCFA(Number(desired) * (1 - saleBasePct))}
-                    {saleSplitPct != null &&
-                      ` · Surplus : ${(saleSplitPct * 100).toFixed(
-                        0,
-                      )}% Roogo / ${((1 - saleSplitPct) * 100).toFixed(
-                        0,
-                      )}% vendeur.`}
-                  </p>
-                </div>
+              {saleEconomics && Number(netPrice) > 0 && (
+                <MandateLadderPreview
+                  net={Number(netPrice)}
+                  economics={saleEconomics}
+                />
+              )}
+              {!saleEconomics && (
+                <p className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800">
+                  Paramètres de vente v3 indisponibles (migration 075 non
+                  appliquée). L&apos;envoi du mandat échouera.
+                </p>
               )}
 
               {mandateError && (
@@ -656,7 +650,7 @@ export default function AdminSaleChatPage() {
               <Button
                 type="button"
                 onClick={handleSendMandate}
-                disabled={mandateSending || !(Number(desired) > 0)}
+                disabled={mandateSending || !(Number(netPrice) > 0)}
                 className="gap-2"
               >
                 {mandateSending && (
@@ -668,6 +662,59 @@ export default function AdminSaleChatPage() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+/** Staff-only preview of the v3 price ladder and the split at the target price. */
+function MandateLadderPreview({
+  net,
+  economics,
+}: {
+  net: number;
+  economics: SaleEconomicsSnapshot;
+}) {
+  const ladder = priceLadder(net, economics).display;
+  const target = priceLadder(net, economics).exact.target;
+  const scenarios = [
+    { label: "Roogo seul", buyerReferred: false, sellerReferred: false },
+    { label: "Apporteur acheteur", buyerReferred: true, sellerReferred: false },
+    { label: "Deux apporteurs", buyerReferred: true, sellerReferred: true },
+  ];
+  return (
+    <div className="rounded-2xl border border-[#C96A2E]/20 bg-[#C96A2E]/5 p-4 text-sm text-neutral-700">
+      <p className="font-semibold text-neutral-900">
+        Échelle de prix (interne, jamais montrée au vendeur)
+      </p>
+      <dl className="mt-2 grid grid-cols-2 gap-x-4 gap-y-1">
+        <dt>Prix affiché</dt>
+        <dd className="text-right font-semibold">{fmtFCFA(ladder.listing)}</dd>
+        <dt>Cible</dt>
+        <dd className="text-right">{fmtFCFA(ladder.target)}</dd>
+        <dt>Plancher équipe</dt>
+        <dd className="text-right">{fmtFCFA(ladder.teamFloor)}</dd>
+        <dt>Plancher absolu (fondateur)</dt>
+        <dd className="text-right">{fmtFCFA(ladder.hardFloor)}</dd>
+      </dl>
+      <p className="mt-3 font-semibold text-neutral-900">
+        Marge Roogo à la cible ({fmtFCFA(target)})
+      </p>
+      <dl className="mt-1 grid grid-cols-2 gap-x-4 gap-y-1">
+        {scenarios.map((scenario) => (
+          <div key={scenario.label} className="contents">
+            <dt>{scenario.label}</dt>
+            <dd className="text-right">
+              {fmtFCFA(settle(target, net, economics, scenario).roogoMargin)}
+            </dd>
+          </div>
+        ))}
+      </dl>
+      <p className="mt-2 text-xs text-neutral-500">
+        Notaire {formatSalePct(economics.notaryFeePct)}, apporteur acheteur{" "}
+        {formatSalePct(economics.buyerReferralPct)}, apporteur vendeur{" "}
+        {formatSalePct(economics.sellerReferralPct)} du prix final. Le vendeur
+        reçoit {fmtFCFA(net)}.
+      </p>
     </div>
   );
 }
@@ -843,7 +890,19 @@ function MessageRow({
       )}
 
       {message.message_type === "mandate_offer" &&
-        (typeof meta.desired_price === "number" ? (
+        (meta.economics_version === "v3" ? (
+          <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
+            <p>Net vendeur garanti : {fmtFCFA(meta.seller_net_price)}</p>
+            <p>Exclusivité : {String(meta.exclusivity_days ?? 90)} jours</p>
+            {typeof meta.bypass_fee_pct === "number" && (
+              <p>
+                Clause de contournement : {formatSalePct(meta.bypass_fee_pct)}{" "}
+                pendant {String(meta.bypass_months ?? 12)} mois
+              </p>
+            )}
+          </div>
+        ) : typeof meta.desired_price === "number" ? (
+          // v2 mandates (migration 050) keep their original layout.
           <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
             <p>Prix désiré : {fmtFCFA(meta.desired_price)}</p>
             {typeof meta.base_commission_pct === "number" && (
@@ -878,7 +937,9 @@ function MessageRow({
 
       {message.message_type === "mandate_signed" && (
         <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
-          {typeof meta.desired_price === "number" ? (
+          {meta.economics_version === "v3" ? (
+            <p>Net vendeur garanti : {fmtFCFA(meta.seller_net_price)}</p>
+          ) : typeof meta.desired_price === "number" ? (
             <p>Prix désiré : {fmtFCFA(meta.desired_price)}</p>
           ) : (
             <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
