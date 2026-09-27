@@ -1,6 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { auth, clerkClient } from "@clerk/nextjs/server";
+import {
+  validateSaleEconomics,
+  type SaleEconomicsSnapshot,
+} from "@/lib/sale-economics";
 
 // Use service role to bypass RLS for admin operations
 const supabaseAdmin = createClient(
@@ -35,6 +39,52 @@ interface ErrorItem {
   type: string;
   id: string;
   error: string;
+}
+
+const SALE_LADDER_COLUMNS =
+  "listing_markup_pct, target_markup_pct, team_floor_markup_pct, hard_floor_markup_pct, notary_fee_pct, buyer_referral_pct, seller_referral_pct";
+
+type SaleLadderRow = {
+  listing_markup_pct: number;
+  target_markup_pct: number;
+  team_floor_markup_pct: number;
+  hard_floor_markup_pct: number;
+  notary_fee_pct: number;
+  buyer_referral_pct: number;
+  seller_referral_pct: number;
+};
+
+type SaleBypassRow = {
+  sale_bypass_fee_pct: number;
+  sale_bypass_months: number;
+};
+
+/** Roogo Sell v3 settings, or null until migration 075 has run. */
+async function readSaleEconomics(): Promise<SaleEconomicsSnapshot | null> {
+  const [{ data: ladder }, { data: bypass }] = await Promise.all([
+    supabaseAdmin
+      .from("sale_economics_config")
+      .select(SALE_LADDER_COLUMNS)
+      .eq("id", "default")
+      .maybeSingle<SaleLadderRow>(),
+    supabaseAdmin
+      .from("listing_config")
+      .select("sale_bypass_fee_pct, sale_bypass_months")
+      .eq("id", "default")
+      .maybeSingle<SaleBypassRow>(),
+  ]);
+  if (!ladder || !bypass) return null;
+  return {
+    listingMarkupPct: Number(ladder.listing_markup_pct),
+    targetMarkupPct: Number(ladder.target_markup_pct),
+    teamFloorMarkupPct: Number(ladder.team_floor_markup_pct),
+    hardFloorMarkupPct: Number(ladder.hard_floor_markup_pct),
+    notaryFeePct: Number(ladder.notary_fee_pct),
+    buyerReferralPct: Number(ladder.buyer_referral_pct),
+    sellerReferralPct: Number(ladder.seller_referral_pct),
+    bypassFeePct: Number(bypass.sale_bypass_fee_pct),
+    bypassMonths: Number(bypass.sale_bypass_months),
+  };
 }
 
 export async function GET() {
@@ -83,8 +133,7 @@ export async function GET() {
       .eq("id", "default")
       .single();
 
-    // Sale (Roogo Sell v2) knobs, selected separately and best-effort so this
-    // endpoint keeps working on databases where migration 050 has not run yet.
+    // Sale v2 knobs (migration 050), read-only history: new mandates use v3.
     const { data: saleConfigData } = await supabaseAdmin
       .from("listing_config")
       .select(
@@ -92,6 +141,9 @@ export async function GET() {
       )
       .eq("id", "default")
       .maybeSingle();
+
+    // Sale v3 settings (migration 075); null until it has run.
+    const saleEconomics = await readSaleEconomics();
 
     if (configError) {
       console.error("Error fetching listing config:", configError);
@@ -117,7 +169,8 @@ export async function GET() {
       addons: addons || [],
       commissionPercentage,
       dailyOwnerCommissionPercentage,
-      // Sale (Roogo Sell v2) knobs; null until migration 050 runs.
+      saleEconomics,
+      // Sale v2 knobs (read-only history); null until migration 050 runs.
       saleBaseCommissionPercentage:
         typeof saleConfigData?.sale_base_commission_percentage === "number"
           ? saleConfigData.sale_base_commission_percentage
@@ -160,9 +213,7 @@ export async function PUT(request: NextRequest) {
       addons,
       commissionPercentage,
       dailyOwnerCommissionPercentage,
-      saleBaseCommissionPercentage,
-      saleSurplusSplitPercentage,
-      saleNotaryPriceBasis,
+      saleEconomics,
     } = body;
 
     const results: {
@@ -170,9 +221,7 @@ export async function PUT(request: NextRequest) {
       addons: Addon[];
       commissionPercentage?: number;
       dailyOwnerCommissionPercentage?: number;
-      saleBaseCommissionPercentage?: number;
-      saleSurplusSplitPercentage?: number;
-      saleNotaryPriceBasis?: string;
+      saleEconomics?: SaleEconomicsSnapshot;
       errors: ErrorItem[];
     } = { tiers: [], addons: [], errors: [] };
 
@@ -327,57 +376,68 @@ export async function PUT(request: NextRequest) {
       }
     }
 
-    // Update the sale (Roogo Sell v2) knobs if provided. Percentages are decimal
-    // fractions; already-sent mandates keep their snapshots, only new mandates
-    // pick these up.
-    if (
-      saleBaseCommissionPercentage !== undefined ||
-      saleSurplusSplitPercentage !== undefined ||
-      saleNotaryPriceBasis !== undefined
-    ) {
-      const salePayload: Record<string, unknown> = {
-        updated_at: new Date().toISOString(),
-      };
-      if (
-        typeof saleBaseCommissionPercentage === "number" &&
-        saleBaseCommissionPercentage >= 0 &&
-        saleBaseCommissionPercentage <= 1
-      ) {
-        salePayload.sale_base_commission_percentage = saleBaseCommissionPercentage;
-      }
-      if (
-        typeof saleSurplusSplitPercentage === "number" &&
-        saleSurplusSplitPercentage >= 0 &&
-        saleSurplusSplitPercentage <= 1
-      ) {
-        salePayload.sale_surplus_split_percentage = saleSurplusSplitPercentage;
-      }
-      if (saleNotaryPriceBasis === "desired" || saleNotaryPriceBasis === "list") {
-        salePayload.sale_notary_price_basis = saleNotaryPriceBasis;
-      }
-
-      const { data: saleData, error: saleError } = await supabaseAdmin
-        .from("listing_config")
-        .update(salePayload)
-        .eq("id", "default")
-        .select(
-          "sale_base_commission_percentage, sale_surplus_split_percentage, sale_notary_price_basis",
-        )
-        .single();
-
-      if (saleError) {
-        console.error("Error updating sale commission config:", saleError);
+    // Update the Roogo Sell v3 settings if provided. Percentages are decimal
+    // fractions. Already-sent mandates keep their snapshots; only new mandates
+    // pick these up. The v2 knobs are no longer editable (history only).
+    if (saleEconomics && typeof saleEconomics === "object") {
+      const current = await readSaleEconomics();
+      if (!current) {
         results.errors.push({
-          type: "config",
+          type: "sale_economics",
           id: "default",
-          error: saleError.message,
+          error: "Migration 075 has not run",
         });
       } else {
-        results.saleBaseCommissionPercentage =
-          saleData.sale_base_commission_percentage;
-        results.saleSurplusSplitPercentage =
-          saleData.sale_surplus_split_percentage;
-        results.saleNotaryPriceBasis = saleData.sale_notary_price_basis;
+        const incoming = saleEconomics as Partial<Record<string, unknown>>;
+        const merged = { ...current };
+        for (const key of Object.keys(current) as (keyof SaleEconomicsSnapshot)[]) {
+          if (typeof incoming[key] === "number") merged[key] = incoming[key] as number;
+        }
+        const problems = validateSaleEconomics(merged);
+        if (problems.length > 0) {
+          results.errors.push({
+            type: "sale_economics",
+            id: "default",
+            error: problems.join("; "),
+          });
+        } else {
+          const now = new Date().toISOString();
+          const [{ error: ladderError }, { error: bypassError }] =
+            await Promise.all([
+              supabaseAdmin
+                .from("sale_economics_config")
+                .update({
+                  listing_markup_pct: merged.listingMarkupPct,
+                  target_markup_pct: merged.targetMarkupPct,
+                  team_floor_markup_pct: merged.teamFloorMarkupPct,
+                  hard_floor_markup_pct: merged.hardFloorMarkupPct,
+                  notary_fee_pct: merged.notaryFeePct,
+                  buyer_referral_pct: merged.buyerReferralPct,
+                  seller_referral_pct: merged.sellerReferralPct,
+                  updated_at: now,
+                })
+                .eq("id", "default"),
+              supabaseAdmin
+                .from("listing_config")
+                .update({
+                  sale_bypass_fee_pct: merged.bypassFeePct,
+                  sale_bypass_months: merged.bypassMonths,
+                  updated_at: now,
+                })
+                .eq("id", "default"),
+            ]);
+          const saleError = ladderError ?? bypassError;
+          if (saleError) {
+            console.error("Error updating sale economics config:", saleError);
+            results.errors.push({
+              type: "sale_economics",
+              id: "default",
+              error: saleError.message,
+            });
+          } else {
+            results.saleEconomics = merged;
+          }
+        }
       }
     }
 

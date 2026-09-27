@@ -333,3 +333,14 @@ export const hustleApplicationSchema = z.object({
       "Veuillez détailler votre réponse au challenge (min 20 caractères)",
     ),
 });
+
+// Roogo Sell v3: staff send a mandate built on the owner's guaranteed net price.
+// Old staff app builds still send `desiredPrice`; the route maps it to the net.
+export const saleMandateSendSchema = z.object({
+  sellerNetPrice: z.coerce
+    .number({ message: "Prix net vendeur invalide" })
+    .positive("Le prix net vendeur doit être supérieur à 0")
+    .max(100_000_000_000, "Prix net vendeur trop élevé"),
+  exclusivityDays: z.coerce.number().int().min(1).max(730).optional(),
+  notes: z.string().max(2000).optional().nullable(),
+});

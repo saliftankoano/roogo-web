@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { DEFAULT_MANDATE_EXCLUSIVITY_DAYS } from "@/lib/sale";
 
 // Use service role to read pricing data (read-only, no auth required)
 const supabaseAdmin = createClient(
@@ -84,11 +85,15 @@ export async function GET() {
       });
     }
 
-    // Sale (Roogo Sell v2) percentages, best-effort so this endpoint keeps
-    // working on databases where migration 050 has not run yet.
+    // Roogo Sell v3: only the seller-facing terms (bypass clause, default
+    // exclusivity). The price ladder and fee split are private
+    // (sale_economics_config, service role only) and never exposed here. The v2
+    // percentages are no longer returned; no client reads them from this route
+    // (old mobile builds read listing_config directly). Best-effort so this
+    // endpoint keeps working before migration 075 runs.
     const { data: saleConfigData } = await supabaseAdmin
       .from("listing_config")
-      .select("sale_base_commission_percentage, sale_surplus_split_percentage")
+      .select("sale_bypass_fee_pct, sale_bypass_months")
       .eq("id", "default")
       .maybeSingle();
 
@@ -97,14 +102,15 @@ export async function GET() {
       addons,
       commissionPercentage,
       dailyOwnerCommissionPercentage,
-      saleBaseCommissionPercentage:
-        typeof saleConfigData?.sale_base_commission_percentage === "number"
-          ? saleConfigData.sale_base_commission_percentage
+      saleBypassFeePercentage:
+        typeof saleConfigData?.sale_bypass_fee_pct === "number"
+          ? saleConfigData.sale_bypass_fee_pct
           : null,
-      saleSurplusSplitPercentage:
-        typeof saleConfigData?.sale_surplus_split_percentage === "number"
-          ? saleConfigData.sale_surplus_split_percentage
+      saleBypassMonths:
+        typeof saleConfigData?.sale_bypass_months === "number"
+          ? saleConfigData.sale_bypass_months
           : null,
+      saleDefaultExclusivityDays: DEFAULT_MANDATE_EXCLUSIVITY_DAYS,
     });
   } catch (error) {
     console.error("API error:", error);

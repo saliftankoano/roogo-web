@@ -62,8 +62,13 @@ export async function POST(
       return errorResponse(result.reason, status, req);
     }
 
+    // v3: the seller never receives Roogo's exact listing price.
     return cors(
-      NextResponse.json({ success: true, publishedPrice: result.publishedPrice }),
+      NextResponse.json(
+        result.economicsVersion === "v3"
+          ? { success: true }
+          : { success: true, publishedPrice: result.publishedPrice },
+      ),
       req,
     );
   } catch (error) {
