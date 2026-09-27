@@ -17,7 +17,12 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Now
 
-- [ ] **Release Roogo Sell v3 (guaranteed seller price)** — implemented on branch `feat/sale-v3-guaranteed-price` in both repos (2026-09-27), not merged or deployed. Done when: Salif runs migration 075 on Roogo and it is recorded in the [ledger](../supabase/migrations/README.md); the web/API deploy is verified; the mobile cards and consent ship by OTA; a lawyer who knows Burkina Faso contract law has read the terms text; and the first real v3 mandate (Pabré) is sent, signed and checked. Then record the release in [CHANGELOG](./CHANGELOG.md). [Decision](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27).
+- [ ] **Release Roogo Sell v3 (guaranteed seller price)** — sellers get a guaranteed net and the public price follows Roogo's ladder. Web and mobile are on branch `feat/sale-v3-guaranteed-price` (2026-09-27), not merged or deployed. [Decision](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27), [system](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work).
+  - [x] **Migration 075 (2026-09-27):** executed and verified on Roogo. [Ledger](../supabase/migrations/README.md), [changelog](./CHANGELOG.md#2026-09-27).
+  - [ ] **Deploy web/API**, then **immediately run migration 076** and check: 17 rows in `sale_asking_prices`, 0 left in `properties.seller_asking_price`, no anon read. Never run 076 before the deploy: the previously deployed code writes the column it blocks.
+  - [ ] **Ship the mobile cards and consent by OTA** after the web deploy.
+  - [ ] **Legal read** of the v3 terms (`lib/sale.ts`) by someone who knows Burkina Faso contract law, before any real v3 mandate.
+  - Done when: the first real v3 mandate (Pabré) is sent, signed and checked on a device, and the release is recorded in [CHANGELOG](./CHANGELOG.md).
 
 - [ ] **Verify the deployed image-loading rollout** — visitors see the hero promptly while featured annonces load. [#32](https://github.com/saliftankoano/roogo-web/pull/32), [#33](https://github.com/saliftankoano/roogo-web/pull/33) and [#34](https://github.com/saliftankoano/roogo-web/pull/34) merged on 2026-09-13 UTC; all implementation tickets are Done and migration 073 is operator-confirmed executed. Vercel production deployment was pending at merge verification. Done when: the matching deployment succeeds and is checked for hero/featured-result behavior and source/optimized cache headers, and the release evidence is recorded in [CHANGELOG](./CHANGELOG.md). Compare actual image usage/load measurements without claiming dev-fixture timings as production LCP. [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23), [system behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
 
@@ -32,6 +37,8 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Next
 
+- [ ] **Sale referrals (apporteurs acheteur / vendeur)** — people who bring a buyer (2%) or refer a seller (1%) register them in the app and receive an "Attestation de parrainage" proving the amount. Accepted by Salif on 2026-09-27. Done when: referrers extend the existing referral program for sales; Roogo confirms each registration by calling or messaging the referred person; a buyer claim expires after 60 days without a visit; the first written registration wins; the attestation carries a verifiable reference; payouts are possible only from a settled `sale_closings` row with Roogo paid. Depends on the v3 release above. [Terms](./DOMAIN.md#apporteur-acheteur--apporteur-vendeur-sale-referrers).
+
 - [ ] **Roll out the coordinated property-request workflow** — make the reviewed feature available with its backend dependencies in place. Done when: the paired PRs are merged, the matching web/API deployment is verified (Roogo migrations 068/069 are now operator-confirmed executed; another target requires its own history check), and only then the mobile counterpart is released and checked. No new environment variables are required. Staff must supply approved commission terms before opening calls. Record verified release evidence in [CHANGELOG.md](./CHANGELOG.md), then close this item. See the [product decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08).
 
 ## Later
@@ -39,6 +46,8 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
 ## Recently completed
+
+- [x] **Roogo Sell v3 database prerequisite** — migration 075 executed and verified on Roogo on 2026-09-27. This is not the app release. See [CHANGELOG](./CHANGELOG.md#2026-09-27) and the [execution ledger](../supabase/migrations/README.md).
 
 - [x] **Public listing sizing, photo retry recovery and homepage streaming implemented** — #32/#33/#34 merged on 2026-09-13 UTC; migration 073 is operator-confirmed applied. Deployment verification remains in Now. See [CHANGELOG](./CHANGELOG.md#2026-09-13) and [ROO-21](https://linear.app/roogo-burkina/issue/ROO-21)/[ROO-22](https://linear.app/roogo-burkina/issue/ROO-22).
 

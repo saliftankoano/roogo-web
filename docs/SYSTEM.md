@@ -667,8 +667,8 @@ a blocker. Full flow reference: [visites-3d.md](./visites-3d.md).
 ## How does Roogo Sell (the broker model) work?
 
 **Bottom line:** Roogo is the sole intermediary between sellers and buyers; they
-never talk to each other. Economics v3 (approved 2026-09-27, migration 075,
-**implemented on branch `feat/sale-v3-guaranteed-price`, not deployed**): the seller
+never talk to each other. Economics v3 (approved 2026-09-27; migration 075 executed
+2026-09-27; code on branch `feat/sale-v3-guaranteed-price`, **not deployed**): the seller
 names a **net price that is guaranteed**. Roogo lists above it; the margin pays the
 notary, any referrers and Roogo. Mandates sent before v3 stay on v2 (below).
 
@@ -728,9 +728,29 @@ and [the v3 decision](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-pr
    full terms (versioned by `MANDATE_TERMS_VERSION = "2026-10-v3"`) behind "Lire les
    conditions". The owner **signs it in-app** (typed name). Signing publishes the
    listing at the +30% listing price.
-4. Only then is the listing publishable. Staff may adjust `properties.price`
-   afterwards. The mandate never states Roogo's exact listing price, but the public
-   listing itself shows it (the seller can see their own public annonce).
+4. Only then is the listing publishable. The mandate never states Roogo's exact
+   listing price, but the public listing itself shows it (the seller can see their
+   own public annonce).
+
+**Public price (`properties.price`) of a sale:** always Roogo's ladder price, never
+the owner's number.
+
+- On creation, a `vendre` listing is stored at the **listing rung** computed from the
+  owner's typed amount (live `sale_economics_config`, falling back to the approved
+  defaults if unreadable). The typed amount goes to `sale_asking_prices`
+  (service role only, migration 076); `properties.seller_asking_price` is retired and
+  always NULL, because `public_property_details` exposes every `properties` column.
+- On signing, the price is re-derived from the mandate's net.
+- Staff edits (`PATCH /api/properties/[id]`) on a sale with a signed v3 mandate go
+  through `checkPublicSalePriceChange`: allowed down to the team floor, founder only
+  down to the hard floor, refused below it (422, or 403 for a non-founder).
+- Owner edit requests cannot change a sale's price: submission returns 422 asking the
+  owner to request a new mandate in the chat, and approving an older staged edit
+  drops the price field.
+
+Consequence: a price shown publicly can never be below the hard floor of the signed
+mandate, and a seller's net is readable only by the service role (mandate snapshots
+and `sale_asking_prices`).
 
 **Buyer flow:**
 

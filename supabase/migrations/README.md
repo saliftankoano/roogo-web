@@ -126,6 +126,8 @@ Expected after 075: one `sale_economics_config` row (ladder 0.30/0.20/0.15/0.10)
 | --- | --- |
 | 075 | `88d433d3fa356a4b8fd50c58817338a42adfffe9c8c4a4725ce34b7379874907` |
 
+The executed file's header mentions `docs/sale-guaranteed-price-plan.md`; that plan was folded into the logbook (DECISIONS, SYSTEM, DOMAIN, ROADMAP) on 2026-09-27 and removed. The header is left unchanged to preserve the executed bytes.
+
 Not yet run: **076** (`076_private_seller_asking_price.sql`). Run it only after the web app from `feat/sale-v3-guaranteed-price` is deployed: the previously deployed code writes `properties.seller_asking_price`, which 076 blocks.
 
 ## History and future execution rules

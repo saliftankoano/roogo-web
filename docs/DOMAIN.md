@@ -131,6 +131,73 @@ the agreed commercial terms.
 **Why it matters for building:** Ownership approval and mandate signature are
 separate sale-publication gates. Passing one never implies the other.
 
+Since v3 (2026-09-27) the mandate states the **prix net garanti**, the exclusivity
+period and the **clause de contournement**; it never states Roogo's listing price.
+Mandates signed before v3 keep their v2 terms.
+
+## Roogo Sell v3
+
+### Prix net garanti (seller net)
+
+**Meaning:** The amount the seller receives from a sale, named in the mandate and
+guaranteed. Also "net price", `seller_net_price`.
+
+**Origin:** Coined for Roogo Sell v3 by Salif on 2026-09-27; replaces the v2
+"desired price" (`desired_price`) from which a commission was deducted.
+
+**Why it matters for building:** Nothing is ever deducted from it. Every fee is taken
+from the margin above it, and it must never be readable by the public or by buyers.
+
+**Evidence:** [Decision](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27), [system](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work).
+
+### Échelle de prix (price ladder)
+
+**Meaning:** The four prices derived from the net: **prix affiché** (listing, +30%),
+**prix cible** (target, +20%), **plancher équipe** (team floor, +15%) and **plancher
+absolu** (hard floor, +10%).
+
+**Origin:** Coined 2026-09-27 for staff negotiation in Burkina Faso, where buyers
+always bargain.
+
+**Why it matters for building:** The public price starts at the listing rung. Staff
+may go down to the team floor, only a founder below it, nobody below the hard floor;
+the same limits apply to price edits and to closings. Markups are snapshotted per
+mandate.
+
+### Clause de contournement (bypass clause)
+
+**Meaning:** If the property is sold within 12 months of signing to a buyer Roogo
+introduced, even outside Roogo, Roogo is owed 10% of the sale price.
+
+**Origin:** Coined 2026-09-27.
+
+**Why it matters for building:** "Introduced" is proven by a `visit_requests` row for
+that buyer and property, so visit records are commercial evidence, not only
+scheduling data.
+
+### Clôture de vente (sale closing)
+
+**Meaning:** The record of a completed sale: final price, buyer, referrers, notary
+fee, referral fees and Roogo's margin (`sale_closings`).
+
+**Origin:** Introduced with v3; before it, sales had no closing record.
+
+**Why it matters for building:** Every number is recomputed by the server. Future
+referral payouts depend on a settled closing, never on a claim.
+
+### Apporteur acheteur / apporteur vendeur (sale referrers)
+
+**Meaning:** A person who brought the buyer (2% of the final price) or referred a
+seller whose property sells through Roogo (1%), paid from the margin after the
+notarized sale and after Roogo is paid.
+
+**Origin:** Coined 2026-09-27. Distinct from the ROO-20 **apporteur** of an appel à
+biens, whose commission commitment is set per call.
+
+**Why it matters for building:** Registration, confirmation and payout are not built
+yet ([roadmap](./ROADMAP.md#next)); until then closings record referrers as flags and
+free text.
+
 ## Property requests
 
 ### Appel à biens

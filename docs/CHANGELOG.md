@@ -6,10 +6,9 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
-## Unreleased (branch `feat/sale-v3-guaranteed-price`, not deployed)
+## 2026-09-27
 
-- **Roogo Sell v3, guaranteed seller price** (web + mobile + data; implemented on branch, not merged, not deployed): mandates now carry a guaranteed net, snapshot the price ladder (+30/+20/+15/+10%), fee and bypass terms, and publish at net +30% on signing; staff see the ladder and target-price split when sending; a new closing panel records the final price, buyer and referrers with server-computed notary/referral fees and Roogo margin, founder approval between +15% and +10%, refusal below +10%, and bypass sales at 10%. Old v2 mandates and chat cards keep working. Requires migration 075 (written, not executed) and a legal read of the terms text before the first real mandate. [Why](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27), [how](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work).
-- **Sale public price stays on the ladder** (web + data; branch only): new sale listings are published at net +30% from creation instead of the owner's number; the owner's asking price moves to the private `sale_asking_prices` table and `properties.seller_asking_price` is cleared and blocked (migration 076, written, not executed), because every `properties` column is public through `public_property_details`. Staff price edits on a signed v3 sale are refused below +10%, need a founder below +15%; owner edit requests can no longer change a sale's public price. [Why](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27).
+- **Roogo Sell v3 database prerequisite executed** (database only): Salif ran migration 075 on Roogo; the post-run check confirmed one `sale_economics_config` row (0.30/0.20/0.15/0.10), all 13 existing mandates on `v2`, `sale_closings` present and no anon read of the settings. The v3 web/API and mobile code are not deployed and no v3 mandate has been sent. [Ledger](../supabase/migrations/README.md), [decision](./DECISIONS.md#roogo-sell-v3-guarantees-the-sellers-net-price--2026-09-27), [remaining release work](./ROADMAP.md#now).
 
 ## 2026-09-13
 
