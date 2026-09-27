@@ -207,6 +207,10 @@ export async function applyPendingEdit(
     if (listingTypeRow?.listing_type === "vendre") {
       delete dbFields.interdictions;
       delete dbFields.dos_and_donts;
+      // The public price of a sale is set by Roogo (top rung of the price
+      // ladder). An owner's price change is a change to their net and needs a
+      // new mandate, so it is never applied to properties.price.
+      delete dbFields.price;
     }
 
     // Build the properties update object

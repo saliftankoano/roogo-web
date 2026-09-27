@@ -1,3 +1,8 @@
+import { getSaleEconomicsConfig } from "@/lib/sale-mandate";
+import {
+  DEFAULT_SALE_ECONOMICS,
+  publishedListingPrice,
+} from "@/lib/sale-economics";
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import {
@@ -815,16 +820,31 @@ export async function POST(req: Request) {
       city: parsedListingData.ville,
     });
 
+    // A sale is always published at the top rung of the price ladder (net +
+    // listing markup), never at the owner's own number. The owner's asking
+    // price is kept privately in sale_asking_prices (migration 076). Signing
+    // the mandate re-derives the price from the mandate's net.
+    let saleEconomics = DEFAULT_SALE_ECONOMICS;
+    if (isSaleListing) {
+      try {
+        saleEconomics = await getSaleEconomicsConfig();
+      } catch (error) {
+        console.warn(
+          "Sale economics config unavailable, using defaults:",
+          error instanceof Error ? error.message : "unknown error",
+        );
+      }
+    }
+    const publicPrice = isSaleListing
+      ? publishedListingPrice(parsedListingData.prixMensuel, saleEconomics)
+      : parsedListingData.prixMensuel;
+
     const propertyData = {
       agent_id: directOwner ? null : parsedListingData.owner_id || user.id,
       hotel_id: hotelId,
       slug: propertySlug,
       description: sanitizeString(parsedListingData.description) || null,
-      // For a sale, the wizard price is the owner's NET asking price; Roogo's public
-      // sale price is set later from the signed mandate. We seed `price` with the
-      // asking as a placeholder (never shown publicly while en_attente).
-      price: parsedListingData.prixMensuel,
-      seller_asking_price: isSaleListing ? parsedListingData.prixMensuel : null,
+      price: publicPrice,
       listing_type: listingType,
       property_type: parsedListingData.type,
       status: propertyStatus as "en_attente" | "en_ligne",
@@ -1004,6 +1024,23 @@ export async function POST(req: Request) {
         console.error("Error creating sale intake:", intakeError);
         await supabase.from("properties").delete().eq("id", propertyId);
         return errorResponse("Failed to create direct sale intake", 500, req);
+      }
+    }
+
+    if (isSaleListing) {
+      const { error: askingError } = await supabase
+        .from("sale_asking_prices")
+        .insert({
+          property_id: propertyId,
+          seller_asking_price: parsedListingData.prixMensuel,
+          source: "listing_wizard",
+        });
+      if (askingError) {
+        // Best effort: the net is agreed in the mandate anyway. Never log the amount.
+        console.error("Could not store the private sale asking price:", {
+          propertyId,
+          code: askingError.code,
+        });
       }
     }
 

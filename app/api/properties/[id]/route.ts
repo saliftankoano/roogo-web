@@ -3,6 +3,7 @@ import { processPropertyStorageCleanupQueue } from "@/lib/property-storage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { requireListingFieldsByType } from "@/lib/validations";
+import { checkPublicSalePriceChange } from "@/lib/sale-mandate";
 import {
   getAuthenticatedUser,
   isOwnerAgentStaffOrFounder,
@@ -173,7 +174,23 @@ export async function PATCH(
     const dbUpdates: Record<string, unknown> = {};
     if (updates.description !== undefined)
       dbUpdates.description = updates.description;
-    if (updates.price !== undefined) dbUpdates.price = Number(updates.price);
+    if (updates.price !== undefined) {
+      const newPrice = Number(updates.price);
+      // Sale listings with a signed v3 mandate: the public price must stay on
+      // the approved ladder (team floor for staff, hard floor for founders).
+      const decision = await checkPublicSalePriceChange({
+        propertyId,
+        newPrice,
+        userType: user.user_type,
+      });
+      if (!decision.ok) {
+        return NextResponse.json(
+          { error: decision.error },
+          { status: decision.status },
+        );
+      }
+      dbUpdates.price = newPrice;
+    }
     if (updates.address !== undefined) dbUpdates.address = updates.address;
     if (updates.city !== undefined) dbUpdates.city = updates.city;
     if (updates.quartier !== undefined) dbUpdates.quartier = updates.quartier;

@@ -14,6 +14,10 @@ import {
   type SaleEconomicsSnapshot,
 } from "@/lib/sale-economics";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import {
+  evaluateSalePriceChange,
+  type SalePriceDecision,
+} from "@/lib/sale-price-guard";
 
 // The price + exclusivity mandate the owner signs.
 //
@@ -419,4 +423,27 @@ export async function getSignedV3MandateForProperty(propertyId: string) {
     .maybeSingle<MandateRow>();
   if (error) throw error;
   return data ?? null;
+}
+
+/**
+ * Guard for a change to the PUBLIC price (properties.price) of a sale listing.
+ * With a signed v3 mandate, the new price must stay on the mandate's ladder:
+ * staff down to the team floor, founders down to the hard floor, never below.
+ * Listings without a signed v3 mandate are not constrained here.
+ */
+export async function checkPublicSalePriceChange(params: {
+  propertyId: string;
+  newPrice: number;
+  userType: string | null | undefined;
+}): Promise<SalePriceDecision> {
+  const mandate = await getSignedV3MandateForProperty(params.propertyId);
+  if (!mandate || mandate.seller_net_price == null) return { ok: true };
+  const snapshot = mandateEconomicsSnapshot(mandate);
+  if (!snapshot) return { ok: true };
+  return evaluateSalePriceChange({
+    newPrice: params.newPrice,
+    sellerNetPrice: Number(mandate.seller_net_price),
+    snapshot,
+    isFounder: params.userType === "founder",
+  });
 }

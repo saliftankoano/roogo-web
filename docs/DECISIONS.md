@@ -27,6 +27,10 @@ Implementation choices (Salif's answers to the plan's open questions, same date)
 
 **Status:** Implemented on branch `feat/sale-v3-guaranteed-price` (web and mobile), **not merged or deployed**. Migration 075 is written but not executed. The mandate terms text needs a legal read by someone who knows Burkina Faso contract law before the first real v3 mandate is sent. Sale referrals (registration, attestation, payouts) are the next plan. See [how it works](./SYSTEM.md#how-does-roogo-sell-the-broker-model-work) and [plan](./sale-guaranteed-price-plan.md).
 
+### A sale's public price is always Roogo's ladder price — 2026-09-27
+
+Salif, 2026-09-27: "the established price should automatically be the highest tier of profit" and "public listed price should be the price we established". So a sale is published at net +30% from the moment it is created (and re-derived from the mandate's net on signing), staff adjust within the ladder only (team down to +15%, founder down to +10%, never below), and an owner cannot change the public price through a listing edit: a new net needs a new mandate. The owner's typed asking price was public through `public_property_details`; it now lives in a service-role-only table (migration 076). Alternative rejected: column-level grants on `properties`, which would break the `p.*` views.
+
 ### Public listing image loading uses layout sizing, immutable sources and a streaming shell — 2026-09-13
 
 **Decision:** Match Next image-size hints to the rendered public layouts; give new public photo uploads immutable URLs and a 30-day source-cache lifetime; resolve featured listings behind Suspense so the static homepage hero can stream first. Single-photo retries use a content key and database uniqueness to recover one linked photo.
