@@ -56,7 +56,7 @@ Not present today: **any sale closing record** (final price, buyer, fees, payout
 
 ## Plan
 
-### 1. Database: migration `075_sale_guaranteed_price.sql`
+### 1. Database: migration `075_sale_guaranteed_price_executed.sql`
 
 1. `listing_config` (founder-editable, snapshotted onto each mandate):
    - `sale_listing_markup_pct NUMERIC NOT NULL DEFAULT 0.30`

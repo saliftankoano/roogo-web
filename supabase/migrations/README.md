@@ -116,6 +116,18 @@ Post-execution verification at **16:30:21 UTC** confirmed:
 
 No app deployment, PawaPay collection, push or SMS was performed. No customer records were deleted or manually reconciled. [Database changelog](../../docs/CHANGELOG.md#2026-09-09).
 
+## 075: Roogo Sell v3, guaranteed seller price (2026-09-27)
+
+Salif reported on **2026-09-27** that he ran `075_sale_guaranteed_price_executed.sql` in the Supabase SQL editor on the Roogo project. **Operator-reported; the post-run verification query result has not yet been recorded here.** Pre-run state (read-only query run by Salif the same day): 075 and 076 objects absent, 13 mandates (12 signed), 17 properties with `seller_asking_price` set.
+
+Expected after 075: one `sale_economics_config` row (ladder 0.30/0.20/0.15/0.10), all 13 existing mandates `economics_version = 'v2'`, `sale_closings` present, no anon read on `sale_economics_config`.
+
+| File | SHA-256 of executed file |
+| --- | --- |
+| 075 | `88d433d3fa356a4b8fd50c58817338a42adfffe9c8c4a4725ce34b7379874907` |
+
+Not yet run: **076** (`076_private_seller_asking_price.sql`). Run it only after the web app from `feat/sale-v3-guaranteed-price` is deployed: the previously deployed code writes `properties.seller_asking_price`, which 076 blocks.
+
 ## History and future execution rules
 
 The eight review-era payment files were consolidated **before** their first execution; this does not authorize rewriting applied history now. Keep 070–072 unchanged and introduce a new, uniquely numbered migration for future changes. The SQL header describes the historical consolidation, not current execution status; this ledger and the database history establish execution.
