@@ -8,6 +8,8 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-05
 
+- **Photo tutorial audio added**: Salif approved his French Cartesia voice and music. The 45-second final MP4 includes narration, ducked licensed music and a fade-out; audio components, decoding and motion continuity verified. [Delivery evidence](./photo-gallery-video-delivery.md).
+
 - **Photo-order tutorial delivered**: a real 48-second production recording with French captions demonstrates dragging, automatic principal selection, arrow controls and saved order after reload. Silent 1080p MP4 opened and played in QuickTime; narration awaits voice/budget choice. [Evidence and local deliverable](./photo-gallery-video-delivery.md).
 
 - **Gallery rearrangement deployed and verified**: photos can be dragged or moved with arrows; the top-left photo automatically becomes principal. Order survives reload. Atomic saves reject stale edits, uploads append, and deletion promotes the next photo. Migration 076 independently applied; [production deployment](https://vercel.com/salif-tankoanos-projects/roogo-web/8CUWfpxEzPDQ5xjfjURXqnVTPtr2) promoted and checked on an unpublished demo listing. Default suite: 217 passed, zero failures, two optional skips; separate Postgres concurrency tests passed. [Decision](./DECISIONS.md#gallery-order-determines-the-principal-photo--2026-10-05), [system](./SYSTEM.md#how-is-the-principal-photo-saved).

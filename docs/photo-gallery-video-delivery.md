@@ -12,3 +12,7 @@ Native ScreenCaptureKit footage on an unpublished demonstration listing contains
 Verification: complete FFmpeg decode passed, 1440 frames, final-size key scene and full-duration contact sheet inspected, QuickTime playback started and sampled through the final scene. This does not assert continuous human review or user aesthetic approval. No audio/mastering checks apply to the silent cut. The full skill motion renderer requires an approved audio mix; this explicitly silent edit uses reproducible FFmpeg commands, with that limitation recorded.
 
 Feature implementation remains [PR37](https://github.com/saliftankoano/roogo-web/pull/37), merged, deployed and production-verified. [CHANGELOG](./CHANGELOG.md#2026-10-05) records delivery; [ROADMAP](./ROADMAP.md#now) keeps the narration decision open.
+
+## Audio revision delivered
+
+Salif answered “yes add music” to the Salif French / Cartesia / $0.10 maximum proposal. One full narration generation succeeded. `Roogo | Équipe - Organiser les photos - Avec audio.mp4` in the same production/vault directories is the new 45-second review export. Quiet Carefree music by Kevin MacLeod is licensed CC BY 4.0 and credited in the closing scene. Automated final decode, exact mixed-audio retention, component correlation and three-second continuity checks pass; player playback started. Production notes retain manual-listening and human-review limitations. The original silent version remains preserved.
