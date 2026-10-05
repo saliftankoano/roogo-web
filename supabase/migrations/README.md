@@ -2,6 +2,10 @@
 
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
+## Ordered photo galleries — 2026-10-05
+
+- [x] [076_property_photo_order_executed.sql](./076_property_photo_order_executed.sql) — independently applied through the Supabase Management API to Roogo (`txbxvpyftgpebgnuazaf`), HTTP 201. Backfills existing cover-first order, adds atomic reorder and legacy-selection compatibility, append/delete reconciliation, and ordered read views. Before/after view grants and security options match. Execution is independent of migration 074 and does not establish CLI history alignment.
+
 ## Principal-photo repair — 2026-10-05
 
 - [x] [075_property_primary_image_executed.sql](./075_property_primary_image_executed.sql) — independently applied through the Supabase Management API to Roogo (`txbxvpyftgpebgnuazaf`), HTTP 201. Adds the server-only atomic selection function and computed principal-photo fields in both listing views. Before/after checks confirmed view grants and security options were preserved. Migration 074 belongs to separate local work and was not applied by this repair. This execution entry does not certify 074 or establish CLI migration-history alignment.

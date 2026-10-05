@@ -236,3 +236,7 @@ Principles above are universal; these are ours, earned locally:
 *Started 2026-07-08 from the six-principle UX psychology breakdown (smart
 defaults, goal gradient, reciprocity, IKEA/endowment, loss aversion,
 anchoring). Add chapters as we learn.*
+
+### Photo gallery smart default — 2026-10-05
+
+The first visible photo is automatically the cover. Drag handles and arrow controls make the same ordering action available by pointer or keyboard; pending and saved messages explain persistence. This removes a separate selection step while keeping professional-photo approval distinct. See [system](./SYSTEM.md#how-is-the-principal-photo-saved).

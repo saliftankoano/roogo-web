@@ -7,15 +7,25 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Gallery order determines the principal photo — 2026-10-05
+
+**Decision:** Let users reorder photos with drag handles or arrows. The first photo is always the principal photo; persist the complete order and principal flag in one transaction.
+
+**Why:** Salif requested freely arranging the pictures and automatically using the top-left picture as the cover. A separate cover selector would allow the visible order and cover to disagree.
+
+**Ruled out / alternatives:** Client-only sorting would disappear on refresh. Independent per-photo writes could leave a partly saved order. Last-write-wins could overwrite another user's arrangement, so saves carry the order the editor started from and reject stale changes.
+
+**Status:** Settled. Production drag, arrow save and reload verified on an unpublished demonstration listing. Uploads append and deleting the first photo promotes the next; existing mobile cover requests move their selected photo to the front. See [system](./SYSTEM.md#how-is-the-principal-photo-saved), [term](./DOMAIN.md#photo-principale), and [release](./CHANGELOG.md#2026-10-05).
+
 ### Principal photos use one atomic selection and one source of truth — 2026-10-05
 
-**Decision:** Store the selection only in `property_images.is_primary`; expose a computed `primary_image` in both listing views and change the selection through the server-only `set_property_primary_image` transaction.
+**Decision:** Initial repair stored the selection only in `property_images.is_primary`; expose a computed `primary_image` in both listing views and change the selection through the server-only `set_property_primary_image` transaction.
 
 **Why:** The reported web alert was caused by a write to nonexistent `properties.primary_image` after the image flags had already committed. Live schema checks confirmed SQL error 42703. Neither listing view exposed the selected image, so refresh could fall back to an unrelated first gallery image. Independent writes also allowed partial failure and competing selections.
 
 **Ruled out / alternatives:** Adding another stored principal-photo field would create competing sources of truth. Removing only the failing write would leave refresh and concurrency broken. Rebuilding the public view from the private view would risk undoing sale-owner redaction; the migration preserves each existing projection, grants and security options.
 
-**Status:** Settled implementation. Regression checks exercise the route's authorization and database persistence, rollback, concurrent selections, duplicate URLs and public-view redaction. Release evidence belongs in the changelog.
+**Status:** Superseded selection mechanic by the ordered-gallery decision above; the atomic persistence and preserved view-security requirements remain. Regression checks exercise the route's authorization and database persistence, rollback, concurrent selections, duplicate URLs and public-view redaction. Release evidence belongs in the changelog.
 
 See [how selection works](./SYSTEM.md#how-is-the-principal-photo-saved) and [the term](./DOMAIN.md#photo-principale).
 

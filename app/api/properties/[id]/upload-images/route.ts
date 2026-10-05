@@ -190,14 +190,6 @@ export async function POST(
       // Still return success with URLs even if DB insert fails
     }
 
-    if (!imagesError && existingPrimaryCount === 0 && uploadedImages.length > 0) {
-      const primaryUrl = uploadedImages[0].url;
-      await supabase
-        .from("properties")
-        .update({ primary_image: primaryUrl })
-        .eq("id", propertyId);
-    }
-
     await captureServerEvent(user.clerk_id || user.id, "property_images_uploaded", {
       property_id: propertyId,
       image_count: uploadedImages.length,

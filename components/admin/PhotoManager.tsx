@@ -6,7 +6,7 @@ import {
   CheckIcon,
   CloudArrowUpIcon,
   TrashIcon,
-  StarIcon,
+  DotsSixVerticalIcon,
   ArrowsOutSimpleIcon,
   DownloadSimpleIcon,
   XIcon,
@@ -16,6 +16,7 @@ import {
 import { Button } from "@/components/ui/Button";
 import Image from "next/image";
 import { useAuth } from "@clerk/nextjs";
+import { movePhoto, principalPhotoFirst } from "@/lib/photo-order";
 import { uploadPropertyPhotoFiles } from "@/lib/clientPropertyPhotoUpload";
 
 interface PhotoManagerProps {
@@ -65,7 +66,7 @@ export default function PhotoManager({
 }: PhotoManagerProps) {
   const { getToken } = useAuth();
   const [photos, setPhotos] = useState<string[]>(
-    sanitizePhotoUrls(initialPhotos),
+    principalPhotoFirst(initialPhotos, primaryImageUrl),
   );
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
@@ -74,30 +75,23 @@ export default function PhotoManager({
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
-  const [currentPrimaryUrl, setCurrentPrimaryUrl] = useState(
-    primaryImageUrl || "",
-  );
+  const [saveMessage, setSaveMessage] = useState("");
+  const [dropTargetUrl, setDropTargetUrl] = useState<string | null>(null);
+  const [dragPreview, setDragPreview] = useState<{ url: string; x: number; y: number } | null>(null);
+  const dragRef = useRef<{ url: string; target: string; x: number; y: number; moved: boolean } | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const isFullscreenOpen = fullscreenIndex !== null && !!photos[fullscreenIndex];
 
-  const matchedPrimaryIndex = currentPrimaryUrl
-    ? photos.findIndex((p) => p === currentPrimaryUrl)
-    : -1;
-  const primaryIndex = matchedPrimaryIndex >= 0 ? matchedPrimaryIndex : 0;
+  const primaryIndex = 0;
 
   useEffect(() => {
     setProfessional(isProfessional);
   }, [isProfessional]);
 
-  // Update photos when initialPhotos changes (e.g. after refresh)
   useEffect(() => {
-    const sanitized = sanitizePhotoUrls(initialPhotos);
-    setPhotos(sanitized);
-  }, [initialPhotos, propertyId]);
-
-  useEffect(() => {
-    setCurrentPrimaryUrl(primaryImageUrl || "");
-  }, [primaryImageUrl, propertyId]);
+    setPhotos(principalPhotoFirst(initialPhotos, primaryImageUrl));
+    setSaveMessage("");
+  }, [initialPhotos, primaryImageUrl, propertyId]);
 
   useEffect(() => {
     if (fullscreenIndex !== null && fullscreenIndex >= photos.length) {
@@ -152,7 +146,7 @@ export default function PhotoManager({
       const newUrls = sanitizePhotoUrls(
         uploadedImages.map((img: { url: string }) => img.url),
       );
-      setPhotos((prev) => [...prev, ...newUrls]);
+      setPhotos((prev) => [...new Set([...prev, ...newUrls])]);
     } catch (error) {
       console.error("Upload error:", error);
       const detail = error instanceof Error ? error.message : String(error);
@@ -242,50 +236,63 @@ export default function PhotoManager({
     );
   };
 
-  const setPrimary = async (index: number) => {
-    const photoUrl = photos[index];
-    if (!photoUrl || primaryRequestRef.current) return;
+  const saveOrder = async (nextPhotos: string[]) => {
+    if (primaryRequestRef.current || uploading || nextPhotos === photos) return;
+    const previousPhotos = photos;
     primaryRequestRef.current = true;
     setSettingPrimary(true);
+    setSaveMessage("Enregistrement de l’ordre…");
+    setPhotos(nextPhotos);
     try {
       const token = await getToken();
       if (!token) throw new Error("Votre session a expiré. Reconnectez-vous puis réessayez.");
       const response = await fetch(`/api/properties/${propertyId}/images`, {
         method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization: `Bearer ${token}`,
-        },
-        body: JSON.stringify({ url: photoUrl }),
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ urls: nextPhotos, expectedUrls: previousPhotos }),
       });
-
       const result = await response.json().catch(() => null);
-      if (!response.ok || result?.success !== true) {
+      if (!response.ok || result?.success !== true || !Array.isArray(result.photos)) {
         const message = response.status === 401
           ? "Votre session a expiré. Reconnectez-vous puis réessayez."
           : response.status === 403
             ? "Vous n’avez pas la permission de modifier les photos de ce bien."
-            : response.status === 404
-              ? "Cette photo n’est plus disponible. Actualisez la page puis réessayez."
-              : "La photo principale n’a pas pu être enregistrée. Réessayez dans un instant.";
+            : response.status === 409 || response.status === 404
+              ? "Les photos ont changé. Actualisez la page puis réessayez."
+              : "L’ordre des photos n’a pas pu être enregistré. Réessayez dans un instant.";
         throw new Error(message);
       }
-
-      setCurrentPrimaryUrl(result.primaryImageUrl || photoUrl);
+      setPhotos(result.photos);
+      setSaveMessage("Ordre enregistré");
     } catch (error) {
-      console.error("Set primary error:", error);
-      alert(error instanceof Error ? error.message : "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.");
+      setPhotos(previousPhotos);
+      const message = error instanceof TypeError
+        ? "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez."
+        : error instanceof Error ? error.message : "L’ordre des photos n’a pas pu être enregistré.";
+      setSaveMessage(message);
     } finally {
       primaryRequestRef.current = false;
       setSettingPrimary(false);
     }
   };
 
+  const finishDrag = (cancelled = false) => {
+    const drag = dragRef.current;
+    dragRef.current = null;
+    setDragPreview(null);
+    setDropTargetUrl(null);
+    if (!cancelled && drag?.moved) {
+      void saveOrder(movePhoto(photos, photos.indexOf(drag.url), photos.indexOf(drag.target)));
+    }
+  };
+
   const removePhoto = async (index: number) => {
     const photoUrl = photos[index];
-    if (!photoUrl) return;
+    if (!photoUrl || primaryRequestRef.current || uploading) return;
     if (!confirm("Voulez-vous vraiment supprimer cette photo ?")) return;
 
+    primaryRequestRef.current = true;
+    setSettingPrimary(true);
     // Optimistically remove from UI
     const newPhotos = photos.filter((_, i) => i !== index);
     setPhotos(newPhotos);
@@ -308,13 +315,21 @@ export default function PhotoManager({
       }
     } catch (error) {
       console.error("Delete error:", error);
-      // No revert needed
+      setPhotos(photos);
       alert("Erreur lors de la suppression de l'image");
+    } finally {
+      primaryRequestRef.current = false;
+      setSettingPrimary(false);
     }
   };
 
   return (
     <>
+    {dragPreview && (
+      <div aria-hidden="true" className="pointer-events-none fixed z-[100] h-24 w-40 overflow-hidden rounded-xl shadow-xl ring-2 ring-primary" style={{ left: dragPreview.x - 80, top: dragPreview.y - 48 }}>
+        <Image src={dragPreview.url} alt="" fill sizes="160px" className="object-cover" />
+      </div>
+    )}
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-xl font-bold flex items-center gap-2">
@@ -345,11 +360,17 @@ export default function PhotoManager({
         </div>
       </div>
 
+      <div className="space-y-1">
+        <p className="text-sm text-neutral-600">Glissez les photos pour les réorganiser. La première photo, en haut à gauche, est la photo principale.</p>
+        <p id={`photo-order-help-${propertyId}`} className="text-xs text-neutral-500">Vous pouvez aussi utiliser les flèches pour déplacer une photo.</p>
+        <p role="status" aria-live="polite" className="min-h-5 text-sm font-medium text-neutral-700">{saveMessage}</p>
+      </div>
       <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
         {photos.map((url, i) => (
           <div
-            key={i}
-            className="aspect-video relative rounded-xl overflow-hidden border border-neutral-100 group"
+            key={url}
+            data-photo-url={url}
+            className={`aspect-video relative rounded-xl overflow-hidden border group ${dropTargetUrl === url ? "ring-4 ring-primary border-primary" : "border-neutral-100"} ${dragPreview?.url === url ? "opacity-50" : ""}`}
           >
             <button
               type="button"
@@ -396,32 +417,63 @@ export default function PhotoManager({
                 type="button"
                 onClick={(event) => {
                   event.stopPropagation();
-                  setPrimary(i);
-                }}
-                disabled={settingPrimary || uploading}
-                aria-busy={settingPrimary}
-                className={`p-2 rounded-full transition-colors ${i === primaryIndex ? "bg-yellow-400 text-white" : "bg-white/20 hover:bg-yellow-400 text-white"}`}
-                title={
-                  i === primaryIndex
-                    ? "Photo principale"
-                    : "Définir comme principale"
-                }
-              >
-                <StarIcon
-                  size={18}
-                  weight={i === primaryIndex ? "fill" : "regular"}
-                />
-              </button>
-              <button
-                type="button"
-                onClick={(event) => {
-                  event.stopPropagation();
                   removePhoto(i);
                 }}
                 className="p-2 bg-white/20 hover:bg-red-500 rounded-full text-white transition-colors"
+                disabled={settingPrimary || uploading || dragPreview !== null}
                 title="Supprimer"
               >
                 <TrashIcon size={18} />
+              </button>
+            </div>
+            <div className="absolute bottom-2 left-2 z-20 flex items-center gap-1 rounded-full bg-white shadow-sm">
+              <button
+                type="button"
+                aria-label={`Déplacer la photo ${i + 1}`}
+                aria-describedby={`photo-order-help-${propertyId}`}
+                disabled={settingPrimary || uploading}
+                className="touch-none cursor-grab rounded-full p-2 text-neutral-700 active:cursor-grabbing disabled:opacity-40"
+                onClick={(event) => event.stopPropagation()}
+                onPointerDown={(event) => {
+                  if (event.button !== 0 || primaryRequestRef.current || uploading) return;
+                  event.preventDefault();
+                  event.stopPropagation();
+                  event.currentTarget.setPointerCapture(event.pointerId);
+                  dragRef.current = { url, target: url, x: event.clientX, y: event.clientY, moved: false };
+                }}
+                onPointerMove={(event) => {
+                  const drag = dragRef.current;
+                  if (!drag) return;
+                  if (Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 5 && !drag.moved) return;
+                  drag.moved = true;
+                  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-photo-url]")?.dataset.photoUrl;
+                  if (target && photos.includes(target)) drag.target = target;
+                  setDropTargetUrl(drag.target);
+                  setDragPreview({ url: drag.url, x: event.clientX, y: event.clientY });
+                }}
+                onPointerUp={(event) => {
+                  const target = document.elementFromPoint(event.clientX, event.clientY)?.closest<HTMLElement>("[data-photo-url]")?.dataset.photoUrl;
+                  finishDrag(!target);
+                }}
+                onPointerCancel={() => finishDrag(true)}
+                onLostPointerCapture={() => finishDrag(true)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") finishDrag(true);
+                  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                    event.preventDefault();
+                    void saveOrder(movePhoto(photos, i, i + (event.key === "ArrowLeft" ? -1 : 1)));
+                  }
+                }}
+              >
+                <DotsSixVerticalIcon size={18} weight="bold" />
+              </button>
+              <button type="button" aria-label={`Reculer la photo ${i + 1}`} disabled={i === 0 || settingPrimary || uploading || dragPreview !== null}
+                className="rounded-full p-1.5 text-neutral-700 disabled:opacity-30" onClick={(event) => { event.stopPropagation(); void saveOrder(movePhoto(photos, i, i - 1)); }}>
+                <CaretLeftIcon size={14} weight="bold" />
+              </button>
+              <button type="button" aria-label={`Avancer la photo ${i + 1}`} disabled={i === photos.length - 1 || settingPrimary || uploading || dragPreview !== null}
+                className="rounded-full p-1.5 text-neutral-700 disabled:opacity-30" onClick={(event) => { event.stopPropagation(); void saveOrder(movePhoto(photos, i, i + 1)); }}>
+                <CaretRightIcon size={14} weight="bold" />
               </button>
             </div>
             {i === primaryIndex && (
@@ -442,7 +494,7 @@ export default function PhotoManager({
         />
         <button
           onClick={handleUploadClick}
-          disabled={uploading}
+          disabled={uploading || settingPrimary || dragPreview !== null}
           className="aspect-video border-2 border-dashed border-neutral-200 rounded-xl flex flex-col items-center justify-center text-neutral-400 hover:border-primary/50 hover:text-primary transition-all bg-neutral-50/50"
         >
           {uploading ? (
