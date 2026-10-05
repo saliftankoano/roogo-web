@@ -69,6 +69,8 @@ export default function PhotoManager({
   );
   const [professional, setProfessional] = useState(isProfessional);
   const [uploading, setLoading] = useState(false);
+  const [settingPrimary, setSettingPrimary] = useState(false);
+  const primaryRequestRef = useRef(false);
   const [fullscreenIndex, setFullscreenIndex] = useState<number | null>(null);
   const [downloadingIndex, setDownloadingIndex] = useState<number | null>(null);
   const [isDownloadingAll, setIsDownloadingAll] = useState(false);
@@ -242,11 +244,12 @@ export default function PhotoManager({
 
   const setPrimary = async (index: number) => {
     const photoUrl = photos[index];
-    if (!photoUrl) return;
-    // Note: Don't reorder the array - just update the database and rely on primaryImageUrl prop
-
+    if (!photoUrl || primaryRequestRef.current) return;
+    primaryRequestRef.current = true;
+    setSettingPrimary(true);
     try {
       const token = await getToken();
+      if (!token) throw new Error("Votre session a expiré. Reconnectez-vous puis réessayez.");
       const response = await fetch(`/api/properties/${propertyId}/images`, {
         method: "PATCH",
         headers: {
@@ -256,15 +259,25 @@ export default function PhotoManager({
         body: JSON.stringify({ url: photoUrl }),
       });
 
-      if (!response.ok) {
-        alert("Erreur lors de la définition de la photo principale");
-        return;
+      const result = await response.json().catch(() => null);
+      if (!response.ok || result?.success !== true) {
+        const message = response.status === 401
+          ? "Votre session a expiré. Reconnectez-vous puis réessayez."
+          : response.status === 403
+            ? "Vous n’avez pas la permission de modifier les photos de ce bien."
+            : response.status === 404
+              ? "Cette photo n’est plus disponible. Actualisez la page puis réessayez."
+              : "La photo principale n’a pas pu être enregistrée. Réessayez dans un instant.";
+        throw new Error(message);
       }
 
-      setCurrentPrimaryUrl(photoUrl);
+      setCurrentPrimaryUrl(result.primaryImageUrl || photoUrl);
     } catch (error) {
       console.error("Set primary error:", error);
-      alert("Erreur lors de la définition de la photo principale");
+      alert(error instanceof Error ? error.message : "Impossible de joindre le serveur. Vérifiez votre connexion puis réessayez.");
+    } finally {
+      primaryRequestRef.current = false;
+      setSettingPrimary(false);
     }
   };
 
@@ -385,6 +398,8 @@ export default function PhotoManager({
                   event.stopPropagation();
                   setPrimary(i);
                 }}
+                disabled={settingPrimary || uploading}
+                aria-busy={settingPrimary}
                 className={`p-2 rounded-full transition-colors ${i === primaryIndex ? "bg-yellow-400 text-white" : "bg-white/20 hover:bg-yellow-400 text-white"}`}
                 title={
                   i === primaryIndex

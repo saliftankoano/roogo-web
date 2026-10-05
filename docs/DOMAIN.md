@@ -88,6 +88,14 @@ lifecycle.
 **Why it matters for building:** Creating a database property is not the same as
 publishing it. Review and sale-specific gates can keep an annonce private.
 
+### Photo principale
+
+**Meaning:** The selected cover photo of an annonce, used for its card and the principal marker in photo management. It is a selection within the gallery, independent of professional-photo approval.
+
+**Origin:** Established listing terminology, confirmed by the Roogo photo-management labels and `property_images.is_primary`.
+
+**Why it matters for building:** Selecting a cover must persist across refresh without reordering or replacing the gallery. It does not approve professional photos or publish the annonce. See [how it is saved](./SYSTEM.md#how-is-the-principal-photo-saved).
+
 ### Type d'annonce
 
 **Meaning:** Whether an annonce is offered for rent (`louer`) or for sale

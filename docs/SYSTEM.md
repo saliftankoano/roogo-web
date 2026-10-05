@@ -726,3 +726,13 @@ moderation (and any payment/tier requirements).
 The practical consequence: an owner can post a property without proving who they are,
 but Roogo will not publish a sale — and cannot take its spread — until it has verified
 the property's ownership and the owner has signed the mandate.
+
+## How is the principal photo saved?
+
+Selecting the principal photo updates the gallery flags in one database transaction. The API first authenticates the user and checks staff/founder status or ownership. A server-only function locks the property and gallery, validates that the selected URL belongs to that property, and marks exactly one image record as principal. Legacy duplicate URLs resolve to one record. Missing targets and failed writes leave the previous selection intact; competing selections serialize.
+
+Both private and public listing views compute `primary_image` from the selected photo, so cards and refreshed details use the same source of truth. Existing public redaction, grants and view security options are preserved. No `properties.primary_image` storage column exists or is needed. Galleries without a selected photo retain their first-image fallback. Uploading or deleting gallery images remains a separate workflow.
+
+The web control accepts success only after the API confirms the save, blocks repeated selection while a request is pending, and explains session, permission, missing-photo and save errors. These controls prevent the diagnosed nonexistent-column and partial-save failures; they cannot guarantee perpetual availability of authentication, network or database services.
+
+See [the decision](./DECISIONS.md#principal-photos-use-one-atomic-selection-and-one-source-of-truth--2026-10-05) and [photo principale](./DOMAIN.md#photo-principale). Regression tests: `npm run test:primary-photo`; set `ROOGO_PRIMARY_IMAGE_TEST_CONTAINER` to an isolated disposable Postgres container to run transaction checks. Never point this fixture at production.
