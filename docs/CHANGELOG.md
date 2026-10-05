@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-05
+
+- **Principal-photo changes repaired and production-verified** (web + backend + data): selecting a cover now saves atomically, survives refresh through computed listing-view fields, blocks repeated pending selections, and returns actionable errors. Migration 075 was independently applied to Roogo; the [production deployment](https://vercel.com/salif-tankoanos-projects/roogo-web/EZ9CSzGdrUcs8NrTd8mb3noSQJFj) was promoted to www.roogobf.com. The Balkuy listing's exterior/gate photo was selected successfully and rechecked after reload. Default regression checks cover authorization, persistence, rollback, duplicate URLs, grants and public-view redaction; a disposable Postgres run additionally verified concurrent selection. ([why](./DECISIONS.md#principal-photos-use-one-atomic-selection-and-one-source-of-truth--2026-10-05), [how](./SYSTEM.md#how-is-the-principal-photo-saved), [migration ledger](../supabase/migrations/README.md#principal-photo-repair--2026-10-05))
+
 ## 2026-09-13
 
 - **Homepage hero streaming** (web, merged #34 at 00:42:44 UTC): the hero and preload render before the featured-annonce query resolves, with separate loading, empty and unavailable states. Includes the rollout logbook and executed migration filename record; production verification remains in [ROADMAP](./ROADMAP.md#now). [System](./SYSTEM.md#how-do-public-listing-photos-load-and-recover), [PR #34](https://github.com/saliftankoano/roogo-web/pull/34), [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23).

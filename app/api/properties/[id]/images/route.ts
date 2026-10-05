@@ -220,7 +220,7 @@ export async function PATCH(
     const body = await req.json();
     const { url } = body;
 
-    if (!url) {
+    if (typeof url !== "string" || !url.trim()) {
       return cors(json({ error: "Missing image url" }, 400));
     }
 
@@ -241,55 +241,22 @@ export async function PATCH(
       return cors(json({ error: "Forbidden" }, 403));
     }
 
-    const { data: targetImage, error: targetImageError } = await supabase
-      .from("property_images")
-      .select("id")
-      .match({ property_id: propertyId, url })
-      .maybeSingle();
+    // Selection and reset must commit together. primary_image is a read-view
+    // projection, never a column to write on properties.
+    const { data: primaryImage, error: primaryError } = await supabase.rpc(
+      "set_property_primary_image",
+      { p_property_id: propertyId, p_url: url },
+    );
 
-    if (targetImageError) {
-      console.error("Error finding primary image target:", targetImageError);
-      return cors(json({ error: "Failed to find image" }, 500));
+    if (primaryError) {
+      if (primaryError.code === "P0002") {
+        return cors(json({ error: "Image not found", code: "IMAGE_NOT_FOUND" }, 404));
+      }
+      console.error("Error setting primary image:", primaryError);
+      return cors(json({ error: "Failed to set primary image", code: "PRIMARY_IMAGE_SAVE_FAILED" }, 500));
     }
 
-    if (!targetImage) {
-      return cors(json({ error: "Image not found" }, 404));
-    }
-
-    // 4. Update database: Set all to false, then target to true
-    // First, set all images for this property to is_primary = false
-    const { error: resetError } = await supabase
-      .from("property_images")
-      .update({ is_primary: false })
-      .eq("property_id", propertyId);
-
-    if (resetError) {
-      console.error("Error resetting primary images:", resetError);
-      return cors(json({ error: "Failed to update image status" }, 500));
-    }
-
-    // Then set the target image to is_primary = true
-    const { error: setError } = await supabase
-      .from("property_images")
-      .update({ is_primary: true })
-      .match({ property_id: propertyId, url: url });
-
-    if (setError) {
-      console.error("Error setting primary image:", setError);
-      return cors(json({ error: "Failed to set primary image" }, 500));
-    }
-
-    const { error: propertyUpdateError } = await supabase
-      .from("properties")
-      .update({ primary_image: url })
-      .eq("id", propertyId);
-
-    if (propertyUpdateError) {
-      console.error("Error updating property primary image:", propertyUpdateError);
-      return cors(json({ error: "Failed to update property primary image" }, 500));
-    }
-
-    return cors(json({ success: true }));
+    return cors(json({ success: true, primaryImageUrl: primaryImage }));
 
   } catch (error) {
     console.error("Error in PATCH /api/properties/[id]/images:", error);

@@ -2,6 +2,10 @@
 
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
+## Principal-photo repair — 2026-10-05
+
+- [x] [075_property_primary_image_executed.sql](./075_property_primary_image_executed.sql) — independently applied through the Supabase Management API to Roogo (`txbxvpyftgpebgnuazaf`), HTTP 201. Adds the server-only atomic selection function and computed principal-photo fields in both listing views. Before/after checks confirmed view grants and security options were preserved. Migration 074 belongs to separate local work and was not applied by this repair. This execution entry does not certify 074 or establish CLI migration-history alignment.
+
 ## Current Roogo execution record — 2026-09-13 UTC
 
 Salif explicitly confirmed in this conversation: **all migrations 001–073 have run on Roogo**. He separately reported running 073 before merging the image PRs. All 73 files therefore end in `_executed.sql`. This is an operator-confirmed record; this documentation task did not independently query the database, execute SQL or change migration history. The verified 070–072 evidence from 2026-09-09 remains below.

@@ -7,6 +7,18 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Principal photos use one atomic selection and one source of truth — 2026-10-05
+
+**Decision:** Store the selection only in `property_images.is_primary`; expose a computed `primary_image` in both listing views and change the selection through the server-only `set_property_primary_image` transaction.
+
+**Why:** The reported web alert was caused by a write to nonexistent `properties.primary_image` after the image flags had already committed. Live schema checks confirmed SQL error 42703. Neither listing view exposed the selected image, so refresh could fall back to an unrelated first gallery image. Independent writes also allowed partial failure and competing selections.
+
+**Ruled out / alternatives:** Adding another stored principal-photo field would create competing sources of truth. Removing only the failing write would leave refresh and concurrency broken. Rebuilding the public view from the private view would risk undoing sale-owner redaction; the migration preserves each existing projection, grants and security options.
+
+**Status:** Settled implementation. Regression checks exercise the route's authorization and database persistence, rollback, concurrent selections, duplicate URLs and public-view redaction. Release evidence belongs in the changelog.
+
+See [how selection works](./SYSTEM.md#how-is-the-principal-photo-saved) and [the term](./DOMAIN.md#photo-principale).
+
 ### Public listing image loading uses layout sizing, immutable sources and a streaming shell — 2026-09-13
 
 **Decision:** Match Next image-size hints to the rendered public layouts; give new public photo uploads immutable URLs and a 30-day source-cache lifetime; resolve featured listings behind Suspense so the static homepage hero can stream first. Single-photo retries use a content key and database uniqueness to recover one linked photo.
