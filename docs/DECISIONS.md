@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Verify batch-trigger visibility before changing gallery allocation — 2026-10-05
+
+**Decision:** Retain the append trigger and add multi-row and concurrent-batch regression coverage. The reported duplicate-position mechanism did not reproduce.
+
+**Why:** A VOLATILE row-level BEFORE trigger sees earlier rows processed by the same statement. Four-row inserts produced positions 0–3 and one cover in PGlite and PostgreSQL 17. Two simultaneous additional batches produced distinct positions 0–11 and one cover; immediate reorder using the returned snapshot succeeded.
+
+**Alternatives:** A replacement allocator or production repair would change working behavior without evidence of this failure. General client-selection ordering across parallel requests remains a separate concern; PostgreSQL row visitation rules do not guarantee arbitrary INSERT source order.
+
+**Status:** Settled for this reported mechanism; reopen with a failing reproduction or live duplicate evidence. See [system](./SYSTEM.md#how-is-the-principal-photo-saved). No production database change was applied.
+
 ### Gallery order determines the principal photo — 2026-10-05
 
 **Decision:** Let users reorder photos with drag handles or arrows. The first photo is always the principal photo; persist the complete order and principal flag in one transaction.
