@@ -100,7 +100,6 @@ export async function POST(req: Request) {
       "Plafond mensuel atteint. Demandez à Salif de le relever.",
       402,
       req,
-      "cap_reached",
     );
   }
 
