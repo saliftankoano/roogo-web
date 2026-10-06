@@ -116,6 +116,7 @@ const isPublicRoute = createRouteMatcher([
   "/tutoriels(.*)",
   "/proprietes",
   "/visites-3d",
+  "/proprietaires",
   "/mebo",
   "/mebo/plans(.*)",
   "/mebo/vendeurs(.*)",
