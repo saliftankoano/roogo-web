@@ -1,11 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
-// Streams the owner VSL from the private `site-videos` bucket. The browser only
-// ever sees this route; the Supabase object URL (and its signature) never leave
-// the server. Range requests are passed through so seeking works.
+// Streams the site videos from the private `site-videos` bucket. The browser
+// only ever sees this route; the Supabase object URL (and its signature) never
+// leave the server. Range requests are passed through so seeking works.
 const BUCKET = "site-videos";
-const OBJECT_PATH = "vsl-proprietaires.mp4";
+const OBJECTS: Record<string, string> = {
+  "vsl-proprietaires": "vsl-proprietaires.mp4",
+  "vsl-locataires": "vsl-locataires.mp4",
+};
 const PASS_THROUGH_HEADERS = [
   "content-length",
   "content-range",
@@ -16,10 +19,18 @@ const PASS_THROUGH_HEADERS = [
 
 export const dynamic = "force-dynamic";
 
-async function stream(req: NextRequest, method: "GET" | "HEAD") {
+async function stream(
+  req: NextRequest,
+  params: Promise<{ name: string }>,
+  method: "GET" | "HEAD",
+) {
+  const { name } = await params;
+  const objectPath = OBJECTS[name];
+  if (!objectPath) return new NextResponse("Not found", { status: 404 });
+
   const { data, error } = await supabaseAdmin.storage
     .from(BUCKET)
-    .createSignedUrl(OBJECT_PATH, 60);
+    .createSignedUrl(objectPath, 60);
   if (error || !data?.signedUrl) {
     return new NextResponse("Video unavailable", { status: 502 });
   }
@@ -41,9 +52,9 @@ async function stream(req: NextRequest, method: "GET" | "HEAD") {
     "cache-control": "public, max-age=3600",
     "x-content-type-options": "nosniff",
   });
-  for (const name of PASS_THROUGH_HEADERS) {
-    const value = upstream.headers.get(name);
-    if (value) headers.set(name, value);
+  for (const header of PASS_THROUGH_HEADERS) {
+    const value = upstream.headers.get(header);
+    if (value) headers.set(header, value);
   }
   if (!headers.has("accept-ranges")) headers.set("accept-ranges", "bytes");
 
@@ -53,10 +64,16 @@ async function stream(req: NextRequest, method: "GET" | "HEAD") {
   });
 }
 
-export function GET(req: NextRequest) {
-  return stream(req, "GET");
+export function GET(
+  req: NextRequest,
+  { params }: { params: Promise<{ name: string }> },
+) {
+  return stream(req, params, "GET");
 }
 
-export function HEAD(req: NextRequest) {
-  return stream(req, "HEAD");
+export function HEAD(
+  req: NextRequest,
+  { params }: { params: Promise<{ name: string }> },
+) {
+  return stream(req, params, "HEAD");
 }
