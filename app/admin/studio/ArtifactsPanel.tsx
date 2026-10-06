@@ -168,7 +168,7 @@ function ScriptCard({
           <MicrophoneIcon size={20} weight="bold" />
         )}
         {estimate
-          ? `Générer la voix de ${voiceLabel} (environ ${money(estimate.estimateUsd)})`
+          ? `Générer la voix, ${voiceLabel} (environ ${money(estimate.estimateUsd)})`
           : "Générer la voix"}
       </button>
       <div className="flex gap-2">

@@ -101,7 +101,9 @@ export function phoneToSpokenPairs(digits: string): string {
 }
 
 // Order matters: longer and more specific words first.
-const RESPELLINGS: Array<[RegExp, string | ((match: string) => string)]> = [
+const RESPELLINGS: Array<
+  [RegExp, string | ((match: string, ...groups: string[]) => string)]
+> = [
   [/\bOuagadougou\b/gi, "Waga"],
   [/\bOuaga\b/gi, "Waga"],
   [/\bBurkina\s+Faso\b/gi, "Bourkina Faso"],
@@ -109,6 +111,10 @@ const RESPELLINGS: Array<[RegExp, string | ((match: string) => string)]> = [
   [/\bRoogo\b/gi, "Rohgo"],
   [/\bNagrin\b/gi, "Nagrain"],
   [/\bparcelles?\b/gi, (match) => match.replace(/parcelle/i, "par-celle")],
+  // Found on 2026-10-06: the voice read "FCFA" as "francs CFA BAK".
+  [/\bF\s?CFA\b/g, "francs CFA"],
+  // "R+1" is spoken "R plus un" (a ground floor and one storey).
+  [/\bR\+(\d)\b/g, (_match, floors) => `R plus ${numberToFrench(Number(floors))}`],
 ];
 
 /** Built-in respellings, shown read-only in the team glossary. */
@@ -118,6 +124,8 @@ export const BUILTIN_RESPELLINGS: ReadonlyArray<{ term: string; spoken: string }
   { term: "Ouaga / Ouagadougou", spoken: "Waga" },
   { term: "Nagrin", spoken: "Nagrain" },
   { term: "parcelle", spoken: "par-celle" },
+  { term: "FCFA", spoken: "francs CFA" },
+  { term: "R+1, R+2...", spoken: "R plus un, R plus deux..." },
 ];
 
 export type GlossaryEntry = { term: string; spoken: string };
