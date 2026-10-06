@@ -9,8 +9,19 @@ import {
   HandshakeIcon,
   HouseLineIcon,
   IdentificationCardIcon,
+  MicrophoneIcon,
   PencilSimpleLineIcon,
 } from "@phosphor-icons/react";
+
+// Top-level (not inside a group) and pinned in the mobile header too, so the
+// Studio stays within the three-click budget.
+export const studioNavItem: AdminNavItemLink = {
+  type: "link",
+  label: "Studio",
+  href: "/admin/studio",
+  id: "admin-nav-studio",
+  icon: MicrophoneIcon,
+};
 
 export type AdminNavItem = {
   type: "link";
@@ -19,6 +30,7 @@ export type AdminNavItem = {
   id: string;
   icon: typeof BuildingsIcon;
 };
+type AdminNavItemLink = AdminNavItem;
 
 export type AdminNavGroupItem = {
   type: "group";
@@ -159,6 +171,7 @@ export function getAdminNavItems(isFounder: boolean): AdminNavEntry[] {
       id: "admin-nav-annonces",
       icon: BuildingsIcon,
     },
+    studioNavItem,
     {
       type: "group",
       label: "Messages",

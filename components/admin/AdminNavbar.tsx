@@ -13,6 +13,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getAdminNavItems,
+  studioNavItem,
   type AdminNavEntry,
   type AdminNavItem,
 } from "../../lib/navigation/adminNav";
@@ -289,8 +290,23 @@ export function AdminNavbar() {
             </div>
           )}
 
+          <Link
+            href={studioNavItem.href}
+            data-id="admin-nav-studio-mobile"
+            aria-label="Studio de contenu"
+            aria-current={isLinkActive(pathname, studioNavItem.href) ? "page" : undefined}
+            className={cn(
+              "ml-1 rounded-full p-2 transition-colors lg:hidden",
+              isLinkActive(pathname, studioNavItem.href)
+                ? "bg-primary/10 text-primary"
+                : "bg-neutral-100 text-neutral-600 hover:text-primary",
+            )}
+          >
+            <studioNavItem.icon size={22} weight="bold" />
+          </Link>
+
           <button
-            className="ml-1 rounded-full bg-neutral-100 p-2 text-neutral-600 transition-colors hover:text-primary lg:hidden"
+            className="rounded-full bg-neutral-100 p-2 text-neutral-600 transition-colors hover:text-primary lg:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
             aria-expanded={mobileMenuOpen}
