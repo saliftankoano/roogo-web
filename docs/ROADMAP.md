@@ -17,8 +17,6 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Now
 
-- [ ] **Deliver the photo-order training video** — Salif approved a 45–60 second French walkthrough on 2026-10-05. Done when an actual screen recording demonstrates dragging, automatic principal selection, other rearrangements and reload persistence, and a reviewed shareable MP4 is delivered. Voice/budget choice remains pending. Feature is already production-verified; recording is a separate delivery gate.
-
 - [ ] **Verify the deployed image-loading rollout** — visitors see the hero promptly while featured annonces load. [#32](https://github.com/saliftankoano/roogo-web/pull/32), [#33](https://github.com/saliftankoano/roogo-web/pull/33) and [#34](https://github.com/saliftankoano/roogo-web/pull/34) merged on 2026-09-13 UTC; all implementation tickets are Done and migration 073 is operator-confirmed executed. Vercel production deployment was pending at merge verification. Done when: the matching deployment succeeds and is checked for hero/featured-result behavior and source/optimized cache headers, and the release evidence is recorded in [CHANGELOG](./CHANGELOG.md). Compare actual image usage/load measurements without claiming dev-fixture timings as production LCP. [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23), [system behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
 
 - [ ] **Release clear, duplicate-safe payment failure notices** — customers can understand a failed charge and distinguish it from a paid reservation needing support. As of 2026-09-09, [web #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile #29](https://github.com/saliftankoano/roogo/pull/29) are open, implemented PRs, not a verified production release.
@@ -39,6 +37,8 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
 ## Recently completed
+
+- [x] **Photo-order training video delivered — 2026-10-05** — actual production recording with Salif French narration and credited music; 45-second 1080p MP4, audio/decode/continuity checks passed, QuickTime playback started. [Delivery record](./photo-gallery-video-delivery.md).
 
 - [x] **Freely arrange listing photos** — production verified 2026-10-05 with drag, arrows and reload; first position is the cover. [CHANGELOG](./CHANGELOG.md#2026-10-05).
 
