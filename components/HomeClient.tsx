@@ -17,6 +17,7 @@ import {
 } from "@phosphor-icons/react";
 import { Hero } from "./Hero";
 import { Footer } from "./Footer";
+import { AudienceVideos } from "./home/AudienceVideos";
 import { homeFaqItems } from "../lib/home-content";
 import { Button } from "./ui/Button";
 import {
@@ -138,6 +139,8 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
     <div className="min-h-screen bg-[#f5efe6]">
       <main>
         <Hero />
+
+        <AudienceVideos />
 
         <EditorialSection>
           <div className="grid gap-12 lg:grid-cols-[0.85fr_1.15fr] lg:items-end">
