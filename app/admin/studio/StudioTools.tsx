@@ -229,7 +229,7 @@ export function ToolsPanel({
         Créer
       </h3>
 
-      <div className="grid gap-2">
+      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
         <button
           type="button"
           disabled={!posterOk || busy !== null}

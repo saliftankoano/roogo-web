@@ -379,7 +379,7 @@ export function StudioApp() {
           ))}
         </div>
 
-        <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)_360px] lg:gap-4">
+        <div className="lg:grid lg:grid-cols-[260px_minmax(0,1fr)_320px] lg:gap-4">
           <aside className={cn(panel(mobileTab === "history"), "lg:h-[calc(100dvh-15rem)] lg:min-h-[520px]")}>
             <ConversationList
               conversations={conversations}
@@ -428,39 +428,42 @@ export function StudioApp() {
             {cloningEnabled && (
               <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
             )}
-            {detail && canWrite && (
-              <ToolsPanel
-                conversationId={detail.conversation.id}
-                property={detail.property}
-                money={money}
-                refreshKey={detail.artifacts.length}
-                jobs={jobsApi.jobs}
-                message={jobsApi.message}
-                start={jobsApi.start}
-              />
-            )}
-            {detail && canWrite ? (
-              <ArtifactsPanel
-                artifacts={artifacts}
-                voiceKey={voice}
-                voiceLabel={voiceLabel}
-                currency={currency}
-                glossaryVersion={glossaryVersion}
-                conversationId={detail.conversation.id}
-                onChanged={() => void loadDetail(detail.conversation.id)}
-                onRework={(artifact) => void rework(artifact)}
-                onRates={setRate}
-                onCaptions={(artifactId) => void jobsApi.start("captions", { artifact_id: artifactId }, estimateJobCostUsd({ tool: "captions", audioSeconds: getVoiceoverDuration(artifactId) }))}
-                getCaptionsLabel={getCaptionsLabel}
-                captionsBusy={jobsApi.jobs.some((j) => j.tool === "captions")}
-              />
-            ) : (
-              <p className="rounded-3xl border border-dashed border-neutral-300 p-6 text-center text-sm font-medium text-neutral-500">
-                Choisissez un bien pour obtenir un script. Il sera épinglé ici.
-              </p>
-            )}
           </aside>
         </div>
+
+        <section className={cn(panel(mobileTab === "artifacts"), "space-y-4")}>
+          {detail && canWrite && (
+            <ToolsPanel
+              conversationId={detail.conversation.id}
+              property={detail.property}
+              money={money}
+              refreshKey={detail.artifacts.length}
+              jobs={jobsApi.jobs}
+              message={jobsApi.message}
+              start={jobsApi.start}
+            />
+          )}
+          {detail && canWrite ? (
+            <ArtifactsPanel
+              artifacts={artifacts}
+              voiceKey={voice}
+              voiceLabel={voiceLabel}
+              currency={currency}
+              glossaryVersion={glossaryVersion}
+              conversationId={detail.conversation.id}
+              onChanged={() => void loadDetail(detail.conversation.id)}
+              onRework={(artifact) => void rework(artifact)}
+              onRates={setRate}
+              onCaptions={(artifactId) => void jobsApi.start("captions", { artifact_id: artifactId }, estimateJobCostUsd({ tool: "captions", audioSeconds: getVoiceoverDuration(artifactId) }))}
+              getCaptionsLabel={getCaptionsLabel}
+              captionsBusy={jobsApi.jobs.some((j) => j.tool === "captions")}
+            />
+          ) : (
+            <p className="rounded-3xl border border-dashed border-neutral-300 p-6 text-center text-sm font-medium text-neutral-500">
+              Choisissez un bien pour obtenir un script. Il sera épinglé ici.
+            </p>
+          )}
+        </section>
       </div>
 
       <div hidden={tab !== "glossary"} className="mx-auto max-w-2xl">
