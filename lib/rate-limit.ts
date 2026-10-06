@@ -87,6 +87,15 @@ export const studioCloneLimiter = redis
     })
   : null;
 
+export const studioJobLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(20, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:studio-job",
+    })
+  : null;
+
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,

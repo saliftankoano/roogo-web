@@ -42,6 +42,7 @@ export type PropertySummary = {
   place: string;
   price: string;
   image: string | null;
+  photos: string[];
   live: boolean;
 };
 
@@ -85,6 +86,7 @@ export function toPropertySummary(
     place: placeLabel(row, labels),
     price: priceLabel(row, labels),
     image: row.images?.[0] ?? null,
+    photos: (row.images ?? []).slice(0, 8),
     live: row.status === "en_ligne",
   };
 }
