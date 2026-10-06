@@ -41,8 +41,8 @@ const audiences: Record<
   renter: {
     tab: "Je cherche un logement",
     title: "Trouvez votre maison sans courir partout.",
-    body: "Des annonces examinées avant leur mise en ligne, une visite demandée dans l'application et un loyer payé par mobile money avec reçu.",
-    duration: "45 secondes",
+    body: "Des annonces examinées avant leur mise en ligne. Demandez une visite et visitez sans rien payer. Si le logement vous plaît, payez la caution et le loyer en ligne par mobile money, avec reçu.",
+    duration: "48 secondes",
     video: "/api/media/vsl-locataires",
     poster: marketingAssets.organizedVisit,
     posterAlt: "Locataire visitant un logement organisé avec Roogo",
