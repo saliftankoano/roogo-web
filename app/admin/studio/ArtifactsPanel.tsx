@@ -486,7 +486,7 @@ export function ArtifactsPanel({
   }
 
   return (
-    <div className="space-y-3">
+    <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
       {ordered.map((artifact) => {
         if (artifact.kind === "script") {
           return <ScriptCard key={artifact.id} artifact={artifact} {...common} />;
