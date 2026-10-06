@@ -2,6 +2,12 @@
 
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
+## Content Studio — 2026-10-06
+
+- [x] [075_content_studio_executed.sql](./075_content_studio_executed.sql) — operator-confirmed by Salif on 2026-10-06 ("mig ran"). Staff voice-over ledger, per-person caps, the spend-reserve function and the private `content-studio` bucket. The number 075 is also used by the unrelated principal-photo repair above: the two are different files applied independently, so do not replay either by number.
+- [x] [076_studio_glossary_executed.sql](./076_studio_glossary_executed.sql) — operator-confirmed by Salif on 2026-10-06. Team pronunciation glossary. Shares the number 076 with the photo-order migration above for the same reason.
+- [ ] [077_studio_voices_consent.sql](./077_studio_voices_consent.sql) — **not executed yet.** Team voices (Sandrine, Salif, Ablassé), consent records, the one-voice-per-person rule and the atomic accept and revoke functions. Seeds Ablassé's voice as locked until he accepts the terms. Record execution here and add `_executed` to the filename once Salif confirms it ran.
+
 ## Ordered photo galleries — 2026-10-05
 
 - [x] [076_property_photo_order_executed.sql](./076_property_photo_order_executed.sql) — independently applied through the Supabase Management API to Roogo (`txbxvpyftgpebgnuazaf`), HTTP 201. Backfills existing cover-first order, adds atomic reorder and legacy-selection compatibility, append/delete reconciliation, and ordered read views. Before/after view grants and security options match. Execution is independent of migration 074 and does not establish CLI history alignment.

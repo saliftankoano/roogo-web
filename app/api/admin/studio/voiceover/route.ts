@@ -16,11 +16,11 @@ import {
 } from "@/lib/studio/server";
 import { MAX_TTS_CHARACTERS, prepareForSpeech } from "@/lib/studio/tts-prepare";
 import {
-  isStudioVoiceKey,
+  isVoiceUsable,
   STUDIO_LANGUAGE,
   STUDIO_TTS_MODEL,
-  STUDIO_VOICES,
 } from "@/lib/studio/voices";
+import { loadVoiceByKey } from "@/lib/studio/voices-server";
 
 export const maxDuration = 60;
 
@@ -51,14 +51,17 @@ export async function POST(req: Request) {
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   const acknowledged = Number(body?.acknowledged_cost_usd);
   if (!text) return errorResponse("Le texte est vide.", 400, req);
-  if (!isStudioVoiceKey(body?.voice)) {
-    return errorResponse("Voix non autorisée", 400, req);
-  }
   if (!Number.isFinite(acknowledged)) {
     return errorResponse("Prix non confirmé", 400, req);
   }
 
-  const voice = STUDIO_VOICES[body.voice as keyof typeof STUDIO_VOICES];
+  // A voice must exist and be active: locked, pending and revoked voices
+  // cannot speak, and no raw Cartesia id is ever accepted from the client.
+  const voice =
+    typeof body?.voice === "string" ? await loadVoiceByKey(body.voice) : null;
+  if (!voice || !isVoiceUsable(voice)) {
+    return errorResponse("Voix non autorisée", 400, req);
+  }
   const spoken = prepareForSpeech(text, await loadGlossary());
   if (spoken.length > MAX_TTS_CHARACTERS) {
     return errorResponse(
@@ -126,7 +129,7 @@ export async function POST(req: Request) {
       body: JSON.stringify({
         model_id: STUDIO_TTS_MODEL,
         transcript: spoken,
-        voice: { mode: "id", id: voice.id },
+        voice: { mode: "id", id: voice.cartesiaVoiceId },
         language: STUDIO_LANGUAGE,
         output_format: {
           container: "mp3",
@@ -154,7 +157,7 @@ export async function POST(req: Request) {
 
     await supabaseAdmin
       .from("studio_generations")
-      .update({ status: "done", output_path: path })
+      .update({ status: "done", output_path: path, voice_id: voice.id })
       .eq("id", reservationId);
 
     const { data: signed } = await supabaseAdmin.storage

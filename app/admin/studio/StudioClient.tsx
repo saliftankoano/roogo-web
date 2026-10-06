@@ -14,13 +14,9 @@ import {
   type StudioCurrency,
 } from "@/lib/studio/currency";
 import { GlossaryPanel } from "./GlossaryPanel";
+import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
 
-type VoiceKey = "sandrine" | "salif";
-
-const VOICES: Array<{ key: VoiceKey; label: string; hint: string }> = [
-  { key: "sandrine", label: "Sandrine", hint: "Voix par défaut" },
-  { key: "salif", label: "Voix de Salif", hint: "En français" },
-];
+type VoiceKey = string;
 
 type Estimate = {
   spokenCharacters: number;
@@ -44,6 +40,7 @@ type Result = {
 type HistoryItem = {
   id: string;
   voice: VoiceKey;
+  voiceLabel: string;
   text: string;
   costUsd: number;
   createdAt: string;
@@ -70,8 +67,7 @@ function readStoredCurrency(): StudioCurrency {
 
 function readStoredVoice(): VoiceKey {
   try {
-    const stored = window.localStorage.getItem(VOICE_STORAGE_KEY);
-    if (stored === "salif" || stored === "sandrine") return stored;
+    return window.localStorage.getItem(VOICE_STORAGE_KEY) || "sandrine";
   } catch {
     // Storage can be blocked; the default voice is fine.
   }
@@ -86,6 +82,8 @@ export function StudioClient() {
   const [currency, setCurrency] = useState<StudioCurrency>("FCFA");
   const [glossaryVersion, setGlossaryVersion] = useState(0);
   const [voice, setVoice] = useState<VoiceKey>("sandrine");
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
+  const [terms, setTerms] = useState<TermsInfo | null>(null);
   const [brief, setBrief] = useState({
     type: "",
     quartier: "",
@@ -106,6 +104,31 @@ export function StudioClient() {
     setVoice(readStoredVoice());
     setCurrency(readStoredCurrency());
   }, []);
+
+  const loadVoices = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/voices");
+      if (!res.ok) return;
+      const data = (await res.json()) as {
+        voices: VoiceInfo[];
+        terms: TermsInfo;
+      };
+      setVoices(data.voices);
+      setTerms(data.terms);
+      // A remembered voice that is no longer usable falls back to the default.
+      setVoice((current) =>
+        data.voices.some((v) => v.key === current && v.status === "active")
+          ? current
+          : "sandrine",
+      );
+    } catch {
+      // Without the list the default voice still works.
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadVoices();
+  }, [loadVoices]);
 
   const loadHistory = useCallback(async () => {
     try {
@@ -280,30 +303,13 @@ export function StudioClient() {
       </div>
 
       <div hidden={tab !== "voice"} className="space-y-6">
-      <section
-        aria-label="Voix"
-        className="grid grid-cols-2 gap-2 rounded-3xl bg-neutral-100 p-1.5"
-      >
-        {VOICES.map((option) => (
-          <button
-            key={option.key}
-            type="button"
-            onClick={() => chooseVoice(option.key)}
-            aria-pressed={voice === option.key}
-            className={cn(
-              "flex min-h-14 flex-col items-center justify-center rounded-2xl px-3 py-2 text-sm font-bold transition-colors",
-              voice === option.key
-                ? "bg-white text-primary shadow-sm"
-                : "text-neutral-500",
-            )}
-          >
-            {option.label}
-            <span className="text-xs font-medium opacity-70">
-              {option.hint}
-            </span>
-          </button>
-        ))}
-      </section>
+      <VoicePicker
+        voices={voices}
+        terms={terms}
+        selectedKey={voice}
+        onSelect={chooseVoice}
+        onChanged={loadVoices}
+      />
 
       <section className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
         <h2 className="flex items-center gap-2 text-sm font-bold uppercase tracking-wider text-neutral-500">
@@ -440,7 +446,7 @@ export function StudioClient() {
                   {item.text}
                 </p>
                 <p className="text-xs font-medium text-neutral-400">
-                  {item.voice === "salif" ? "Voix de Salif" : "Sandrine"}
+                  {item.voiceLabel}
                   {item.author ? `, ${item.author}` : ""},{" "}
                   {new Date(item.createdAt).toLocaleDateString("fr-FR")}
                 </p>

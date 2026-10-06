@@ -27,10 +27,17 @@ export async function GET(req: Request) {
   const { data, error } = await query;
   if (error) return errorResponse("Historique indisponible", 500, req);
 
+  const { data: voiceRows } = await supabaseAdmin
+    .from("studio_voices")
+    .select("key, label");
+  const voiceLabels = new Map(
+    (voiceRows ?? []).map((v) => [v.key as string, v.label as string]),
+  );
+
   const items = await Promise.all(
     (data ?? []).map(async (row) => {
       const storage = supabaseAdmin.storage.from(STUDIO_BUCKET);
-      const voiceLabel = row.voice === "salif" ? "Salif" : "Sandrine";
+      const voiceLabel = voiceLabels.get(row.voice as string) ?? "Voix";
       const [signed, download] = row.output_path
         ? await Promise.all([
             storage.createSignedUrl(row.output_path, 3600),
@@ -43,6 +50,7 @@ export async function GET(req: Request) {
       return {
         id: row.id,
         voice: row.voice,
+        voiceLabel,
         text: (row.input as { display_text?: string } | null)?.display_text ?? "",
         costUsd: Number(row.est_cost_usd),
         createdAt: row.created_at,
