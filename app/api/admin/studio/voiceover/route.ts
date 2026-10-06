@@ -15,12 +15,9 @@ import {
   STUDIO_BUCKET,
 } from "@/lib/studio/server";
 import { MAX_TTS_CHARACTERS, prepareForSpeech } from "@/lib/studio/tts-prepare";
-import {
-  isVoiceUsable,
-  STUDIO_LANGUAGE,
-  STUDIO_TTS_MODEL,
-} from "@/lib/studio/voices";
+import { isVoiceUsable, STUDIO_TTS_MODEL } from "@/lib/studio/voices";
 import { loadVoiceByKey } from "@/lib/studio/voices-server";
+import { synthesizeSpeech } from "@/lib/studio/cartesia-tts";
 
 export const maxDuration = 60;
 
@@ -84,9 +81,10 @@ export async function POST(req: Request) {
 
   const capUsd = await getMonthlyCapUsd(staff.id);
   const { data: reservationId, error: reserveError } = await supabaseAdmin.rpc(
-    "reserve_studio_voiceover",
+    "reserve_studio_spend",
     {
       p_user_id: staff.id,
+      p_kind: "voiceover",
       p_voice: body.voice,
       p_model: STUDIO_TTS_MODEL,
       p_input: { display_text: text, spoken_text: spoken },
@@ -119,33 +117,17 @@ export async function POST(req: Request) {
   };
 
   try {
-    const response = await fetch("https://api.cartesia.ai/tts/bytes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cartesia-Version": "2025-04-16",
-        "X-API-Key": apiKey,
-      },
-      body: JSON.stringify({
-        model_id: STUDIO_TTS_MODEL,
-        transcript: spoken,
-        voice: { mode: "id", id: voice.cartesiaVoiceId },
-        language: STUDIO_LANGUAGE,
-        output_format: {
-          container: "mp3",
-          sample_rate: 44100,
-          bit_rate: 128000,
-        },
-      }),
+    const speech = await synthesizeSpeech({
+      apiKey,
+      cartesiaVoiceId: voice.cartesiaVoiceId,
+      text: spoken,
     });
-
-    if (!response.ok) {
-      // Status only: the response body may echo request details.
-      console.error("Studio: Cartesia returned", response.status);
-      return await fail(`cartesia ${response.status}`);
+    if (!speech.ok) {
+      console.error("Studio: Cartesia returned", speech.status);
+      return await fail(`cartesia ${speech.status}`);
     }
 
-    const audio = Buffer.from(await response.arrayBuffer());
+    const audio = speech.audio;
     const path = `${staff.id}/${randomUUID()}.mp3`;
     const { error: uploadError } = await supabaseAdmin.storage
       .from(STUDIO_BUCKET)

@@ -468,7 +468,13 @@ export function StudioClient() {
       </div>
 
       <div hidden={tab !== "glossary"}>
-        <GlossaryPanel onChange={() => setGlossaryVersion((v) => v + 1)} />
+        <GlossaryPanel
+          voice={voice}
+          currency={currency}
+          rate={rate}
+          scriptText={text}
+          onChange={() => setGlossaryVersion((v) => v + 1)}
+        />
       </div>
     </div>
   );

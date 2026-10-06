@@ -25,7 +25,7 @@ export async function getUsedThisMonthUsd(userId: string): Promise<number> {
     .from("studio_generations")
     .select("est_cost_usd")
     .eq("user_id", userId)
-    .eq("kind", "voiceover")
+    .in("kind", ["voiceover", "preview"])
     .in("status", ["running", "done"])
     .gte("created_at", startOfMonthIso());
   return (data ?? []).reduce((sum, row) => sum + Number(row.est_cost_usd), 0);
