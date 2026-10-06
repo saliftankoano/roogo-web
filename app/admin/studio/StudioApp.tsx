@@ -2,13 +2,15 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
-import { DEFAULT_FCFA_PER_USD, type StudioCurrency } from "@/lib/studio/currency";
+import { estimateJobCostUsd } from "@/lib/studio/ai-tools";
+import { DEFAULT_FCFA_PER_USD, formatMoney, type StudioCurrency } from "@/lib/studio/currency";
 import { parseSseBuffer } from "@/lib/studio/sse";
 import { ArtifactsPanel } from "./ArtifactsPanel";
 import { CloneVoice } from "./CloneVoice";
 import { ConversationList } from "./ConversationList";
 import { GlossaryPanel } from "./GlossaryPanel";
 import { Thread } from "./Thread";
+import { ToolsPanel, useJobs } from "./StudioTools";
 import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
 import {
   FIRST_DRAFT_REQUEST,
@@ -125,7 +127,17 @@ export function StudioApp() {
     })();
   }, [loadVoices, loadConversations, open]);
 
-  function newConversation() {
+  const money = useCallback(
+    (usd: number) => formatMoney(usd, currency, rate),
+    [currency, rate],
+  );
+  const reloadActive = useCallback(() => {
+    if (activeRef.current) void loadDetail(activeRef.current);
+  }, [loadDetail]);
+  const jobsApi = useJobs(detail?.conversation.id ?? null, detail?.jobs ?? [], reloadActive);
+  const captionsLabel = ` (environ ${money(estimateJobCostUsd({ tool: "captions", audioSeconds: 60 }))})`;
+
+    function newConversation() {
     activeRef.current = null;
     setActiveId(null);
     setDetail(null);
@@ -406,6 +418,17 @@ export function StudioApp() {
             {cloningEnabled && (
               <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
             )}
+            {detail && canWrite && (
+              <ToolsPanel
+                conversationId={detail.conversation.id}
+                property={detail.property}
+                money={money}
+                refreshKey={detail.artifacts.length}
+                jobs={jobsApi.jobs}
+                message={jobsApi.message}
+                start={jobsApi.start}
+              />
+            )}
             {detail && canWrite ? (
               <ArtifactsPanel
                 artifacts={artifacts}
@@ -417,6 +440,9 @@ export function StudioApp() {
                 onChanged={() => void loadDetail(detail.conversation.id)}
                 onRework={(artifact) => void rework(artifact)}
                 onRates={setRate}
+                onCaptions={(artifactId) => void jobsApi.start("captions", { artifact_id: artifactId }, estimateJobCostUsd({ tool: "captions", audioSeconds: 60 }))}
+                captionsLabel={captionsLabel}
+                captionsBusy={jobsApi.jobs.some((j) => j.tool === "captions")}
               />
             ) : (
               <p className="rounded-3xl border border-dashed border-neutral-300 p-6 text-center text-sm font-medium text-neutral-500">

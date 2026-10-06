@@ -5,6 +5,7 @@ export type PropertySummary = {
   place: string;
   price: string;
   image: string | null;
+  photos: string[];
   live: boolean;
 };
 
@@ -26,14 +27,26 @@ export type ChatMessage = {
 
 export type Artifact = {
   id: string;
-  kind: "script" | "voiceover";
+  kind: "script" | "voiceover" | "image" | "captions";
   title: string;
   text: string;
   voiceKey: string | null;
   pinned: boolean;
   createdAt: string;
+  meta: Record<string, unknown>;
   url: string | null;
   downloadUrl: string | null;
+};
+
+export type JobTool = "poster" | "greeting" | "cutout" | "captions";
+
+export type RunningJob = { id: string; tool: JobTool | null };
+
+export type PosterCheckField = {
+  key: "price" | "phone" | "place" | "line";
+  label: string;
+  expected: string;
+  found: boolean;
 };
 
 export type ConversationDetail = {
@@ -47,6 +60,7 @@ export type ConversationDetail = {
   property: PropertySummary | null;
   messages: ChatMessage[];
   artifacts: Artifact[];
+  jobs: RunningJob[];
 };
 
 export type Estimate = {

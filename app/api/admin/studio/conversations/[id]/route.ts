@@ -39,23 +39,36 @@ export async function GET(req: Request, { params }: Ctx) {
       .order("created_at", { ascending: true }),
     supabaseAdmin
       .from("studio_artifacts")
-      .select("id, kind, title, text, voice_key, output_path, pinned, created_at")
+      .select("id, kind, title, text, voice_key, output_path, pinned, created_at, meta")
       .eq("conversation_id", id)
       .order("created_at", { ascending: true }),
     conv.property_id ? loadPropertyRow(conv.property_id) : Promise.resolve(null),
   ]);
+
+  // Jobs still running (for example after a page reload) so the page resumes polling.
+  const { data: runningJobs } = await supabaseAdmin
+    .from("studio_generations")
+    .select("id, kind, input")
+    .eq("conversation_id", id)
+    .in("kind", ["image", "transcription"])
+    .in("status", ["running", "finalizing"]);
 
   const storage = supabaseAdmin.storage.from(STUDIO_BUCKET);
   const artifactItems = await Promise.all(
     (artifacts ?? []).map(async (artifact) => {
       let url: string | null = null;
       let downloadUrl: string | null = null;
-      if (artifact.kind === "voiceover" && artifact.output_path) {
+      if (
+        (artifact.kind === "voiceover" || artifact.kind === "image") &&
+        artifact.output_path
+      ) {
+        const filename =
+          artifact.kind === "image"
+            ? `Roogo - ${String(artifact.title).replace(/[^\p{L}\p{N} ()-]/gu, "")}.png`
+            : "Roogo - Voix off.mp3";
         const [play, download] = await Promise.all([
           storage.createSignedUrl(artifact.output_path, 3600),
-          storage.createSignedUrl(artifact.output_path, 3600, {
-            download: `Roogo - Voix off.mp3`,
-          }),
+          storage.createSignedUrl(artifact.output_path, 3600, { download: filename }),
         ]);
         url = play.data?.signedUrl ?? null;
         downloadUrl = download.data?.signedUrl ?? null;
@@ -68,6 +81,7 @@ export async function GET(req: Request, { params }: Ctx) {
         voiceKey: artifact.voice_key,
         pinned: artifact.pinned,
         createdAt: artifact.created_at,
+        meta: artifact.meta ?? {},
         url,
         downloadUrl,
       };
@@ -93,6 +107,10 @@ export async function GET(req: Request, { params }: Ctx) {
         createdAt: m.created_at,
       })),
       artifacts: artifactItems,
+      jobs: (runningJobs ?? []).map((job) => ({
+        id: job.id,
+        tool: (job.input as { context?: { tool?: string } } | null)?.context?.tool ?? null,
+      })),
     }),
     req,
   );
