@@ -61,6 +61,7 @@ export function AudienceVideos() {
 
   const selectAudience = (next: Audience) => {
     if (next === audience) return;
+    setPlaying((state) => ({ ...state, [audience]: false }));
     setAudience(next);
     posthog.capture("home_video_audience_selected", { audience: next });
   };
