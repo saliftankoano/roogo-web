@@ -42,6 +42,7 @@ export function StudioApp() {
   const [voice, setVoice] = useState("sandrine");
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [terms, setTerms] = useState<TermsInfo | null>(null);
+  const [cloningEnabled, setCloningEnabled] = useState(false);
 
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
   const [activeId, setActiveId] = useState<string | null>(null);
@@ -61,7 +62,12 @@ export function StudioApp() {
     try {
       const res = await fetch("/api/admin/studio/voices");
       if (!res.ok) return;
-      const data = (await res.json()) as { voices: VoiceInfo[]; terms: TermsInfo };
+      const data = (await res.json()) as {
+        voices: VoiceInfo[];
+        terms: TermsInfo;
+        cloningEnabled?: boolean;
+      };
+      setCloningEnabled(data.cloningEnabled === true);
       setVoices(data.voices);
       setTerms(data.terms);
       setVoice((current) =>
@@ -397,7 +403,9 @@ export function StudioApp() {
               onSelect={chooseVoice}
               onChanged={loadVoices}
             />
-            <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
+            {cloningEnabled && (
+              <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
+            )}
             {detail && canWrite ? (
               <ArtifactsPanel
                 artifacts={artifacts}

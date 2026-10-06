@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
+import { isVoiceCloningEnabled } from "@/lib/studio/flags";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   buildChallengeSentence,
@@ -21,6 +22,9 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const staff = await getStaffOrFounder(req);
   if (!staff) return errorResponse("Forbidden", 403, req);
+  if (!isVoiceCloningEnabled()) {
+    return errorResponse("La création de voix n'est pas encore ouverte.", 404, req);
+  }
 
   const voices = await loadVoices();
   if (!canOwnAnotherVoice(staff.id, voices)) {

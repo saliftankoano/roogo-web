@@ -2,6 +2,7 @@ import { createHash, randomBytes } from "node:crypto";
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
+import { isVoiceCloningEnabled } from "@/lib/studio/flags";
 import { checkRateLimit, studioCloneLimiter } from "@/lib/rate-limit";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { createCartesiaClone, transcribeClip } from "@/lib/studio/clone-server";
@@ -51,6 +52,9 @@ export async function OPTIONS(req: Request) {
 export async function POST(req: Request) {
   const staff = await getStaffOrFounder(req);
   if (!staff) return errorResponse("Forbidden", 403, req);
+  if (!isVoiceCloningEnabled()) {
+    return errorResponse("La création de voix n'est pas encore ouverte.", 404, req);
+  }
 
   const limit = await checkRateLimit(studioCloneLimiter, staff.id);
   if (!limit.success) {

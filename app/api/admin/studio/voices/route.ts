@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
+import { isVoiceCloningEnabled } from "@/lib/studio/flags";
 import {
   TERMS_CHECKBOX_LABEL,
   TERMS_PARAGRAPHS,
@@ -43,6 +44,7 @@ export async function GET(req: Request) {
   return cors(
     NextResponse.json({
       voices,
+      cloningEnabled: isVoiceCloningEnabled(),
       terms: {
         version: CURRENT_TERMS_VERSION,
         title: TERMS_TITLE,
