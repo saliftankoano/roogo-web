@@ -18,6 +18,10 @@ import { MAX_TTS_CHARACTERS, prepareForSpeech } from "@/lib/studio/tts-prepare";
 import { isVoiceUsable, STUDIO_TTS_MODEL } from "@/lib/studio/voices";
 import { loadVoiceByKey } from "@/lib/studio/voices-server";
 import { synthesizeSpeech } from "@/lib/studio/cartesia-tts";
+import {
+  canWriteConversation,
+  loadConversation,
+} from "@/lib/studio/conversations-server";
 
 export const maxDuration = 60;
 
@@ -59,6 +63,16 @@ export async function POST(req: Request) {
   if (!voice || !isVoiceUsable(voice)) {
     return errorResponse("Voix non autorisée", 400, req);
   }
+  // Optional: save the result as a pinned artifact of one of the person's
+  // own conversations.
+  const conversation =
+    typeof body?.conversation_id === "string"
+      ? await loadConversation(body.conversation_id)
+      : null;
+  if (body?.conversation_id && (!conversation || !canWriteConversation(staff, conversation))) {
+    return errorResponse("Conversation introuvable", 404, req);
+  }
+
   const spoken = prepareForSpeech(text, await loadGlossary());
   if (spoken.length > MAX_TTS_CHARACTERS) {
     return errorResponse(
@@ -139,8 +153,37 @@ export async function POST(req: Request) {
 
     await supabaseAdmin
       .from("studio_generations")
-      .update({ status: "done", output_path: path, voice_id: voice.id })
+      .update({
+        status: "done",
+        output_path: path,
+        voice_id: voice.id,
+        conversation_id: conversation?.id ?? null,
+        property_id: conversation?.property_id ?? null,
+      })
       .eq("id", reservationId);
+
+    let artifactId: string | null = null;
+    if (conversation) {
+      const { data: artifact } = await supabaseAdmin
+        .from("studio_artifacts")
+        .insert({
+          conversation_id: conversation.id,
+          kind: "voiceover",
+          title: `Voix off (${voice.label})`,
+          text,
+          generation_id: reservationId,
+          voice_key: voice.key,
+          output_path: path,
+          pinned: true,
+        })
+        .select("id")
+        .single();
+      artifactId = artifact?.id ?? null;
+      await supabaseAdmin
+        .from("studio_conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", conversation.id);
+    }
 
     const { data: signed } = await supabaseAdmin.storage
       .from(STUDIO_BUCKET)
@@ -154,6 +197,7 @@ export async function POST(req: Request) {
     return cors(
       NextResponse.json({
         id: reservationId,
+        artifactId,
         voice: body.voice,
         costUsd: serverPrice,
         url: signed?.signedUrl ?? null,
