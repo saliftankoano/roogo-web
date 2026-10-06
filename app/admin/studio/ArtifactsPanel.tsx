@@ -33,7 +33,7 @@ type CommonProps = {
 type PanelProps = CommonProps & {
   artifacts: Artifact[];
   onCaptions: (artifactId: string) => void;
-  captionsLabel: string;
+  getCaptionsLabel: (artifactId: string) => string;
   captionsBusy: boolean;
 };
 
@@ -254,14 +254,14 @@ function VoiceCard({
   onChanged,
   onRework,
   onCaptions,
-  captionsLabel,
+  getCaptionsLabel,
   captionsBusy,
 }: {
   artifact: Artifact;
   onChanged: () => void;
   onRework: (artifact: Artifact) => void;
   onCaptions: (artifactId: string) => void;
-  captionsLabel: string;
+  getCaptionsLabel: (artifactId: string) => string;
   captionsBusy: boolean;
 }) {
   return (
@@ -312,7 +312,7 @@ function VoiceCard({
         ) : (
           <ClosedCaptioningIcon size={16} weight="bold" />
         )}
-        Sous-titres{captionsLabel}
+        Sous-titres{getCaptionsLabel(artifact.id)}
       </button>
     </article>
   );
@@ -467,7 +467,7 @@ function CaptionsCard({
 export function ArtifactsPanel({
   artifacts,
   onCaptions,
-  captionsLabel,
+  getCaptionsLabel,
   captionsBusy,
   ...common
 }: PanelProps) {
@@ -504,7 +504,7 @@ export function ArtifactsPanel({
             onChanged={common.onChanged}
             onRework={common.onRework}
             onCaptions={onCaptions}
-            captionsLabel={captionsLabel}
+            getCaptionsLabel={getCaptionsLabel}
             captionsBusy={captionsBusy}
           />
         );

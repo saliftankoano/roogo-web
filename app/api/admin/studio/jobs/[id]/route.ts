@@ -47,12 +47,12 @@ export async function GET(req: Request, { params }: Ctx) {
     return respond({ state: "failed", error: gen.error ?? "La création a échoué." });
   }
 
-  const failJob = async (message: string) => {
+  const failJob = async (message: string, matchStatus: "running" | "finalizing" = "running") => {
     await supabaseAdmin
       .from("studio_generations")
       .update({ status: "failed", error: message.slice(0, 300) })
       .eq("id", gen.id)
-      .eq("status", "running");
+      .eq("status", matchStatus);
     return respond({ state: "failed", error: message });
   };
 
@@ -61,17 +61,17 @@ export async function GET(req: Request, { params }: Ctx) {
   const urls = gen.input as { status_url?: string; response_url?: string } | null;
   if (!urls?.status_url || !urls.response_url) return respond({ state: "running" });
 
+  const ageMinutes = (Date.now() - new Date(gen.created_at).getTime()) / 60_000;
+  if (ageMinutes > MAX_JOB_MINUTES) {
+    return failJob("La création a pris trop de temps. Réessayez.");
+  }
+
   const status = await falStatus(urls.status_url);
   if (status.state === "FAILED" || status.state === "CANCELED") {
     return failJob("La création a échoué côté fal.");
   }
   if (status.state !== "COMPLETED") {
     return respond({ state: "running", queuePosition: status.queuePosition });
-  }
-
-  const ageMinutes = (Date.now() - new Date(gen.created_at).getTime()) / 60_000;
-  if (ageMinutes > MAX_JOB_MINUTES) {
-    return failJob("La création a pris trop de temps. Réessayez.");
   }
 
   // Claim the right to save the result. Only one poll can win this update.
@@ -92,7 +92,7 @@ export async function GET(req: Request, { params }: Ctx) {
     },
     urls.response_url,
   );
-  if (!finished.ok) return failJob(finished.error);
+  if (!finished.ok) return failJob(finished.error, "finalizing");
 
   await supabaseAdmin.from("studio_generations").update({ status: "done" }).eq("id", gen.id);
   return respond({ state: "done", artifactId: finished.artifactId });

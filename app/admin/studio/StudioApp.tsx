@@ -142,7 +142,10 @@ export function StudioApp() {
     return typeof meta.duration_seconds === "number" ? meta.duration_seconds : 60;
   }, [detail?.artifacts]);
 
-  const captionsLabel = ` (environ ${money(estimateJobCostUsd({ tool: "captions", audioSeconds: 60 }))})`;
+  const getCaptionsLabel = useCallback((artifactId: string): string => {
+    const duration = getVoiceoverDuration(artifactId);
+    return ` (environ ${money(estimateJobCostUsd({ tool: "captions", audioSeconds: duration }))})`;
+  }, [getVoiceoverDuration, money]);
 
     function newConversation() {
     activeRef.current = null;
@@ -448,7 +451,7 @@ export function StudioApp() {
                 onRework={(artifact) => void rework(artifact)}
                 onRates={setRate}
                 onCaptions={(artifactId) => void jobsApi.start("captions", { artifact_id: artifactId }, estimateJobCostUsd({ tool: "captions", audioSeconds: getVoiceoverDuration(artifactId) }))}
-                captionsLabel={captionsLabel}
+                getCaptionsLabel={getCaptionsLabel}
                 captionsBusy={jobsApi.jobs.some((j) => j.tool === "captions")}
               />
             ) : (
