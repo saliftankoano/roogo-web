@@ -15,12 +15,13 @@ import {
   STUDIO_BUCKET,
 } from "@/lib/studio/server";
 import { MAX_TTS_CHARACTERS, prepareForSpeech } from "@/lib/studio/tts-prepare";
+import { isVoiceUsable, STUDIO_TTS_MODEL } from "@/lib/studio/voices";
+import { loadVoiceByKey } from "@/lib/studio/voices-server";
+import { synthesizeSpeech } from "@/lib/studio/cartesia-tts";
 import {
-  isStudioVoiceKey,
-  STUDIO_LANGUAGE,
-  STUDIO_TTS_MODEL,
-  STUDIO_VOICES,
-} from "@/lib/studio/voices";
+  canWriteConversation,
+  loadConversation,
+} from "@/lib/studio/conversations-server";
 
 export const maxDuration = 60;
 
@@ -51,14 +52,27 @@ export async function POST(req: Request) {
   const text = typeof body?.text === "string" ? body.text.trim() : "";
   const acknowledged = Number(body?.acknowledged_cost_usd);
   if (!text) return errorResponse("Le texte est vide.", 400, req);
-  if (!isStudioVoiceKey(body?.voice)) {
-    return errorResponse("Voix non autorisée", 400, req);
-  }
   if (!Number.isFinite(acknowledged)) {
     return errorResponse("Prix non confirmé", 400, req);
   }
 
-  const voice = STUDIO_VOICES[body.voice as keyof typeof STUDIO_VOICES];
+  // A voice must exist and be active: locked, pending and revoked voices
+  // cannot speak, and no raw Cartesia id is ever accepted from the client.
+  const voice =
+    typeof body?.voice === "string" ? await loadVoiceByKey(body.voice) : null;
+  if (!voice || !isVoiceUsable(voice)) {
+    return errorResponse("Voix non autorisée", 400, req);
+  }
+  // Optional: save the result as a pinned artifact of one of the person's
+  // own conversations.
+  const conversation =
+    typeof body?.conversation_id === "string"
+      ? await loadConversation(body.conversation_id)
+      : null;
+  if (body?.conversation_id && (!conversation || !canWriteConversation(staff, conversation))) {
+    return errorResponse("Conversation introuvable", 404, req);
+  }
+
   const spoken = prepareForSpeech(text, await loadGlossary());
   if (spoken.length > MAX_TTS_CHARACTERS) {
     return errorResponse(
@@ -81,9 +95,10 @@ export async function POST(req: Request) {
 
   const capUsd = await getMonthlyCapUsd(staff.id);
   const { data: reservationId, error: reserveError } = await supabaseAdmin.rpc(
-    "reserve_studio_voiceover",
+    "reserve_studio_spend",
     {
       p_user_id: staff.id,
+      p_kind: "voiceover",
       p_voice: body.voice,
       p_model: STUDIO_TTS_MODEL,
       p_input: { display_text: text, spoken_text: spoken },
@@ -116,33 +131,17 @@ export async function POST(req: Request) {
   };
 
   try {
-    const response = await fetch("https://api.cartesia.ai/tts/bytes", {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Cartesia-Version": "2025-04-16",
-        "X-API-Key": apiKey,
-      },
-      body: JSON.stringify({
-        model_id: STUDIO_TTS_MODEL,
-        transcript: spoken,
-        voice: { mode: "id", id: voice.id },
-        language: STUDIO_LANGUAGE,
-        output_format: {
-          container: "mp3",
-          sample_rate: 44100,
-          bit_rate: 128000,
-        },
-      }),
+    const speech = await synthesizeSpeech({
+      apiKey,
+      cartesiaVoiceId: voice.cartesiaVoiceId,
+      text: spoken,
     });
-
-    if (!response.ok) {
-      // Status only: the response body may echo request details.
-      console.error("Studio: Cartesia returned", response.status);
-      return await fail(`cartesia ${response.status}`);
+    if (!speech.ok) {
+      console.error("Studio: Cartesia returned", speech.status);
+      return await fail(`cartesia ${speech.status}`);
     }
 
-    const audio = Buffer.from(await response.arrayBuffer());
+    const audio = speech.audio;
     const path = `${staff.id}/${randomUUID()}.mp3`;
     const { error: uploadError } = await supabaseAdmin.storage
       .from(STUDIO_BUCKET)
@@ -154,8 +153,37 @@ export async function POST(req: Request) {
 
     await supabaseAdmin
       .from("studio_generations")
-      .update({ status: "done", output_path: path })
+      .update({
+        status: "done",
+        output_path: path,
+        voice_id: voice.id,
+        conversation_id: conversation?.id ?? null,
+        property_id: conversation?.property_id ?? null,
+      })
       .eq("id", reservationId);
+
+    let artifactId: string | null = null;
+    if (conversation) {
+      const { data: artifact } = await supabaseAdmin
+        .from("studio_artifacts")
+        .insert({
+          conversation_id: conversation.id,
+          kind: "voiceover",
+          title: `Voix off (${voice.label})`,
+          text,
+          generation_id: reservationId,
+          voice_key: voice.key,
+          output_path: path,
+          pinned: true,
+        })
+        .select("id")
+        .single();
+      artifactId = artifact?.id ?? null;
+      await supabaseAdmin
+        .from("studio_conversations")
+        .update({ updated_at: new Date().toISOString() })
+        .eq("id", conversation.id);
+    }
 
     const { data: signed } = await supabaseAdmin.storage
       .from(STUDIO_BUCKET)
@@ -169,6 +197,7 @@ export async function POST(req: Request) {
     return cors(
       NextResponse.json({
         id: reservationId,
+        artifactId,
         voice: body.voice,
         costUsd: serverPrice,
         url: signed?.signedUrl ?? null,

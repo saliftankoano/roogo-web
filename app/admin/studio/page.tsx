@@ -1,7 +1,7 @@
-import { StudioClient } from "./StudioClient";
+import { StudioApp } from "./StudioApp";
 
 export const metadata = { title: "Studio de contenu | Roogo" };
 
 export default function StudioPage() {
-  return <StudioClient />;
+  return <StudioApp />;
 }

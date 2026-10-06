@@ -60,6 +60,7 @@ apply_migration*
 !scripts/backfill-property-translations.mjs
 !scripts/test-property-requests-db.mjs
 !lib/*.test.mjs
+!lib/**/*.test.mjs
 !components/*.test.mjs
 
 # Supabase CLI

@@ -60,6 +60,33 @@ export const studioLimiter = redis
     })
   : null;
 
+export const studioPreviewLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(60, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:studio-preview",
+    })
+  : null;
+
+export const studioChatLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(60, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:studio-chat",
+    })
+  : null;
+
+export const studioCloneLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(3, "1 d"),
+      analytics: true,
+      prefix: "ratelimit:studio-clone",
+    })
+  : null;
+
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,

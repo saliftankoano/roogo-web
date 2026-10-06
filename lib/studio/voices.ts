@@ -1,32 +1,72 @@
-// Approved Cartesia voices for the content Studio. The API accepts a key, never
-// a raw voice ID, so no other voice can be used from the web app.
-// Source: roogo-skills/skills/video-avantage/references/cartesia.md.
-// Salif authorized staff use of his own French voice here on 2026-10-05.
-// His English voice and any other voice are deliberately excluded.
+// Rules for Studio voices. Pure functions, mirrored by the database
+// functions in migration 077 (the database is the final guard).
+// Voices live in public.studio_voices. The API accepts a voice key from that
+// table, never a raw Cartesia voice id.
 
 export const STUDIO_TTS_MODEL = "sonic-3.5";
 export const STUDIO_LANGUAGE = "fr";
 
-export const STUDIO_VOICES = {
-  sandrine: {
-    label: "Sandrine",
-    description: "Voix par défaut de Roogo",
-    id: "2435841c-fce7-4fd5-aed1-dc7008eb7d20",
-  },
-  salif: {
-    label: "Voix de Salif",
-    description: "Salif en français",
-    id: "16dba105-0026-4ff7-bf90-12562786a97c",
-  },
-} as const;
+export type StudioVoiceStatus = "active" | "locked" | "pending" | "revoked";
+export type StudioVoiceKind = "system" | "cloned";
 
-export type StudioVoiceKey = keyof typeof STUDIO_VOICES;
+export type StudioVoice = {
+  id: string;
+  key: string;
+  label: string;
+  description: string | null;
+  cartesiaVoiceId: string;
+  kind: StudioVoiceKind;
+  ownerUserId: string | null;
+  status: StudioVoiceStatus;
+};
 
-export const DEFAULT_STUDIO_VOICE: StudioVoiceKey = "sandrine";
+type Viewer = { id: string; user_type: string | null };
 
-export function isStudioVoiceKey(value: unknown): value is StudioVoiceKey {
-  return (
-    typeof value === "string" &&
-    Object.prototype.hasOwnProperty.call(STUDIO_VOICES, value)
+/** Only an active voice can speak. Locked, pending and revoked cannot. */
+export function isVoiceUsable(voice: Pick<StudioVoice, "status">): boolean {
+  return voice.status === "active";
+}
+
+/** The owner of a locked voice unlocks it by accepting the terms. */
+export function canAcceptVoiceTerms(
+  viewer: Viewer,
+  voice: Pick<StudioVoice, "ownerUserId" | "status">,
+): boolean {
+  return voice.status === "locked" && voice.ownerUserId === viewer.id;
+}
+
+/** The owner or a founder can withdraw a voice that is not already revoked. */
+export function canRevokeVoice(
+  viewer: Viewer,
+  voice: Pick<StudioVoice, "ownerUserId" | "status">,
+): boolean {
+  if (voice.status === "revoked") return false;
+  return viewer.user_type === "founder" || voice.ownerUserId === viewer.id;
+}
+
+/**
+ * One voice per person. A person who already owns a voice that is not
+ * revoked cannot get another one: they must revoke it first.
+ */
+export function canOwnAnotherVoice(
+  ownerUserId: string,
+  voices: ReadonlyArray<Pick<StudioVoice, "ownerUserId" | "status">>,
+): boolean {
+  return !voices.some(
+    (voice) => voice.ownerUserId === ownerUserId && voice.status !== "revoked",
   );
 }
+
+/** What the viewer sees in the voice list: usable voices plus their own. */
+export function visibleVoices<T extends StudioVoice>(
+  viewer: Viewer,
+  voices: ReadonlyArray<T>,
+): T[] {
+  return voices.filter(
+    (voice) =>
+      isVoiceUsable(voice) ||
+      (voice.ownerUserId === viewer.id && voice.status !== "revoked"),
+  );
+}
+
+export const DEFAULT_STUDIO_VOICE_KEY = "sandrine";

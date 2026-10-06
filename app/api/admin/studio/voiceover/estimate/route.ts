@@ -9,7 +9,8 @@ import {
   loadGlossary,
 } from "@/lib/studio/server";
 import { MAX_TTS_CHARACTERS, prepareForSpeech } from "@/lib/studio/tts-prepare";
-import { isStudioVoiceKey } from "@/lib/studio/voices";
+import { isVoiceUsable } from "@/lib/studio/voices";
+import { loadVoiceByKey } from "@/lib/studio/voices-server";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -23,7 +24,9 @@ export async function POST(req: Request) {
 
   const body = await req.json().catch(() => null);
   const text = typeof body?.text === "string" ? body.text : "";
-  if (!isStudioVoiceKey(body?.voice)) {
+  const voice =
+    typeof body?.voice === "string" ? await loadVoiceByKey(body.voice) : null;
+  if (!voice || !isVoiceUsable(voice)) {
     return errorResponse("Voix non autorisée", 400, req);
   }
 
