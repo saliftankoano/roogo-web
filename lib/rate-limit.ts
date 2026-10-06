@@ -78,6 +78,15 @@ export const studioChatLimiter = redis
     })
   : null;
 
+export const studioCloneLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(3, "1 d"),
+      analytics: true,
+      prefix: "ratelimit:studio-clone",
+    })
+  : null;
+
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,

@@ -123,7 +123,9 @@ export function VoicePicker({
               <span className="text-xs font-medium opacity-70">
                 {usable
                   ? (voice.description ?? "")
-                  : "Acceptation requise"}
+                  : voice.status === "pending"
+                    ? "En préparation"
+                    : "Acceptation requise"}
               </span>
             </button>
           );

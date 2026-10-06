@@ -9,6 +9,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 - [ ] [077_studio_voices_consent.sql](./077_studio_voices_consent.sql) — **not executed yet.** Team voices (Sandrine, Salif, Ablassé), consent records, the one-voice-per-person rule and the atomic accept and revoke functions. Seeds Ablassé's voice as locked until he accepts the terms. Record execution here and add `_executed` to the filename once Salif confirms it ran.
 - [ ] [078_studio_glossary_v2.sql](./078_studio_glossary_v2.sql) — **not executed yet; run after 077.** Glossary edit timestamp, ledger kinds `preview` and `chat`, and the kind-aware `reserve_studio_spend` function so glossary "Écouter" previews count toward the monthly cap. The Studio voice-over route needs this function, so apply 078 before deploying the code that uses it.
 - [ ] [079_studio_chat.sql](./079_studio_chat.sql) — **not executed yet; run after 078.** Chat conversations, messages and pinned artifacts for the Studio, plus `conversation_id` and `property_id` on the generation ledger. The Studio page and the chat route need these tables, so apply 079 before deploying the chat code.
+- [ ] [080_studio_voice_cloning.sql](./080_studio_voice_cloning.sql) — **not executed yet; run after 079.** Voice-cloning challenges (a fresh sentence and code per attempt) and the private `voice-consents` bucket for the recorded samples. Needed by the clone routes; do not enable cloning for staff before Salif has had the consent text reviewed.
 
 ## Ordered photo galleries — 2026-10-05
 

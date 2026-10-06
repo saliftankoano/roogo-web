@@ -5,6 +5,7 @@ import { cn } from "@/lib/utils";
 import { DEFAULT_FCFA_PER_USD, type StudioCurrency } from "@/lib/studio/currency";
 import { parseSseBuffer } from "@/lib/studio/sse";
 import { ArtifactsPanel } from "./ArtifactsPanel";
+import { CloneVoice } from "./CloneVoice";
 import { ConversationList } from "./ConversationList";
 import { GlossaryPanel } from "./GlossaryPanel";
 import { Thread } from "./Thread";
@@ -396,6 +397,7 @@ export function StudioApp() {
               onSelect={chooseVoice}
               onChanged={loadVoices}
             />
+            <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
             {detail && canWrite ? (
               <ArtifactsPanel
                 artifacts={artifacts}
