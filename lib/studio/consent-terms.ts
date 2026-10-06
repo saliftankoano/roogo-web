@@ -5,7 +5,7 @@
 // Draft written for Kazedra Tech. Have counsel review it before staff rely
 // on it as a legal record.
 
-export const TERMS_VERSION = "voix-v1-2026-10-06";
+export const TERMS_VERSION = "voix-v2-2026-10-06";
 
 export const TERMS_TITLE = "Utilisation de ma voix par Kazedra Tech";
 
@@ -15,6 +15,7 @@ export const TERMS_PARAGRAPHS: ReadonlyArray<string> = [
   "Elle vaut pour toute la durée où ma voix reste active dans le Studio. Je peux la retirer à tout moment depuis le Studio. Le retrait empêche tout nouvel usage de ma voix et supprime la voix numérique créée à partir de mon enregistrement.",
   "Les contenus déjà publiés avant mon retrait peuvent rester en ligne, mais aucun nouveau contenu ne sera créé avec ma voix après le retrait.",
   "Ma voix ne sera pas utilisée pour me faire dire des propos qui portent atteinte à ma dignité, ni pour usurper mon identité en dehors de Roogo.",
+  "Cette autorisation est volontaire. Je peux la refuser sans aucune conséquence sur mon travail, ma rémunération ou ma collaboration avec Kazedra Tech.",
   "Kazedra Tech conserve la preuve de cette acceptation : la date, mon compte, l'adresse réseau utilisée et la version de ce texte.",
 ];
 
