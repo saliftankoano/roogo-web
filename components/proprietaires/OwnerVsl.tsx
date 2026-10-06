@@ -22,7 +22,7 @@ import {
 } from "@/components/marketing/MarketingPrimitives";
 
 // Script and shot list: vault 04 Marketing/Playbooks/Owner VSL script.
-const VSL_VIDEO_SRC: string | null = "/videos/vsl-proprietaires.mp4";
+const VSL_VIDEO_SRC: string | null = "/api/media/vsl-proprietaires";
 const VSL_POSTER_SRC = "/marketing/roogo-owner-handoff.jpg";
 
 const WHATSAPP_URL =
