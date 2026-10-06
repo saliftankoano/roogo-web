@@ -142,6 +142,7 @@ export async function POST(req: Request) {
     }
 
     const audio = speech.audio;
+    const durationSeconds = Math.ceil((audio.length / (128000 / 8)) * 100) / 100;
     const path = `${staff.id}/${randomUUID()}.mp3`;
     const { error: uploadError } = await supabaseAdmin.storage
       .from(STUDIO_BUCKET)
@@ -175,6 +176,7 @@ export async function POST(req: Request) {
           voice_key: voice.key,
           output_path: path,
           pinned: true,
+          meta: { duration_seconds: durationSeconds },
         })
         .select("id")
         .single();

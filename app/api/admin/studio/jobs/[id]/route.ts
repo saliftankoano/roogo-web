@@ -51,22 +51,27 @@ export async function GET(req: Request, { params }: Ctx) {
     await supabaseAdmin
       .from("studio_generations")
       .update({ status: "failed", error: message.slice(0, 300) })
-      .eq("id", gen.id);
+      .eq("id", gen.id)
+      .eq("status", "running");
     return respond({ state: "failed", error: message });
   };
 
-  const ageMinutes = (Date.now() - new Date(gen.created_at).getTime()) / 60_000;
-  if (ageMinutes > MAX_JOB_MINUTES) {
-    return failJob("La création a pris trop de temps. Réessayez.");
-  }
   if (gen.status === "finalizing") return respond({ state: "running" });
 
   const urls = gen.input as { status_url?: string; response_url?: string } | null;
   if (!urls?.status_url || !urls.response_url) return respond({ state: "running" });
 
   const status = await falStatus(urls.status_url);
+  if (status.state === "FAILED" || status.state === "CANCELED") {
+    return failJob("La création a échoué côté fal.");
+  }
   if (status.state !== "COMPLETED") {
     return respond({ state: "running", queuePosition: status.queuePosition });
+  }
+
+  const ageMinutes = (Date.now() - new Date(gen.created_at).getTime()) / 60_000;
+  if (ageMinutes > MAX_JOB_MINUTES) {
+    return failJob("La création a pris trop de temps. Réessayez.");
   }
 
   // Claim the right to save the result. Only one poll can win this update.

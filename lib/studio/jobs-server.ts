@@ -115,7 +115,7 @@ export async function prepareJob(
     const expected: ExpectedText = {
       price: lines.price,
       phone: CONTACT_PHONE,
-      place: row.quartier ?? undefined,
+      place: lines.place,
     };
     return {
       ok: true,
@@ -166,7 +166,7 @@ export async function prepareJob(
   const artifactId = typeof params.artifact_id === "string" ? params.artifact_id : "";
   const { data: artifact } = await supabaseAdmin
     .from("studio_artifacts")
-    .select("id, kind, text, output_path, conversation_id")
+    .select("id, kind, text, output_path, conversation_id, meta")
     .eq("id", artifactId)
     .eq("conversation_id", conversation.id)
     .maybeSingle();
@@ -177,6 +177,9 @@ export async function prepareJob(
     .from(STUDIO_BUCKET)
     .createSignedUrl(artifact.output_path, 3600);
   if (!signed?.signedUrl) return fail(500, "L'audio n'est pas accessible.");
+
+  const meta = (artifact.meta ?? {}) as { duration_seconds?: number };
+  const audioSeconds = meta.duration_seconds ?? 60;
 
   return {
     ok: true,
@@ -189,7 +192,7 @@ export async function prepareJob(
         diarize: false,
         tag_audio_events: false,
       },
-      estimateUsd: estimateJobCostUsd({ tool, audioSeconds: 60 }),
+      estimateUsd: estimateJobCostUsd({ tool, audioSeconds }),
       context: { tool, artifact_id: artifact.id },
     },
   };

@@ -62,7 +62,7 @@ export async function submitFal(
   }
 }
 
-export type FalState = "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "UNKNOWN";
+export type FalState = "IN_QUEUE" | "IN_PROGRESS" | "COMPLETED" | "FAILED" | "CANCELED" | "UNKNOWN";
 
 export async function falStatus(
   statusUrl: string,
@@ -78,7 +78,9 @@ export async function falStatus(
     const state: FalState =
       data.status === "IN_QUEUE" ||
       data.status === "IN_PROGRESS" ||
-      data.status === "COMPLETED"
+      data.status === "COMPLETED" ||
+      data.status === "FAILED" ||
+      data.status === "CANCELED"
         ? data.status
         : "UNKNOWN";
     return { state, queuePosition: data.queue_position ?? null };

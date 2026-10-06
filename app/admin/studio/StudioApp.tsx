@@ -135,6 +135,13 @@ export function StudioApp() {
     if (activeRef.current) void loadDetail(activeRef.current);
   }, [loadDetail]);
   const jobsApi = useJobs(detail?.conversation.id ?? null, detail?.jobs ?? [], reloadActive);
+
+  const getVoiceoverDuration = useCallback((artifactId: string): number => {
+    const artifact = detail?.artifacts.find(a => a.id === artifactId);
+    const meta = artifact?.meta ?? {};
+    return typeof meta.duration_seconds === "number" ? meta.duration_seconds : 60;
+  }, [detail?.artifacts]);
+
   const captionsLabel = ` (environ ${money(estimateJobCostUsd({ tool: "captions", audioSeconds: 60 }))})`;
 
     function newConversation() {
@@ -440,7 +447,7 @@ export function StudioApp() {
                 onChanged={() => void loadDetail(detail.conversation.id)}
                 onRework={(artifact) => void rework(artifact)}
                 onRates={setRate}
-                onCaptions={(artifactId) => void jobsApi.start("captions", { artifact_id: artifactId }, estimateJobCostUsd({ tool: "captions", audioSeconds: 60 }))}
+                onCaptions={(artifactId) => void jobsApi.start("captions", { artifact_id: artifactId }, estimateJobCostUsd({ tool: "captions", audioSeconds: getVoiceoverDuration(artifactId) }))}
                 captionsLabel={captionsLabel}
                 captionsBusy={jobsApi.jobs.some((j) => j.tool === "captions")}
               />
