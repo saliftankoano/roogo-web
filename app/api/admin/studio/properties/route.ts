@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { PROPERTY_TYPE_IDS } from "@/lib/constants";
 import { toPropertySummary, type PropertyRow } from "@/lib/studio/property-context";
 import {
   PROPERTY_COLUMNS,
@@ -34,9 +35,27 @@ export async function GET(req: Request) {
     .limit(20);
   if (!includeAll) query = query.eq("status", "en_ligne");
   if (q) {
-    query = query.or(
-      `quartier.ilike.%${q}%,address.ilike.%${q}%,property_type.ilike.%${q}%`,
-    );
+    // property_type is an enum column, so a text match on it is rejected by
+    // the database. Match known type names exactly instead ("vil" finds villa).
+    const needle = q
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "");
+    const typeIds =
+      needle.length >= 3
+        ? PROPERTY_TYPE_IDS.filter((id) =>
+            id
+              .normalize("NFD")
+              .replace(/\p{Diacritic}/gu, "")
+              .startsWith(needle),
+          )
+        : [];
+    const filters = [
+      `quartier.ilike.%${q}%`,
+      `address.ilike.%${q}%`,
+      ...typeIds.map((id) => `property_type.eq.${id}`),
+    ];
+    query = query.or(filters.join(","));
   }
 
   const { data, error } = await query;
