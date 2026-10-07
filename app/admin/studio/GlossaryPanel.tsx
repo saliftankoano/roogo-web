@@ -327,7 +327,7 @@ export function GlossaryPanel({
           <ArrowRightIcon
             size={18}
             weight="bold"
-            className="mx-auto hidden text-neutral-300 sm:block"
+            className="mx-auto hidden text-neutral-400 sm:block"
           />
           <input
             className={inputClass}
@@ -374,7 +374,7 @@ export function GlossaryPanel({
           <MagnifyingGlassIcon
             size={18}
             weight="bold"
-            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
+            className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500"
           />
           <input
             className={cn(inputClass, "pl-11")}
@@ -401,7 +401,7 @@ export function GlossaryPanel({
               className={cn(
                 "min-h-11 rounded-full px-4 text-sm font-bold transition-colors",
                 filter === key
-                  ? "bg-neutral-900 text-white"
+                  ? "bg-primary text-white"
                   : "bg-neutral-100 text-neutral-600",
               )}
             >
@@ -426,7 +426,7 @@ export function GlossaryPanel({
         ) : (
           groups.map(([letter, items]) => (
             <div key={letter} className="space-y-2">
-              <h3 className="px-1 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-400">
+              <h3 className="px-1 pt-2 text-xs font-bold uppercase tracking-widest text-neutral-500">
                 {letter}
               </h3>
               <ul className="space-y-2">
@@ -494,13 +494,13 @@ export function GlossaryPanel({
                               <ArrowRightIcon
                                 size={14}
                                 weight="bold"
-                                className="text-neutral-300"
+                                className="text-neutral-400"
                               />
                               <span className="rounded-lg bg-neutral-100 px-2 py-0.5 text-sm font-semibold text-neutral-700">
                                 {row.spoken}
                               </span>
                             </p>
-                            <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-neutral-400">
+                            <p className="mt-0.5 flex items-center gap-1 text-xs font-medium text-neutral-500">
                               {row.kind === "builtin" ? (
                                 <>
                                   <LockSimpleIcon size={12} weight="bold" />

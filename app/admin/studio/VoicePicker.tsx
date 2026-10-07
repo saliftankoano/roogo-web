@@ -98,7 +98,7 @@ export function VoicePicker({
     <div className="space-y-3">
       <section
         aria-label="Voix"
-        className="grid grid-cols-2 gap-2 rounded-3xl bg-neutral-100 p-1.5 sm:grid-cols-3"
+        className="grid grid-cols-2 gap-2 rounded-2xl bg-neutral-50 p-1.5"
       >
         {voices.map((voice) => {
           const usable = voice.status === "active";

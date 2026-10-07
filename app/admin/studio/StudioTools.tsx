@@ -142,7 +142,7 @@ async function fetchEstimate(
 const chip = (active: boolean) =>
   cn(
     "min-h-11 rounded-full px-4 text-sm font-bold transition-colors",
-    active ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600",
+    active ? "bg-primary text-white" : "bg-neutral-100 text-neutral-600",
   );
 
 const fieldClass =
@@ -229,7 +229,7 @@ export function ToolsPanel({
         Créer
       </h3>
 
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2">
         <button
           type="button"
           disabled={!posterOk || busy !== null}
@@ -256,7 +256,7 @@ export function ToolsPanel({
           </button>
         )}
         {!posterOk && estimates.poster?.reason && (
-          <p className="text-xs font-medium text-neutral-400">{estimates.poster.reason}</p>
+          <p className="text-xs font-medium text-neutral-500">{estimates.poster.reason}</p>
         )}
 
         <div className="grid grid-cols-2 gap-2">
@@ -405,7 +405,7 @@ function PosterForm({
       <input className={fieldClass} value={headline} onChange={(e) => setHeadline(e.target.value)} aria-label="Titre" />
       <input className={fieldClass} value={place} onChange={(e) => setPlace(e.target.value)} aria-label="Lieu" />
       <input className={fieldClass} value={price} onChange={(e) => setPrice(e.target.value)} aria-label="Prix" />
-      <p className="text-xs font-medium text-neutral-400">
+      <p className="text-xs font-medium text-neutral-500">
         Le numéro de téléphone de Roogo est ajouté automatiquement.
       </p>
       <div className="flex flex-wrap gap-2">

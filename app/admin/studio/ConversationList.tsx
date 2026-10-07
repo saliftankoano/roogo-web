@@ -51,7 +51,7 @@ export function ConversationList({
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
           {[...groups.entries()].map(([label, items]) => (
             <div key={label} className="space-y-1">
-              <h3 className="px-2 text-xs font-bold uppercase tracking-widest text-neutral-400">
+              <h3 className="px-2 text-xs font-bold uppercase tracking-widest text-neutral-500">
                 {label}
               </h3>
               {items.map((item) => (

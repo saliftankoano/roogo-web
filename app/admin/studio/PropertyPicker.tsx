@@ -46,7 +46,7 @@ export function PropertyPicker({ onPick, disabled }: Props) {
         <MagnifyingGlassIcon
           size={18}
           weight="bold"
-          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-neutral-400"
+          className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-neutral-500"
         />
         <input
           className="w-full rounded-2xl border border-neutral-200 bg-white py-3 pl-11 pr-4 text-base text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-primary"
@@ -99,7 +99,7 @@ export function PropertyPicker({ onPick, disabled }: Props) {
                   ) : (
                     <HouseLineIcon
                       size={24}
-                      className="absolute inset-0 m-auto text-neutral-300"
+                      className="absolute inset-0 m-auto text-neutral-400"
                     />
                   )}
                 </span>

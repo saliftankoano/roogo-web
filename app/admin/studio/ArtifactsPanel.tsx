@@ -30,8 +30,8 @@ type CommonProps = {
   onRates: (rate: number) => void;
 };
 
-type PanelProps = CommonProps & {
-  artifacts: Artifact[];
+export type CardProps = CommonProps & {
+  artifact: Artifact;
   onCaptions: (artifactId: string) => void;
   getCaptionsLabel: (artifactId: string) => string;
   captionsBusy: boolean;
@@ -169,7 +169,7 @@ function ScriptCard({
         type="button"
         onClick={generate}
         disabled={!canGenerate}
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-white shadow-lg shadow-primary/20 transition-all active:scale-[0.985] disabled:opacity-40"
+        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-white shadow-lg shadow-primary/10 transition-all active:scale-[0.985] disabled:opacity-40"
       >
         {generating ? (
           <SpinnerGapIcon size={20} className="animate-spin" />
@@ -464,51 +464,39 @@ function CaptionsCard({
   );
 }
 
-export function ArtifactsPanel({
-  artifacts,
+// Pinned first, then newest first.
+export function orderArtifacts(artifacts: Artifact[]): Artifact[] {
+  return [...artifacts].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+export function ArtifactCard({
+  artifact,
   onCaptions,
   getCaptionsLabel,
   captionsBusy,
   ...common
-}: PanelProps) {
-  // Pinned first, then newest first.
-  const ordered = [...artifacts].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return b.createdAt.localeCompare(a.createdAt);
-  });
-
-  if (ordered.length === 0) {
-    return (
-      <p className="rounded-3xl border border-dashed border-neutral-300 p-6 text-center text-sm font-medium text-neutral-500">
-        Les scripts, voix, affiches et sous-titres de cette conversation seront épinglés ici.
-      </p>
-    );
+}: CardProps) {
+  if (artifact.kind === "script") {
+    // The key resets the editable text when another script is shown.
+    return <ScriptCard key={artifact.id} artifact={artifact} {...common} />;
   }
-
+  if (artifact.kind === "image") {
+    return <ImageCard artifact={artifact} onChanged={common.onChanged} />;
+  }
+  if (artifact.kind === "captions") {
+    return <CaptionsCard artifact={artifact} onChanged={common.onChanged} />;
+  }
   return (
-    <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {ordered.map((artifact) => {
-        if (artifact.kind === "script") {
-          return <ScriptCard key={artifact.id} artifact={artifact} {...common} />;
-        }
-        if (artifact.kind === "image") {
-          return <ImageCard key={artifact.id} artifact={artifact} onChanged={common.onChanged} />;
-        }
-        if (artifact.kind === "captions") {
-          return <CaptionsCard key={artifact.id} artifact={artifact} onChanged={common.onChanged} />;
-        }
-        return (
-          <VoiceCard
-            key={artifact.id}
-            artifact={artifact}
-            onChanged={common.onChanged}
-            onRework={common.onRework}
-            onCaptions={onCaptions}
-            getCaptionsLabel={getCaptionsLabel}
-            captionsBusy={captionsBusy}
-          />
-        );
-      })}
-    </div>
+    <VoiceCard
+      artifact={artifact}
+      onChanged={common.onChanged}
+      onRework={common.onRework}
+      onCaptions={onCaptions}
+      getCaptionsLabel={getCaptionsLabel}
+      captionsBusy={captionsBusy}
+    />
   );
 }

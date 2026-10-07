@@ -316,7 +316,7 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
                     onClick={send}
                     disabled={busy || seconds < challenge.minSeconds - 0.5}
                     className={cn(
-                      "flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-900 px-6 text-sm font-bold text-white",
+                      "flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-sm font-bold text-white",
                       (busy || seconds < challenge.minSeconds - 0.5) && "opacity-40",
                     )}
                   >

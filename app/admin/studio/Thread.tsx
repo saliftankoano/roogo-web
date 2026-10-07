@@ -17,6 +17,8 @@ type Props = {
   hasConversation: boolean;
   onSend: (text: string) => void;
   onPickProperty: (property: PropertySummary) => void;
+  /** On a wide screen the message box sits under the preview instead. */
+  hideComposer?: boolean;
 };
 
 const QUICK_REPLIES = [
@@ -35,21 +37,14 @@ export function Thread({
   hasConversation,
   onSend,
   onPickProperty,
+  hideComposer = false,
 }: Props) {
-  const [draft, setDraft] = useState("");
   const [changing, setChanging] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
   }, [messages.length, streamingText]);
-
-  function submit() {
-    const text = draft.trim();
-    if (!text || sending) return;
-    setDraft("");
-    onSend(text);
-  }
 
   const showPicker = !property || changing;
 
@@ -61,7 +56,7 @@ export function Thread({
             {property.image ? (
               <Image src={property.image} alt="" fill sizes="48px" unoptimized className="object-cover" />
             ) : (
-              <HouseLineIcon size={20} className="absolute inset-0 m-auto text-neutral-300" />
+              <HouseLineIcon size={20} className="absolute inset-0 m-auto text-neutral-400" />
             )}
           </span>
           <span className="min-w-0 flex-1">
@@ -133,7 +128,7 @@ export function Thread({
                   <span className="text-neutral-500">J&apos;écris le script...</span>
                 )
               ) : (
-                <SpinnerGapIcon size={18} className="animate-spin text-neutral-400" />
+                <SpinnerGapIcon size={18} className="animate-spin text-neutral-500" />
               )}
             </p>
           </div>
@@ -147,53 +142,86 @@ export function Thread({
         <div ref={bottomRef} />
       </div>
 
-      {canWrite ? (
-        <div className="space-y-2">
-          {messages.length > 0 && !sending && (
-            <div className="flex flex-wrap gap-2">
-              {QUICK_REPLIES.map((reply) => (
-                <button
-                  key={reply}
-                  type="button"
-                  onClick={() => onSend(reply)}
-                  className="min-h-11 rounded-full bg-neutral-100 px-4 text-sm font-bold text-neutral-700"
-                >
-                  {reply}
-                </button>
-              ))}
-            </div>
-          )}
-          <div className="flex items-end gap-2 rounded-3xl border border-neutral-200 bg-white p-2 focus-within:border-primary">
-            <textarea
-              value={draft}
-              onChange={(e) => setDraft(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  submit();
-                }
-              }}
-              rows={1}
-              placeholder="Demandez un script, une modification..."
-              aria-label="Votre message"
-              className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-neutral-900 outline-none placeholder:text-neutral-400"
-            />
-            <button
-              type="button"
-              onClick={submit}
-              disabled={!draft.trim() || sending}
-              aria-label="Envoyer"
-              className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white disabled:opacity-40"
-            >
-              <PaperPlaneRightIcon size={20} weight="fill" />
-            </button>
-          </div>
-        </div>
+      {hideComposer ? null : canWrite ? (
+        <Composer
+          sending={sending}
+          showQuickReplies={messages.length > 0}
+          onSend={onSend}
+        />
       ) : (
-        <p className="rounded-2xl bg-neutral-100 p-3 text-center text-sm font-medium text-neutral-500">
-          Vous consultez la conversation d&apos;un collègue en lecture seule.
-        </p>
+        <ReadOnlyNote />
       )}
+    </div>
+  );
+}
+
+export function ReadOnlyNote() {
+  return (
+    <p className="rounded-2xl bg-neutral-100 p-3 text-center text-sm font-medium text-neutral-500">
+      Vous consultez la conversation d&apos;un collègue en lecture seule.
+    </p>
+  );
+}
+
+export function Composer({
+  sending,
+  showQuickReplies,
+  onSend,
+}: {
+  sending: boolean;
+  showQuickReplies: boolean;
+  onSend: (text: string) => void;
+}) {
+  const [draft, setDraft] = useState("");
+
+  function submit() {
+    const text = draft.trim();
+    if (!text || sending) return;
+    setDraft("");
+    onSend(text);
+  }
+
+  return (
+    <div className="space-y-2">
+      {showQuickReplies && !sending && (
+        <div className="flex flex-wrap gap-2">
+          {QUICK_REPLIES.map((reply) => (
+            <button
+              key={reply}
+              type="button"
+              onClick={() => onSend(reply)}
+              className="min-h-11 rounded-full bg-neutral-100 px-4 text-sm font-bold text-neutral-700 lg:min-h-8 lg:px-3 lg:text-xs"
+            >
+              {reply}
+            </button>
+          ))}
+        </div>
+      )}
+      <div className="flex items-end gap-2 rounded-3xl border border-neutral-200 bg-white p-2 focus-within:border-primary">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          rows={1}
+          placeholder="Demandez un script, une modification..."
+          aria-label="Votre message"
+          className="max-h-32 min-h-11 flex-1 resize-none bg-transparent px-3 py-2.5 text-base text-neutral-900 outline-none placeholder:text-neutral-400"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!draft.trim() || sending}
+          aria-label="Envoyer"
+          className="flex size-11 shrink-0 items-center justify-center rounded-2xl bg-primary text-white disabled:opacity-40"
+        >
+          <PaperPlaneRightIcon size={20} weight="fill" />
+        </button>
+      </div>
     </div>
   );
 }
