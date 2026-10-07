@@ -13,7 +13,7 @@ owner → agent → staff → founder → guest. Compare `getBoundingClientRect(
 `header`, `[data-nav-auth-slot]`, `nav[aria-label="Navigation principale"]`,
 `[data-layout-anchor]` before and after every transition.
 Expected: identical container rectangles at each fixed viewport width. Links
-intentionally differ by role, using five equal-width desktop slots. Loading
+intentionally differ by role, sharing one fixed-width desktop container equally (five or six slots). Loading
 shows placeholders instead of visitor links. Accueil and Propriétés retain
 their first two positions for visitor, renter, owner, and agent roles.
 
