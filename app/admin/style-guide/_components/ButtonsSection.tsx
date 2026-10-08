@@ -3,9 +3,12 @@
 import * as React from "react";
 import {
   ArrowRightIcon,
+  CheckCircleIcon,
   FloppyDiskIcon,
+  PaperPlaneTiltIcon,
   PlusIcon,
   TrashIcon,
+  XCircleIcon,
 } from "@phosphor-icons/react";
 
 import {
@@ -15,6 +18,8 @@ import {
   type ButtonSize,
   type ButtonVariant,
 } from "@/components/ui/Button";
+import { RangeInput } from "@/components/ui/range-input";
+import { formatCurrency } from "@/lib/format";
 import {
   GuideSection,
   GuideSubsection,
@@ -37,8 +42,16 @@ const sizes: { id: ButtonSize; label: string }[] = [
   { id: "lg", label: "Grand" },
 ];
 
+const responsiveRules: { ok: boolean; text: string }[] = [
+  { ok: true, text: "Un verbe, deux ou trois mots au maximum dans le libellé." },
+  { ok: true, text: "Le prix, la voix ou tout autre détail se placent à côté du bouton, jamais dedans." },
+  { ok: false, text: "Ne jamais laisser une icône rétrécir: elle garde 16, 18 ou 20 px selon la taille." },
+  { ok: false, text: "Ne jamais couper un libellé sur deux lignes: le bouton passe à la ligne entier, ou se tronque." },
+];
+
 export function ButtonsSection() {
   const [loading, setLoading] = React.useState(false);
+  const [demoWidth, setDemoWidth] = React.useState(320);
 
   const simulate = () => {
     setLoading(true);
@@ -174,9 +187,113 @@ export function ButtonsSection() {
         </SpecimenGrid>
         <p className="text-xs leading-relaxed text-neutral-500">
           Les icônes viennent de <Mono>@phosphor-icons/react</Mono> en graisse{" "}
-          <Mono>bold</Mono>, 18 px dans un bouton moyen, 16 px en petit. Une
-          icône seule a toujours un <Mono>aria-label</Mono>.
+          <Mono>bold</Mono>. Le bouton impose leur taille (16 px en petit, 18 px
+          en moyen, 20 px en grand et en icône seule), quelle que soit la prop{" "}
+          <Mono>size</Mono> passée à l&apos;icône. Une icône seule a toujours un{" "}
+          <Mono>aria-label</Mono>.
         </p>
+      </GuideSubsection>
+
+      <GuideSubsection
+        title="Règles de réactivité"
+        note="Hauteur fixe par taille (h-9, h-11, h-12), libellé sur une ligne, icône qui ne rétrécit jamais."
+      >
+        <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(0,0.8fr)]">
+          <Specimen
+            label="Colonne étroite"
+            code='whitespace-nowrap sur le libellé · icône shrink-0 dans une boîte fixe · truncate pour couper avec une ellipse et un title'
+          >
+            <div className="space-y-4">
+              <RangeInput
+                aria-label="Largeur de la colonne"
+                min={160}
+                max={480}
+                step={8}
+                value={demoWidth}
+                onChange={(event) => setDemoWidth(Number(event.target.value))}
+                showValue
+                formatValue={(value) => `${value} px`}
+              />
+              <div
+                className="max-w-full space-y-3 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50/60 p-3"
+                style={{ width: demoWidth }}
+              >
+                <div className="flex items-center justify-between gap-3 rounded-xl bg-white p-3">
+                  <div className="min-w-0">
+                    <p className="truncate text-sm font-bold tabular-nums text-neutral-900">
+                      {formatCurrency(50000)} / mois
+                    </p>
+                    <p className="truncate text-xs text-neutral-500">
+                      Studio meublé, Pissy
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    rightIcon={<ArrowRightIcon weight="bold" />}
+                  >
+                    Réserver
+                  </Button>
+                </div>
+                <Button
+                  fullWidth
+                  truncate
+                  leftIcon={<PaperPlaneTiltIcon weight="bold" />}
+                >
+                  Envoyer la demande
+                </Button>
+                <div className="flex flex-wrap justify-end gap-2">
+                  <Button variant="ghost" size="sm">
+                    Annuler
+                  </Button>
+                  <Button size="sm" leftIcon={<CheckCircleIcon weight="bold" />}>
+                    Confirmer
+                  </Button>
+                </div>
+              </div>
+              <p className="text-xs leading-relaxed text-neutral-500">
+                Réduisez à 160 px: le prix se tronque avant le bouton, le bouton
+                pleine largeur coupe son libellé avec une ellipse (survolez-le pour
+                lire le titre), les deux actions passent à la ligne ensemble. Aucune
+                icône ne change de taille.
+              </p>
+            </div>
+          </Specimen>
+
+          <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              Règles
+            </p>
+            <ul className="space-y-2.5">
+              {responsiveRules.map((rule) => (
+                <li
+                  key={rule.text}
+                  className="flex items-start gap-2 text-sm leading-relaxed text-neutral-700"
+                >
+                  {rule.ok ? (
+                    <CheckCircleIcon
+                      size={16}
+                      weight="fill"
+                      className="mt-0.5 shrink-0 text-success"
+                      aria-hidden="true"
+                    />
+                  ) : (
+                    <XCircleIcon
+                      size={16}
+                      weight="fill"
+                      className="mt-0.5 shrink-0 text-danger"
+                      aria-hidden="true"
+                    />
+                  )}
+                  {rule.text}
+                </li>
+              ))}
+            </ul>
+            <p className="text-xs leading-relaxed text-neutral-500">
+              Le libellé tronqué reste lisible grâce à <Mono>title</Mono>, ajouté
+              automatiquement quand <Mono>truncate</Mono> reçoit un texte simple.
+            </p>
+          </div>
+        </div>
       </GuideSubsection>
     </GuideSection>
   );
