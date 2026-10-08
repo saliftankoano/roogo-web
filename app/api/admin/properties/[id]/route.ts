@@ -74,6 +74,77 @@ function mapAdminProperty(row: PropertyDetailsRow) {
   };
 }
 
+const ACTIVE_AGREEMENT_STATUSES = ["active", "owner_signed", "renter_signed", "sent"];
+
+// Current lease on this property (signed in-app or imported), with the
+// renter's contact card and a rent-schedule summary, so staff can see who
+// lives there without leaving the listing page.
+async function loadActiveLease(propertyId: string) {
+  const { data: agreement, error } = await supabaseAdmin
+    .from("rental_agreements")
+    .select(
+      "id, status, renter_id, owner_id, monthly_rent, caution_mois, loyer_avance_mois, start_date, end_date, owner_signed_at, renter_signed_at, signature_source, imported_at, created_at",
+    )
+    .eq("property_id", propertyId)
+    .in("status", ACTIVE_AGREEMENT_STATUSES)
+    .order("created_at", { ascending: false })
+    .limit(1)
+    .maybeSingle();
+  if (error) {
+    console.error("Error fetching active lease:", error);
+    return null;
+  }
+  if (!agreement) return null;
+
+  const [{ data: renter }, { data: schedules }] = await Promise.all([
+    supabaseAdmin
+      .from("users")
+      .select("id, full_name, phone, whatsapp, email, avatar_url, user_type")
+      .eq("id", agreement.renter_id)
+      .maybeSingle(),
+    supabaseAdmin
+      .from("rent_schedules")
+      .select("due_date, status, amount, paid_at, payment_source")
+      .eq("agreement_id", agreement.id)
+      .order("due_date", { ascending: true }),
+  ]);
+
+  const rows = schedules ?? [];
+  const paid = rows.filter((row) => row.status === "paid");
+  const next = rows.find((row) => row.status === "upcoming" || row.status === "overdue") ?? null;
+
+  return {
+    id: agreement.id,
+    status: agreement.status,
+    monthlyRent: asNumber(agreement.monthly_rent),
+    cautionMois: asNumber(agreement.caution_mois),
+    startDate: asString(agreement.start_date) || null,
+    endDate: asString(agreement.end_date) || null,
+    signedAt: asString(agreement.owner_signed_at) || asString(agreement.renter_signed_at) || null,
+    signatureSource: asString(agreement.signature_source) || "in_app",
+    importedAt: asString(agreement.imported_at) || null,
+    renter: renter
+      ? {
+          id: asString(renter.id),
+          full_name: asString(renter.full_name) || "Locataire",
+          phone: asString(renter.phone) || null,
+          whatsapp: asString(renter.whatsapp) || null,
+          email: asString(renter.email) || null,
+          avatar_url: asString(renter.avatar_url) || null,
+          user_type: asString(renter.user_type) || "renter",
+        }
+      : null,
+    rent: {
+      total: rows.length,
+      paid: paid.length,
+      paidOffline: paid.filter((row) => row.payment_source === "offline_import").length,
+      overdue: rows.filter((row) => row.status === "overdue").length,
+      nextDueDate: next ? asString(next.due_date) : null,
+      nextStatus: next ? asString(next.status) : null,
+    },
+  };
+}
+
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
@@ -112,11 +183,14 @@ export async function GET(
       return errorResponse("Failed to fetch sale intake", 500, req);
     }
 
+    const activeLease = await loadActiveLease(id);
+
     return cors(
       NextResponse.json({
         property: {
           ...mapAdminProperty(data),
           saleIntake: intake ?? null,
+          activeLease,
         },
       }),
       req,

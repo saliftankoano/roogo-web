@@ -32,6 +32,8 @@ import {
   CarIcon,
   WhatsappLogoIcon,
   MagnifyingGlassIcon,
+  FileTextIcon,
+  KeyIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
@@ -134,6 +136,55 @@ type OwnerSearchResult = {
   user_type: string;
 };
 
+type ActiveLease = {
+  id: string;
+  status: string;
+  monthlyRent: number;
+  cautionMois: number;
+  startDate: string | null;
+  endDate: string | null;
+  signedAt: string | null;
+  signatureSource: "in_app" | "offline_import" | string;
+  importedAt: string | null;
+  renter: {
+    id: string;
+    full_name: string;
+    phone: string | null;
+    whatsapp: string | null;
+    email: string | null;
+    avatar_url: string | null;
+    user_type: string;
+  } | null;
+  rent: {
+    total: number;
+    paid: number;
+    paidOffline: number;
+    overdue: number;
+    nextDueDate: string | null;
+    nextStatus: string | null;
+  };
+};
+
+type LeaseDocument = { path: string; url: string | null; name: string };
+
+// Lease dates are stored as Postgres DATEs (UTC midnight once parsed), so
+// render them in Burkina's timezone to avoid an off-by-one day for staff
+// browsing from the Americas.
+const formatLeaseDate = (value: string | null | undefined) =>
+  value
+    ? new Date(value).toLocaleDateString("fr-FR", {
+        day: "numeric",
+        month: "long",
+        year: "numeric",
+        timeZone: "Africa/Ouagadougou",
+      })
+    : null;
+
+const leaseDocumentLabel = (document: LeaseDocument, index: number) => {
+  const extension = document.name.split(".").pop()?.toUpperCase() || "FICHIER";
+  return `Bail signé · page ${index + 1} (${extension})`;
+};
+
 // Property type mapping to French
 const PROPERTY_TYPE_MAP: Record<string, string> = {
   villa: "Villa",
@@ -162,9 +213,13 @@ export default function AdminListingDetail({
   const router = useRouter();
   const [listing, setListing] = useState<Property | null>(null);
   const [saleIntake, setSaleIntake] = useState<SaleIntake | null>(null);
+  const [activeLease, setActiveLease] = useState<ActiveLease | null>(null);
+  const [leaseDocuments, setLeaseDocuments] = useState<LeaseDocument[]>([]);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [importLeaseOpen, setImportLeaseOpen] = useState(false);
+  // Bumped after a lease import so the page re-fetches without a reload.
+  const [reloadTick, setReloadTick] = useState(0);
 
   // Status Management
   const [isStatusDropdownOpen, setIsStatusDropdownOpen] = useState(false);
@@ -374,6 +429,7 @@ export default function AdminListingDetail({
         } as Property;
         setListing(propertyData);
         setSaleIntake(propertyPayload.property.saleIntake ?? null);
+        setActiveLease(propertyPayload.property.activeLease ?? null);
 
         // Fetch pending edit for banner
         const pendingRes = await fetch(`/api/properties/${id}/pending-edits`);
@@ -412,7 +468,37 @@ export default function AdminListingDetail({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [id]);
+  }, [id, reloadTick]);
+
+  // Signed lease files live in a private bucket; the API hands back
+  // short-lived signed links for staff only.
+  useEffect(() => {
+    if (!activeLease || activeLease.signatureSource !== "offline_import") {
+      setLeaseDocuments([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const token = await getToken();
+        const response = await fetch(
+          `/api/rental-agreements/${activeLease.id}/import-documents`,
+          { headers: { Authorization: `Bearer ${token}` } },
+        );
+        if (!response.ok) return;
+        const payload = await response.json();
+        const documents = Array.isArray(payload?.import?.documents)
+          ? (payload.import.documents as LeaseDocument[])
+          : [];
+        if (!cancelled) setLeaseDocuments(documents);
+      } catch (error) {
+        console.error("Error loading lease documents:", error);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeLease, getToken]);
 
   useEffect(() => {
     if (!saleIntake || saleIntake.status !== "unlinked" || !ownerSearch.trim()) {
@@ -537,6 +623,10 @@ export default function AdminListingDetail({
         return "En ligne (Publiée)";
       case "expired":
         return "Expirée (Louée/Vendue)";
+      case "locked":
+        return "Louée (Bail actif)";
+      case "finalized":
+        return "Louée (Finalisée)";
       default:
         return status;
     }
@@ -550,6 +640,9 @@ export default function AdminListingDetail({
         return "En ligne";
       case "expired":
         return "Expirée";
+      case "locked":
+      case "finalized":
+        return "Louée";
       default:
         return status;
     }
@@ -562,6 +655,9 @@ export default function AdminListingDetail({
         return "bg-yellow-100 text-yellow-900 border-yellow-300";
       case "expired":
         return "bg-neutral-50 text-neutral-600 border-neutral-200";
+      case "locked":
+      case "finalized":
+        return "bg-blue-50 text-blue-800 border-blue-200";
       default:
         return "bg-neutral-50 text-neutral-600 border-neutral-200";
     }
@@ -586,6 +682,12 @@ export default function AdminListingDetail({
 
   const isDailyListing = isDailyRental(listing);
   const isSaleListing = listing.listingType === "vendre";
+  // A due date in the past with no payment recorded (on or off Roogo).
+  const isLeaseDueDatePast = Boolean(
+    activeLease?.rent.nextDueDate &&
+      (activeLease.rent.nextStatus === "overdue" ||
+        new Date(activeLease.rent.nextDueDate).getTime() < Date.now()),
+  );
   const dailyConditionRows = getDailyConditionRows(listing);
 
   return (
@@ -917,15 +1019,17 @@ export default function AdminListingDetail({
         <div className="flex gap-3 items-center">
           {isStaffOrFounder && (
             <>
-              {listing.listingType === "louer" && !isDailyRental(listing) && (
-                <Button
-                  variant="ghost"
-                  className="text-primary hover:bg-orange-50 text-xs font-bold uppercase tracking-wider"
-                  onClick={() => setImportLeaseOpen(true)}
-                >
-                  Importer un bail
-                </Button>
-              )}
+              {listing.listingType === "louer" &&
+                !isDailyRental(listing) &&
+                !activeLease && (
+                  <Button
+                    variant="ghost"
+                    className="text-primary hover:bg-orange-50 text-xs font-bold uppercase tracking-wider"
+                    onClick={() => setImportLeaseOpen(true)}
+                  >
+                    Importer un bail
+                  </Button>
+                )}
               {isEditing ? (
                 <div className="flex gap-2">
                   <Button
@@ -1034,7 +1138,9 @@ export default function AdminListingDetail({
               propertyId={listing.id}
               initialPhotos={listing.images}
               primaryImageUrl={listing.image}
-              isProfessional={listing.status === "en_ligne"}
+              isProfessional={["en_ligne", "locked", "finalized"].includes(
+                listing.status,
+              )}
               onPhotosUpdated={(isPro) => {
                 if (isPro && listing.status !== "en_ligne") {
                   initiateStatusChange("en_ligne");
@@ -1417,6 +1523,197 @@ export default function AdminListingDetail({
             </div>
           </section>
           )}
+
+          {/* Tenant Card: who holds the current lease */}
+          {activeLease && (
+            <section className="bg-white overflow-hidden rounded-[32px] border border-blue-100 shadow-sm">
+              <div className="p-8 space-y-6">
+                <div className="flex items-center justify-between gap-3">
+                  <span className="inline-flex items-center gap-1.5 rounded-full bg-blue-50 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-blue-800">
+                    <KeyIcon size={12} weight="bold" />
+                    Bail en cours
+                  </span>
+                  <span className="text-[10px] font-bold uppercase tracking-wider text-neutral-400">
+                    {activeLease.signatureSource === "offline_import"
+                      ? "Bail importé"
+                      : "Bail signé dans l'app"}
+                  </span>
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <div className="w-14 h-14 rounded-2xl bg-blue-50 overflow-hidden relative border-2 border-blue-200">
+                    {activeLease.renter?.avatar_url ? (
+                      <Image
+                        src={activeLease.renter.avatar_url}
+                        alt={activeLease.renter.full_name}
+                        fill
+                        sizes="56px"
+                        className="object-cover"
+                      />
+                    ) : (
+                      <div className="w-full h-full flex items-center justify-center text-xl font-bold text-blue-700">
+                        {activeLease.renter?.full_name?.charAt(0)?.toUpperCase() ||
+                          "?"}
+                      </div>
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="font-bold text-neutral-900 leading-tight truncate">
+                      {activeLease.renter?.full_name || "Locataire inconnu"}
+                    </p>
+                    <p className="text-xs text-neutral-400 font-medium uppercase tracking-wider mt-1">
+                      Locataire
+                    </p>
+                  </div>
+                </div>
+
+                <div className="space-y-3 pt-2 border-t border-neutral-50">
+                  {activeLease.renter?.phone && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
+                        <PhoneIcon size={16} weight="bold" />
+                      </div>
+                      <a
+                        href={`tel:${activeLease.renter.phone}`}
+                        className="font-medium text-neutral-600 hover:text-neutral-900"
+                      >
+                        {activeLease.renter.phone}
+                      </a>
+                    </div>
+                  )}
+                  {activeLease.renter?.whatsapp && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="w-8 h-8 rounded-lg bg-green-50 flex items-center justify-center text-green-600">
+                        <WhatsappLogoIcon size={16} weight="fill" />
+                      </div>
+                      <a
+                        href={`https://wa.me/${activeLease.renter.whatsapp.replace(/\D/g, "")}`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="font-medium text-green-700 hover:underline"
+                      >
+                        {activeLease.renter.whatsapp}
+                      </a>
+                    </div>
+                  )}
+                  {activeLease.renter?.email && (
+                    <div className="flex items-center gap-3 text-sm">
+                      <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
+                        <EnvelopeIcon size={16} weight="bold" />
+                      </div>
+                      <span className="font-medium text-neutral-600 break-all">
+                        {activeLease.renter.email}
+                      </span>
+                    </div>
+                  )}
+                </div>
+
+                <dl className="grid grid-cols-2 gap-x-4 gap-y-3 pt-4 border-t border-neutral-50 text-sm">
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Début du bail
+                    </dt>
+                    <dd className="mt-0.5 font-bold text-neutral-900">
+                      {formatLeaseDate(activeLease.startDate) ?? "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Fin du bail
+                    </dt>
+                    <dd className="mt-0.5 font-bold text-neutral-900">
+                      {formatLeaseDate(activeLease.endDate) ?? "Non précisée"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Loyer
+                    </dt>
+                    <dd className="mt-0.5 font-bold text-neutral-900">
+                      {formatXofAmount(activeLease.monthlyRent)} FCFA / mois
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Caution
+                    </dt>
+                    <dd className="mt-0.5 font-bold text-neutral-900">
+                      {activeLease.cautionMois} mois
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Loyers payés
+                    </dt>
+                    <dd className="mt-0.5 font-bold text-neutral-900">
+                      {activeLease.rent.paid} / {activeLease.rent.total}
+                      {activeLease.rent.paidOffline > 0 && (
+                        <span className="block text-xs font-medium text-neutral-500">
+                          dont {activeLease.rent.paidOffline} hors Roogo
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Prochaine échéance
+                    </dt>
+                    <dd
+                      className={cn(
+                        "mt-0.5 font-bold",
+                        isLeaseDueDatePast
+                          ? "text-red-600"
+                          : "text-neutral-900",
+                      )}
+                    >
+                      {formatLeaseDate(activeLease.rent.nextDueDate) ?? "—"}
+                      {isLeaseDueDatePast && (
+                        <span className="block text-xs font-medium">
+                          Échéance dépassée, paiement non enregistré
+                        </span>
+                      )}
+                    </dd>
+                  </div>
+                </dl>
+
+                {activeLease.signatureSource === "offline_import" && (
+                  <div className="pt-4 border-t border-neutral-50">
+                    <p className="text-[10px] font-black uppercase tracking-wider text-neutral-400">
+                      Bail signé
+                      {activeLease.signedAt && (
+                        <span className="normal-case tracking-normal font-semibold text-neutral-500">
+                          {" "}· le {formatLeaseDate(activeLease.signedAt)}
+                        </span>
+                      )}
+                    </p>
+                    {leaseDocuments.length > 0 ? (
+                      <ul className="mt-2 space-y-1.5">
+                        {leaseDocuments.map((document, index) => (
+                          <li key={document.path}>
+                            <a
+                              href={document.url ?? "#"}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="flex items-center gap-2 text-sm font-semibold text-primary hover:underline"
+                            >
+                              <FileTextIcon size={16} weight="bold" />
+                              <span className="truncate">
+                                {leaseDocumentLabel(document, index)}
+                              </span>
+                            </a>
+                          </li>
+                        ))}
+                      </ul>
+                    ) : (
+                      <p className="mt-2 text-xs font-medium text-neutral-400">
+                        Chargement des documents…
+                      </p>
+                    )}
+                  </div>
+                )}
+              </div>
+            </section>
+          )}
         </div>
       </div>
 
@@ -1646,7 +1943,7 @@ export default function AdminListingDetail({
         open={importLeaseOpen}
         onClose={() => setImportLeaseOpen(false)}
         preselectedProperty={{ id }}
-        onSuccess={() => router.refresh()}
+        onSuccess={() => setReloadTick((tick) => tick + 1)}
       />
     </div>
   );
