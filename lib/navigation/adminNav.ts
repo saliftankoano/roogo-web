@@ -11,6 +11,7 @@ import {
   IdentificationCardIcon,
   MicrophoneIcon,
   PencilSimpleLineIcon,
+  SwatchesIcon,
 } from "@phosphor-icons/react";
 
 // Top-level (not inside a group) and pinned in the mobile header too, so the
@@ -159,6 +160,13 @@ const founderPilotageNavItems: AdminNavItem[] = [
     href: "/admin/parametres",
     id: "admin-nav-parametres",
     icon: GearIcon,
+  },
+  {
+    type: "link",
+    label: "Guide de style",
+    href: "/admin/style-guide",
+    id: "admin-nav-style-guide",
+    icon: SwatchesIcon,
   },
 ];
 

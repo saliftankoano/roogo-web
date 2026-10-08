@@ -1,27 +1,30 @@
-import * as React from "react"
-import { cva, type VariantProps } from "class-variance-authority"
+import * as React from "react";
+import { cva, type VariantProps } from "class-variance-authority";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
 const badgeVariants = cva(
-  "inline-flex items-center rounded-full border border-neutral-200 px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-neutral-950 focus:ring-offset-2 dark:border-neutral-800 dark:focus:ring-neutral-300",
+  "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold whitespace-nowrap transition-colors focus:outline-none focus:ring-2 focus:ring-primary/30 focus:ring-offset-2",
   {
     variants: {
       variant: {
-        default:
-          "border-transparent bg-neutral-900 text-neutral-50 hover:bg-neutral-900/80 dark:bg-neutral-50 dark:text-neutral-900 dark:hover:bg-neutral-50/80",
-        secondary:
-          "border-transparent bg-neutral-100 text-neutral-900 hover:bg-neutral-100/80 dark:bg-neutral-800 dark:text-neutral-50 dark:hover:bg-neutral-800/80",
-        destructive:
-          "border-transparent bg-red-500 text-neutral-50 hover:bg-red-500/80 dark:bg-red-900 dark:text-neutral-50 dark:hover:bg-red-900/80",
-        outline: "text-neutral-950 dark:text-neutral-50",
+        default: "border-transparent bg-neutral-900 text-white",
+        secondary: "border-transparent bg-neutral-100 text-neutral-700",
+        outline: "border-neutral-200 bg-white text-neutral-700",
+        primary: "border-transparent bg-secondary text-primary-hover",
+        success: "border-transparent bg-success-soft text-success-strong",
+        warning: "border-transparent bg-warning-soft text-warning-strong",
+        danger: "border-transparent bg-danger-soft text-danger-strong",
+        info: "border-transparent bg-info-soft text-info-strong",
+        /** Kept for existing call sites; same look as "danger". */
+        destructive: "border-transparent bg-danger text-white",
       },
     },
     defaultVariants: {
       variant: "default",
     },
-  }
-)
+  },
+);
 
 export interface BadgeProps
   extends React.HTMLAttributes<HTMLDivElement>,
@@ -30,7 +33,7 @@ export interface BadgeProps
 function Badge({ className, variant, ...props }: BadgeProps) {
   return (
     <div className={cn(badgeVariants({ variant }), className)} {...props} />
-  )
+  );
 }
 
-export { Badge, badgeVariants }
+export { Badge, badgeVariants };
