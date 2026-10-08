@@ -12,6 +12,7 @@ import { parseSseBuffer } from "@/lib/studio/sse";
 import {
   ChatsCircleIcon,
   ClockCounterClockwiseIcon,
+  FilmSlateIcon,
   MicrophoneStageIcon,
   PlusIcon,
   TranslateIcon,
@@ -20,8 +21,9 @@ import { orderArtifacts } from "./ArtifactsPanel";
 import { CloneVoice } from "./CloneVoice";
 import { ConversationList } from "./ConversationList";
 import { GlossaryPanel } from "./GlossaryPanel";
-import { StudioStage, StudioTimeline } from "./StudioStage";
-import { Composer, ReadOnlyNote, Thread } from "./Thread";
+import { StudioEditor } from "./StudioEditor";
+import { StudioWorkspace, type ArtifactKind } from "./StudioWorkspace";
+import { Thread } from "./Thread";
 import { ToolsPanel, useJobs } from "./StudioTools";
 import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
 import {
@@ -36,8 +38,8 @@ import {
 const VOICE_STORAGE_KEY = "roogo-studio-voice";
 const CURRENCY_STORAGE_KEY = "roogo-studio-currency";
 
-type MobileTab = "history" | "chat" | "artifacts" | "settings";
-type RailTab = "chat" | "history" | "glossary" | "clone";
+type MobileTab = "chat" | "results";
+type RailTab = "chat" | "editor" | "history" | "glossary" | "clone";
 
 function readStored(key: string, fallback: string): string {
   try {
@@ -51,6 +53,7 @@ export function StudioApp() {
   const [rail, setRail] = useState<RailTab>("chat");
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [mobileTab, setMobileTab] = useState<MobileTab>("chat");
+  const [kind, setKind] = useState<ArtifactKind>("script");
   const [currency, setCurrency] = useState<StudioCurrency>("FCFA");
   const [rate, setRate] = useState(DEFAULT_FCFA_PER_USD);
   const [glossaryVersion, setGlossaryVersion] = useState(0);
@@ -271,7 +274,11 @@ export function StudioApp() {
         await loadDetail(conversationId);
         void loadConversations();
         // On a phone, jump to the script so "Générer la voix" is right there.
-        if (gotScript) setMobileTab("artifacts");
+        if (gotScript) {
+          setKind("script");
+          setSelectedId(null);
+          setMobileTab("results");
+        }
       } catch {
         setError("Connexion impossible. Réessayez.");
       } finally {
@@ -349,22 +356,12 @@ export function StudioApp() {
     }
   }
 
+
   const voiceLabel = voices.find((v) => v.key === voice)?.label ?? "Sandrine";
   const artifacts = detail?.artifacts ?? [];
   const ordered = orderArtifacts(artifacts);
   const canWrite = detail ? detail.conversation.isMine : true;
-
-  // One selection drives the stage: a script goes to the script column,
-  // anything else to the preview.
-  const selected = ordered.find((a) => a.id === selectedId) ?? null;
-  const script =
-    selected?.kind === "script"
-      ? selected
-      : (ordered.find((a) => a.kind === "script") ?? null);
-  const preview =
-    selected && selected.kind !== "script"
-      ? selected
-      : (ordered.find((a) => a.kind !== "script") ?? null);
+  const activeVoices = voices.filter((v) => v.status === "active");
 
   const cardProps = {
     voiceKey: voice,
@@ -381,161 +378,138 @@ export function StudioApp() {
       void jobsApi.start(
         "captions",
         { artifact_id: artifactId },
-        estimateJobCostUsd({
-          tool: "captions",
-          audioSeconds: getVoiceoverDuration(artifactId),
-        }),
+        estimateJobCostUsd({ tool: "captions", audioSeconds: getVoiceoverDuration(artifactId) }),
       ),
     getCaptionsLabel,
     captionsBusy: jobsApi.jobs.some((j) => j.tool === "captions"),
   };
 
-  // Below the lg breakpoint one column shows at a time.
-  const panel = (show: boolean) => (show ? "flex" : "hidden lg:flex");
+  function showKind(next: ArtifactKind) {
+    setKind(next);
+    setSelectedId(null);
+  }
 
   const railItems: { key: RailTab; label: string; icon: React.ReactNode }[] = [
-    {
-      key: "chat",
-      label: "Chat",
-      icon: <ChatsCircleIcon size={20} weight="bold" />,
-    },
-    {
-      key: "history",
-      label: "Projets",
-      icon: <ClockCounterClockwiseIcon size={20} weight="bold" />,
-    },
-    {
-      key: "glossary",
-      label: "Glossaire",
-      icon: <TranslateIcon size={20} weight="bold" />,
-    },
+    { key: "chat", label: "Chat", icon: <ChatsCircleIcon size={22} weight="bold" /> },
+    { key: "editor", label: "Éditeur", icon: <FilmSlateIcon size={22} weight="bold" /> },
+    { key: "history", label: "Projets", icon: <ClockCounterClockwiseIcon size={22} weight="bold" /> },
+    { key: "glossary", label: "Glossaire", icon: <TranslateIcon size={22} weight="bold" /> },
     ...(cloningEnabled
-      ? [
-          {
-            key: "clone" as const,
-            label: "Cloner",
-            icon: <MicrophoneStageIcon size={20} weight="bold" />,
-          },
-        ]
+      ? [{ key: "clone" as const, label: "Cloner", icon: <MicrophoneStageIcon size={22} weight="bold" /> }]
       : []),
   ];
 
-  const leftColumn =
-    rail === "history" ? (
-      <ConversationList
-        conversations={conversations}
-        activeId={activeId}
-        onSelect={(id) => void open(id)}
-        onNew={newConversation}
-      />
-    ) : rail === "clone" && cloningEnabled ? (
-      <div className="min-h-0 flex-1 overflow-y-auto">
-        <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
-      </div>
-    ) : booted ? (
-      <Thread
-        property={detail?.property ?? null}
-        messages={detail?.messages ?? []}
-        streamingText={streamingText}
-        sending={sending}
-        error={error}
-        canWrite={canWrite}
-        hasConversation={activeId !== null}
-        onSend={(text) => void sendText(text)}
-        onPickProperty={(p) => void pickProperty(p)}
-        hideComposer
-      />
-    ) : (
-      <div className="h-40 animate-pulse rounded-2xl bg-white" />
-    );
+  const card = "rounded-2xl border border-neutral-200 bg-white";
 
-  const composer = canWrite ? (
-    <Composer
-      sending={sending}
-      showQuickReplies={(detail?.messages.length ?? 0) > 0}
-      onSend={(text) => void sendText(text)}
-    />
-  ) : (
-    <ReadOnlyNote />
+  const voiceSelect = (
+    <label className="flex items-center gap-2 text-sm text-neutral-600">
+      Voix
+      <select
+        value={voice}
+        onChange={(e) => chooseVoice(e.target.value)}
+        className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-900 outline-none focus:border-primary"
+      >
+        {activeVoices.map((v) => (
+          <option key={v.key} value={v.key}>
+            {v.label}
+          </option>
+        ))}
+      </select>
+    </label>
   );
 
+  const workspaceAside =
+    kind === "voiceover" ? (
+      <section className="space-y-2">
+        <h3 className="text-xs font-semibold text-neutral-500">Voix utilisée pour les scripts</h3>
+        <VoicePicker voices={voices} terms={terms} selectedKey={voice} onSelect={chooseVoice} onChanged={loadVoices} />
+      </section>
+    ) : kind === "image" && detail && canWrite ? (
+      <ToolsPanel
+        conversationId={detail.conversation.id}
+        property={detail.property}
+        money={money}
+        refreshKey={detail.artifacts.length}
+        jobs={jobsApi.jobs}
+        message={jobsApi.message}
+        start={jobsApi.start}
+      />
+    ) : null;
+
+  const chatPanel = booted ? (
+    <Thread
+      property={detail?.property ?? null}
+      messages={detail?.messages ?? []}
+      streamingText={streamingText}
+      sending={sending}
+      error={error}
+      canWrite={canWrite}
+      hasConversation={activeId !== null}
+      onSend={(text) => void sendText(text)}
+      onPickProperty={(p) => void pickProperty(p)}
+    />
+  ) : (
+    <div className="h-40 animate-pulse rounded-2xl bg-neutral-100" />
+  );
+
+  const resultsPanel =
+    detail && !canWrite ? (
+      <p className="m-auto max-w-sm p-6 text-center text-sm text-neutral-500">
+        Les résultats d&apos;un collègue se consultent en lecture seule dans la conversation.
+      </p>
+    ) : (
+      <StudioWorkspace
+        kind={kind}
+        onKind={showKind}
+        ordered={ordered}
+        selectedId={selectedId}
+        onSelect={setSelectedId}
+        aside={workspaceAside}
+        scriptHeader={activeVoices.length > 1 ? voiceSelect : null}
+        {...cardProps}
+      />
+    );
+
   return (
-    <div className="flex h-[calc(100dvh-11rem)] min-h-[760px] flex-col overflow-hidden rounded-3xl border border-neutral-200 bg-white text-neutral-900 shadow-sm shadow-neutral-900/5">
-      <header className="flex min-h-14 flex-wrap items-center gap-3 border-b border-neutral-200 px-4 py-2">
-        <span className="size-2.5 rounded-full bg-primary" aria-hidden />
-        <h1 className="text-base font-bold tracking-tight">
-          Studio de contenu
-        </h1>
+    // Break out of the admin container so the Studio uses the whole screen width.
+    <div className="relative left-1/2 flex w-[calc(100vw-2rem)] max-w-[1840px] -translate-x-1/2 flex-col gap-3 md:w-[calc(100vw-4rem)]">
+      <header className="flex flex-wrap items-center gap-3">
+        <h1 className="text-xl font-semibold tracking-tight text-neutral-900">Studio de contenu</h1>
         {detail?.property && (
-          <span className="hidden max-w-64 truncate rounded-lg border border-neutral-200 px-2.5 py-1 text-xs font-bold text-neutral-600 sm:inline">
-            {detail.property.title}
+          <span className="flex min-w-0 items-center gap-2 rounded-full border border-neutral-200 bg-white py-1 pl-1 pr-3 text-sm font-medium text-neutral-700">
+            {detail.property.image && (
+              <span className="relative size-6 shrink-0 overflow-hidden rounded-full">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={detail.property.image} alt="" className="size-full object-cover" />
+              </span>
+            )}
+            <span className="max-w-64 truncate">{detail.property.title}</span>
           </span>
         )}
         <div className="ml-auto flex items-center gap-2">
           <button
             type="button"
             onClick={() => chooseCurrency(currency === "FCFA" ? "USD" : "FCFA")}
-            aria-label={
-              currency === "FCFA"
-                ? "Afficher les prix en dollars"
-                : "Afficher les prix en FCFA"
-            }
-            className="min-h-10 rounded-xl border border-neutral-200 px-3 text-xs font-bold text-neutral-600 hover:bg-neutral-100"
+            aria-label={currency === "FCFA" ? "Afficher les prix en dollars" : "Afficher les prix en FCFA"}
+            className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50"
           >
             {currency === "FCFA" ? "FCFA | $" : "$ | FCFA"}
           </button>
           <button
             type="button"
             onClick={newConversation}
-            className="flex min-h-10 items-center gap-1.5 rounded-xl bg-primary px-3 text-xs font-bold text-white active:scale-[0.985]"
+            className="flex min-h-10 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-semibold text-white active:scale-[0.985]"
           >
-            <PlusIcon size={14} weight="bold" />
-            Nouveau
+            <PlusIcon size={16} weight="bold" />
+            Nouveau projet
           </button>
         </div>
       </header>
 
-      <div
-        role="tablist"
-        className="grid grid-cols-4 gap-1 border-b border-neutral-200 p-1.5 lg:hidden"
-      >
-        {(
-          [
-            ["history", "Projets"],
-            ["chat", "Chat"],
-            [
-              "artifacts",
-              `Résultats${artifacts.length ? ` (${artifacts.length})` : ""}`,
-            ],
-            ["settings", "Réglages"],
-          ] as const
-        ).map(([key, label]) => (
-          <button
-            key={key}
-            type="button"
-            role="tab"
-            aria-selected={mobileTab === key}
-            onClick={() => {
-              setMobileTab(key);
-              if (key === "history") setRail("history");
-              if (key === "chat") setRail("chat");
-            }}
-            className={cn(
-              "min-h-11 rounded-xl px-1 text-xs font-bold transition-colors",
-              mobileTab === key
-                ? "bg-neutral-100 text-neutral-900"
-                : "text-neutral-500",
-            )}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
-      <div className="grid min-h-0 flex-1 lg:grid-cols-[60px_280px_minmax(0,1fr)_280px]">
+      <div className="flex flex-col gap-3 lg:h-[calc(100dvh-15rem)] lg:min-h-[600px] lg:flex-row">
         <nav
-          aria-label="Outils du Studio"
-          className="hidden flex-col items-center gap-1.5 border-r border-neutral-200 py-3 lg:flex"
+          aria-label="Modes du Studio"
+          className={cn(card, "flex shrink-0 gap-1 overflow-x-auto p-1.5 lg:w-[76px] lg:flex-col lg:overflow-visible")}
         >
           {railItems.map((item) => (
             <button
@@ -544,10 +518,8 @@ export function StudioApp() {
               onClick={() => setRail(item.key)}
               aria-pressed={rail === item.key}
               className={cn(
-                "flex w-12 flex-col items-center gap-1 rounded-xl py-2 text-[10px] font-bold transition-colors",
-                rail === item.key
-                  ? "bg-primary/15 text-primary"
-                  : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
+                "flex min-h-11 shrink-0 items-center gap-2 rounded-xl px-3 text-xs font-semibold transition-colors lg:flex-col lg:gap-1 lg:px-0 lg:py-2.5",
+                rail === item.key ? "bg-primary/10 text-primary" : "text-neutral-500 hover:bg-neutral-100 hover:text-neutral-800",
               )}
             >
               {item.icon}
@@ -556,101 +528,94 @@ export function StudioApp() {
           ))}
         </nav>
 
-        <aside
-          className={cn(
-            panel(mobileTab === "chat" || mobileTab === "history"),
-            "min-h-0 flex-col gap-3 border-r border-neutral-200 p-3",
-          )}
-        >
-          {leftColumn}
-          <div className="lg:hidden">{mobileTab === "chat" && composer}</div>
-        </aside>
-
-        <main
-          className={cn(
-            panel(mobileTab === "artifacts"),
-            "min-h-0 flex-col gap-3 bg-[#faf7f4] p-3",
-          )}
-        >
-          <div className="flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto">
-            {rail === "glossary" ? (
-              <div className="mx-auto w-full max-w-2xl">
-                <GlossaryPanel
-                  voice={voice}
-                  currency={currency}
-                  rate={rate}
-                  scriptText={artifacts
-                    .filter((a) => a.kind === "script")
-                    .map((a) => a.text)
-                    .join("\n")}
-                  onChange={() => setGlossaryVersion((v) => v + 1)}
-                />
+        <div className="min-h-0 min-w-0 flex-1">
+          {rail === "chat" && (
+            <>
+              <div role="tablist" className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-neutral-100 p-1 lg:hidden">
+                {(
+                  [
+                    ["chat", "Conversation"],
+                    ["results", `Résultats${artifacts.length ? ` (${artifacts.length})` : ""}`],
+                  ] as const
+                ).map(([key, label]) => (
+                  <button
+                    key={key}
+                    type="button"
+                    role="tab"
+                    aria-selected={mobileTab === key}
+                    onClick={() => setMobileTab(key)}
+                    className={cn(
+                      "min-h-11 rounded-xl text-sm font-semibold",
+                      mobileTab === key ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500",
+                    )}
+                  >
+                    {label}
+                  </button>
+                ))}
               </div>
-            ) : detail && !canWrite ? (
-              <p className="m-auto max-w-sm text-center text-sm font-medium text-neutral-500">
-                Les résultats d&apos;un collègue se consultent dans sa
-                conversation.
-              </p>
-            ) : (
-              <>
-                <div className="flex min-h-[300px] flex-1 flex-col">
-                  <StudioStage
-                    property={detail?.property ?? null}
-                    ordered={ordered}
-                    preview={preview}
-                    script={script}
-                    onSelect={setSelectedId}
-                    {...cardProps}
-                  />
-                </div>
-                <StudioTimeline
-                  ordered={ordered}
-                  selectedIds={[preview?.id, script?.id].filter(
-                    (id): id is string => !!id,
+              <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+                <section
+                  className={cn(
+                    card,
+                    mobileTab === "chat" ? "flex" : "hidden lg:flex",
+                    "h-[calc(100dvh-16rem)] min-h-[480px] min-w-0 flex-col p-3 lg:h-auto lg:min-h-0",
                   )}
-                  onSelect={setSelectedId}
-                />
-              </>
-            )}
-          </div>
-          <div className="hidden shrink-0 lg:block">{composer}</div>
-        </main>
+                >
+                  {chatPanel}
+                </section>
+                <section
+                  className={cn(
+                    card,
+                    mobileTab === "results" ? "flex" : "hidden lg:flex",
+                    "min-h-[520px] min-w-0 flex-col overflow-hidden lg:min-h-0",
+                  )}
+                >
+                  {resultsPanel}
+                </section>
+              </div>
+            </>
+          )}
 
-        <aside
-          className={cn(
-            panel(mobileTab === "settings"),
-            "min-h-0 flex-col gap-4 overflow-y-auto border-l border-neutral-200 p-3",
+          {rail === "editor" && (
+            <section className={cn(card, "flex h-full min-h-[560px] flex-col overflow-hidden lg:min-h-0")}>
+              <StudioEditor
+                property={detail?.property ?? null}
+                ordered={ordered}
+                selectedId={selectedId}
+                onSelect={setSelectedId}
+              />
+            </section>
           )}
-        >
-          <section className="space-y-2">
-            <h2 className="text-[11px] font-bold uppercase tracking-[0.08em] text-neutral-500">
-              Voix
-            </h2>
-            <VoicePicker
-              voices={voices}
-              terms={terms}
-              selectedKey={voice}
-              onSelect={chooseVoice}
-              onChanged={loadVoices}
-            />
-          </section>
-          {detail && canWrite ? (
-            <ToolsPanel
-              conversationId={detail.conversation.id}
-              property={detail.property}
-              money={money}
-              refreshKey={detail.artifacts.length}
-              jobs={jobsApi.jobs}
-              message={jobsApi.message}
-              start={jobsApi.start}
-            />
-          ) : (
-            <p className="rounded-2xl border border-dashed border-neutral-300 p-4 text-sm font-medium text-neutral-500">
-              Les outils (affiche, détourage, voeux) apparaissent quand une
-              conversation est ouverte.
-            </p>
+
+          {rail === "history" && (
+            <section className={cn(card, "mx-auto flex h-full max-w-3xl flex-col p-4")}>
+              <ConversationList
+                conversations={conversations}
+                activeId={activeId}
+                onSelect={(id) => void open(id)}
+                onNew={newConversation}
+              />
+            </section>
           )}
-        </aside>
+
+          {rail === "glossary" && (
+            <section className={cn(card, "mx-auto h-full max-w-3xl overflow-y-auto p-4")}>
+              <GlossaryPanel
+                voice={voice}
+                currency={currency}
+                rate={rate}
+                scriptText={artifacts.filter((a) => a.kind === "script").map((a) => a.text).join("\n")}
+                onChange={() => setGlossaryVersion((v) => v + 1)}
+              />
+            </section>
+          )}
+
+          {rail === "clone" && cloningEnabled && (
+            <section className={cn(card, "mx-auto h-full max-w-2xl overflow-y-auto p-4")}>
+              <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
+            </section>
+          )}
+        </div>
       </div>
     </div>
   );

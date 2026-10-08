@@ -142,7 +142,7 @@ function ScriptCard({
   return (
     <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+        <h3 className="text-base font-semibold text-neutral-900">
           {artifact.title}
         </h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
@@ -267,7 +267,7 @@ function VoiceCard({
   return (
     <article className="space-y-3 rounded-3xl border border-primary/30 bg-primary/5 p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-primary">
+        <h3 className="text-base font-semibold text-neutral-900">
           {artifact.title}
         </h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
@@ -349,7 +349,7 @@ function ImageCard({
   return (
     <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+        <h3 className="text-base font-semibold text-neutral-900">
           {artifact.title}
         </h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
@@ -436,7 +436,7 @@ function CaptionsCard({
   return (
     <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">{artifact.title}</h3>
+        <h3 className="text-base font-semibold text-neutral-900">{artifact.title}</h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
       </header>
       <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-600">
