@@ -68,6 +68,11 @@ export async function POST(req: Request) {
     title = propertyTitle(property, propertyLabels);
   }
 
+  // A visuals-only project names itself (no property to name it after).
+  if (!propertyId && typeof body?.title === "string" && body.title.trim()) {
+    title = body.title.trim().replace(/[\u2014]/g, ",").slice(0, 80);
+  }
+
   let voiceKey: string | null = null;
   if (typeof body?.voice_key === "string") {
     const voice = await loadVoiceByKey(body.voice_key);

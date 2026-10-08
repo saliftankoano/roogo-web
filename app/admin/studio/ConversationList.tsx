@@ -114,8 +114,13 @@ export function ConversationList({
                         {item.author ? initials(item.author) : <ChatsIcon size={16} weight="bold" />}
                       </span>
                       <span className="min-w-0">
-                        <span className="block truncate text-sm font-semibold text-neutral-900">
-                          {item.title}
+                        <span className="flex min-w-0 items-center gap-1.5">
+                          <span className="truncate text-sm font-semibold text-neutral-900">{item.title}</span>
+                          {!item.propertyId && (
+                            <span className="shrink-0 rounded-full bg-neutral-100 px-1.5 py-0.5 text-[10px] font-semibold text-neutral-600">
+                              Sans bien
+                            </span>
+                          )}
                         </span>
                         <span className="block truncate text-xs text-neutral-500">
                           {item.isMine ? "Par vous" : `Par ${item.author ?? "un membre de l'équipe"}`}

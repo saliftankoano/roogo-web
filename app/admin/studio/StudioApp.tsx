@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
 import { estimateJobCostUsd } from "@/lib/studio/ai-tools";
 import {
@@ -14,6 +15,7 @@ import {
   CaretDownIcon,
   ChatsCircleIcon,
   ClockCounterClockwiseIcon,
+  ImageSquareIcon,
   FilmSlateIcon,
   HouseLineIcon,
   MicrophoneStageIcon,
@@ -27,9 +29,10 @@ import { ConversationList } from "./ConversationList";
 import { GlossaryPanel } from "./GlossaryPanel";
 import { PropertyPicker } from "./PropertyPicker";
 import { StudioEditor } from "./StudioEditor";
+import { StudioVisuals } from "./StudioVisuals";
 import { StudioWorkspace, type ArtifactKind } from "./StudioWorkspace";
 import { Thread } from "./Thread";
-import { ToolsPanel, useJobs } from "./StudioTools";
+import { useJobs } from "./StudioTools";
 import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
 import {
   FIRST_DRAFT_REQUEST,
@@ -45,7 +48,7 @@ const VOICE_STORAGE_KEY = "roogo-studio-voice";
 const CURRENCY_STORAGE_KEY = "roogo-studio-currency";
 
 type MobileTab = "chat" | "results";
-type RailTab = "chat" | "editor" | "history" | "glossary" | "clone";
+type RailTab = "chat" | "editor" | "visuals" | "history" | "glossary" | "clone";
 
 function readStored(key: string, fallback: string): string {
   try {
@@ -64,6 +67,7 @@ export function StudioApp() {
   const [rate, setRate] = useState(DEFAULT_FCFA_PER_USD);
   const [glossaryVersion, setGlossaryVersion] = useState(0);
   const [budget, setBudget] = useState<Budget | null>(null);
+  const [creatingVisual, setCreatingVisual] = useState(false);
   const [switching, setSwitching] = useState(false);
 
   const [voice, setVoice] = useState("sandrine");
@@ -220,11 +224,12 @@ export function StudioApp() {
 
   async function createConversation(
     propertyId?: string,
+    title?: string,
   ): Promise<string | null> {
     const res = await fetch("/api/admin/studio/conversations", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ property_id: propertyId, voice_key: voice }),
+      body: JSON.stringify({ property_id: propertyId, voice_key: voice, title }),
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok || !data.id) {
@@ -375,6 +380,21 @@ export function StudioApp() {
     void loadConversations();
   }
 
+  // A visuals-only project (greetings, announcements): no property, its own
+  // entry in Projets so the team sees who made it and when.
+  async function newVisualProject() {
+    setCreatingVisual(true);
+    setError(null);
+    const label = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    const id = await createConversation(undefined, `Visuels du ${label}`);
+    setCreatingVisual(false);
+    if (!id) return;
+    activeRef.current = id;
+    setActiveId(id);
+    setSelectedId(null);
+    await loadDetail(id);
+  }
+
   // "Réutiliser": start a new conversation on the same property from a script.
   async function rework(artifact: Artifact) {
     const id = await createConversation(detail?.property?.id);
@@ -452,6 +472,7 @@ export function StudioApp() {
   const railItems: { key: RailTab; label: string; icon: React.ReactNode }[] = [
     { key: "chat", label: "Chat", icon: <ChatsCircleIcon size={22} weight="bold" /> },
     { key: "editor", label: "Éditeur", icon: <FilmSlateIcon size={22} weight="bold" /> },
+    { key: "visuals", label: "Visuels", icon: <ImageSquareIcon size={22} weight="bold" /> },
     { key: "history", label: "Projets", icon: <ClockCounterClockwiseIcon size={22} weight="bold" /> },
     { key: "glossary", label: "Glossaire", icon: <TranslateIcon size={22} weight="bold" /> },
     ...(cloningEnabled
@@ -484,16 +505,15 @@ export function StudioApp() {
         <h3 className="text-xs font-semibold text-neutral-500">Voix utilisée pour les scripts</h3>
         <VoicePicker voices={voices} terms={terms} selectedKey={voice} onSelect={chooseVoice} onChanged={loadVoices} />
       </section>
-    ) : kind === "image" && detail && canWrite ? (
-      <ToolsPanel
-        conversationId={detail.conversation.id}
-        property={detail.property}
-        money={money}
-        refreshKey={detail.artifacts.length}
-        jobs={jobsApi.jobs}
-        message={jobsApi.message}
-        start={jobsApi.start}
-      />
+    ) : kind === "image" ? (
+      <button
+        type="button"
+        onClick={() => setRail("visuals")}
+        className="inline-flex h-10 items-center justify-center gap-2 whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-50"
+      >
+        <ImageSquareIcon size={16} weight="bold" className="size-4 shrink-0" />
+        Créer dans Visuels
+      </button>
     ) : null;
 
   const chatPanel = booted ? (
@@ -560,7 +580,7 @@ export function StudioApp() {
         <div className="ml-auto flex items-center gap-2">
           {budget && (
             <span
-              className="hidden items-center text-xs font-medium text-neutral-500 sm:flex"
+              className="hidden min-w-68 shrink-0 items-center justify-end whitespace-nowrap text-xs font-medium tabular-nums text-neutral-500 sm:flex"
               title="Votre plafond du mois pour le Studio"
             >
               Reste ce mois : <strong className="ml-1 text-neutral-800">{money(budget.remainingUsd)}</strong>
@@ -572,9 +592,9 @@ export function StudioApp() {
             onClick={() => chooseCurrency(currency === "FCFA" ? "USD" : "FCFA")}
             aria-label={currency === "FCFA" ? "Afficher les prix en dollars" : "Afficher les prix en FCFA"}
             title={currency === "FCFA" ? "Passer en dollars" : "Passer en FCFA"}
-            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50"
+            className="inline-flex min-h-10 w-22 shrink-0 items-center justify-between rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50"
           >
-            {currency === "FCFA" ? "FCFA" : "$"}
+            <span className="tabular-nums">{currency === "FCFA" ? "FCFA" : "USD"}</span>
             <ArrowsLeftRightIcon size={14} weight="bold" className="text-neutral-400" />
           </button>
           <button
@@ -610,7 +630,15 @@ export function StudioApp() {
           ))}
         </nav>
 
-        <div className="min-h-0 min-w-0 flex-1">
+        <AnimatePresence mode="wait" initial={false}>
+        <motion.div
+          key={rail}
+          initial={{ opacity: 0, y: 6 }}
+          animate={{ opacity: 1, y: 0 }}
+          exit={{ opacity: 0, y: -4 }}
+          transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
+          className="min-h-0 min-w-0 flex-1"
+        >
           {rail === "chat" && (
             <>
               <div role="tablist" className="mb-3 grid grid-cols-2 gap-1 rounded-2xl bg-neutral-100 p-1 lg:hidden">
@@ -659,12 +687,28 @@ export function StudioApp() {
           )}
 
           {rail === "editor" && (
-            <section className={cn(card, "flex h-full min-h-[560px] flex-col overflow-hidden lg:min-h-0")}>
+            <section className={cn(card, "flex h-full min-h-[640px] flex-col overflow-hidden")}>
               <StudioEditor
+                conversationId={detail?.conversation.id ?? null}
                 property={detail?.property ?? null}
                 ordered={ordered}
-                selectedId={selectedId}
-                onSelect={setSelectedId}
+                canWrite={canWrite}
+              />
+            </section>
+          )}
+
+          {rail === "visuals" && (
+            <section className={cn(card, "flex h-full min-h-[560px] flex-col overflow-hidden lg:min-h-0")}>
+              <StudioVisuals
+                detail={detail}
+                canWrite={canWrite}
+                money={money}
+                jobs={jobsApi.jobs}
+                message={jobsApi.message}
+                start={jobsApi.start}
+                onNewVisualProject={() => void newVisualProject()}
+                creating={creatingVisual}
+                card={cardProps}
               />
             </section>
           )}
@@ -697,15 +741,25 @@ export function StudioApp() {
               <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
             </section>
           )}
-        </div>
+        </motion.div>
+        </AnimatePresence>
       </div>
 
+      <AnimatePresence>
       {switching && (
-        <div
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          transition={{ duration: 0.16 }}
           className="fixed inset-0 z-[80] flex items-start justify-center bg-neutral-900/30 p-4 pt-24 sm:items-center sm:pt-4"
           onClick={() => setSwitching(false)}
         >
-          <div
+          <motion.div
+            initial={{ opacity: 0, y: 12, scale: 0.98 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 8, scale: 0.98 }}
+            transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
             role="dialog"
             aria-modal="true"
             aria-labelledby="studio-switch-title"
@@ -735,9 +789,10 @@ export function StudioApp() {
             <div className="min-h-0 overflow-y-auto">
               <PropertyPicker disabled={sending} onPick={(p) => void switchProperty(p)} />
             </div>
-          </div>
-        </div>
+          </motion.div>
+        </motion.div>
       )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -201,34 +201,34 @@ function ScriptCard({
           type="button"
           onClick={generate}
           disabled={!canGenerate}
-          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-all active:scale-[0.985] disabled:opacity-40"
+          className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-primary-hover active:scale-[0.985] disabled:opacity-40"
         >
           {generating ? (
-            <SpinnerGapIcon size={18} className="animate-spin" />
+            <SpinnerGapIcon size={18} className="size-[18px] shrink-0 animate-spin" />
           ) : (
-            <MicrophoneIcon size={18} weight="bold" />
+            <MicrophoneIcon size={18} weight="bold" className="size-[18px] shrink-0" />
           )}
-          {generating ? "Génération en cours" : "Générer la voix"}
+          {generating ? "Génération..." : "Générer la voix"}
         </button>
-        <span className="text-xs font-medium text-neutral-500">
+        <span className="min-w-0 text-xs font-medium tabular-nums text-neutral-500">
           {voiceLabel}
           {estimate && !estimate.tooLong ? ` · environ ${money(estimate.estimateUsd)}` : ""}
         </span>
-        <span className="ml-auto flex gap-1">
+        <span className="ml-auto flex shrink-0 gap-1">
           <button
             type="button"
             onClick={copy}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+            className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
           >
-            <CopyIcon size={16} weight="bold" />
+            <CopyIcon size={16} weight="bold" className="size-4 shrink-0" />
             {copied ? "Copié" : "Copier"}
           </button>
           <button
             type="button"
             onClick={() => onRework({ ...artifact, text })}
-            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+            className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
           >
-            <ArrowsClockwiseIcon size={16} weight="bold" />
+            <ArrowsClockwiseIcon size={16} weight="bold" className="size-4 shrink-0" />
             Réutiliser
           </button>
         </span>

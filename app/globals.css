@@ -287,3 +287,8 @@ body {
     transform: translateY(0) scale(1);
   }
 }
+
+@keyframes studio-fade {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
