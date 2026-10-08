@@ -16,7 +16,8 @@ export async function OPTIONS(req: Request) {
 }
 
 // History: the person's own conversations, newest first. A founder can ask
-// for everyone's with ?all=1.
+// for everyone's with ?all=1 (staff asking for all still get their own).
+// Every row says who started it and when, so projects can be told apart.
 export async function GET(req: Request) {
   const staff = await getStaffOrFounder(req);
   if (!staff) return errorResponse("Forbidden", 403, req);
@@ -43,8 +44,10 @@ export async function GET(req: Request) {
       title: row.title,
       propertyId: row.property_id,
       voiceKey: row.voice_key,
+      createdAt: row.created_at,
       updatedAt: row.updated_at,
-      author: wantsAll ? (author?.full_name ?? null) : null,
+      author: author?.full_name ?? null,
+      isMine: row.user_id === staff.id,
     };
   });
   return cors(NextResponse.json({ conversations }), req);

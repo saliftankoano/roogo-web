@@ -14,8 +14,11 @@ export type ConversationItem = {
   title: string;
   propertyId: string | null;
   voiceKey: string | null;
+  createdAt: string;
   updatedAt: string;
+  /** Who started the project. */
   author: string | null;
+  isMine: boolean;
 };
 
 export type ChatMessage = {
@@ -63,8 +66,20 @@ export type ConversationDetail = {
   jobs: RunningJob[];
 };
 
+export type SpeechReplacement = { term: string; spoken: string; count: number };
+
+export type Budget = {
+  capUsd: number;
+  usedUsd: number;
+  remainingUsd: number;
+  fcfaPerUsd: number;
+};
+
 export type Estimate = {
   spokenCharacters: number;
+  /** Exactly what is sent to the voice, after the glossary. */
+  spokenText: string;
+  replacements: SpeechReplacement[];
   maxCharacters: number;
   tooLong: boolean;
   estimateUsd: number;

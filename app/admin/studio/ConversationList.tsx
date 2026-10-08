@@ -20,6 +20,32 @@ function dayLabel(iso: string) {
   return date.toLocaleDateString("fr-FR", { day: "numeric", month: "short" });
 }
 
+function shortDate(iso: string) {
+  return new Date(iso).toLocaleDateString("fr-FR", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
+}
+
+function shortTime(iso: string) {
+  return new Date(iso).toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" });
+}
+
+function initials(name: string | null): string {
+  if (!name) return "?";
+  return name
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("");
+}
+
+/**
+ * Project history. Each row says who started the project and when, so a
+ * teammate's work can be told apart from one's own at a glance.
+ */
 export function ConversationList({
   conversations,
   activeId,
@@ -31,53 +57,80 @@ export function ConversationList({
     const label = dayLabel(item.updatedAt);
     groups.set(label, [...(groups.get(label) ?? []), item]);
   }
+  const others = conversations.some((item) => !item.isMine);
 
   return (
     <div className="flex h-full flex-col gap-3">
-      <button
-        type="button"
-        onClick={onNew}
-        className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-bold text-white transition-all active:scale-[0.985]"
-      >
-        <PlusIcon size={18} weight="bold" />
-        Nouvelle conversation
-      </button>
+      <div className="flex items-center justify-between gap-3">
+        <div>
+          <h2 className="text-base font-semibold text-neutral-900">Projets</h2>
+          <p className="text-xs text-neutral-500">
+            {conversations.length} projet{conversations.length > 1 ? "s" : ""}
+            {others ? ", les vôtres et ceux de l'équipe" : ""}
+          </p>
+        </div>
+        <button
+          type="button"
+          onClick={onNew}
+          className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-50 active:scale-[0.985]"
+        >
+          <PlusIcon size={16} weight="bold" />
+          Nouveau projet
+        </button>
+      </div>
 
       {conversations.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-neutral-300 p-5 text-center text-sm font-medium text-neutral-500">
-          Vos conversations apparaîtront ici.
+          Vos projets apparaîtront ici.
         </p>
       ) : (
-        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto">
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
           {[...groups.entries()].map(([label, items]) => (
             <div key={label} className="space-y-1">
               <h3 className="px-2 text-xs font-bold uppercase tracking-widest text-neutral-500">
                 {label}
               </h3>
-              {items.map((item) => (
-                <button
-                  key={item.id}
-                  type="button"
-                  onClick={() => onSelect(item.id)}
-                  aria-current={item.id === activeId}
-                  className={cn(
-                    "flex min-h-12 w-full items-center gap-2 rounded-2xl px-3 py-2 text-left text-sm font-bold transition-colors",
-                    item.id === activeId
-                      ? "bg-primary/10 text-primary"
-                      : "text-neutral-700 hover:bg-neutral-100",
-                  )}
-                >
-                  <ChatsIcon size={16} weight="bold" className="shrink-0 opacity-60" />
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate">{item.title}</span>
-                    {item.author && (
-                      <span className="block truncate text-xs font-medium opacity-60">
-                        {item.author}
+              <ul className="space-y-1">
+                {items.map((item) => (
+                  <li key={item.id}>
+                    <button
+                      type="button"
+                      onClick={() => onSelect(item.id)}
+                      aria-current={item.id === activeId}
+                      className={cn(
+                        "grid w-full grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-2xl px-3 py-2.5 text-left transition-colors sm:grid-cols-[auto_minmax(0,1fr)_auto]",
+                        item.id === activeId
+                          ? "bg-primary/10"
+                          : "hover:bg-neutral-100",
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          "flex size-9 shrink-0 items-center justify-center rounded-full text-xs font-bold",
+                          item.isMine ? "bg-primary/15 text-primary" : "bg-neutral-200 text-neutral-700",
+                        )}
+                        title={item.author ?? undefined}
+                      >
+                        {item.author ? initials(item.author) : <ChatsIcon size={16} weight="bold" />}
                       </span>
-                    )}
-                  </span>
-                </button>
-              ))}
+                      <span className="min-w-0">
+                        <span className="block truncate text-sm font-semibold text-neutral-900">
+                          {item.title}
+                        </span>
+                        <span className="block truncate text-xs text-neutral-500">
+                          {item.isMine ? "Par vous" : `Par ${item.author ?? "un membre de l'équipe"}`}
+                          {" · commencé le "}
+                          {shortDate(item.createdAt)}
+                        </span>
+                      </span>
+                      <span className="hidden text-right text-xs text-neutral-500 sm:block">
+                        <span className="block">Modifié {shortDate(item.updatedAt)}</span>
+                        <span className="block">{shortTime(item.updatedAt)}</span>
+                      </span>
+                    </button>
+                  </li>
+                ))}
+              </ul>
             </div>
           ))}
         </div>

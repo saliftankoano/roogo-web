@@ -10,17 +10,22 @@ import {
 } from "@/lib/studio/currency";
 import { parseSseBuffer } from "@/lib/studio/sse";
 import {
+  ArrowsLeftRightIcon,
+  CaretDownIcon,
   ChatsCircleIcon,
   ClockCounterClockwiseIcon,
   FilmSlateIcon,
+  HouseLineIcon,
   MicrophoneStageIcon,
   PlusIcon,
   TranslateIcon,
+  XIcon,
 } from "@phosphor-icons/react";
 import { orderArtifacts } from "./ArtifactsPanel";
 import { CloneVoice } from "./CloneVoice";
 import { ConversationList } from "./ConversationList";
 import { GlossaryPanel } from "./GlossaryPanel";
+import { PropertyPicker } from "./PropertyPicker";
 import { StudioEditor } from "./StudioEditor";
 import { StudioWorkspace, type ArtifactKind } from "./StudioWorkspace";
 import { Thread } from "./Thread";
@@ -29,6 +34,7 @@ import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
 import {
   FIRST_DRAFT_REQUEST,
   type Artifact,
+  type Budget,
   type ChatMessage,
   type ConversationDetail,
   type ConversationItem,
@@ -57,6 +63,8 @@ export function StudioApp() {
   const [currency, setCurrency] = useState<StudioCurrency>("FCFA");
   const [rate, setRate] = useState(DEFAULT_FCFA_PER_USD);
   const [glossaryVersion, setGlossaryVersion] = useState(0);
+  const [budget, setBudget] = useState<Budget | null>(null);
+  const [switching, setSwitching] = useState(false);
 
   const [voice, setVoice] = useState("sandrine");
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
@@ -101,9 +109,23 @@ export function StudioApp() {
     }
   }, []);
 
+  // Monthly budget for the header pill. Refreshed after every generation.
+  const loadBudget = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/budget");
+      if (!res.ok) return;
+      const data = (await res.json()) as Budget;
+      setBudget(data);
+      setRate(data.fcfaPerUsd);
+    } catch {
+      // The pill simply stays hidden.
+    }
+  }, []);
+
+  // all=1: a founder sees the whole team's projects, staff still get their own.
   const loadConversations = useCallback(async () => {
     try {
-      const res = await fetch("/api/admin/studio/conversations");
+      const res = await fetch("/api/admin/studio/conversations?all=1");
       if (!res.ok) return [];
       const data = (await res.json()) as { conversations: ConversationItem[] };
       setConversations(data.conversations);
@@ -119,10 +141,11 @@ export function StudioApp() {
       if (!res.ok) throw new Error("detail failed");
       const data = (await res.json()) as ConversationDetail;
       if (activeRef.current === id) setDetail(data);
+      void loadBudget();
     } catch {
       setError("La conversation n'a pas pu être chargée.");
     }
-  }, []);
+  }, [loadBudget]);
 
   const open = useCallback(
     async (id: string) => {
@@ -142,11 +165,15 @@ export function StudioApp() {
   useEffect(() => {
     void (async () => {
       void loadVoices();
+      void loadBudget();
       const list = await loadConversations();
-      if (list[0]) await open(list[0].id);
+      // Open the person's own latest project first; a founder's list also
+      // holds the team's projects, which are read-only.
+      const first = list.find((item) => item.isMine) ?? list[0];
+      if (first) await open(first.id);
       setBooted(true);
     })();
-  }, [loadVoices, loadConversations, open]);
+  }, [loadVoices, loadBudget, loadConversations, open]);
 
   const money = useCallback(
     (usd: number) => formatMoney(usd, currency, rate),
@@ -325,6 +352,29 @@ export function StudioApp() {
     await send(id, FIRST_DRAFT_REQUEST);
   }
 
+  // From the header chip: change the property of the open project without
+  // asking for a new draft. With no project open, it behaves like the picker
+  // in the conversation and starts the first draft.
+  async function switchProperty(property: PropertySummary) {
+    setSwitching(false);
+    if (!activeId) {
+      await pickProperty(property);
+      return;
+    }
+    setError(null);
+    const res = await fetch(`/api/admin/studio/conversations/${activeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ property_id: property.id }),
+    });
+    if (!res.ok) {
+      setError("Le bien n'a pas pu être changé.");
+      return;
+    }
+    await loadDetail(activeId);
+    void loadConversations();
+  }
+
   // "Réutiliser": start a new conversation on the same property from a script.
   async function rework(artifact: Artifact) {
     const id = await createConversation(detail?.property?.id);
@@ -356,6 +406,16 @@ export function StudioApp() {
     }
   }
 
+
+  // Escape closes the property switcher.
+  useEffect(() => {
+    if (!switching) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setSwitching(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [switching]);
 
   const voiceLabel = voices.find((v) => v.key === voice)?.label ?? "Sandrine";
   const artifacts = detail?.artifacts ?? [];
@@ -475,25 +535,47 @@ export function StudioApp() {
     <div className="relative left-1/2 flex w-[calc(100vw-2rem)] max-w-[1840px] -translate-x-1/2 flex-col gap-3 md:w-[calc(100vw-4rem)]">
       <header className="flex flex-wrap items-center gap-3">
         <h1 className="text-xl font-semibold tracking-tight text-neutral-900">Studio de contenu</h1>
-        {detail?.property && (
-          <span className="flex min-w-0 items-center gap-2 rounded-full border border-neutral-200 bg-white py-1 pl-1 pr-3 text-sm font-medium text-neutral-700">
-            {detail.property.image && (
-              <span className="relative size-6 shrink-0 overflow-hidden rounded-full">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={detail.property.image} alt="" className="size-full object-cover" />
-              </span>
+        <button
+          type="button"
+          onClick={() => setSwitching(true)}
+          disabled={!canWrite}
+          aria-haspopup="dialog"
+          aria-expanded={switching}
+          title={detail?.property ? "Changer de bien" : "Choisir un bien"}
+          className="flex min-h-9 min-w-0 items-center gap-2 rounded-full border border-neutral-200 bg-white py-1 pl-1 pr-3 text-sm font-medium text-neutral-700 hover:border-neutral-300 hover:bg-neutral-50 disabled:cursor-default disabled:hover:bg-white"
+        >
+          <span className="relative flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-full bg-neutral-100 text-neutral-500">
+            {detail?.property?.image ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={detail.property.image} alt="" className="size-full object-cover" />
+            ) : (
+              <HouseLineIcon size={14} weight="bold" />
             )}
-            <span className="max-w-64 truncate">{detail.property.title}</span>
           </span>
-        )}
+          <span className="max-w-64 truncate">
+            {detail?.property?.title ?? "Choisir un bien"}
+          </span>
+          {canWrite && <CaretDownIcon size={14} weight="bold" className="shrink-0 text-neutral-400" />}
+        </button>
         <div className="ml-auto flex items-center gap-2">
+          {budget && (
+            <span
+              className="hidden items-center text-xs font-medium text-neutral-500 sm:flex"
+              title="Votre plafond du mois pour le Studio"
+            >
+              Reste ce mois : <strong className="ml-1 text-neutral-800">{money(budget.remainingUsd)}</strong>
+              <span className="ml-1">sur {money(budget.capUsd)}</span>
+            </span>
+          )}
           <button
             type="button"
             onClick={() => chooseCurrency(currency === "FCFA" ? "USD" : "FCFA")}
             aria-label={currency === "FCFA" ? "Afficher les prix en dollars" : "Afficher les prix en FCFA"}
-            className="min-h-10 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50"
+            title={currency === "FCFA" ? "Passer en dollars" : "Passer en FCFA"}
+            className="inline-flex min-h-10 items-center gap-1.5 rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-600 hover:bg-neutral-50"
           >
-            {currency === "FCFA" ? "FCFA | $" : "$ | FCFA"}
+            {currency === "FCFA" ? "FCFA" : "$"}
+            <ArrowsLeftRightIcon size={14} weight="bold" className="text-neutral-400" />
           </button>
           <button
             type="button"
@@ -617,6 +699,45 @@ export function StudioApp() {
           )}
         </div>
       </div>
+
+      {switching && (
+        <div
+          className="fixed inset-0 z-[80] flex items-start justify-center bg-neutral-900/30 p-4 pt-24 sm:items-center sm:pt-4"
+          onClick={() => setSwitching(false)}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="studio-switch-title"
+            onClick={(event) => event.stopPropagation()}
+            className="flex max-h-[80dvh] w-full max-w-lg flex-col gap-3 overflow-hidden rounded-3xl bg-white p-4 shadow-2xl"
+          >
+            <div className="flex items-center justify-between gap-2">
+              <div>
+                <h2 id="studio-switch-title" className="text-base font-semibold text-neutral-900">
+                  {detail?.property ? "Changer de bien" : "Choisir un bien"}
+                </h2>
+                <p className="text-xs text-neutral-500">
+                  {activeId
+                    ? "Le projet garde ses scripts et ses résultats, seul le bien change."
+                    : "Un nouveau projet démarre avec un premier script."}
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setSwitching(false)}
+                aria-label="Fermer"
+                className="flex size-10 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
+              >
+                <XIcon size={18} weight="bold" />
+              </button>
+            </div>
+            <div className="min-h-0 overflow-y-auto">
+              <PropertyPicker disabled={sending} onPick={(p) => void switchProperty(p)} />
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

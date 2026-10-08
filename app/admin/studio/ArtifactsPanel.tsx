@@ -160,43 +160,78 @@ function ScriptCard({
             : `${estimate.spokenCharacters} caractères, environ ${money(estimate.estimateUsd)}. Reste ce mois : ${money(estimate.remainingUsd)}.`
           : "Le prix apparaît dans un instant."}
       </p>
+      {estimate && (
+        <details className="group rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
+          <summary className="cursor-pointer list-none font-semibold text-neutral-700 marker:hidden">
+            <span className="mr-1 inline-block transition-transform group-open:rotate-90">›</span>
+            Texte envoyé à la voix
+            <span className="ml-1 font-medium text-neutral-500">
+              {estimate.replacements.length
+                ? `(${estimate.replacements.reduce((sum, r) => sum + r.count, 0)} mot${estimate.replacements.reduce((sum, r) => sum + r.count, 0) > 1 ? "s" : ""} respelé${estimate.replacements.reduce((sum, r) => sum + r.count, 0) > 1 ? "s" : ""} par le glossaire)`
+                : "(aucun mot du glossaire dans ce script)"}
+            </span>
+          </summary>
+          <p className="mt-2 whitespace-pre-wrap leading-relaxed text-neutral-600">{estimate.spokenText}</p>
+          {estimate.replacements.length > 0 && (
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {estimate.replacements.map((r) => (
+                <li
+                  key={`${r.term}-${r.spoken}`}
+                  className="rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-xs text-neutral-700"
+                >
+                  <span className="font-semibold">{r.term}</span> se dit « {r.spoken} »
+                  {r.count > 1 ? ` (${r.count} fois)` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-neutral-500">
+            Le script garde l&apos;orthographe normale ; seule cette version respelée part vers la voix.
+            Un mot mal prononcé ? Ajoutez-le au glossaire, le texte ci-dessus se met à jour.
+          </p>
+        </details>
+      )}
       {overBudget && (
         <p className="text-sm font-bold text-red-600">
           Plafond mensuel atteint. Demandez à Salif de le relever.
         </p>
       )}
-      <button
-        type="button"
-        onClick={generate}
-        disabled={!canGenerate}
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-white shadow-lg shadow-primary/10 transition-all active:scale-[0.985] disabled:opacity-40"
-      >
-        {generating ? (
-          <SpinnerGapIcon size={20} className="animate-spin" />
-        ) : (
-          <MicrophoneIcon size={20} weight="bold" />
-        )}
-        {estimate
-          ? `Générer la voix, ${voiceLabel} (environ ${money(estimate.estimateUsd)})`
-          : "Générer la voix"}
-      </button>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={copy}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-neutral-100 text-sm font-bold text-neutral-700"
+          onClick={generate}
+          disabled={!canGenerate}
+          className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-all active:scale-[0.985] disabled:opacity-40"
         >
-          <CopyIcon size={16} weight="bold" />
-          {copied ? "Copié" : "Copier"}
+          {generating ? (
+            <SpinnerGapIcon size={18} className="animate-spin" />
+          ) : (
+            <MicrophoneIcon size={18} weight="bold" />
+          )}
+          {generating ? "Génération en cours" : "Générer la voix"}
         </button>
-        <button
-          type="button"
-          onClick={() => onRework({ ...artifact, text })}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-neutral-100 text-sm font-bold text-neutral-700"
-        >
-          <ArrowsClockwiseIcon size={16} weight="bold" />
-          Réutiliser
-        </button>
+        <span className="text-xs font-medium text-neutral-500">
+          {voiceLabel}
+          {estimate && !estimate.tooLong ? ` · environ ${money(estimate.estimateUsd)}` : ""}
+        </span>
+        <span className="ml-auto flex gap-1">
+          <button
+            type="button"
+            onClick={copy}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+          >
+            <CopyIcon size={16} weight="bold" />
+            {copied ? "Copié" : "Copier"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onRework({ ...artifact, text })}
+            className="inline-flex min-h-11 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+          >
+            <ArrowsClockwiseIcon size={16} weight="bold" />
+            Réutiliser
+          </button>
+        </span>
       </div>
       {message && (
         <p className="text-sm font-bold text-red-600" role="alert">

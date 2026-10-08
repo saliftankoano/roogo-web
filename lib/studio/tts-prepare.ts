@@ -100,21 +100,37 @@ export function phoneToSpokenPairs(digits: string): string {
     .join(", ");
 }
 
-// Order matters: longer and more specific words first.
-const RESPELLINGS: Array<
-  [RegExp, string | ((match: string, ...groups: string[]) => string)]
-> = [
-  [/\bOuagadougou\b/gi, "Waga"],
-  [/\bOuaga\b/gi, "Waga"],
-  [/\bBurkina\s+Faso\b/gi, "Bourkina Faso"],
-  [/\bBurkina\b/gi, "Bourkina"],
-  [/\bRoogo\b/gi, "Rohgo"],
-  [/\bNagrin\b/gi, "Nagrain"],
-  [/\bparcelles?\b/gi, (match) => match.replace(/parcelle/i, "par-celle")],
+// Order matters: longer and more specific words first. Each rule carries the
+// label shown to staff when it fires.
+type Respelling = {
+  term: string;
+  spoken: string;
+  pattern: RegExp;
+  replacement: string | ((match: string, ...groups: string[]) => string);
+};
+
+const RESPELLINGS: Respelling[] = [
+  { term: "Ouagadougou", spoken: "Waga", pattern: /\bOuagadougou\b/gi, replacement: "Waga" },
+  { term: "Ouaga", spoken: "Waga", pattern: /\bOuaga\b/gi, replacement: "Waga" },
+  { term: "Burkina Faso", spoken: "Bourkina Faso", pattern: /\bBurkina\s+Faso\b/gi, replacement: "Bourkina Faso" },
+  { term: "Burkina", spoken: "Bourkina", pattern: /\bBurkina\b/gi, replacement: "Bourkina" },
+  { term: "Roogo", spoken: "Rohgo", pattern: /\bRoogo\b/gi, replacement: "Rohgo" },
+  { term: "Nagrin", spoken: "Nagrain", pattern: /\bNagrin\b/gi, replacement: "Nagrain" },
+  {
+    term: "parcelle",
+    spoken: "par-celle",
+    pattern: /\bparcelles?\b/gi,
+    replacement: (match) => match.replace(/parcelle/i, "par-celle"),
+  },
   // Found on 2026-10-06: the voice read "FCFA" as "francs CFA BAK".
-  [/\bF\s?CFA\b/g, "francs CFA"],
+  { term: "FCFA", spoken: "francs CFA", pattern: /\bF\s?CFA\b/g, replacement: "francs CFA" },
   // "R+1" is spoken "R plus un" (a ground floor and one storey).
-  [/\bR\+(\d)\b/g, (_match, floors) => `R plus ${numberToFrench(Number(floors))}`],
+  {
+    term: "R+1, R+2...",
+    spoken: "R plus un, R plus deux...",
+    pattern: /\bR\+(\d)\b/g,
+    replacement: (_match, floors) => `R plus ${numberToFrench(Number(floors))}`,
+  },
 ];
 
 /** Built-in respellings, shown read-only in the team glossary. */
@@ -134,16 +150,35 @@ function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+/** One rule that changed the spoken text, with how many times it fired. */
+export type SpeechReplacement = { term: string; spoken: string; count: number };
+
+function countedReplace(
+  text: string,
+  pattern: RegExp,
+  replacement: string | ((match: string, ...groups: string[]) => string),
+): { out: string; count: number } {
+  let count = 0;
+  const out = text.replace(pattern, (...args: unknown[]) => {
+    count += 1;
+    return typeof replacement === "string"
+      ? replacement
+      : replacement(...(args as [string, ...string[]]));
+  });
+  return { out, count };
+}
+
 /**
  * Team glossary entries run first so a team override beats the built-in
  * table. Whole words only, case-insensitive, letters and digits of any
  * language count as word characters (so "Zongo" does not match "Zongoma").
  */
-export function applyGlossary(
+function applyGlossaryDetailed(
   text: string,
   glossary: ReadonlyArray<GlossaryEntry>,
-): string {
+): { out: string; replacements: SpeechReplacement[] } {
   let out = text;
+  const replacements: SpeechReplacement[] = [];
   // Longest terms first so "Burkina Faso" wins over "Burkina".
   const ordered = [...glossary].sort((a, b) => b.term.length - a.term.length);
   for (const entry of ordered) {
@@ -153,17 +188,29 @@ export function applyGlossary(
       `(?<![\\p{L}\\p{N}])${escapeRegExp(term)}(?![\\p{L}\\p{N}])`,
       "giu",
     );
-    out = out.replace(pattern, () => entry.spoken);
+    const result = countedReplace(out, pattern, entry.spoken);
+    out = result.out;
+    if (result.count) replacements.push({ term, spoken: entry.spoken, count: result.count });
   }
-  return out;
+  return { out, replacements };
 }
 
-function applyRespellings(text: string): string {
+export function applyGlossary(
+  text: string,
+  glossary: ReadonlyArray<GlossaryEntry>,
+): string {
+  return applyGlossaryDetailed(text, glossary).out;
+}
+
+function applyRespellingsDetailed(text: string): { out: string; replacements: SpeechReplacement[] } {
   let out = text;
-  for (const [pattern, replacement] of RESPELLINGS) {
-    out = out.replace(pattern, replacement as never);
+  const replacements: SpeechReplacement[] = [];
+  for (const rule of RESPELLINGS) {
+    const result = countedReplace(out, rule.pattern, rule.replacement);
+    out = result.out;
+    if (result.count) replacements.push({ term: rule.term, spoken: rule.spoken, count: result.count });
   }
-  return out;
+  return { out, replacements };
 }
 
 // International (+226 ...) and local 8-digit numbers, with optional spaces,
@@ -190,14 +237,24 @@ function applyYears(text: string): string {
 }
 
 /**
- * Display text in, spoken text out. Phones run first so their digits are not
- * touched by the year rule.
+ * Display text in, spoken text out, with the list of rules that fired so
+ * staff can see exactly what the voice will be told. Phones run first so
+ * their digits are not touched by the year rule.
  */
+export function prepareForSpeechDetailed(
+  displayText: string,
+  glossary: ReadonlyArray<GlossaryEntry> = [],
+): { spoken: string; replacements: SpeechReplacement[] } {
+  const team = applyGlossaryDetailed(displayText.trim(), glossary);
+  const builtIn = applyRespellingsDetailed(team.out);
+  const spoken = applyYears(applyPhones(builtIn.out));
+  return { spoken, replacements: [...team.replacements, ...builtIn.replacements] };
+}
+
+/** Display text in, spoken text out. */
 export function prepareForSpeech(
   displayText: string,
   glossary: ReadonlyArray<GlossaryEntry> = [],
 ): string {
-  return applyYears(
-    applyPhones(applyRespellings(applyGlossary(displayText.trim(), glossary))),
-  );
+  return prepareForSpeechDetailed(displayText, glossary).spoken;
 }
