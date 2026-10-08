@@ -265,16 +265,25 @@ export function AdminNavbar() {
           })}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="flex min-w-0 shrink items-center gap-2 sm:gap-4">
           {!isLoaded ? (
             <div className="w-10 h-10 rounded-full bg-neutral-100 animate-pulse" />
           ) : (
-            <div className="flex items-center gap-3">
-              <div className="hidden lg:flex flex-col items-end leading-tight">
-                <span className="text-sm font-bold text-neutral-900 line-clamp-1">
+            <div className="flex min-w-0 items-center gap-3">
+              {/* Name and email only when the row has room (xl and up); they
+                  are capped and truncated so a long name never pushes the
+                  avatar out of the pill. */}
+              <div className="hidden min-w-0 max-w-44 flex-col items-end leading-tight xl:flex 2xl:max-w-56">
+                <span
+                  className="w-full truncate text-right text-sm font-bold text-neutral-900"
+                  title={user?.fullName ?? undefined}
+                >
                   {user?.fullName || "Administrateur"}
                 </span>
-                <span className="text-[11px] text-neutral-500 font-medium line-clamp-1 opacity-70">
+                <span
+                  className="w-full truncate text-right text-[11px] font-medium text-neutral-500 opacity-70"
+                  title={user?.primaryEmailAddress?.emailAddress}
+                >
                   {user?.primaryEmailAddress?.emailAddress}
                 </span>
               </div>
