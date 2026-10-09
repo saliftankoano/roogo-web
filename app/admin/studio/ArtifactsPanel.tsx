@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   ArrowsClockwiseIcon,
@@ -65,6 +65,22 @@ function ScriptCard({
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const scriptRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Grow with the text so the whole script is always visible, also when the
+  // card gets narrower or wider (a side column folding re-wraps the lines).
+  useLayoutEffect(() => {
+    const el = scriptRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
 
   // Live price for this script in the chosen voice.
   useEffect(() => {
@@ -147,11 +163,16 @@ function ScriptCard({
         </h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
       </header>
+      {/* Reads like a message: flowing text, no box, no inner scroll. Still
+          editable in place; a soft tint appears only while editing. */}
       <textarea
+        ref={scriptRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        aria-label="Texte du script"
-        className="min-h-40 w-full resize-y rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-base leading-relaxed text-neutral-900 outline-none focus:border-primary"
+        aria-label="Texte du script, modifiable"
+        title="Cliquez pour modifier"
+        rows={1}
+        className="-mx-2 block w-[calc(100%+1rem)] resize-none overflow-hidden rounded-xl border-0 bg-transparent px-2 py-1 text-[17px] leading-[1.7] text-neutral-900 outline-none transition-colors duration-150 hover:bg-neutral-50/70 focus:bg-[#fbf6f0] focus:shadow-[0_0_0_1px_rgba(201,106,46,0.35)]"
       />
       <p className="text-sm font-medium text-neutral-500" aria-live="polite">
         {estimate
