@@ -608,7 +608,12 @@ export function StudioApp() {
         </div>
       </header>
 
-      <div className="flex flex-col gap-3 lg:h-[calc(100dvh-15rem)] lg:min-h-[600px] lg:flex-row">
+      <div
+        className={cn(
+          "flex flex-col gap-3 lg:flex-row",
+          rail === "chat" ? "lg:h-[calc(100dvh-15rem)] lg:min-h-[600px]" : "lg:min-h-[600px] lg:items-start",
+        )}
+      >
         <nav
           aria-label="Modes du Studio"
           className={cn(card, "flex shrink-0 gap-1 overflow-x-auto p-1.5 lg:w-[76px] lg:flex-col lg:overflow-visible")}
@@ -698,7 +703,7 @@ export function StudioApp() {
           )}
 
           {rail === "visuals" && (
-            <section className={cn(card, "flex h-full min-h-[560px] flex-col overflow-hidden lg:min-h-0")}>
+            <section className={cn(card, "flex min-h-[560px] flex-col overflow-hidden")}>
               <StudioVisuals
                 detail={detail}
                 canWrite={canWrite}

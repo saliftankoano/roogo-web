@@ -43,7 +43,7 @@ export function StudioVisuals({
   const current: Artifact | null = images.find((a) => a.id === selectedId) ?? images[0] ?? null;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-4 py-3">
         <ImageSquareIcon size={18} weight="bold" className="shrink-0 text-primary" />
         <h2 className="text-sm font-semibold text-neutral-900">Visuels</h2>
@@ -61,8 +61,9 @@ export function StudioVisuals({
         </button>
       </div>
 
-      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
-        <aside className="min-h-0 space-y-3 overflow-y-auto border-neutral-200 p-3 md:border-r">
+      <div className="grid flex-1 md:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+        {/* Grows with its content: no inner scroll, the page scrolls if needed. */}
+        <aside className="space-y-3 border-neutral-200 p-3 md:border-r">
           {detail && canWrite ? (
             <ToolsPanel
               conversationId={detail.conversation.id}
@@ -113,7 +114,7 @@ export function StudioVisuals({
           )}
         </aside>
 
-        <div className="min-h-0 overflow-y-auto bg-[#faf7f4] p-4 md:p-6">
+        <div className="bg-[#faf7f4] p-4 md:p-6">
           {current ? (
             <div className="mx-auto max-w-md">
               <ArtifactCard artifact={current} {...card} />
