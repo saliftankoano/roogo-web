@@ -72,7 +72,9 @@ function store(key: string, value: string) {
 export function StudioApp() {
   const [view, setView] = useState<CenterView>("chat");
   const [panelCollapsed, setPanelCollapsed] = useState(false);
-  // Below 1280 px the open panel floats over the chat instead of squeezing it.
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  // Below 1280 px only one side column is open at a time, so the chat keeps
+  // its width and nothing is ever drawn over it.
   const [wide, setWide] = useState(true);
   const [sheet, setSheet] = useState<"history" | "project" | null>(null);
   const [highlightId, setHighlightId] = useState<string | null>(null);
@@ -389,11 +391,22 @@ export function StudioApp() {
   }
 
   function togglePanel() {
-    setPanelCollapsed((closed) => {
-      store(PANEL_STORAGE_KEY, closed ? "open" : "closed");
-      return !closed;
-    });
+    const opening = panelCollapsed;
+    setPanelCollapsed(!opening);
+    store(PANEL_STORAGE_KEY, opening ? "open" : "closed");
+    if (opening && !wide) setHistoryCollapsed(true);
   }
+
+  function toggleHistory() {
+    const opening = historyCollapsed;
+    setHistoryCollapsed(!opening);
+    if (opening && !wide) setPanelCollapsed(true);
+  }
+
+  // Narrowing the window with both sides open: fold the history first.
+  useEffect(() => {
+    if (!wide && !panelCollapsed && !historyCollapsed) setHistoryCollapsed(true);
+  }, [wide, panelCollapsed, historyCollapsed]);
 
   // From "Résultats épinglés": back to the chat, scroll to the card, flash it.
   function jumpTo(artifactId: string) {
@@ -452,6 +465,21 @@ export function StudioApp() {
       }}
       onNewChat={newConversation}
       onNewVisual={() => void newVisualProject()}
+    />
+  );
+
+  const historyRail = (
+    <HistoryPanel
+      conversations={conversations}
+      activeId={activeId}
+      onSelect={(id: string) => {
+        const item = conversations.find((c) => c.id === id);
+        void open(id, item?.kind === "visual" ? "visuals" : "chat");
+      }}
+      onNewChat={newConversation}
+      onNewVisual={() => void newVisualProject()}
+      collapsed={historyCollapsed}
+      onToggle={toggleHistory}
     />
   );
 
@@ -587,11 +615,11 @@ export function StudioApp() {
           className="grid items-start gap-3.5 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:[grid-template-columns:var(--studio-cols)]"
           style={
             {
-              "--studio-cols": `minmax(280px,340px) minmax(0,1fr) ${panelCollapsed || !wide ? "68px" : "minmax(260px,300px)"}`,
+              "--studio-cols": `${historyCollapsed ? "68px" : "minmax(260px,340px)"} minmax(0,1fr) ${panelCollapsed ? "68px" : "minmax(260px,300px)"}`,
             } as React.CSSProperties
           }
         >
-          <aside className={cn(glass, "hidden p-3.5 lg:block")}>{history}</aside>
+          <aside className={cn(glass, "hidden lg:block", historyCollapsed ? "px-2 py-3" : "p-3.5")}>{historyRail}</aside>
 
           <main className={cn(glass, "min-w-0 overflow-visible")}>
             <AnimatePresence mode="wait" initial={false}>
@@ -607,21 +635,8 @@ export function StudioApp() {
             </AnimatePresence>
           </main>
 
-          <aside className={cn(glass, "sticky top-24 hidden lg:block", panelCollapsed || !wide ? "px-2 py-3" : "p-3.5")}>
-            {projectPanel(panelCollapsed || !wide)}
-            <AnimatePresence>
-              {!wide && !panelCollapsed && (
-                <motion.div
-                  initial={{ opacity: 0, x: 12 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  exit={{ opacity: 0, x: 12 }}
-                  transition={{ duration: 0.22, ease }}
-                  className="absolute right-0 top-0 z-30 w-[300px] rounded-[26px] border border-white/80 bg-[rgba(252,247,241,0.97)] p-3.5 shadow-[0_24px_60px_-20px_rgba(90,50,26,0.45)] backdrop-blur-xl"
-                >
-                  {projectPanel(false)}
-                </motion.div>
-              )}
-            </AnimatePresence>
+          <aside className={cn(glass, "sticky top-24 hidden lg:block", panelCollapsed ? "px-2 py-3" : "p-3.5")}>
+            {projectPanel(panelCollapsed)}
           </aside>
         </div>
       </div>
