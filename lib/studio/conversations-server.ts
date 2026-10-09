@@ -39,9 +39,17 @@ export async function loadConversation(
   return (data as ConversationRow | null) ?? null;
 }
 
-/** Staff read and write their own conversations; a founder can read all. */
+/**
+ * Every staff member and founder can read every project (decision of
+ * 2026-10-09: the Studio history is shared with the whole team in V1).
+ * Only the author can change a project.
+ */
 export function canReadConversation(viewer: Viewer, conv: ConversationRow) {
-  return conv.user_id === viewer.id || viewer.user_type === "founder";
+  return (
+    conv.user_id === viewer.id ||
+    viewer.user_type === "founder" ||
+    viewer.user_type === "staff"
+  );
 }
 
 export function canWriteConversation(viewer: Viewer, conv: ConversationRow) {

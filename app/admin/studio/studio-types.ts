@@ -19,6 +19,12 @@ export type ConversationItem = {
   /** Who started the project. */
   author: string | null;
   isMine: boolean;
+  /** "video" arrives with the template render. */
+  kind: "chat" | "visual" | "video";
+  /** Every filter the project matches (a property project can hold visuals too). */
+  contains: Array<"chat" | "visual" | "video">;
+  /** The latest result, for the history line ("Script v3", "Voix off (Sandrine) prête"). */
+  summary: string | null;
 };
 
 export type ChatMessage = {
