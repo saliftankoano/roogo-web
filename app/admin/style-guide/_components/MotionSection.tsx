@@ -6,11 +6,15 @@ import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,
   HouseLineIcon,
+  PaperPlaneTiltIcon,
+  PlusIcon,
   ShuffleIcon,
+  XCircleIcon,
 } from "@phosphor-icons/react";
 
 import { Button } from "@/components/ui/Button";
 import { Alert } from "@/components/ui/alert";
+import { Input } from "@/components/ui/input";
 import { roogoMotion } from "@/lib/motion";
 import { formatCurrency } from "@/lib/format";
 import { formatMoney } from "@/lib/studio/currency";
@@ -99,6 +103,27 @@ const initialList = [
   { id: "d", label: "Appartement à Koulouba" },
 ];
 
+const growRows = [
+  "Villa 4 pièces, Ouaga 2000",
+  "Studio meublé, Pissy",
+  "Boutique 24 m², Gounghin",
+  "Appartement 2 pièces, Koulouba",
+  "Parcelle 300 m², Saaba",
+  "Chambre salon, Tanghin",
+];
+
+const initialMessages = [
+  { id: 1, mine: false, text: "Bonjour, la villa de Ouaga 2000 est-elle encore libre ?" },
+  { id: 2, mine: true, text: "Oui, visite possible samedi matin." },
+  { id: 3, mine: false, text: "Parfait, 10 h me convient." },
+];
+
+const scrollExceptions = [
+  "Le corps d'une boîte de dialogue, quand son contenu dépasse l'écran.",
+  "Une bande horizontale de chips ou d'onglets sur téléphone.",
+  "Un bloc de code.",
+];
+
 function shuffle<T>(items: T[]): T[] {
   const next = [...items];
   for (let i = next.length - 1; i > 0; i -= 1) {
@@ -115,6 +140,20 @@ export function MotionSection() {
   const [list, setList] = React.useState(initialList);
   const [currency, setCurrency] = React.useState<"FCFA" | "USD">("FCFA");
   const [amountIndex, setAmountIndex] = React.useState(0);
+  const [rowCount, setRowCount] = React.useState(3);
+  const [messages, setMessages] = React.useState(initialMessages);
+  const [draft, setDraft] = React.useState("");
+
+  const sendMessage = (event: React.FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const text = draft.trim();
+    if (!text) return;
+    setMessages((current) => [
+      ...current,
+      { id: current.length + 1, mine: true, text },
+    ]);
+    setDraft("");
+  };
 
   const amounts = [3.5, 12.25, 0.4];
   const usd = amounts[amountIndex % amounts.length];
@@ -265,7 +304,7 @@ export function MotionSection() {
                   </button>
                 ))}
               </div>
-              <div className="relative h-28 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+              <div className="min-h-28 overflow-hidden rounded-xl border border-neutral-200 bg-white">
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.ul
                     key={panel}
@@ -273,7 +312,7 @@ export function MotionSection() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -8 }}
                     transition={roogoMotion.standard}
-                    className="absolute inset-0 divide-y divide-neutral-100"
+                    className="divide-y divide-neutral-100"
                   >
                     {panels[panel].rows.map((row) => (
                       <li key={row} className="px-3 py-2 text-sm text-neutral-700">
@@ -386,6 +425,141 @@ export function MotionSection() {
         <p className="text-xs text-neutral-500">
           Exemple réel: {formatCurrency(1250000)} et 2 083,33 $ n&apos;ont pas la même
           longueur; sans réserve, la phrase saute à chaque bascule.
+        </p>
+      </GuideSubsection>
+
+      <GuideSubsection
+        title="Pas de défilement dans un cadre"
+        note="Un panneau prend la hauteur dont son contenu a besoin, et c'est la page qui défile. Jamais une section à hauteur fixe avec sa propre barre de défilement."
+      >
+        <SpecimenGrid columns={2}>
+          <Specimen
+            label="À faire: la carte grandit"
+            code="aucun h-* ni max-h-* sur le panneau, pas d'overflow-y-auto"
+          >
+            <div className="space-y-3">
+              <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white">
+                {Array.from({ length: rowCount }, (_, index) => (
+                  <motion.li
+                    key={index}
+                    initial={reduceMotion || index < 3 ? false : { opacity: 0, y: 4 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={roogoMotion.standard}
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-neutral-700"
+                  >
+                    <span className="min-w-0 truncate">
+                      {growRows[index % growRows.length]}
+                    </span>
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-neutral-400">
+                      {index + 1}
+                    </span>
+                  </motion.li>
+                ))}
+              </ul>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  size="sm"
+                  variant="secondary"
+                  onClick={() => setRowCount((count) => count + 1)}
+                  leftIcon={<PlusIcon weight="bold" />}
+                >
+                  Ajouter une ligne
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={() => setRowCount(3)}
+                  disabled={rowCount === 3}
+                >
+                  Réinitialiser
+                </Button>
+              </div>
+            </div>
+          </Specimen>
+          <Specimen
+            label="À ne pas faire: un cadre qui défile"
+            code="h-32 overflow-y-auto (contre-exemple, à ne pas copier)"
+          >
+            <div className="space-y-2">
+              <ul className="h-32 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-danger/40 bg-white">
+                {growRows.map((row) => (
+                  <li key={row} className="px-3 py-2 text-sm text-neutral-700">
+                    {row}
+                  </li>
+                ))}
+              </ul>
+              <p className="flex items-start gap-1.5 text-xs text-danger-strong">
+                <XCircleIcon size={14} weight="fill" className="mt-px shrink-0" aria-hidden="true" />
+                Deux barres de défilement imbriquées: sur téléphone, le pouce fait
+                défiler le cadre au lieu de la page, et la moitié de la liste reste
+                cachée.
+              </p>
+            </div>
+          </Specimen>
+        </SpecimenGrid>
+
+        <div className="grid gap-4 md:grid-cols-2">
+          <div className="space-y-2 rounded-2xl border border-neutral-200 bg-white p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+              Seules exceptions
+            </p>
+            <ul className="space-y-1.5 text-sm text-neutral-700">
+              {scrollExceptions.map((item) => (
+                <li key={item} className="flex items-start gap-2">
+                  <CheckCircleIcon size={16} weight="fill" className="mt-0.5 shrink-0 text-success" aria-hidden="true" />
+                  {item}
+                </li>
+              ))}
+            </ul>
+          </div>
+          <Specimen
+            label="Écran de discussion: le champ colle en bas"
+            code="sticky bottom-3 sur le champ de saisie, la liste des messages n'a pas de hauteur fixe"
+          >
+            <div className="rounded-2xl border border-neutral-200 bg-neutral-50/60">
+              <ul className="space-y-2 p-3">
+                {messages.map((message) => (
+                  <li
+                    key={message.id}
+                    className={cn(
+                      "w-fit max-w-[85%] rounded-2xl px-3 py-2 text-sm",
+                      message.mine
+                        ? "ml-auto bg-primary text-white"
+                        : "bg-white text-neutral-800 shadow-sm",
+                    )}
+                  >
+                    {message.text}
+                  </li>
+                ))}
+              </ul>
+              <form
+                onSubmit={sendMessage}
+                className="sticky bottom-3 mx-3 mb-3 flex items-center gap-2 rounded-full border border-neutral-200 bg-white p-1 pl-2 shadow-lg"
+              >
+                <Input
+                  value={draft}
+                  onChange={(event) => setDraft(event.target.value)}
+                  placeholder="Écrire un message"
+                  aria-label="Message"
+                  className="h-9 rounded-full border-transparent px-2 hover:border-transparent focus:border-transparent focus:ring-0"
+                />
+                <Button
+                  type="submit"
+                  size="icon"
+                  aria-label="Envoyer"
+                  className="h-9 w-9"
+                  disabled={!draft.trim()}
+                >
+                  <PaperPlaneTiltIcon weight="bold" />
+                </Button>
+              </form>
+            </div>
+          </Specimen>
+        </div>
+        <p className="text-xs leading-relaxed text-neutral-500">
+          Envoyez quelques messages puis faites défiler la page: la conversation
+          grandit, le champ reste à 12 px du bas de l&apos;écran tant que la
+          carte est visible.
         </p>
       </GuideSubsection>
 
