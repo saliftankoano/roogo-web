@@ -42,14 +42,19 @@ export function Thread({
   const [changing, setChanging] = useState(false);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
+  // Follow new messages only once the conversation is under way, so opening
+  // the Studio does not yank the page down past the header.
+  const seenRef = useRef(messages.length);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "end" });
+    if (messages.length === seenRef.current && !streamingText) return;
+    seenRef.current = messages.length;
+    bottomRef.current?.scrollIntoView({ behavior: "smooth", block: "nearest" });
   }, [messages.length, streamingText]);
 
   const showPicker = !property || changing;
 
   return (
-    <div className="flex h-full min-h-0 flex-col gap-3">
+    <div className="flex min-h-[500px] flex-col gap-3">
       {property && !changing && (
         <div className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-2">
           <span className="relative size-12 shrink-0 overflow-hidden rounded-xl bg-neutral-100">
@@ -77,7 +82,7 @@ export function Thread({
         </div>
       )}
 
-      <div className="min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
+      <div className="flex-1 space-y-3">
         {showPicker && canWrite && (
           <section className="space-y-2 rounded-3xl border border-neutral-200 bg-neutral-50 p-4">
             <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">
@@ -139,17 +144,17 @@ export function Thread({
             {error}
           </p>
         )}
-        <div ref={bottomRef} />
+        <div ref={bottomRef} className="scroll-mb-40" />
       </div>
 
-      {hideComposer ? null : canWrite ? (
-        <Composer
-          sending={sending}
-          showQuickReplies={messages.length > 0}
-          onSend={onSend}
-        />
-      ) : (
-        <ReadOnlyNote />
+      {hideComposer ? null : (
+        <div className="sticky bottom-3 z-10 -mx-1 rounded-3xl bg-white/95 p-1 backdrop-blur">
+          {canWrite ? (
+            <Composer sending={sending} showQuickReplies={messages.length > 0} onSend={onSend} />
+          ) : (
+            <ReadOnlyNote />
+          )}
+        </div>
       )}
     </div>
   );

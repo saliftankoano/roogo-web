@@ -81,7 +81,7 @@ export function StudioWorkspace({
   const tab = KIND_TABS.find((t) => t.kind === kind)!;
 
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex flex-col">
       <div role="tablist" className="flex gap-1 overflow-x-auto border-b border-neutral-200 px-3 pt-2">
         {KIND_TABS.map((t) => {
           const count = ordered.filter((a) => a.kind === t.kind).length;
@@ -115,8 +115,8 @@ export function StudioWorkspace({
         })}
       </div>
 
-      <div className="grid min-h-0 flex-1 md:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
-        <div className="flex min-h-0 flex-col gap-3 overflow-y-auto border-neutral-200 p-3 md:border-r">
+      <div className="grid flex-1 md:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+        <div className="flex flex-col gap-3 border-neutral-200 p-3 md:border-r">
           {aside}
           {items.length === 0 ? (
             <p className="rounded-2xl border border-dashed border-neutral-300 p-4 text-sm text-neutral-500">
@@ -180,14 +180,14 @@ export function StudioWorkspace({
           )}
         </div>
 
-        <div className="min-h-0 overflow-y-auto bg-[#faf7f4] p-4 md:p-6">
+        <div className="bg-[#faf7f4] p-4 md:p-6">
           {current ? (
             <div className={cn("mx-auto space-y-3", kind === "image" ? "max-w-md" : "max-w-2xl")}>
               {kind === "script" && scriptHeader}
               <ArtifactCard artifact={current} {...card} />
             </div>
           ) : (
-            <div className="flex h-full min-h-48 flex-col items-center justify-center gap-2 text-center text-neutral-400">
+            <div className="flex min-h-48 flex-col items-center justify-center gap-2 text-center text-neutral-400">
               <KindIcon kind={kind} size={28} />
               <p className="max-w-xs text-sm">{tab.empty}</p>
             </div>

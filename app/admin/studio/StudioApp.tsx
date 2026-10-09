@@ -608,12 +608,8 @@ export function StudioApp() {
         </div>
       </header>
 
-      <div
-        className={cn(
-          "flex flex-col gap-3 lg:flex-row",
-          rail === "chat" ? "lg:h-[calc(100dvh-15rem)] lg:min-h-[600px]" : "lg:min-h-[600px] lg:items-start",
-        )}
-      >
+      {/* Every tab takes the height its content needs; the page scrolls, never a box inside it. */}
+      <div className="flex flex-col gap-3 lg:min-h-[600px] lg:flex-row lg:items-start">
         <nav
           aria-label="Modes du Studio"
           className={cn(card, "flex shrink-0 gap-1 overflow-x-auto p-1.5 lg:w-[76px] lg:flex-col lg:overflow-visible")}
@@ -642,7 +638,7 @@ export function StudioApp() {
           animate={{ opacity: 1, y: 0 }}
           exit={{ opacity: 0, y: -4 }}
           transition={{ duration: 0.2, ease: [0.22, 1, 0.36, 1] }}
-          className="min-h-0 min-w-0 flex-1"
+          className="min-w-0 flex-1"
         >
           {rail === "chat" && (
             <>
@@ -668,12 +664,12 @@ export function StudioApp() {
                   </button>
                 ))}
               </div>
-              <div className="grid h-full min-h-0 grid-cols-1 gap-3 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
+              <div className="grid grid-cols-1 items-start gap-3 lg:grid-cols-[minmax(320px,420px)_minmax(0,1fr)]">
                 <section
                   className={cn(
                     card,
                     mobileTab === "chat" ? "flex" : "hidden lg:flex",
-                    "h-[calc(100dvh-16rem)] min-h-[480px] min-w-0 flex-col p-3 lg:h-auto lg:min-h-0",
+                    "min-h-[520px] min-w-0 flex-col p-3",
                   )}
                 >
                   {chatPanel}
@@ -682,7 +678,7 @@ export function StudioApp() {
                   className={cn(
                     card,
                     mobileTab === "results" ? "flex" : "hidden lg:flex",
-                    "min-h-[520px] min-w-0 flex-col overflow-hidden lg:min-h-0",
+                    "min-h-[520px] min-w-0 flex-col overflow-hidden",
                   )}
                 >
                   {resultsPanel}
@@ -692,7 +688,7 @@ export function StudioApp() {
           )}
 
           {rail === "editor" && (
-            <section className={cn(card, "flex h-full min-h-[640px] flex-col overflow-hidden")}>
+            <section className={cn(card, "flex flex-col overflow-hidden")}>
               <StudioEditor
                 conversationId={detail?.conversation.id ?? null}
                 property={detail?.property ?? null}
@@ -719,7 +715,7 @@ export function StudioApp() {
           )}
 
           {rail === "history" && (
-            <section className={cn(card, "mx-auto flex h-full max-w-3xl flex-col p-4")}>
+            <section className={cn(card, "mx-auto flex max-w-3xl flex-col p-4")}>
               <ConversationList
                 conversations={conversations}
                 activeId={activeId}
@@ -730,7 +726,7 @@ export function StudioApp() {
           )}
 
           {rail === "glossary" && (
-            <section className={cn(card, "mx-auto h-full max-w-3xl overflow-y-auto p-4")}>
+            <section className={cn(card, "mx-auto max-w-3xl p-4")}>
               <GlossaryPanel
                 voice={voice}
                 currency={currency}
@@ -742,7 +738,7 @@ export function StudioApp() {
           )}
 
           {rail === "clone" && cloningEnabled && (
-            <section className={cn(card, "mx-auto h-full max-w-2xl overflow-y-auto p-4")}>
+            <section className={cn(card, "mx-auto max-w-2xl p-4")}>
               <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
             </section>
           )}

@@ -60,7 +60,7 @@ export function ConversationList({
   const others = conversations.some((item) => !item.isMine);
 
   return (
-    <div className="flex h-full flex-col gap-3">
+    <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between gap-3">
         <div>
           <h2 className="text-base font-semibold text-neutral-900">Projets</h2>
@@ -84,7 +84,7 @@ export function ConversationList({
           Vos projets apparaîtront ici.
         </p>
       ) : (
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto">
+        <div className="space-y-4">
           {[...groups.entries()].map(([label, items]) => (
             <div key={label} className="space-y-1">
               <h3 className="px-2 text-xs font-bold uppercase tracking-widest text-neutral-500">

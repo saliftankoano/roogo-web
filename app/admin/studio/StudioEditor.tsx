@@ -220,8 +220,8 @@ export function StudioEditor({
 
   return (
     <EditorFrame templateLabel={template.label} description={template.description}>
-      <div className="grid min-h-[300px] flex-1 overflow-hidden md:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
-        <aside className="min-h-0 space-y-4 overflow-y-auto border-neutral-200 p-3 md:border-r">
+      <div className="grid md:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+        <aside className="space-y-4 border-neutral-200 p-3 md:border-r">
           <section className="space-y-2">
             <div className="flex items-baseline justify-between gap-2 px-1">
               <h3 className="text-xs font-semibold text-neutral-500">Photos du bien ({photos.length})</h3>
@@ -256,7 +256,7 @@ export function StudioEditor({
           </section>
         </aside>
 
-        <div className="relative min-h-[320px] overflow-hidden bg-[#faf7f4]">
+        <div className="relative min-h-[440px] overflow-hidden bg-[#faf7f4] lg:min-h-[560px]">
           {/* Absolute so the 9:16 frame takes the pane's height, never more. */}
           <div className="absolute inset-4 flex items-center justify-center">
           <div className="relative aspect-[9/16] h-full max-h-[520px] overflow-hidden rounded-2xl bg-neutral-900 shadow-lg">
@@ -308,7 +308,7 @@ function EditorFrame({
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex h-full min-h-0 flex-col">
+    <div className="flex flex-col">
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-4 py-3">
         <FilmSlateIcon size={18} weight="bold" className="shrink-0 text-primary" />
         <h2 className="text-sm font-semibold text-neutral-900">Éditeur</h2>
