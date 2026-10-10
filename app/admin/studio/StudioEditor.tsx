@@ -23,6 +23,8 @@ import {
   TAIL,
   VIDEO_TEMPLATES,
   VOICE_DELAY,
+  MAX_VOICE_DELAY,
+  clampVoiceDelay,
   outroStart,
   planShots,
   type Shot,
@@ -67,6 +69,28 @@ function writeOrder(conversationId: string | null, order: string[]) {
   }
 }
 
+// Where the voice starts, per project (dragged on the timeline); used by the render too.
+const DELAY_KEY = (conversationId: string) => `roogo-studio-voice-delay:${conversationId}`;
+
+function readDelay(conversationId: string | null): number {
+  if (!conversationId) return VOICE_DELAY;
+  try {
+    const raw = window.localStorage.getItem(DELAY_KEY(conversationId));
+    return raw === null ? VOICE_DELAY : clampVoiceDelay(Number(raw));
+  } catch {
+    return VOICE_DELAY;
+  }
+}
+
+function writeDelay(conversationId: string | null, value: number) {
+  if (!conversationId) return;
+  try {
+    window.localStorage.setItem(DELAY_KEY(conversationId), String(value));
+  } catch {
+    // Not critical: the voice falls back to its default start.
+  }
+}
+
 /* ---------- editor ---------- */
 
 /**
@@ -90,8 +114,18 @@ export function StudioEditor({
   const voice = [...ordered].reverse().find((a) => a.kind === "voiceover");
   const script = ordered.find((a) => a.kind === "script" && a.pinned) ?? ordered.find((a) => a.kind === "script");
   const voiceSeconds = seconds(voice) ?? DEFAULT_VOICE_SECONDS;
-  const total = Math.round((VOICE_DELAY + voiceSeconds + TAIL) * 100) / 100;
-  const outroFrom = outroStart(voiceSeconds, script?.text);
+  const [voiceDelay, setVoiceDelay] = useState(VOICE_DELAY);
+  useEffect(() => setVoiceDelay(readDelay(conversationId)), [conversationId]);
+  const moveVoice = useCallback(
+    (next: number) => {
+      const value = clampVoiceDelay(next);
+      setVoiceDelay(value);
+      writeDelay(conversationId, value);
+    },
+    [conversationId],
+  );
+  const total = Math.round((voiceDelay + voiceSeconds + TAIL) * 100) / 100;
+  const outroFrom = outroStart(voiceSeconds, script?.text, voiceDelay);
 
   const listingPhotos = useMemo(() => property?.photos ?? [], [property?.photos]);
   const [photos, setPhotos] = useState<string[]>(listingPhotos);
@@ -132,7 +166,7 @@ export function StudioEditor({
     (at: number, shouldPlay: boolean) => {
       const audio = audioRef.current;
       if (!audio) return;
-      const offset = at - VOICE_DELAY;
+      const offset = at - voiceDelay;
       if (offset < 0 || offset >= (Number.isFinite(audio.duration) ? audio.duration : voiceSeconds)) {
         audio.pause();
         if (offset < 0) audio.currentTime = 0;
@@ -142,7 +176,7 @@ export function StudioEditor({
       if (shouldPlay && audio.paused) void audio.play().catch(() => setPlaying(false));
       if (!shouldPlay) audio.pause();
     },
-    [voiceSeconds],
+    [voiceSeconds, voiceDelay],
   );
 
   const seek = useCallback(
@@ -286,6 +320,8 @@ export function StudioEditor({
           total={total}
           outroFrom={outroFrom}
           voiceSeconds={voiceSeconds}
+          voiceDelay={voiceDelay}
+          onMoveVoice={canWrite ? moveVoice : undefined}
           hasVoice={Boolean(voiceSrc)}
           time={time}
           playing={playing}
@@ -504,6 +540,8 @@ function Timeline({
   total,
   outroFrom,
   voiceSeconds,
+  voiceDelay,
+  onMoveVoice,
   hasVoice,
   time,
   playing,
@@ -515,6 +553,8 @@ function Timeline({
   total: number;
   outroFrom: number;
   voiceSeconds: number;
+  voiceDelay: number;
+  onMoveVoice?: (delay: number) => void;
   hasVoice: boolean;
   time: number;
   playing: boolean;
@@ -524,6 +564,10 @@ function Timeline({
 }) {
   const laneRef = useRef<HTMLDivElement | null>(null);
   const dragging = useRef(false);
+  // Voice drag: remember where it started, in pixels and seconds, and the scale at that moment
+  // (the video grows as the voice moves, so the scale must not shift mid-drag).
+  const voiceDrag = useRef<{ x: number; delay: number; secondsPerPx: number } | null>(null);
+  const [movingVoice, setMovingVoice] = useState(false);
   const step = total > 40 ? 10 : 5;
   const ticks = Array.from({ length: Math.floor(total / step) + 1 }, (_, i) => i * step);
   const pct = (value: number) => `${(value / total) * 100}%`;
@@ -532,6 +576,20 @@ function Timeline({
     const rect = laneRef.current?.getBoundingClientRect();
     if (!rect) return time;
     return Math.min(total, Math.max(0, ((event.clientX - rect.left) / rect.width) * total));
+  };
+
+  // Only the ruler and the playhead handle move the playhead (Salif, 2026-10-10):
+  // the tracks below are for arranging, not scrubbing.
+  const startScrub = (event: React.PointerEvent) => {
+    if (event.button !== 0) return;
+    event.stopPropagation();
+    dragging.current = true;
+    onSeek(fromPointer(event));
+    try {
+      laneRef.current?.setPointerCapture(event.pointerId);
+    } catch {
+      // Capture is a nicety: moves over the lane still scrub.
+    }
   };
 
   const control =
@@ -569,7 +627,7 @@ function Timeline({
         </div>
         <p className="w-full text-[11px] text-neutral-500">
           {hasVoice
-            ? "Glissez la tête de lecture, ou utilisez espace et les flèches."
+            ? "Cliquez sur la règle ou glissez la tête de lecture. Glissez la voix off pour la décaler."
             : `Sans voix, l'aperçu suppose ${DEFAULT_VOICE_SECONDS} s de narration.`}
         </p>
       </div>
@@ -593,23 +651,26 @@ function Timeline({
           aria-valuenow={Math.round(time)}
           aria-valuetext={`${clock(time)} sur ${clock(total)}`}
           onKeyDown={onKey}
-          onPointerDown={(event) => {
-            if (event.button !== 0) return;
-            dragging.current = true;
-            laneRef.current?.setPointerCapture(event.pointerId);
-            onSeek(fromPointer(event));
-          }}
           onPointerMove={(event) => dragging.current && onSeek(fromPointer(event))}
           onPointerUp={(event) => {
+            if (!dragging.current) return;
             dragging.current = false;
-            laneRef.current?.releasePointerCapture(event.pointerId);
+            try {
+              laneRef.current?.releasePointerCapture(event.pointerId);
+            } catch {
+              // Already released.
+            }
           }}
           onPointerCancel={() => {
             dragging.current = false;
           }}
-          className="relative min-w-0 flex-1 cursor-ew-resize touch-none select-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
+          className="relative min-w-0 flex-1 touch-none select-none rounded-lg outline-none focus-visible:ring-2 focus-visible:ring-primary/40"
         >
-          <div className="flex h-5 items-end justify-between border-b border-neutral-200 pb-1 text-[10px] font-medium tabular-nums text-neutral-500">
+          <div
+            onPointerDown={startScrub}
+            title="Cliquez ou glissez pour déplacer la tête de lecture"
+            className="flex h-5 cursor-ew-resize items-end justify-between border-b border-neutral-200 pb-1 text-[10px] font-medium tabular-nums text-neutral-500"
+          >
             {ticks.map((t) => (
               <span key={t}>{t}s</span>
             ))}
@@ -640,13 +701,65 @@ function Timeline({
             </div>
             <div className={cn("relative", TRACK)}>
               <span
+                role={onMoveVoice ? "slider" : undefined}
+                tabIndex={onMoveVoice ? 0 : undefined}
+                aria-label={onMoveVoice ? "Début de la voix off" : undefined}
+                aria-valuemin={0}
+                aria-valuemax={MAX_VOICE_DELAY}
+                aria-valuenow={voiceDelay}
+                aria-valuetext={`La voix commence à ${voiceDelay.toFixed(1).replace(".", ",")} s`}
+                title={onMoveVoice ? "Glissez pour décaler la voix off" : undefined}
+                onPointerDown={(event) => {
+                  if (!onMoveVoice || event.button !== 0) return;
+                  event.stopPropagation();
+                  const rect = laneRef.current?.getBoundingClientRect();
+                  if (!rect) return;
+                  voiceDrag.current = { x: event.clientX, delay: voiceDelay, secondsPerPx: total / rect.width };
+                  setMovingVoice(true);
+                  try {
+                    (event.currentTarget as HTMLElement).setPointerCapture(event.pointerId);
+                  } catch {
+                    // Capture is a nicety: the drag still follows the pointer over the clip.
+                  }
+                }}
+                onPointerMove={(event) => {
+                  const drag = voiceDrag.current;
+                  if (!drag || !onMoveVoice) return;
+                  onMoveVoice(drag.delay + (event.clientX - drag.x) * drag.secondsPerPx);
+                }}
+                onPointerUp={(event) => {
+                  if (!voiceDrag.current) return;
+                  voiceDrag.current = null;
+                  setMovingVoice(false);
+                  try {
+                    (event.currentTarget as HTMLElement).releasePointerCapture(event.pointerId);
+                  } catch {
+                    // Already released.
+                  }
+                }}
+                onKeyDown={(event) => {
+                  if (!onMoveVoice) return;
+                  const step = event.shiftKey ? 1 : 0.1;
+                  if (event.key === "ArrowLeft" || event.key === "ArrowRight") {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onMoveVoice(voiceDelay + (event.key === "ArrowRight" ? step : -step));
+                  }
+                }}
                 className={cn(
-                  "absolute inset-y-0 flex items-center truncate rounded-md border px-2 text-[11px] font-bold",
+                  "absolute inset-y-0 flex items-center gap-2 truncate rounded-md border px-2 text-[11px] font-bold outline-none transition-shadow focus-visible:ring-2 focus-visible:ring-primary/40",
                   hasVoice ? "border-green-300 bg-green-100 text-neutral-900" : "border-dashed border-neutral-300 text-neutral-400",
+                  onMoveVoice && (movingVoice ? "cursor-grabbing shadow-md ring-2 ring-green-400/60" : "cursor-grab hover:shadow-sm"),
                 )}
-                style={{ left: pct(VOICE_DELAY), width: pct(voiceSeconds) }}
+                style={{ left: pct(voiceDelay), width: pct(voiceSeconds) }}
               >
-                {hasVoice ? "Voix off" : "Voix à générer"}
+                {onMoveVoice && <DotsSixVerticalIcon size={14} weight="bold" className="shrink-0 text-green-700/70" />}
+                <span className="truncate">{hasVoice ? "Voix off" : "Voix à générer"}</span>
+                {(movingVoice || voiceDelay !== VOICE_DELAY) && (
+                  <span className="shrink-0 rounded bg-white/80 px-1.5 py-0.5 font-mono text-[10px] font-semibold tabular-nums text-green-800">
+                    début {voiceDelay.toFixed(1).replace(".", ",")} s
+                  </span>
+                )}
               </span>
             </div>
             <div className={cn("relative", TRACK)}>
@@ -658,7 +771,11 @@ function Timeline({
           </div>
 
           <div aria-hidden className="pointer-events-none absolute inset-y-0 z-10 w-0.5 -translate-x-1/2 bg-primary" style={{ left: pct(time) }}>
-            <span className="absolute -top-0.5 left-1/2 size-3 -translate-x-1/2 rotate-45 rounded-[2px] bg-primary shadow" />
+            <span
+              onPointerDown={startScrub}
+              title="Glissez la tête de lecture"
+              className="pointer-events-auto absolute -top-1 left-1/2 size-4 -translate-x-1/2 rotate-45 cursor-ew-resize rounded-[3px] bg-primary shadow"
+            />
           </div>
         </div>
       </div>

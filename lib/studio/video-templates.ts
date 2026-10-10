@@ -22,6 +22,12 @@ export const VIDEO_SIZE = { width: 1080, height: 1920, fps: 30 } as const;
 export const CROSSFADE = 0.4;
 /** Silence before the voice starts, and after it ends. */
 export const VOICE_DELAY = 0.4;
+/** Staff can slide the voice later in the editor, up to this many seconds. */
+export const MAX_VOICE_DELAY = 6;
+
+export function clampVoiceDelay(value: number): number {
+  return Math.round(Math.min(MAX_VOICE_DELAY, Math.max(0, value)) * 10) / 10;
+}
 export const TAIL = 1.4;
 /** Studio voices come out quiet (about -27 dB mean); this lifts them to the usual level. */
 export const VOICE_GAIN = 2.2;
@@ -47,6 +53,8 @@ export type VisitePovInput = {
   chips?: string[];
   voiceUrl: string;
   voiceSeconds: number;
+  /** When the voice starts, in seconds (moved in the editor). Defaults to VOICE_DELAY. */
+  voiceDelay?: number;
   /** The script that was spoken, used to start the outro on the call to action. */
   script?: string;
   musicUrl?: string | null;
@@ -102,8 +110,8 @@ const round = (n: number) => Math.round(n * 100) / 100;
  * estimated from where it sits in the text, otherwise near the end. Always
  * leaves the outro at least MIN_OUTRO seconds.
  */
-export function outroStart(voiceSeconds: number, script?: string): number {
-  const total = VOICE_DELAY + voiceSeconds + TAIL;
+export function outroStart(voiceSeconds: number, script?: string, voiceDelay = VOICE_DELAY): number {
+  const total = voiceDelay + voiceSeconds + TAIL;
   const latest = total - MIN_OUTRO;
   let at = latest;
   if (script) {
@@ -111,7 +119,7 @@ export function outroStart(voiceSeconds: number, script?: string): number {
     const positions = CTA_MARKERS.map((m) => lower.indexOf(m)).filter((i) => i > 0);
     if (positions.length) {
       const fraction = Math.min(...positions) / lower.length;
-      at = Math.min(latest, VOICE_DELAY + voiceSeconds * fraction);
+      at = Math.min(latest, voiceDelay + voiceSeconds * fraction);
     }
   }
   return round(Math.max(MIN_SHOT, at));
@@ -155,8 +163,9 @@ export function buildVisitePov(input: VisitePovInput): {
   durationSeconds: number;
   shots: Shot[];
 } {
-  const total = round(VOICE_DELAY + input.voiceSeconds + TAIL);
-  const outroFrom = outroStart(input.voiceSeconds, input.script);
+  const delay = clampVoiceDelay(input.voiceDelay ?? VOICE_DELAY);
+  const total = round(delay + input.voiceSeconds + TAIL);
+  const outroFrom = outroStart(input.voiceSeconds, input.script, delay);
   const shots = planShots(input.photos, outroFrom, input.chips);
   const o = input.outro;
   const XF = CROSSFADE;
@@ -268,7 +277,7 @@ ${shotHtml}
         }
         <div id="footer" class="line footer">${esc(o.footer ?? "roogobf.com")}</div>
       </section>
-      <audio id="voice" src="${esc(input.voiceUrl)}" data-start="${VOICE_DELAY}" data-duration="${n(total - VOICE_DELAY)}" data-volume="${VOICE_GAIN}"></audio>${music}
+      <audio id="voice" src="${esc(input.voiceUrl)}" data-start="${n(delay)}" data-duration="${n(total - delay)}" data-volume="${VOICE_GAIN}"></audio>${music}
       <script>
         const tl = gsap.timeline({ paused: true });
 ${shotTweens}
