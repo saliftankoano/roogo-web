@@ -653,16 +653,24 @@ export function StudioApp() {
                 onClick={() => setView(key)}
                 aria-current={view === key ? "page" : undefined}
                 className={cn(
-                  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors",
-                  view === key ? "bg-white text-[#b45a22] shadow-[0_0_0_1px_rgba(201,106,46,0.30)]" : "text-neutral-600 hover:bg-white/70",
+                  "relative inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors",
+                  view === key ? "text-[#a8521d]" : "text-neutral-600 hover:bg-white/60",
                 )}
               >
-                <Icon size={15} weight="bold" className="size-[15px] shrink-0" />
-                {label}
+                {/* Selected tool: a soft filled pill, no outline, sliding between tabs. */}
+                {view === key && (
+                  <motion.span
+                    layoutId="studio-tool-pill"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    className="absolute inset-0 rounded-full bg-primary/12"
+                  />
+                )}
+                <Icon size={15} weight="bold" className="relative size-[15px] shrink-0" />
+                <span className="relative">{label}</span>
               </button>
             ))}
             {(view === "voices" || view === "clone") && (
-              <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-white px-3 text-sm font-semibold text-[#b45a22] shadow-[0_0_0_1px_rgba(201,106,46,0.30)]">
+              <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-primary/12 px-3 text-sm font-semibold text-[#a8521d]">
                 {VIEW_TITLE[view]}
               </span>
             )}
