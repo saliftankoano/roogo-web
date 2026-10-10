@@ -53,7 +53,7 @@ test('loading reserves the same navigation and account dimensions without guest 
   const navClass = html => html.match(/aria-label="Navigation principale"[^>]*class="([^"]+)"/)?.[1];
   for (const html of rendered) {
     assert.equal(navClass(html), navClass(rendered[0]));
-    assert.match(navClass(html), /w-\[700px\].*grid-cols-5/);
+    assert.match(navClass(html), /w-\[760px\].*auto-cols-fr.*grid-flow-col/);
     assert.equal(html.match(/data-nav-auth-slot="true" class="([^"]+)"/)?.[1],
       'flex h-10 w-36 shrink-0 items-center justify-end sm:w-60');
   }

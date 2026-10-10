@@ -124,7 +124,7 @@ export function NavbarView({ isSignedIn, isLoaded, userType, fullName, accountBu
         <span className="ml-3 hidden text-xl font-black sm:block">Roogo</span>
       </Link>
       <nav aria-label="Navigation principale" aria-busy={!isLoaded}
-        className="hidden h-12 w-[700px] shrink-0 grid-cols-5 items-center rounded-full border border-neutral-200/60 bg-[#f5efe6]/80 p-1 xl:grid">
+        className="hidden h-12 w-[760px] shrink-0 auto-cols-fr grid-flow-col items-center rounded-full border border-neutral-200/60 bg-[#f5efe6]/80 p-1 xl:grid">
         {isLoaded ? renderItems(false) : Array.from({ length: 5 }, (_, index) =>
           <span key={index} aria-hidden="true" className="mx-4 h-4 rounded bg-neutral-200/60" />)}
       </nav>
