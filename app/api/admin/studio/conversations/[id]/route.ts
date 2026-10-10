@@ -135,6 +135,17 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (typeof body?.property_id === "string") {
     const property = await loadPropertyRow(body.property_id);
     if (!property) return errorResponse("Bien introuvable", 404, req);
+    // A project belongs to one property (Salif, 2026-10-10): once it has results,
+    // its property is fixed, or one listing's voice and posters show on another.
+    if (conv.property_id && conv.property_id !== property.id) {
+      const { count } = await supabaseAdmin
+        .from("studio_artifacts")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", conv.id);
+      if ((count ?? 0) > 0) {
+        return errorResponse("Ce projet a déjà des résultats : créez un nouveau projet pour ce bien.", 409, req);
+      }
+    }
     update.property_id = property.id;
     if (conv.title === "Nouvelle conversation") {
       update.title = propertyTitle(property, propertyLabels);

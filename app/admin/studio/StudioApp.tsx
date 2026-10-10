@@ -383,10 +383,19 @@ export function StudioApp() {
   }
 
   // From the project panel: change the open project's property, no new draft.
+  // A project belongs to one property. With results already made, "Changer de bien"
+  // opens a new project for the chosen property and leaves this one untouched.
   async function switchProperty(property: PropertySummary) {
     setSwitching(false);
     if (!activeId) {
       await pickProperty(property);
+      return;
+    }
+    if ((detail?.artifacts.length ?? 0) > 0 && detail?.property?.id !== property.id) {
+      setError(null);
+      const id = await createConversation(property.id);
+      if (!id) return;
+      await open(id);
       return;
     }
     setError(null);
@@ -792,7 +801,11 @@ export function StudioApp() {
                   <h2 id="studio-switch-title" className="text-base font-semibold text-neutral-900">
                     {detail?.property ? "Changer de bien" : "Choisir un bien"}
                   </h2>
-                  <p className="text-xs text-neutral-500">Le projet garde ses scripts et ses résultats, seul le bien change.</p>
+                  <p className="text-xs text-neutral-500">
+                    {(detail?.artifacts.length ?? 0) > 0
+                      ? "Un nouveau projet s'ouvre pour ce bien. Les résultats de celui-ci restent avec leur bien."
+                      : "Le bien choisi sera celui de ce projet."}
+                  </p>
                 </div>
                 <button
                   type="button"
