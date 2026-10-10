@@ -84,6 +84,17 @@ const CTA_MARKERS = [
   "pour visiter",
 ];
 
+/**
+ * Outro colors (council pick "D", approved by Salif 2026-10-10): the phone pill
+ * stays the only filled orange; orange appears once more as text on the small
+ * label; white is kept for the place and the price; supporting lines are dimmed.
+ */
+export const OUTRO_COLORS = {
+  label: "#f5a36a",
+  support: "rgba(244, 232, 215, 0.72)",
+  rule: "rgba(244, 232, 215, 0.35)",
+} as const;
+
 const round = (n: number) => Math.round(n * 100) / 100;
 
 /**
@@ -217,17 +228,18 @@ export function buildVisitePov(input: VisitePovInput): {
         border-radius: 50%; display: flex; align-items: center; justify-content: center; opacity: 0; }
       .logo-badge img { width: 124px; height: 124px; }
       .line { position: absolute; left: 0; right: 0; text-align: center; padding: 0 60px; opacity: 0; }
-      .headline { top: 560px; font-size: 38px; font-weight: 800; color: #f4e8d7; letter-spacing: 6px; }
+      .headline { top: 560px; font-size: 38px; font-weight: 800; color: ${o.backgroundUrl ? OUTRO_COLORS.label : "#ffffff"}; letter-spacing: 6px; }
       .location { top: 615px; font-size: 64px; font-weight: 900; color: #fff; }
       .price { top: 760px; color: #fff; padding: 0 30px; }
       .amount { display: block; font-size: ${priceSize}px; font-weight: 900; letter-spacing: 1px; line-height: 1; }
-      .currency { display: block; font-size: 48px; font-weight: 800; color: #f4e8d7; letter-spacing: 6px; margin-top: 14px; }
-      .note { top: 1010px; font-size: 36px; font-weight: 700; color: #f4e8d7; }
+      .currency { display: block; font-size: 48px; font-weight: 800; color: ${OUTRO_COLORS.support}; letter-spacing: 6px; margin-top: 14px; }
+      .rule { position: absolute; left: 50%; top: 1000px; width: 130px; height: 4px; margin-left: -65px; border-radius: 4px; background: ${OUTRO_COLORS.rule}; opacity: 0; }
+      .note { top: 1026px; font-size: 36px; font-weight: 700; color: ${OUTRO_COLORS.support}; }
       .contact { top: 1300px; }
-      .contact-label { font-size: 38px; font-weight: 800; color: #f4e8d7; }
+      .contact-label { font-size: 38px; font-weight: 800; color: ${OUTRO_COLORS.support}; }
       .phone-pill { display: inline-block; margin-top: 26px; background: ${o.backgroundUrl ? "#cb7215" : "#2b241d"}; border-radius: 100px;
         padding: 26px 60px; font-size: 80px; font-weight: 900; color: #fff; letter-spacing: 2px; line-height: 1; }
-      .footer { top: 1760px; font-size: 34px; font-weight: 800; color: #f4e8d7; letter-spacing: 1px; }
+      .footer { top: 1760px; font-size: 34px; font-weight: 800; color: ${OUTRO_COLORS.support}; letter-spacing: 1px; }
     </style>
   </head>
   <body>
@@ -248,7 +260,8 @@ ${shotHtml}
           o.price
             ? `\n        <div id="price" class="line price"><span class="amount">${esc(o.price)}</span><span class="currency">${esc(o.currency)}</span></div>`
             : ""
-        }${o.note ? `\n        <div id="note" class="line note">${esc(o.note)}</div>` : ""}${
+        }
+        <div id="rule" class="rule"></div>${o.note ? `\n        <div id="note" class="line note">${esc(o.note)}</div>` : ""}${
           o.phone
             ? `\n        <div id="contact" class="line contact"><div class="contact-label">${esc(o.contactLabel ?? "Appelez ou écrivez-nous sur WhatsApp")}</div><div class="phone-pill">${esc(o.phone)}</div></div>`
             : ""
@@ -269,7 +282,8 @@ ${shotTweens}
           o.price
             ? `\n        tl.fromTo("#price", { opacity: 0, scale: 0.7, y: 20 }, { opacity: 1, scale: 1, y: 0, duration: 0.6, ease: "back.out(1.8)" }, o + 1.05);`
             : ""
-        }${o.note ? `\n        tl.fromTo("#note", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, o + 1.5);` : ""}${
+        }
+        tl.fromTo("#rule", { opacity: 0, scaleX: 0.3 }, { opacity: 1, scaleX: 1, duration: 0.45, ease: "power3.out" }, o + 1.4);${o.note ? `\n        tl.fromTo("#note", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, o + 1.5);` : ""}${
           o.phone
             ? `\n        tl.fromTo("#contact", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.55, ease: "back.out(1.6)" }, o + 2.0);`
             : ""
