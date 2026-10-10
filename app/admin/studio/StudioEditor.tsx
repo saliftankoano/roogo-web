@@ -17,6 +17,7 @@ import {
   VideoCameraIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { Nunito } from "next/font/google";
 import { CONTACT_NUMBER } from "@/lib/studio/chat-prompt";
 import {
   TAIL,
@@ -267,10 +268,13 @@ export function StudioEditor({
             ) : (
               <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">Aucune photo</span>
             )}
-            <span className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/90 shadow">
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/logo.png?v=2" alt="" className="size-5 object-contain" />
-            </span>
+            {/* The corner watermark steps aside during the outro, which shows the full logo. */}
+            {!inOutro && (
+              <span className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/90 shadow">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src="/logo.png?v=2" alt="" className="size-5 object-contain" />
+              </span>
+            )}
           </div>
           </div>
         </div>
@@ -441,19 +445,52 @@ function ShotPreview({ shot, time }: { shot: Shot; time: number }) {
   );
 }
 
-/** Mirrors the fixed HyperFrames outro: headline, place, price, call number. */
+// The rendered outro is set in Nunito; the preview must use it too or lines wrap differently.
+const nunito = Nunito({ subsets: ["latin"], weight: ["700", "800", "900"], display: "swap" });
+
+/**
+ * Mirrors the rendered outro (lib/studio/video-templates.ts, council version D,
+ * approved 2026-10-10): the phone pill is the only filled orange, orange text on
+ * the small label, white for place and price, dimmed cream for the rest.
+ * Sizes are in container units so the preview matches the 1080x1920 frame.
+ */
 function OutroPreview({ property }: { property: PropertySummary }) {
   const [headline] = property.title.split(",");
+  const match = property.price.match(/^(.*?)\s*(FCFA.*)$/i);
+  const amount = match ? match[1] : property.price;
+  const currency = match ? match[2] : "";
+  const dim = "rgba(244,232,215,0.72)";
   return (
-    <div className="absolute inset-0 flex animate-[studio-fade_0.4s_ease-out] flex-col items-center justify-end gap-2 bg-primary p-5 pb-10 text-center text-white">
+    <div className={`absolute inset-0 animate-[studio-fade_0.4s_ease-out] overflow-hidden bg-[linear-gradient(180deg,#cb7215,#a85c0e)] [container-type:inline-size] ${nunito.className}`}>
       {property.image && (
         // eslint-disable-next-line @next/next/no-img-element
-        <img src={property.image} alt="" className="absolute inset-x-0 top-0 h-1/2 w-full object-cover opacity-90" />
+        <img src={property.image} alt="" className="absolute inset-0 size-full object-cover" />
       )}
-      <p className="relative text-2xl font-black leading-tight">{headline}</p>
-      <p className="relative text-xs font-semibold opacity-90">{property.place}</p>
-      <p className="relative whitespace-nowrap rounded-full bg-neutral-900 px-4 py-1.5 text-sm font-black tabular-nums">{property.price}</p>
-      <p className="relative text-xs font-bold tabular-nums">Appelez ou WhatsApp {CONTACT_NUMBER}</p>
+      <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(43,36,29,.55)_0%,rgba(43,36,29,.78)_45%,rgba(43,36,29,.92)_100%)]" />
+      <span className="absolute left-1/2 top-[15.6%] flex size-[16.7cqw] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo.png?v=2" alt="" className="size-[11.5cqw] object-contain" />
+      </span>
+      <p className="absolute inset-x-0 top-[29.2%] px-[5cqw] text-center text-[3.5cqw] font-extrabold uppercase tracking-[0.55cqw]" style={{ color: property.image ? "#f5a36a" : "#fff" }}>
+        {headline}
+      </p>
+      <p className="absolute inset-x-0 top-[32%] px-[5cqw] text-center text-[5.9cqw] font-black text-white">{property.place}</p>
+      <p className="absolute inset-x-0 top-[39.6%] px-[3cqw] text-center text-white">
+        <span className="block whitespace-nowrap text-[13.4cqw] font-black leading-none tabular-nums">{amount}</span>
+        {currency && (
+          <span className="mt-[1.3cqw] block text-[4.4cqw] font-extrabold tracking-[0.55cqw]" style={{ color: dim }}>
+            {currency}
+          </span>
+        )}
+      </p>
+      <span className="absolute left-1/2 top-[52.1%] h-[0.4cqw] w-[12cqw] -translate-x-1/2 rounded-full bg-[rgba(244,232,215,0.35)]" />
+      <div className="absolute inset-x-0 top-[67.7%] px-[5cqw] text-center">
+        <p className="text-[3.5cqw] font-extrabold" style={{ color: dim }}>Appelez ou écrivez-nous sur WhatsApp</p>
+        <p className="mt-[2.4cqw] inline-block whitespace-nowrap rounded-full bg-[#cb7215] px-[5.5cqw] py-[2.4cqw] text-[7.4cqw] font-black leading-none tracking-[0.18cqw] text-white tabular-nums">
+          {CONTACT_NUMBER}
+        </p>
+      </div>
+      <p className="absolute inset-x-0 top-[91.7%] text-center text-[3.15cqw] font-extrabold" style={{ color: dim }}>roogobf.com</p>
     </div>
   );
 }

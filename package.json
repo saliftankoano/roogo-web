@@ -37,6 +37,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
     "framer-motion": "^12.34.0",
+    "gsap": "^3.13.0",
     "heic-to": "^1.4.2",
     "libphonenumber-js": "^1.13.6",
     "lucide-react": "^0.562.0",

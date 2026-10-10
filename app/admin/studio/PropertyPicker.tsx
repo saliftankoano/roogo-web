@@ -64,25 +64,37 @@ export function PropertyPicker({ onPick, disabled }: Props) {
       )}
 
       {items === null && !failed ? (
-        <div className="space-y-2">
-          {[0, 1, 2].map((i) => (
-            <div key={i} className="h-20 animate-pulse rounded-2xl bg-neutral-100" />
+        // Same shape and height as a real row, so nothing jumps when the list arrives.
+        <ul className="space-y-2" aria-busy="true" aria-label="Chargement des biens">
+          {[0, 1, 2, 3, 4].map((i) => (
+            <li key={i} className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-2">
+              <span className="studio-skeleton size-16 shrink-0 rounded-xl" />
+              <span className="grid min-w-0 flex-1 gap-2">
+                <span className="studio-skeleton h-4 w-3/5 rounded-full" />
+                <span className="studio-skeleton h-3 w-2/5 rounded-full" />
+                <span className="studio-skeleton h-3 w-1/4 rounded-full" />
+              </span>
+            </li>
           ))}
-        </div>
+        </ul>
       ) : items && items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-neutral-300 p-6 text-center text-sm font-medium text-neutral-500">
           Aucun bien en ligne ne correspond.
         </p>
       ) : (
         <ul className="space-y-2">
-          {items?.map((property) => (
-            <li key={property.id}>
+          {items?.map((property, index) => (
+            <li
+              key={property.id}
+              className="animate-[studio-rise_0.32s_cubic-bezier(0.22,1,0.36,1)_both] motion-reduce:animate-none"
+              style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}
+            >
               <button
                 type="button"
                 disabled={disabled}
                 onClick={() => onPick(property)}
                 className={cn(
-                  "flex w-full items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-2 text-left transition-colors hover:border-primary/40 active:scale-[0.99]",
+                  "flex w-full cursor-pointer items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-2 text-left transition-colors hover:border-primary/40 active:scale-[0.99]",
                   disabled && "opacity-50",
                 )}
               >

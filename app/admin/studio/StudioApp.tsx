@@ -2,7 +2,8 @@
 
 import { createPortal } from "react-dom";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeftIcon,
@@ -77,6 +78,45 @@ export function StudioApp() {
   const [view, setView] = useState<CenterView>("chat");
   const [panelCollapsed, setPanelCollapsed] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  // Side columns slide with GSAP instead of snapping (Salif, 2026-10-10): one tween
+  // drives both widths, then the column's content fades back in at its new size.
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  const historyInnerRef = useRef<HTMLDivElement | null>(null);
+  const panelInnerRef = useRef<HTMLDivElement | null>(null);
+  const colsRef = useRef<{ l: number; r: number } | null>(null);
+  const settledRef = useRef(false);
+  useEffect(() => {
+    // The saved panel state arrives just after mount: apply it without animating.
+    const id = window.setTimeout(() => (settledRef.current = true), 400);
+    return () => window.clearTimeout(id);
+  }, []);
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const target = { l: historyCollapsed ? 68 : 320, r: panelCollapsed ? 68 : 300 };
+    const apply = () => {
+      const c = colsRef.current!;
+      grid.style.setProperty("--studio-cols", `${c.l}px minmax(0,1fr) ${c.r}px`);
+    };
+    if (colsRef.current === null || !settledRef.current) {
+      colsRef.current = { ...target };
+      apply();
+      return;
+    }
+    const moved = [
+      colsRef.current!.l !== target.l ? historyInnerRef.current : null,
+      colsRef.current!.r !== target.r ? panelInnerRef.current : null,
+    ].filter((el): el is HTMLDivElement => el !== null);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const tl = gsap.timeline();
+    tl.to(colsRef.current!, { ...target, duration: reduce ? 0 : 0.5, ease: "power3.inOut", onUpdate: apply }, 0);
+    if (moved.length) {
+      tl.fromTo(moved, { autoAlpha: 0 }, { autoAlpha: 1, duration: reduce ? 0 : 0.25, ease: "power1.out" }, reduce ? 0 : 0.32);
+    }
+    return () => {
+      tl.progress(1).kill();
+    };
+  }, [historyCollapsed, panelCollapsed]);
   // Below 1280 px only one side column is open at a time, so the chat keeps
   // its width and nothing is ever drawn over it.
   const [wide, setWide] = useState(true);
@@ -576,7 +616,16 @@ export function StudioApp() {
             onVoice={chooseVoice}
             canWrite={canWrite}
             card={cardProps}
-            onAskScript={() => setView("chat")}
+            onAskScript={() => {
+              // One click: with a property the request goes straight out and the
+              // script streams into the chat; without one, pick the property first.
+              if (!detail?.property) {
+                setSwitching(true);
+                return;
+              }
+              setView("chat");
+              void sendText(FIRST_DRAFT_REQUEST);
+            }}
             onManage={() => setView("voices")}
           />
         )}
@@ -631,15 +680,10 @@ export function StudioApp() {
           </button>
         </div>
 
-        <div
-          className="grid items-start gap-3.5 transition-[grid-template-columns] duration-300 ease-[cubic-bezier(0.22,1,0.36,1)] lg:[grid-template-columns:var(--studio-cols)]"
-          style={
-            {
-              "--studio-cols": `${historyCollapsed ? "68px" : "minmax(260px,340px)"} minmax(0,1fr) ${panelCollapsed ? "68px" : "minmax(260px,300px)"}`,
-            } as React.CSSProperties
-          }
-        >
-          <aside className={cn(glass, "hidden lg:block", historyCollapsed ? "px-2 py-3" : "p-3.5")}>{historyRail}</aside>
+        <div ref={gridRef} className="grid items-start gap-3.5 lg:[grid-template-columns:var(--studio-cols)]">
+          <aside className={cn(glass, "hidden overflow-hidden lg:block", historyCollapsed ? "px-2 py-3" : "p-3.5")}>
+            <div ref={historyInnerRef}>{historyRail}</div>
+          </aside>
 
           <main className={cn(glass, "min-w-0 overflow-visible")}>
             <AnimatePresence mode="wait" initial={false}>
@@ -655,8 +699,8 @@ export function StudioApp() {
             </AnimatePresence>
           </main>
 
-          <aside className={cn(glass, "sticky top-24 hidden lg:block", panelCollapsed ? "px-2 py-3" : "p-3.5")}>
-            {projectPanel(panelCollapsed)}
+          <aside className={cn(glass, "sticky top-24 hidden overflow-hidden lg:block", panelCollapsed ? "px-2 py-3" : "p-3.5")}>
+            <div ref={panelInnerRef}>{projectPanel(panelCollapsed)}</div>
           </aside>
         </div>
       </div>
@@ -726,7 +770,7 @@ export function StudioApp() {
               aria-modal="true"
               aria-labelledby="studio-switch-title"
               onClick={(event) => event.stopPropagation()}
-              className="flex max-h-[80dvh] w-full max-w-lg flex-col gap-3 overflow-hidden rounded-3xl bg-white p-4 shadow-2xl"
+              className="flex h-[min(80dvh,720px)] w-full max-w-lg flex-col gap-3 overflow-hidden rounded-3xl bg-white p-4 shadow-2xl"
             >
               <div className="flex items-center justify-between gap-2">
                 <div>

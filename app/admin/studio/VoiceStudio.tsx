@@ -76,14 +76,14 @@ export function VoiceStudio({ artifacts, voices, voice, onVoice, canWrite, card,
       <Step n={1} title="Le script à lire" done={!!script}>
         {scripts.length === 0 ? (
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-[rgba(74,52,36,0.2)] bg-white/50 p-4">
-            <p className="min-w-0 flex-1 text-sm text-neutral-600">Ce projet n&apos;a pas encore de script.</p>
+            <p className="min-w-0 flex-1 text-sm text-neutral-600">Ce projet n&apos;a pas encore de script. Roogo l&apos;écrit à partir de l&apos;annonce.</p>
             <button
               type="button"
               onClick={onAskScript}
               className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-white"
             >
               <ChatsCircleIcon size={16} weight="bold" className="size-4" />
-              Demander un script
+              Écrire le script
             </button>
           </div>
         ) : (
