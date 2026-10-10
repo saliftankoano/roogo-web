@@ -4,12 +4,12 @@ import Image from "next/image";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowRightIcon,
   CaretDownIcon,
   FileTextIcon,
   FilmSlateIcon,
   HouseLineIcon,
   ImageSquareIcon,
-  PlusIcon,
   SparkleIcon,
   WaveformIcon,
 } from "@phosphor-icons/react";
@@ -56,7 +56,7 @@ export function ProjectView({
   onSend: (text: string) => void;
   onAskScript: () => void;
   onPickProperty: (property: PropertySummary) => void;
-  onView: (view: CenterView) => void;
+  onView: (view: CenterView, from?: HTMLElement) => void;
   card: Omit<CardProps, "artifact">;
 }) {
   const property = detail?.property ?? null;
@@ -81,18 +81,23 @@ export function ProjectView({
     );
   }
 
+  const open = (view: CenterView) => (event: React.MouseEvent<HTMLElement>) =>
+    onView(view, (event.currentTarget.closest("[data-tile]") as HTMLElement | null) ?? event.currentTarget);
+  const seconds = (a: Artifact | null) =>
+    a && typeof a.meta.duration_seconds === "number" ? clockOf(a.meta.duration_seconds) : null;
+
   return (
-    <div className="flex min-h-[calc(100dvh-14rem)] flex-col">
-      <header className="flex items-center gap-4 border-b border-[rgba(74,52,36,0.10)] px-5 py-5 md:px-7">
-        <span className="relative size-14 shrink-0 overflow-hidden rounded-[18px] bg-[linear-gradient(145deg,#c9a58a,#7d5c45)]">
+    <div className="flex min-h-[calc(100dvh-14rem)] flex-col @container">
+      <header className="flex items-center gap-4 border-b border-[rgba(74,52,36,0.10)] px-5 py-4 md:px-7">
+        <span className="relative size-12 shrink-0 overflow-hidden rounded-[16px] bg-[linear-gradient(145deg,#c9a58a,#7d5c45)]">
           {property?.image ? (
-            <Image src={property.image} alt="" fill sizes="56px" unoptimized className="object-cover" />
+            <Image src={property.image} alt="" fill sizes="48px" unoptimized className="object-cover" />
           ) : (
-            <HouseLineIcon size={24} weight="bold" className="absolute inset-0 m-auto text-white/80" />
+            <HouseLineIcon size={22} weight="bold" className="absolute inset-0 m-auto text-white/80" />
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold tracking-tight text-neutral-900 md:text-xl">
+          <h1 className="truncate text-lg font-bold tracking-tight text-neutral-900">
             {property?.title ?? detail?.conversation.title ?? "Projet"}
           </h1>
           <p className="truncate text-sm text-neutral-600">
@@ -111,19 +116,38 @@ export function ProjectView({
         </div>
       </header>
 
-      <div className="mx-auto grid w-full max-w-[680px] gap-6 px-4 pb-10 pt-5 md:px-6">
-        {/* 1. Script, with the assistant attached */}
-        <Section icon={FileTextIcon} title="Script" id={script ? `artifact-${script.id}` : undefined} highlight={highlightId === script?.id}>
-          {sending ? (
-            <LiveReply text={streamingText} />
-          ) : script ? (
-            <ArtifactCard artifact={script} {...card} />
-          ) : (
-            <Empty
-              text={property ? "Pas encore de script. Roogo l'écrit à partir de l'annonce." : "Choisissez d'abord un bien."}
-              action={canWrite && property ? { label: "Écrire le script", onClick: onAskScript, icon: SparkleIcon } : undefined}
-            />
-          )}
+      {/* Layout A (council, approved 2026-10-10): the script and the assistant on the left,
+          the three results as compact tiles on the right. A tile opens its tool full size.
+          Narrow centre: the tiles drop under the script, three across. */}
+      <div className="grid w-full gap-4 p-4 md:p-5 @4xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,1fr)] @4xl:items-start">
+        <div className="grid min-w-0 gap-3">
+          <div
+            id={script ? `artifact-${script.id}` : undefined}
+            className={cn("grid scroll-mt-24 gap-3 rounded-[24px] transition-shadow", highlightId === script?.id && "shadow-[0_0_0_3px_rgba(201,106,46,0.35)]")}
+          >
+            <TileHead icon={FileTextIcon} title="Script" meta={script ? `v${scripts.length}` : null} />
+            {sending ? (
+              <LiveReply text={streamingText} />
+            ) : script ? (
+              <ArtifactCard artifact={script} {...card} />
+            ) : (
+              <div className="grid gap-3 rounded-[22px] border border-dashed border-[rgba(74,52,36,0.18)] bg-white/45 p-4">
+                <p className="text-sm text-neutral-600">
+                  {property ? "Roogo écrit le script à partir de l'annonce." : "Choisissez d'abord un bien."}
+                </p>
+                {canWrite && property && (
+                  <button
+                    type="button"
+                    onClick={onAskScript}
+                    className="inline-flex h-10 w-max cursor-pointer items-center gap-2 rounded-full bg-primary px-4 text-sm font-semibold text-white transition-transform active:scale-[0.985]"
+                  >
+                    <SparkleIcon size={16} weight="fill" className="size-4" />
+                    Écrire le script
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
           {error && (
             <p className="text-sm font-semibold text-red-600" role="alert">
               {error}
@@ -133,13 +157,13 @@ export function ProjectView({
             <div className="rounded-[22px] border border-[rgba(74,52,36,0.10)] bg-white/70 p-2.5">
               <p className="mb-1.5 flex items-center gap-1.5 px-1 text-xs font-semibold text-neutral-500">
                 <SparkleIcon size={13} weight="fill" className="size-3.5 text-primary" />
-                Demander à l&apos;assistant
+                {script ? "Demander une modification" : "Ou demandez autre chose"}
               </p>
               <Composer sending={sending} showQuickReplies={!!script} onSend={onSend} />
             </div>
           )}
           {olderScripts.length > 0 && (
-            <Fold label={`Versions précédentes (${olderScripts.length})`}>
+            <Fold label={`Versions précédentes du script (${olderScripts.length})`}>
               <div className="grid gap-2">
                 {olderScripts.map((s) => (
                   <OldScript key={s.id} artifact={s} version={scripts.findIndex((x) => x.id === s.id) + 1} card={card} />
@@ -147,58 +171,74 @@ export function ProjectView({
               </div>
             </Fold>
           )}
-        </Section>
+        </div>
 
-        {/* 2. Voice-over (and its subtitles) */}
-        <Section icon={WaveformIcon} title="Voix off" id={voice ? `artifact-${voice.id}` : undefined} highlight={highlightId === voice?.id}
-          action={canWrite && property ? { label: voice ? "Nouvelle voix" : "Créer la voix off", onClick: () => onView("voiceover") } : undefined}
-        >
-          {voice ? (
-            <div className="grid gap-3">
-              <ArtifactCard artifact={voice} {...card} />
-              {captions && (
-                <div id={`artifact-${captions.id}`}>
-                  <ArtifactCard artifact={captions} {...card} />
-                </div>
-              )}
-            </div>
-          ) : (
-            <Empty
-              text={script ? "Le script est prêt : choisissez la voix et générez-la." : "La voix off se crée à partir du script."}
-              action={canWrite && property ? { label: "Créer la voix off", onClick: () => onView("voiceover"), icon: WaveformIcon } : undefined}
-            />
-          )}
-        </Section>
+        <div className="grid min-w-0 gap-3 @xl:grid-cols-3 @4xl:grid-cols-1">
+          {/* Voice-over */}
+          <Tile
+            id={voice ? `artifact-${voice.id}` : undefined}
+            highlight={highlightId === voice?.id}
+            icon={WaveformIcon}
+            title="Voix off"
+            meta={voice ? [voice.title.replace(/^Voix off \(|\)$/g, ""), seconds(voice)].filter(Boolean).join(" · ") : null}
+            muted={!voice && !script}
+            action={canWrite && property ? { label: voice ? "Ouvrir" : "Créer", onClick: open("voiceover") } : undefined}
+          >
+            {voice?.url ? (
+              <div className="grid gap-2">
+                <audio controls src={voice.url} preload="none" className="h-9 w-full" />
+                {captions && <span className="text-xs font-medium text-[#2f7d4f]">Sous-titres prêts</span>}
+              </div>
+            ) : (
+              <p className="text-xs text-neutral-500">{script ? "Choisissez la voix et générez." : "Après le script."}</p>
+            )}
+          </Tile>
 
-        {/* 3. Visuals */}
-        <Section icon={ImageSquareIcon} title="Visuels"
-          action={canWrite && property ? { label: "Créer un visuel", onClick: () => onView("visuals") } : undefined}
-        >
-          {images.length ? (
-            <Visuals images={images} card={card} highlightId={highlightId} />
-          ) : (
-            <Empty
-              text="Affiche du bien, affiche de voeux ou photo détourée, chacune avec son prix."
-              action={canWrite && property ? { label: "Créer un visuel", onClick: () => onView("visuals"), icon: ImageSquareIcon } : undefined}
-            />
-          )}
-        </Section>
+          {/* Visuals */}
+          <Tile
+            icon={ImageSquareIcon}
+            title="Visuels"
+            meta={images.length ? String(images.length) : null}
+            action={canWrite && property ? { label: images.length ? "Ouvrir" : "Créer", onClick: open("visuals") } : undefined}
+          >
+            {images.length ? (
+              <button type="button" onClick={open("visuals")} className="grid cursor-pointer grid-cols-3 gap-1.5" aria-label="Ouvrir les visuels">
+                {images.slice(0, 3).map((img, i) => (
+                  <span key={img.id} id={`artifact-${img.id}`} className="relative aspect-[4/5] overflow-hidden rounded-xl bg-neutral-100">
+                    {img.url && <Image src={img.url} alt={img.title} fill sizes="110px" unoptimized className="object-cover" />}
+                    {i === 2 && images.length > 3 && (
+                      <span className="absolute inset-0 grid place-items-center bg-black/45 text-sm font-bold text-white">+{images.length - 3}</span>
+                    )}
+                  </span>
+                ))}
+              </button>
+            ) : (
+              <p className="text-xs text-neutral-500">Affiche du bien, voeux ou photo détourée.</p>
+            )}
+          </Tile>
 
-        {/* 4. Video */}
-        <Section icon={FilmSlateIcon} title="Vidéo" id={video ? `artifact-${video.id}` : undefined} highlight={highlightId === video?.id}
-          action={canWrite && property ? { label: "Ouvrir l'éditeur vidéo", onClick: () => onView("editor") } : undefined}
-        >
-          {video ? (
-            <ArtifactCard artifact={video} {...card} />
-          ) : (
-            <Empty
-              text={voice ? "Photos du bien, voix off et fin Roogo : assemblez-les dans l'éditeur." : "La vidéo utilise la voix off. Vous pouvez déjà créer une fin seule."}
-              action={canWrite && property ? { label: "Ouvrir l'éditeur vidéo", onClick: () => onView("editor"), icon: FilmSlateIcon } : undefined}
-            />
-          )}
-        </Section>
+          {/* Video */}
+          <Tile
+            id={video ? `artifact-${video.id}` : undefined}
+            highlight={highlightId === video?.id}
+            icon={FilmSlateIcon}
+            title="Vidéo"
+            meta={video ? [video.title, seconds(video)].filter(Boolean).join(" · ") : null}
+            action={canWrite && property ? { label: "Éditeur", onClick: open("editor") } : undefined}
+          >
+            {video?.url ? (
+              <video controls playsInline preload="metadata" src={video.url} className="mx-auto aspect-[9/16] max-h-56 rounded-xl bg-neutral-900" />
+            ) : (
+              <p className="text-xs text-neutral-500">
+                {voice ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur." : "Une fin seule est possible dès maintenant."}
+              </p>
+            )}
+          </Tile>
+        </div>
+      </div>
 
-        {messages.length > 0 && (
+      {messages.length > 0 && (
+        <div className="px-4 pb-6 md:px-5">
           <Fold label={`Demandes à l'assistant (${messages.length})`}>
             <div className="grid gap-4 pt-1">
               {messages.map((m) => (
@@ -206,77 +246,78 @@ export function ProjectView({
               ))}
             </div>
           </Fold>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
 
-function Section({
-  icon: Icon,
-  title,
+function clockOf(totalSeconds: number) {
+  const s = Math.round(totalSeconds);
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+}
+
+function TileHead({ icon: Icon, title, meta }: { icon: typeof FileTextIcon; title: string; meta: string | null }) {
+  return (
+    <div className="flex items-center gap-2 px-1">
+      <Icon size={18} weight="bold" className="size-[18px] shrink-0 text-primary" />
+      <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
+      {meta && <span className="truncate text-xs font-medium text-neutral-500">{meta}</span>}
+    </div>
+  );
+}
+
+/** One result type, compact: what exists, and one button that opens its tool full size. */
+function Tile({
   id,
   highlight,
+  icon: Icon,
+  title,
+  meta,
+  muted,
   action,
   children,
 }: {
-  icon: typeof FileTextIcon;
-  title: string;
   id?: string;
   highlight?: boolean;
-  action?: { label: string; onClick: () => void };
+  icon: typeof FileTextIcon;
+  title: string;
+  meta: string | null;
+  muted?: boolean;
+  action?: { label: string; onClick: (event: React.MouseEvent<HTMLElement>) => void };
   children: React.ReactNode;
 }) {
   return (
-    <motion.section
+    <section
       id={id}
-      layout="position"
-      transition={{ duration: 0.3, ease }}
+      data-tile
       className={cn(
-        "grid scroll-mt-24 gap-3 rounded-[26px] transition-shadow duration-300",
+        "grid min-w-0 scroll-mt-24 content-start gap-2.5 rounded-[22px] border bg-white/75 p-3.5 transition-[box-shadow,opacity]",
+        muted ? "border-dashed border-[rgba(74,52,36,0.18)] bg-white/40" : "border-[rgba(74,52,36,0.10)]",
         highlight && "shadow-[0_0_0_3px_rgba(201,106,46,0.35)]",
       )}
     >
-      <div className="flex items-center gap-2 px-1">
-        <Icon size={18} weight="bold" className="size-[18px] shrink-0 text-primary" />
-        <h2 className="text-base font-semibold text-neutral-900">{title}</h2>
+      <div className="flex min-w-0 items-center gap-2">
+        <span className={cn("flex size-8 shrink-0 items-center justify-center rounded-xl", muted ? "bg-neutral-100 text-neutral-400" : "bg-primary/10 text-primary")}>
+          <Icon size={16} weight="bold" className="size-4" />
+        </span>
+        <span className="min-w-0 flex-1">
+          <span className="block text-sm font-semibold text-neutral-900">{title}</span>
+          {meta && <span className="block truncate text-xs text-neutral-500">{meta}</span>}
+        </span>
         {action && (
           <button
             type="button"
             onClick={action.onClick}
-            className="ml-auto inline-flex h-8 cursor-pointer items-center gap-1 rounded-full border border-[rgba(74,52,36,0.12)] bg-white/70 px-3 text-xs font-semibold text-neutral-700 transition-colors hover:bg-white"
+            className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-white transition-transform active:scale-[0.97]"
           >
-            <PlusIcon size={12} weight="bold" className="size-3" />
             {action.label}
+            <ArrowRightIcon size={12} weight="bold" className="size-3" />
           </button>
         )}
       </div>
       {children}
-    </motion.section>
-  );
-}
-
-function Empty({
-  text,
-  action,
-}: {
-  text: string;
-  action?: { label: string; onClick: () => void; icon: typeof FileTextIcon };
-}) {
-  return (
-    <div className="flex flex-wrap items-center gap-3 rounded-[22px] border border-dashed border-[rgba(74,52,36,0.18)] bg-white/45 p-4">
-      <p className="min-w-0 flex-1 text-sm text-neutral-600">{text}</p>
-      {action && (
-        <button
-          type="button"
-          onClick={action.onClick}
-          className="inline-flex h-10 cursor-pointer items-center gap-2 whitespace-nowrap rounded-full bg-primary px-4 text-sm font-semibold text-white transition-transform active:scale-[0.985]"
-        >
-          <action.icon size={16} weight="bold" className="size-4" />
-          {action.label}
-        </button>
-      )}
-    </div>
+    </section>
   );
 }
 
@@ -303,50 +344,6 @@ function Fold({ label, children }: { label: string; children: React.ReactNode })
             className="overflow-hidden px-3 pb-3"
           >
             {children}
-          </motion.div>
-        )}
-      </AnimatePresence>
-    </div>
-  );
-}
-
-/** Thumbnails of every visual; the chosen one opens full size with its actions. */
-function Visuals({ images, card, highlightId }: { images: Artifact[]; card: Omit<CardProps, "artifact">; highlightId: string | null }) {
-  const [openId, setOpenId] = useState<string | null>(null);
-  const opened = images.find((i) => i.id === (highlightId && images.some((x) => x.id === highlightId) ? highlightId : openId)) ?? null;
-  return (
-    <div className="grid gap-3">
-      <div className="grid grid-cols-3 gap-2 sm:grid-cols-4">
-        {images.map((img) => (
-          <button
-            key={img.id}
-            id={`artifact-${img.id}`}
-            type="button"
-            onClick={() => setOpenId(openId === img.id ? null : img.id)}
-            aria-pressed={opened?.id === img.id}
-            title={img.title}
-            className={cn(
-              "relative aspect-[4/5] scroll-mt-24 cursor-pointer overflow-hidden rounded-2xl border-2 bg-neutral-100 transition-colors",
-              opened?.id === img.id ? "border-primary" : "border-transparent hover:border-neutral-300",
-            )}
-          >
-            {img.url && <Image src={img.url} alt={img.title} fill sizes="160px" unoptimized className="object-cover" />}
-            <span className="absolute inset-x-1.5 bottom-1.5 truncate rounded-md bg-black/55 px-1.5 py-0.5 text-left text-[10px] font-semibold text-white">
-              {img.title}
-            </span>
-          </button>
-        ))}
-      </div>
-      <AnimatePresence initial={false}>
-        {opened && (
-          <motion.div
-            key={opened.id}
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0 }}
-            transition={{ duration: 0.22, ease }}
-          >
-            <ArtifactCard artifact={opened} {...card} />
           </motion.div>
         )}
       </AnimatePresence>

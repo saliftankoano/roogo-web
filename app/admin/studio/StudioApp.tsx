@@ -7,6 +7,10 @@ import gsap from "gsap";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeftIcon,
+  FilmSlateIcon,
+  ImageSquareIcon,
+  TranslateIcon,
+  WaveformIcon,
   ClockCounterClockwiseIcon,
   SlidersHorizontalIcon,
   XIcon,
@@ -81,6 +85,11 @@ export function StudioApp() {
   // Side columns slide with GSAP instead of snapping (Salif, 2026-10-10): one tween
   // drives both widths, then the column's content fades back in at its new size.
   const gridRef = useRef<HTMLDivElement | null>(null);
+  // A result tile grows into its tool (Salif, 2026-10-10): remember where the tile was,
+  // then the tool opens from that rectangle to the whole centre.
+  const mainRef = useRef<HTMLElement | null>(null);
+  const toolRef = useRef<HTMLDivElement | null>(null);
+  const expandFrom = useRef<{ top: number; left: number; width: number; height: number } | null>(null);
   const historyInnerRef = useRef<HTMLDivElement | null>(null);
   const panelInnerRef = useRef<HTMLDivElement | null>(null);
   const colsRef = useRef<{ l: number; r: number } | null>(null);
@@ -90,6 +99,24 @@ export function StudioApp() {
     const id = window.setTimeout(() => (settledRef.current = true), 400);
     return () => window.clearTimeout(id);
   }, []);
+  // The centre swaps views after a short fade, so the tool mounts a moment after the click:
+  // run the expansion when its element appears.
+  const attachTool = useCallback((el: HTMLDivElement | null) => {
+    toolRef.current = el;
+    const from = expandFrom.current;
+    if (!el || !from) return;
+    expandFrom.current = null;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const inset = `inset(${Math.max(0, from.top)}px ${Math.max(0, w - from.left - from.width)}px ${Math.max(0, h - from.top - from.height)}px ${Math.max(0, from.left)}px round 22px)`;
+    gsap.fromTo(
+      el,
+      { clipPath: inset },
+      { clipPath: "inset(0px 0px 0px 0px round 28px)", duration: 0.55, ease: "power3.inOut", clearProps: "clipPath" },
+    );
+  }, []);
+
   useLayoutEffect(() => {
     const grid = gridRef.current;
     if (!grid) return;
@@ -465,6 +492,21 @@ export function StudioApp() {
     if (!wide && !panelCollapsed && !historyCollapsed) setHistoryCollapsed(true);
   }, [wide, panelCollapsed, historyCollapsed]);
 
+  function openView(next: CenterView, from?: HTMLElement) {
+    const main = mainRef.current;
+    if (from && main) {
+      const a = from.getBoundingClientRect();
+      const m = main.getBoundingClientRect();
+      // The tool opens at the top of the centre; measure the tile against where it will be.
+      const shift = Math.max(0, -m.top + 96);
+      expandFrom.current = { top: a.top - m.top - shift, left: a.left - m.left, width: a.width, height: a.height };
+    }
+    setView(next);
+    if (main && main.getBoundingClientRect().top < 0) {
+      window.scrollTo({ top: window.scrollY + main.getBoundingClientRect().top - 96, behavior: "smooth" });
+    }
+  }
+
   // From "Résultats épinglés": back to the chat, scroll to the card, flash it.
   function jumpTo(artifactId: string) {
     setView("chat");
@@ -585,24 +627,46 @@ export function StudioApp() {
             void sendText(FIRST_DRAFT_REQUEST);
           }}
           onPickProperty={(p: PropertySummary) => void pickProperty(p)}
-          onView={setView}
+          onView={openView}
           card={cardProps}
         />
       ) : (
         <div className="m-6 h-40 animate-pulse rounded-3xl bg-white/50" />
       )
     ) : (
-      <div className="flex flex-col">
-        <div className="flex items-center gap-2 border-b border-[rgba(74,52,36,0.10)] px-4 py-3">
-          <button
-            type="button"
-            onClick={() => setView("chat")}
-            className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold text-neutral-700 hover:bg-white/70"
-          >
-            <ArrowLeftIcon size={16} weight="bold" className="size-4 shrink-0" />
-            Retour au projet
-          </button>
-          <h2 className="min-w-0 truncate text-sm font-semibold text-neutral-500">{VIEW_TITLE[view]}</h2>
+      <div ref={attachTool} className="flex flex-col">
+        {/* Switch tools without going back (Salif, 2026-10-10); the right panel is a second way. */}
+        <div className="flex items-center gap-2 border-b border-[rgba(74,52,36,0.10)] px-3 py-2.5">
+          <nav aria-label="Outils du projet" className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1 [scrollbar-width:none]">
+            {(
+              [
+                ["chat", "Projet", ArrowLeftIcon],
+                ["voiceover", "Voix off", WaveformIcon],
+                ["visuals", "Visuels", ImageSquareIcon],
+                ["editor", "Éditeur vidéo", FilmSlateIcon],
+                ["glossary", "Prononciation", TranslateIcon],
+              ] as const
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                aria-current={view === key ? "page" : undefined}
+                className={cn(
+                  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors",
+                  view === key ? "bg-white text-[#b45a22] shadow-[0_0_0_1px_rgba(201,106,46,0.30)]" : "text-neutral-600 hover:bg-white/70",
+                )}
+              >
+                <Icon size={15} weight="bold" className="size-[15px] shrink-0" />
+                {label}
+              </button>
+            ))}
+            {(view === "voices" || view === "clone") && (
+              <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-white px-3 text-sm font-semibold text-[#b45a22] shadow-[0_0_0_1px_rgba(201,106,46,0.30)]">
+                {VIEW_TITLE[view]}
+              </span>
+            )}
+          </nav>
         </div>
         {view === "editor" && (
           <StudioEditor
@@ -709,7 +773,7 @@ export function StudioApp() {
             <div ref={historyInnerRef}>{historyRail}</div>
           </aside>
 
-          <main className={cn(glass, "min-w-0 overflow-visible")}>
+          <main ref={mainRef} className={cn(glass, "min-w-0 overflow-visible")}>
             <AnimatePresence mode="wait" initial={false}>
               <motion.div
                 key={view === "chat" ? `chat-${activeId ?? "new"}` : view}
