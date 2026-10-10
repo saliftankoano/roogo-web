@@ -405,13 +405,36 @@ export function GlossaryPanel({
                   : "bg-neutral-100 text-neutral-600",
               )}
             >
-              {label} <span className="opacity-60">{count}</span>
+              {label}{" "}
+              {loaded ? (
+                <span className="opacity-60">{count}</span>
+              ) : (
+                <span className="studio-skeleton ml-0.5 inline-block h-3 w-4 translate-y-0.5 rounded-full opacity-70" aria-hidden />
+              )}
             </button>
           ))}
         </div>
 
         {!loaded ? (
-          <div className="h-24 animate-pulse rounded-3xl bg-neutral-100" />
+          // Same shape as the real list (letter, then rows with play button, word and
+          // how it is said), so nothing jumps when the words arrive.
+          <div className="space-y-2" aria-busy="true" aria-label="Chargement du glossaire">
+            <span className="studio-skeleton ml-1 mt-2 block h-3 w-3 rounded" />
+            <ul className="space-y-2">
+              {[0, 1, 2, 3].map((i) => (
+                <li key={i} className="flex items-center gap-3 rounded-2xl border border-neutral-200 bg-white p-3">
+                  <span className="studio-skeleton size-11 shrink-0 rounded-full" />
+                  <span className="grid min-w-0 flex-1 gap-2">
+                    <span className="flex items-center gap-2">
+                      <span className="studio-skeleton h-4 w-28 rounded-full" />
+                      <span className="studio-skeleton h-4 w-24 rounded-full" />
+                    </span>
+                    <span className="studio-skeleton h-3 w-16 rounded-full" />
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </div>
         ) : visible.length === 0 ? (
           <div className="rounded-3xl border border-dashed border-neutral-300 p-8 text-center">
             <p className="font-bold text-neutral-700">
@@ -435,7 +458,7 @@ export function GlossaryPanel({
                   return (
                     <li
                       key={row.id}
-                      className="rounded-2xl border border-neutral-200 bg-white p-3"
+                      className="animate-[studio-rise_0.3s_cubic-bezier(0.22,1,0.36,1)_both] rounded-2xl border border-neutral-200 bg-white p-3 motion-reduce:animate-none"
                     >
                       {editing ? (
                         <div className="space-y-2">
