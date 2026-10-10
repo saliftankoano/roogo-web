@@ -180,7 +180,7 @@ export function ProjectView({
 
         {/* 2. Voice-over (and its subtitles) */}
         <Section icon={WaveformIcon} title="Voix off" id={voice ? `artifact-${voice.id}` : undefined} highlight={highlightId === voice?.id}
-          action={canWrite && script ? { label: voice ? "Nouvelle voix" : "Créer la voix off", onClick: () => onView("voiceover") } : undefined}
+          action={canWrite && property ? { label: voice ? "Nouvelle voix" : "Créer la voix off", onClick: () => onView("voiceover") } : undefined}
         >
           {voice ? (
             <div className="grid gap-3">
@@ -194,7 +194,7 @@ export function ProjectView({
           ) : (
             <Empty
               text={script ? "Le script est prêt : choisissez la voix et générez-la." : "La voix off se crée à partir du script."}
-              action={canWrite && script ? { label: "Créer la voix off", onClick: () => onView("voiceover"), icon: WaveformIcon } : undefined}
+              action={canWrite && property ? { label: "Créer la voix off", onClick: () => onView("voiceover"), icon: WaveformIcon } : undefined}
             />
           )}
         </Section>

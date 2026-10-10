@@ -4,11 +4,14 @@ import Image from "next/image";
 import {
   ArrowsLeftRightIcon,
   CaretRightIcon,
+  FilmSlateIcon,
+  ImageSquareIcon,
   FileTextIcon,
   HouseLineIcon,
   MicrophoneStageIcon,
   SidebarSimpleIcon,
   TranslateIcon,
+  WaveformIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { StudioCurrency } from "@/lib/studio/currency";
@@ -180,8 +183,11 @@ export function ProjectPanel({
 
       <span className={cn("h-px bg-[rgba(74,52,36,0.10)]", collapsed ? "w-8" : "-mx-1")} />
 
-      {/* The project's actions moved onto its cards in the centre (council option B, 2026-10-10);
-          this panel keeps the property, the two budgets and the tools that span projects. */}
+      {/* The three ways to start something stay here (Salif, 2026-10-10: on the cards alone
+          it was unclear how to begin). The cards in the centre show the results. */}
+      {action("voiceover", "Voix off", WaveformIcon, () => onView(view === "voiceover" ? "chat" : "voiceover"), { active: view === "voiceover" })}
+      {action("editor", "Vidéo du bien", FilmSlateIcon, () => onView(view === "editor" ? "chat" : "editor"), { active: view === "editor" })}
+      {action("visuals", "Créer un visuel", ImageSquareIcon, () => onView(view === "visuals" ? "chat" : "visuals"), { active: view === "visuals" })}
       {action("glossary", "Prononciation", TranslateIcon, () => onView(view === "glossary" ? "chat" : "glossary"), { active: view === "glossary" })}
       {cloningEnabled &&
         action("clone", "Cloner une voix", MicrophoneStageIcon, () => onView(view === "clone" ? "chat" : "clone"), { active: view === "clone" })}
