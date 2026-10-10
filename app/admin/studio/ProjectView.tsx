@@ -5,7 +5,6 @@ import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   CaretDownIcon,
-  CheckCircleIcon,
   FileTextIcon,
   FilmSlateIcon,
   HouseLineIcon,
@@ -72,14 +71,6 @@ export function ProjectView({
   const images = artifacts.filter((a) => a.kind === "image").sort(newestFirst);
   const video = artifacts.filter((a) => a.kind === "video").sort(newestFirst)[0] ?? null;
 
-  const steps = [
-    { label: "Script", done: !!script },
-    { label: "Voix off", done: !!voice },
-    { label: images.length ? `Visuels (${images.length})` : "Visuels", done: images.length > 0 },
-    { label: "Vidéo", done: !!video },
-  ];
-  const current = steps.findIndex((s) => !s.done);
-
   if (!property && canWrite && !artifacts.length) {
     return (
       <div className="mx-auto grid w-full max-w-xl gap-3 px-4 py-10">
@@ -121,26 +112,6 @@ export function ProjectView({
       </header>
 
       <div className="mx-auto grid w-full max-w-[680px] gap-6 px-4 pb-10 pt-5 md:px-6">
-        {/* Where the project stands: the next step to do is highlighted. */}
-        <ol className="flex flex-wrap gap-1.5" aria-label="Avancement du projet">
-          {steps.map((s, i) => (
-            <li
-              key={s.label}
-              className={cn(
-                "inline-flex h-8 items-center gap-1.5 rounded-full px-3 text-xs font-semibold",
-                s.done
-                  ? "bg-[#e7f3eb] text-[#2f7d4f]"
-                  : i === current
-                    ? "bg-primary/10 text-[#b45a22] shadow-[0_0_0_1px_rgba(201,106,46,0.35)]"
-                    : "bg-white/60 text-neutral-500",
-              )}
-            >
-              {s.done ? <CheckCircleIcon size={14} weight="fill" className="size-3.5" /> : <span className="tabular-nums">{i + 1}</span>}
-              {s.label}
-            </li>
-          ))}
-        </ol>
-
         {/* 1. Script, with the assistant attached */}
         <Section icon={FileTextIcon} title="Script" id={script ? `artifact-${script.id}` : undefined} highlight={highlightId === script?.id}>
           {sending ? (
@@ -215,14 +186,14 @@ export function ProjectView({
 
         {/* 4. Video */}
         <Section icon={FilmSlateIcon} title="Vidéo" id={video ? `artifact-${video.id}` : undefined} highlight={highlightId === video?.id}
-          action={canWrite && property ? { label: video ? "Nouvelle vidéo" : "Ouvrir l'éditeur", onClick: () => onView("editor") } : undefined}
+          action={canWrite && property ? { label: "Ouvrir l'éditeur vidéo", onClick: () => onView("editor") } : undefined}
         >
           {video ? (
             <ArtifactCard artifact={video} {...card} />
           ) : (
             <Empty
               text={voice ? "Photos du bien, voix off et fin Roogo : assemblez-les dans l'éditeur." : "La vidéo utilise la voix off. Vous pouvez déjà créer une fin seule."}
-              action={canWrite && property ? { label: "Ouvrir l'éditeur", onClick: () => onView("editor"), icon: FilmSlateIcon } : undefined}
+              action={canWrite && property ? { label: "Ouvrir l'éditeur vidéo", onClick: () => onView("editor"), icon: FilmSlateIcon } : undefined}
             />
           )}
         </Section>

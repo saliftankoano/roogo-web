@@ -44,7 +44,7 @@ const PANEL_STORAGE_KEY = "roogo-studio-panel";
 const ease = [0.22, 1, 0.36, 1] as const;
 
 const VIEW_TITLE: Record<Exclude<CenterView, "chat">, string> = {
-  editor: "Vidéo du bien",
+  editor: "Éditeur vidéo",
   visuals: "Visuels",
   glossary: "Prononciation",
   voices: "Gérer les voix",

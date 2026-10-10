@@ -186,7 +186,7 @@ export function ProjectPanel({
       {/* The three ways to start something stay here (Salif, 2026-10-10: on the cards alone
           it was unclear how to begin). The cards in the centre show the results. */}
       {action("voiceover", "Voix off", WaveformIcon, () => onView(view === "voiceover" ? "chat" : "voiceover"), { active: view === "voiceover" })}
-      {action("editor", "Vidéo du bien", FilmSlateIcon, () => onView(view === "editor" ? "chat" : "editor"), { active: view === "editor" })}
+      {action("editor", "Éditeur vidéo", FilmSlateIcon, () => onView(view === "editor" ? "chat" : "editor"), { active: view === "editor" })}
       {action("visuals", "Créer un visuel", ImageSquareIcon, () => onView(view === "visuals" ? "chat" : "visuals"), { active: view === "visuals" })}
       {action("glossary", "Prononciation", TranslateIcon, () => onView(view === "glossary" ? "chat" : "glossary"), { active: view === "glossary" })}
       {cloningEnabled &&
