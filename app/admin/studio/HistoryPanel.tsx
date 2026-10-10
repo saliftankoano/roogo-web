@@ -107,7 +107,7 @@ export function HistoryPanel({
           onClick={onNewChat}
           aria-label="Nouvelle conversation"
           title="Nouvelle conversation"
-          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d77a3c,#b45a22)] text-white shadow-[0_10px_24px_-12px_rgba(180,90,34,0.8)] active:scale-95"
+          className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[linear-gradient(135deg,#d77a3c,#b45a22)] text-white shadow-[0_10px_24px_-12px_rgba(180,90,34,0.8)] active:scale-[0.985]"
         >
           <PlusIcon size={18} weight="bold" className="size-[18px] shrink-0" />
         </button>
@@ -158,7 +158,7 @@ export function HistoryPanel({
           type="button"
           onClick={() => setMenuOpen((open) => !open)}
           aria-expanded={menuOpen}
-          className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#d77a3c,#b45a22)] px-4 text-sm font-semibold text-white shadow-[0_10px_24px_-12px_rgba(180,90,34,0.8)] active:scale-[0.97]"
+          className="ml-auto inline-flex h-10 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full bg-[linear-gradient(135deg,#d77a3c,#b45a22)] px-4 text-sm font-semibold text-white shadow-[0_10px_24px_-12px_rgba(180,90,34,0.8)] active:scale-[0.985]"
         >
           <PlusIcon size={16} weight="bold" className="size-4 shrink-0" />
           Nouveau

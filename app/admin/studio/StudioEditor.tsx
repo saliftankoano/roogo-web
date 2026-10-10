@@ -894,7 +894,7 @@ function Timeline({
             type="button"
             onClick={onToggle}
             aria-label={playing ? "Pause" : "Lecture"}
-            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white transition-transform active:scale-[0.96]"
+            className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white transition-transform active:scale-[0.985]"
           >
             {playing ? (
               <PauseIcon size={20} weight="fill" className="size-5 shrink-0" />

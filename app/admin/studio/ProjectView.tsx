@@ -309,7 +309,7 @@ function Tile({
           <button
             type="button"
             onClick={action.onClick}
-            className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-white transition-transform active:scale-[0.97]"
+            className="inline-flex h-8 shrink-0 cursor-pointer items-center gap-1 rounded-full bg-primary px-3 text-xs font-semibold text-white transition-transform active:scale-[0.985]"
           >
             {action.label}
             <ArrowRightIcon size={12} weight="bold" className="size-3" />

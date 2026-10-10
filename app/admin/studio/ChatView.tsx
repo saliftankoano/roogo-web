@@ -235,7 +235,7 @@ export function LiveReply({ text }: { text: string }) {
               {[0, 1, 2].map((i) => (
                 <span
                   key={i}
-                  className="size-1.5 animate-bounce rounded-full bg-neutral-400 [animation-duration:900ms]"
+                  className="size-1.5 animate-pulse rounded-full bg-neutral-400 [animation-duration:1200ms]"
                   style={{ animationDelay: `${i * 140}ms` }}
                 />
               ))}
@@ -360,7 +360,7 @@ export function Composer({
           onClick={submit}
           disabled={!draft.trim() || sending}
           aria-label="Envoyer"
-          className={cn("flex size-11 shrink-0 items-center justify-center rounded-full transition-[opacity,transform] active:scale-95 disabled:opacity-40", primaryGradient)}
+          className={cn("flex size-11 shrink-0 items-center justify-center rounded-full transition-[opacity,transform] active:scale-[0.985] disabled:opacity-40", primaryGradient)}
         >
           <PaperPlaneRightIcon size={20} weight="fill" className="size-5 shrink-0" />
         </button>
