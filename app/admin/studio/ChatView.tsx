@@ -184,7 +184,7 @@ export function ChatView({
   );
 }
 
-function AssistantBadge() {
+export function AssistantBadge() {
   return (
     <span className="flex size-[38px] shrink-0 items-center justify-center rounded-xl bg-[linear-gradient(145deg,#d77a3c,#9c4a1b)] text-white shadow-[0_8px_18px_-10px_rgba(156,74,27,0.8)]">
       <SparkleIcon size={18} weight="fill" className="size-[18px] shrink-0" />
@@ -192,7 +192,7 @@ function AssistantBadge() {
   );
 }
 
-function Message({ message }: { message: ChatMessage }) {
+export function Message({ message }: { message: ChatMessage }) {
   if (message.role === "user") {
     return (
       <p
@@ -219,7 +219,7 @@ function Message({ message }: { message: ChatMessage }) {
 }
 
 /** The reply while it streams: prose in the bubble, the script in its own card. */
-function LiveReply({ text }: { text: string }) {
+export function LiveReply({ text }: { text: string }) {
   const smooth = useSmoothText(text);
   const { prose, script, scriptDone } = splitStreaming(smooth);
   return (
@@ -263,7 +263,7 @@ function LiveReply({ text }: { text: string }) {
   );
 }
 
-function OldScript({ artifact, version, card }: { artifact: Artifact; version: number; card: Omit<CardProps, "artifact"> }) {
+export function OldScript({ artifact, version, card }: { artifact: Artifact; version: number; card: Omit<CardProps, "artifact"> }) {
   const [open, setOpen] = useState(false);
   return (
     <div className="rounded-[20px] border border-white/80 bg-white/55">
@@ -296,7 +296,7 @@ function OldScript({ artifact, version, card }: { artifact: Artifact; version: n
   );
 }
 
-function Composer({
+export function Composer({
   sending,
   showQuickReplies,
   onSend,

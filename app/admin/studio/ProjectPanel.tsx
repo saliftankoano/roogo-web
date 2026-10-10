@@ -1,44 +1,21 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
-import { AnimatePresence, motion } from "framer-motion";
 import {
-  ArrowUpRightIcon,
   ArrowsLeftRightIcon,
   CaretRightIcon,
-  ClosedCaptioningIcon,
   FileTextIcon,
-  FilmSlateIcon,
   HouseLineIcon,
-  ImageSquareIcon,
   MicrophoneStageIcon,
-  PushPinIcon,
   SidebarSimpleIcon,
   TranslateIcon,
-  WaveformIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { StudioCurrency } from "@/lib/studio/currency";
 import type { VoiceInfo } from "./VoicePicker";
-import type { Artifact, Budget, ConversationDetail } from "./studio-types";
+import type { Budget, ConversationDetail } from "./studio-types";
 
 export type CenterView = "chat" | "editor" | "visuals" | "glossary" | "voices" | "voiceover" | "clone";
-
-const ease = [0.22, 1, 0.36, 1] as const;
-
-const KIND_ICON = {
-  script: FileTextIcon,
-  voiceover: WaveformIcon,
-  image: ImageSquareIcon,
-  captions: ClosedCaptioningIcon,
-  video: FilmSlateIcon,
-} as const;
-
-function pinnedLabel(a: Artifact, scripts: Artifact[]) {
-  if (a.kind === "script") return `Script v${scripts.findIndex((s) => s.id === a.id) + 1}`;
-  return a.title;
-}
 
 /**
  * The open project: what it holds and what you can do with it. A summary and
@@ -58,7 +35,6 @@ export function ProjectPanel({
   cloningEnabled,
   canWrite,
   onSwitchProperty,
-  onJump,
 }: {
   detail: ConversationDetail | null;
   collapsed: boolean;
@@ -77,11 +53,7 @@ export function ProjectPanel({
   onSwitchProperty: () => void;
   onJump: (artifactId: string) => void;
 }) {
-  const [open, setOpen] = useState<"pinned" | null>("pinned");
   const property = detail?.property ?? null;
-  const artifacts = detail?.artifacts ?? [];
-  const scripts = artifacts.filter((a) => a.kind === "script").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
-  const pinned = artifacts.filter((a) => a.pinned).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
   const action = (
     key: string,
@@ -208,53 +180,8 @@ export function ProjectPanel({
 
       <span className={cn("h-px bg-[rgba(74,52,36,0.10)]", collapsed ? "w-8" : "-mx-1")} />
 
-      {action("pinned", "Résultats épinglés", PushPinIcon, () => {
-        if (collapsed) onToggle();
-        setOpen(open === "pinned" ? null : "pinned");
-      }, { expandable: true, expanded: !collapsed && open === "pinned" })}
-      <AnimatePresence initial={false}>
-        {!collapsed && open === "pinned" && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.26, ease }}
-            className="-mt-1 overflow-hidden"
-          >
-            <div className="grid gap-1.5 px-1 pb-1">
-              {pinned.length === 0 ? (
-                <p className="px-2 py-1 text-xs text-neutral-500">Épinglez un script, une voix ou un visuel pour le retrouver ici.</p>
-              ) : (
-                pinned.map((a) => {
-                  const Icon = KIND_ICON[a.kind];
-                  return (
-                    <button
-                      key={a.id}
-                      type="button"
-                      onClick={() => onJump(a.id)}
-                      title="Voir dans la conversation"
-                      className="group flex min-w-0 cursor-pointer items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-left text-[13px] font-semibold text-neutral-800 transition-[background-color,box-shadow] hover:bg-white hover:shadow-[0_0_0_1px_rgba(201,106,46,0.30)] focus-visible:outline-2 focus-visible:outline-primary"
-                    >
-                      <Icon size={14} weight="bold" className="size-3.5 shrink-0 text-neutral-500" />
-                      <span className="min-w-0 flex-1 truncate">{pinnedLabel(a, scripts)}</span>
-                      {a.kind === "voiceover" && typeof a.meta.duration_seconds === "number" && (
-                        <span className="shrink-0 text-xs font-normal tabular-nums text-neutral-400">
-                          {Math.floor(a.meta.duration_seconds / 60)}:{String(Math.round(a.meta.duration_seconds % 60)).padStart(2, "0")}
-                        </span>
-                      )}
-                      <ArrowUpRightIcon size={14} weight="bold" className="size-3.5 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
-                    </button>
-                  );
-                })
-              )}
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      {action("voiceover", "Voix off", WaveformIcon, () => onView(view === "voiceover" ? "chat" : "voiceover"), { active: view === "voiceover" })}
-      {action("editor", "Vidéo du bien", FilmSlateIcon, () => onView(view === "editor" ? "chat" : "editor"), { active: view === "editor" })}
-      {action("visuals", "Créer un visuel", ImageSquareIcon, () => onView(view === "visuals" ? "chat" : "visuals"), { active: view === "visuals" })}
+      {/* The project's actions moved onto its cards in the centre (council option B, 2026-10-10);
+          this panel keeps the property, the two budgets and the tools that span projects. */}
       {action("glossary", "Prononciation", TranslateIcon, () => onView(view === "glossary" ? "chat" : "glossary"), { active: view === "glossary" })}
       {cloningEnabled &&
         action("clone", "Cloner une voix", MicrophoneStageIcon, () => onView(view === "clone" ? "chat" : "clone"), { active: view === "clone" })}

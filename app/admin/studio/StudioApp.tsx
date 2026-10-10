@@ -16,7 +16,7 @@ import { estimateJobCostUsd } from "@/lib/studio/ai-tools";
 import { DEFAULT_FCFA_PER_USD, formatMoney, type StudioCurrency } from "@/lib/studio/currency";
 import { parseSseBuffer } from "@/lib/studio/sse";
 import { orderArtifacts } from "./ArtifactsPanel";
-import { ChatView } from "./ChatView";
+import { ProjectView } from "./ProjectView";
 import { CloneVoice } from "./CloneVoice";
 import { GlossaryPanel } from "./GlossaryPanel";
 import { HistoryPanel } from "./HistoryPanel";
@@ -558,7 +558,7 @@ export function StudioApp() {
   const center =
     view === "chat" ? (
       booted ? (
-        <ChatView
+        <ProjectView
           detail={detail}
           startedBy={activeItem?.author ?? null}
           startedAt={activeItem?.createdAt ?? null}
@@ -568,7 +568,15 @@ export function StudioApp() {
           canWrite={canWrite}
           highlightId={highlightId}
           onSend={(text: string) => void sendText(text)}
+          onAskScript={() => {
+            if (!detail?.property) {
+              setSwitching(true);
+              return;
+            }
+            void sendText(FIRST_DRAFT_REQUEST);
+          }}
           onPickProperty={(p: PropertySummary) => void pickProperty(p)}
+          onView={setView}
           card={cardProps}
         />
       ) : (
@@ -583,7 +591,7 @@ export function StudioApp() {
             className="inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold text-neutral-700 hover:bg-white/70"
           >
             <ArrowLeftIcon size={16} weight="bold" className="size-4 shrink-0" />
-            Retour au chat
+            Retour au projet
           </button>
           <h2 className="min-w-0 truncate text-sm font-semibold text-neutral-500">{VIEW_TITLE[view]}</h2>
         </div>
