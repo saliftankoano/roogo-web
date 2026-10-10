@@ -63,5 +63,15 @@ export async function loadPropertyRow(id: string): Promise<PropertyRow | null> {
     .eq("id", id)
     .eq("is_test", false)
     .maybeSingle();
-  return (data as PropertyRow | null) ?? null;
+  const row = (data as PropertyRow | null) ?? null;
+  if (!row) return null;
+  // The view's image list has no order. Use the gallery order staff saved
+  // (sort_order 0 is the cover, is_primary), so videos and posters start on the cover.
+  const { data: ordered } = await supabaseAdmin
+    .from("property_images")
+    .select("url, sort_order")
+    .eq("property_id", id)
+    .order("sort_order", { ascending: true });
+  const urls = (ordered ?? []).map((r) => r.url as string).filter(Boolean);
+  return urls.length ? { ...row, images: urls } : row;
 }

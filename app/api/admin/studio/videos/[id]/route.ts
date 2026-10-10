@@ -49,9 +49,13 @@ export async function GET(req: Request, { params }: Ctx) {
     return respond({ state: "failed", error: message });
   };
 
-  if (gen.status === "finalizing" || !gen.provider_request_id) return respond({ state: "running" });
+  // The timeout applies in every state, so a poll that died mid-save, or a submit that
+  // never got a render id, cannot hold the video budget forever.
   const ageMinutes = (Date.now() - new Date(gen.created_at).getTime()) / 60_000;
-  if (ageMinutes > MAX_RENDER_MINUTES) return failRender("Le rendu a pris trop de temps. Réessayez.");
+  if (ageMinutes > MAX_RENDER_MINUTES) {
+    return failRender("Le rendu a pris trop de temps. Réessayez.", gen.status === "finalizing" ? "finalizing" : "running");
+  }
+  if (gen.status === "finalizing" || !gen.provider_request_id) return respond({ state: "running" });
 
   const status = await renderStatus(gen.provider_request_id);
   if (status.state === "failed") return failRender(`Le rendu a échoué : ${status.message}`);

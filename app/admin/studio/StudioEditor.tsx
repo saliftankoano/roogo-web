@@ -148,7 +148,11 @@ export function StudioEditor({
   onOpenArtifact: (artifactId: string) => void;
 }) {
   const template = VIDEO_TEMPLATES[0];
-  const voice = [...ordered].reverse().find((a) => a.kind === "voiceover");
+  // The newest voice-over, by date (pinning must not change which one is used):
+  // the render route picks the same one.
+  const voice = ordered
+    .filter((a) => a.kind === "voiceover")
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const script = ordered.find((a) => a.kind === "script" && a.pinned) ?? ordered.find((a) => a.kind === "script");
   const voiceSeconds = seconds(voice) ?? DEFAULT_VOICE_SECONDS;
   const [voiceDelay, setVoiceDelay] = useState(VOICE_DELAY);
