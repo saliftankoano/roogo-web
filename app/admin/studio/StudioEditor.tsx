@@ -25,11 +25,15 @@ import {
   VOICE_DELAY,
   MAX_VOICE_DELAY,
   clampVoiceDelay,
+  defaultOutro,
+  OUTRO_ONLY_SECONDS,
   outroStart,
+  type OutroText,
   planShots,
   type Shot,
 } from "@/lib/studio/video-templates";
 import { mergeOrder, moveItem } from "@/lib/studio/photo-order";
+import { OutroEditor } from "./OutroEditor";
 import type { Artifact, PropertySummary } from "./studio-types";
 
 /* ---------- pure helpers (exported for tests) ---------- */
@@ -91,6 +95,29 @@ function writeDelay(conversationId: string | null, value: number) {
   }
 }
 
+// The outro's photo and text, per project (edited in the Éditeur, used by the render).
+const OUTRO_KEY = (conversationId: string) => `roogo-studio-outro:${conversationId}`;
+
+function readOutro(conversationId: string | null): Partial<OutroText> | null {
+  if (!conversationId) return null;
+  try {
+    const raw = window.localStorage.getItem(OUTRO_KEY(conversationId));
+    return raw ? (JSON.parse(raw) as Partial<OutroText>) : null;
+  } catch {
+    return null;
+  }
+}
+
+function writeOutro(conversationId: string | null, value: OutroText | null) {
+  if (!conversationId) return;
+  try {
+    if (value) window.localStorage.setItem(OUTRO_KEY(conversationId), JSON.stringify(value));
+    else window.localStorage.removeItem(OUTRO_KEY(conversationId));
+  } catch {
+    // Not critical: the outro falls back to the listing's text.
+  }
+}
+
 /* ---------- editor ---------- */
 
 /**
@@ -128,6 +155,29 @@ export function StudioEditor({
   const outroFrom = outroStart(voiceSeconds, script?.text, voiceDelay);
 
   const listingPhotos = useMemo(() => property?.photos ?? [], [property?.photos]);
+
+  // "Vidéo complète" builds the whole Visite POV; "Fin seule" makes only the outro,
+  // for videos the team filmed in person (Salif, 2026-10-10).
+  const [mode, setMode] = useState<"full" | "outro">("full");
+  const listingOutro = useMemo(
+    () => (property ? defaultOutro(property, CONTACT_NUMBER) : null),
+    [property],
+  );
+  const [outro, setOutro] = useState<OutroText | null>(listingOutro);
+  useEffect(() => {
+    setOutro(listingOutro ? { ...listingOutro, ...(readOutro(conversationId) ?? {}) } : null);
+  }, [conversationId, listingOutro]);
+  const changeOutro = useCallback(
+    (next: OutroText) => {
+      setOutro(next);
+      writeOutro(conversationId, next);
+    },
+    [conversationId],
+  );
+  const resetOutro = useCallback(() => {
+    setOutro(listingOutro);
+    writeOutro(conversationId, null);
+  }, [conversationId, listingOutro]);
   const [photos, setPhotos] = useState<string[]>(listingPhotos);
   useEffect(() => {
     setPhotos(mergeOrder(readOrder(conversationId), listingPhotos));
@@ -254,9 +304,16 @@ export function StudioEditor({
   }
 
   return (
-    <EditorFrame templateLabel={template.label} description={template.description}>
-      <div className="grid md:grid-cols-[minmax(240px,300px)_minmax(0,1fr)]">
+    <EditorFrame
+      templateLabel={mode === "outro" ? "Fin seule" : template.label}
+      description={mode === "outro" ? `${OUTRO_ONLY_SECONDS} s à ajouter à la fin d'une vidéo filmée sur place.` : template.description}
+      mode={mode}
+      onMode={setMode}
+    >
+      <div className="grid md:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
         <aside className="space-y-4 border-neutral-200 p-3 md:border-r">
+          {mode === "full" && (
+          <>
           <section className="space-y-2">
             <div className="flex items-baseline justify-between gap-2 px-1">
               <h3 className="text-xs font-semibold text-neutral-500">Photos du bien ({photos.length})</h3>
@@ -282,12 +339,16 @@ export function StudioEditor({
             )}
           </section>
 
-          <section className="space-y-1.5">
-            <h3 className="px-1 text-xs font-semibold text-neutral-500">Fin de la vidéo</h3>
-            <p className="flex items-center gap-1.5 px-1 text-xs text-neutral-500">
-              <LockSimpleIcon size={12} weight="bold" className="shrink-0" />
-              Fin standard Roogo : prix et numéro, identique sur toutes les vidéos.
-            </p>
+          </>
+          )}
+
+          <section className="space-y-2">
+            <h3 className="px-1 text-xs font-semibold text-neutral-500">
+              {mode === "outro" ? "La fin" : "Fin de la vidéo"}
+            </h3>
+            {outro && (
+              <OutroEditor outro={outro} photos={listingPhotos} canWrite={canWrite} onChange={changeOutro} onReset={resetOutro} />
+            )}
           </section>
         </aside>
 
@@ -295,15 +356,15 @@ export function StudioEditor({
           {/* Absolute so the 9:16 frame takes the pane's height, never more. */}
           <div className="absolute inset-4 flex items-center justify-center">
           <div className="relative aspect-[9/16] h-full max-h-[520px] overflow-hidden rounded-2xl bg-neutral-900 shadow-lg">
-            {inOutro ? (
-              <OutroPreview property={property} />
+            {(mode === "outro" || inOutro) && outro ? (
+              <OutroPreview outro={outro} />
             ) : shot ? (
               <ShotPreview shot={shot} time={time} />
             ) : (
               <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">Aucune photo</span>
             )}
             {/* The corner watermark steps aside during the outro, which shows the full logo. */}
-            {!inOutro && (
+            {mode === "full" && !inOutro && (
               <span className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/90 shadow">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo.png?v=2" alt="" className="size-5 object-contain" />
@@ -314,7 +375,7 @@ export function StudioEditor({
         </div>
       </div>
 
-      <div className="shrink-0 border-t border-neutral-200 p-3">
+      <div className={cn("shrink-0 border-t border-neutral-200 p-3", mode === "outro" && "hidden")}>
         <Timeline
           shots={shots}
           total={total}
@@ -341,10 +402,14 @@ export function StudioEditor({
 function EditorFrame({
   templateLabel,
   description,
+  mode,
+  onMode,
   children,
 }: {
   templateLabel: string;
   description?: string;
+  mode?: "full" | "outro";
+  onMode?: (mode: "full" | "outro") => void;
   children: React.ReactNode;
 }) {
   return (
@@ -355,6 +420,30 @@ function EditorFrame({
         <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
           Modèle : {templateLabel}
         </span>
+        {mode && onMode && (
+          <div role="tablist" aria-label="Que créer" className="flex rounded-xl border border-neutral-200 bg-white p-0.5">
+            {(
+              [
+                ["full", "Vidéo complète"],
+                ["outro", "Fin seule"],
+              ] as const
+            ).map(([key, label]) => (
+              <button
+                key={key}
+                type="button"
+                role="tab"
+                aria-selected={mode === key}
+                onClick={() => onMode(key)}
+                className={cn(
+                  "h-8 cursor-pointer rounded-[10px] px-3 text-xs font-semibold transition-colors",
+                  mode === key ? "bg-primary/10 text-[#b45a22]" : "text-neutral-500 hover:text-neutral-800",
+                )}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
         {description && <span className="hidden text-xs text-neutral-500 lg:inline">{description}</span>}
         <button
           type="button"
@@ -490,43 +579,63 @@ const nunito = Nunito({ subsets: ["latin"], weight: ["700", "800", "900"], displ
  * the small label, white for place and price, dimmed cream for the rest.
  * Sizes are in container units so the preview matches the 1080x1920 frame.
  */
-function OutroPreview({ property }: { property: PropertySummary }) {
-  const [headline] = property.title.split(",");
-  const match = property.price.match(/^(.*?)\s*(FCFA.*)$/i);
-  const amount = match ? match[1] : property.price;
-  const currency = match ? match[2] : "";
+function OutroPreview({ outro }: { outro: OutroText }) {
   const dim = "rgba(244,232,215,0.72)";
+  const photo = outro.backgroundUrl;
   return (
     <div className={`absolute inset-0 animate-[studio-fade_0.4s_ease-out] overflow-hidden bg-[linear-gradient(180deg,#cb7215,#a85c0e)] [container-type:inline-size] ${nunito.className}`}>
-      {property.image && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={property.image} alt="" className="absolute inset-0 size-full object-cover" />
+      {photo && (
+        <>
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src={photo} alt="" className="absolute inset-0 size-full object-cover" />
+          <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(43,36,29,.55)_0%,rgba(43,36,29,.78)_45%,rgba(43,36,29,.92)_100%)]" />
+        </>
       )}
-      <span className="absolute inset-0 bg-[linear-gradient(180deg,rgba(43,36,29,.55)_0%,rgba(43,36,29,.78)_45%,rgba(43,36,29,.92)_100%)]" />
       <span className="absolute left-1/2 top-[15.6%] flex size-[16.7cqw] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-white">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src="/logo.png?v=2" alt="" className="size-[11.5cqw] object-contain" />
       </span>
-      <p className="absolute inset-x-0 top-[29.2%] px-[5cqw] text-center text-[3.5cqw] font-extrabold uppercase tracking-[0.55cqw]" style={{ color: property.image ? "#f5a36a" : "#fff" }}>
-        {headline}
-      </p>
-      <p className="absolute inset-x-0 top-[32%] px-[5cqw] text-center text-[5.9cqw] font-black text-white">{property.place}</p>
-      <p className="absolute inset-x-0 top-[39.6%] px-[3cqw] text-center text-white">
-        <span className="block whitespace-nowrap text-[13.4cqw] font-black leading-none tabular-nums">{amount}</span>
-        {currency && (
-          <span className="mt-[1.3cqw] block text-[4.4cqw] font-extrabold tracking-[0.55cqw]" style={{ color: dim }}>
-            {currency}
-          </span>
-        )}
-      </p>
-      <span className="absolute left-1/2 top-[52.1%] h-[0.4cqw] w-[12cqw] -translate-x-1/2 rounded-full bg-[rgba(244,232,215,0.35)]" />
-      <div className="absolute inset-x-0 top-[67.7%] px-[5cqw] text-center">
-        <p className="text-[3.5cqw] font-extrabold" style={{ color: dim }}>Appelez ou écrivez-nous sur WhatsApp</p>
-        <p className="mt-[2.4cqw] inline-block whitespace-nowrap rounded-full bg-[#cb7215] px-[5.5cqw] py-[2.4cqw] text-[7.4cqw] font-black leading-none tracking-[0.18cqw] text-white tabular-nums">
-          {CONTACT_NUMBER}
+      {outro.headline && (
+        <p className="absolute inset-x-0 top-[29.2%] px-[5cqw] text-center text-[3.5cqw] font-extrabold uppercase tracking-[0.55cqw]" style={{ color: photo ? "#f5a36a" : "#fff" }}>
+          {outro.headline}
         </p>
-      </div>
-      <p className="absolute inset-x-0 top-[91.7%] text-center text-[3.15cqw] font-extrabold" style={{ color: dim }}>roogobf.com</p>
+      )}
+      {outro.location && (
+        <p className="absolute inset-x-0 top-[32%] px-[5cqw] text-center text-[5.9cqw] font-black text-white">{outro.location}</p>
+      )}
+      {outro.price && (
+        <p className="absolute inset-x-0 top-[39.6%] px-[3cqw] text-center text-white">
+          <span
+            className="block whitespace-nowrap font-black leading-none tabular-nums"
+            style={{ fontSize: `${outro.price.length > 10 ? Math.max(8.9, 138.9 / outro.price.length) : 13.9}cqw` }}
+          >
+            {outro.price}
+          </span>
+          {outro.currency && (
+            <span className="mt-[1.3cqw] block text-[4.4cqw] font-extrabold tracking-[0.55cqw]" style={{ color: dim }}>
+              {outro.currency}
+            </span>
+          )}
+        </p>
+      )}
+      <span className="absolute left-1/2 top-[52.1%] h-[0.4cqw] w-[12cqw] -translate-x-1/2 rounded-full bg-[rgba(244,232,215,0.35)]" />
+      {outro.note && (
+        <p className="absolute inset-x-0 top-[53.4%] px-[5cqw] text-center text-[3.3cqw] font-bold" style={{ color: dim }}>{outro.note}</p>
+      )}
+      {outro.phone && (
+        <div className="absolute inset-x-0 top-[67.7%] px-[5cqw] text-center">
+          {outro.contactLabel && <p className="text-[3.5cqw] font-extrabold" style={{ color: dim }}>{outro.contactLabel}</p>}
+          <p
+            className="mt-[2.4cqw] inline-block whitespace-nowrap rounded-full px-[5.5cqw] py-[2.4cqw] text-[7.4cqw] font-black leading-none tracking-[0.18cqw] text-white tabular-nums"
+            style={{ background: photo ? "#cb7215" : "#2b241d" }}
+          >
+            {outro.phone}
+          </p>
+        </div>
+      )}
+      {outro.footer && (
+        <p className="absolute inset-x-0 top-[91.7%] text-center text-[3.15cqw] font-extrabold" style={{ color: dim }}>{outro.footer}</p>
+      )}
     </div>
   );
 }

@@ -158,6 +158,52 @@ function esc(value: string): string {
 
 const n = (value: number) => String(round(value));
 
+export type OutroText = VisitePovInput["outro"];
+
+/** An outro on its own lasts this long: the animation (about 3 s) plus a hold to read the number. */
+export const OUTRO_ONLY_SECONDS = 6;
+
+/**
+ * The outro's default text, from the listing. Staff can change every line in
+ * the editor; "VILLA À VENDRE, Trame d'accueil" -> label "VILLA À VENDRE".
+ */
+export function defaultOutro(
+  property: { title: string; place: string; price: string; image: string | null },
+  phone: string,
+): OutroText {
+  const match = property.price.match(/^(.*?)\s*(FCFA.*)$/i);
+  return {
+    headline: (property.title.split(",")[0] ?? "").trim().toUpperCase(),
+    location: property.place,
+    price: match ? match[1].trim() : property.price,
+    currency: match ? match[2].trim().toUpperCase() : "",
+    note: "",
+    contactLabel: "Appelez ou écrivez-nous sur WhatsApp",
+    phone,
+    footer: "roogobf.com",
+    backgroundUrl: property.image,
+  };
+}
+
+/**
+ * Only the outro, to put at the end of a video filmed in person (Salif,
+ * 2026-10-10). Same design as the full template, no watermark, no voice.
+ */
+export function buildOutroOnly(input: {
+  outro: OutroText;
+  logoUrl: string;
+  musicUrl?: string | null;
+  musicVolume?: number;
+  seconds?: number;
+}): { html: string; durationSeconds: number } {
+  const total = round(input.seconds ?? OUTRO_ONLY_SECONDS);
+  const { html } = compose(
+    { ...input, photos: [], voiceUrl: "", voiceSeconds: 0 },
+    { total, outroFrom: CROSSFADE / 2, shots: [], delay: null },
+  );
+  return { html, durationSeconds: total };
+}
+
 export function buildVisitePov(input: VisitePovInput): {
   html: string;
   durationSeconds: number;
@@ -167,6 +213,14 @@ export function buildVisitePov(input: VisitePovInput): {
   const total = round(delay + input.voiceSeconds + TAIL);
   const outroFrom = outroStart(input.voiceSeconds, input.script, delay);
   const shots = planShots(input.photos, outroFrom, input.chips);
+  return compose(input, { total, outroFrom, shots, delay });
+}
+
+function compose(
+  input: VisitePovInput,
+  plan: { total: number; outroFrom: number; shots: Shot[]; delay: number | null },
+): { html: string; durationSeconds: number; shots: Shot[] } {
+  const { total, outroFrom, shots, delay } = plan;
   const o = input.outro;
   const XF = CROSSFADE;
 
@@ -211,7 +265,7 @@ export function buildVisitePov(input: VisitePovInput): {
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=${VIDEO_SIZE.width}, height=${VIDEO_SIZE.height}">
-    <title>Roogo Visite POV</title>
+    <title>Roogo ${shots.length ? "Visite POV" : "Fin de vidéo"}</title>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Urbanist:wght@700&display=block" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
@@ -253,10 +307,11 @@ export function buildVisitePov(input: VisitePovInput): {
   </head>
   <body>
     <div id="root" data-composition-id="visite-pov" data-start="0" data-width="${VIDEO_SIZE.width}" data-height="${VIDEO_SIZE.height}" data-duration="${n(total)}">
-${shotHtml}
-      <div id="wm" class="clip" data-start="0" data-duration="${n(outroFrom + XF / 2)}">
-        <div class="badge"><img src="${esc(input.logoUrl)}" alt=""></div>
-      </div>
+${shotHtml}${
+        shots.length
+          ? `\n      <div id="wm" class="clip" data-start="0" data-duration="${n(outroFrom + XF / 2)}">\n        <div class="badge"><img src="${esc(input.logoUrl)}" alt=""></div>\n      </div>`
+          : ""
+      }
       <section id="outro" class="clip" data-start="${n(outroAt)}" data-duration="${n(total - outroAt)}">${
         o.backgroundUrl
           ? `\n        <img id="outro-photo" src="${esc(o.backgroundUrl)}" alt="">\n        <div class="shade"></div>`
@@ -277,12 +332,16 @@ ${shotHtml}
         }
         <div id="footer" class="line footer">${esc(o.footer ?? "roogobf.com")}</div>
       </section>
-      <audio id="voice" src="${esc(input.voiceUrl)}" data-start="${n(delay)}" data-duration="${n(total - delay)}" data-volume="${VOICE_GAIN}"></audio>${music}
+${
+        delay !== null
+          ? `      <audio id="voice" src="${esc(input.voiceUrl)}" data-start="${n(delay)}" data-duration="${n(total - delay)}" data-volume="${VOICE_GAIN}"></audio>`
+          : ""
+      }${music}
       <script>
         const tl = gsap.timeline({ paused: true });
 ${shotTweens}
         const o = ${n(outroAt)};
-        tl.fromTo("#outro", { opacity: 0 }, { opacity: 1, duration: ${XF}, ease: "none" }, o);
+        ${shots.length ? `tl.fromTo("#outro", { opacity: 0 }, { opacity: 1, duration: ${XF}, ease: "none" }, o);` : `tl.set("#outro", { opacity: 1 }, 0);`}
         tl.fromTo("#logo-glow", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.5, ease: "power2.out" }, o + 0.1);
         tl.to("#logo-glow", { opacity: 0, scale: 1.6, duration: 1.0, ease: "power2.out" }, o + 0.65);
         tl.fromTo("#logo-badge", { opacity: 0 }, { opacity: 1, duration: 0.55, ease: "power2.out" }, o + 0.15);
