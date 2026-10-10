@@ -1,14 +1,12 @@
 "use client";
 
-import { ArrowCounterClockwiseIcon, CheckIcon } from "@phosphor-icons/react";
+import { ArrowCounterClockwiseIcon, CheckIcon, LockSimpleIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { OutroText } from "@/lib/studio/video-templates";
 
 const FIELDS: { key: keyof OutroText; label: string; placeholder?: string }[] = [
   { key: "headline", label: "Étiquette", placeholder: "VILLA À VENDRE" },
   { key: "location", label: "Lieu", placeholder: "Quartier, ville" },
-  { key: "price", label: "Prix", placeholder: "50 000 000" },
-  { key: "currency", label: "Devise", placeholder: "FCFA" },
   { key: "note", label: "Ligne de détail (facultatif)", placeholder: "300 m², une chambre, jardin" },
   { key: "contactLabel", label: "Phrase au-dessus du numéro" },
   { key: "phone", label: "Numéro" },
@@ -97,8 +95,20 @@ export function OutroEditor({
           )}
         </div>
         <div className="grid gap-2">
+          {/* The price is never typed (Salif, 2026-10-10): one wrong zero on a video is a real problem.
+              It always comes from the listing; the server ignores any other value. */}
+          <div className="grid gap-1">
+            <span className="flex items-center gap-1 px-1 text-[11px] font-medium text-neutral-500">
+              <LockSimpleIcon size={11} weight="bold" className="size-3" />
+              Prix de l&apos;annonce
+            </span>
+            <p className="rounded-xl border border-dashed border-neutral-300 bg-neutral-50 px-3 py-2 text-sm font-semibold tabular-nums text-neutral-900">
+              {[outro.price, outro.currency].filter(Boolean).join(" ") || "Pas de prix sur l'annonce"}
+            </p>
+            <span className="px-1 text-[11px] text-neutral-400">Pour le changer, modifiez l&apos;annonce elle-même.</span>
+          </div>
           {FIELDS.map((f) => (
-            <label key={f.key} className={cn("grid gap-1", (f.key === "price" || f.key === "currency") && "inline-grid")}>
+            <label key={f.key} className="grid gap-1">
               <span className="px-1 text-[11px] font-medium text-neutral-500">{f.label}</span>
               <input
                 id={`outro-${f.key}`}

@@ -29,11 +29,11 @@ export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
 
+// Price and currency are not here on purpose: they always come from the listing,
+// whatever the browser sends (Salif, 2026-10-10).
 const OUTRO_FIELDS: (keyof OutroText)[] = [
   "headline",
   "location",
-  "price",
-  "currency",
   "note",
   "contactLabel",
   "phone",

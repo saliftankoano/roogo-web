@@ -175,7 +175,9 @@ export function StudioEditor({
   );
   const [outro, setOutro] = useState<OutroText | null>(listingOutro);
   useEffect(() => {
-    setOutro(listingOutro ? { ...listingOutro, ...(readOutro(conversationId) ?? {}) } : null);
+    // Saved edits apply to the text and photo only; the price always comes from the listing.
+    const saved = readOutro(conversationId) ?? {};
+    setOutro(listingOutro ? { ...listingOutro, ...saved, price: listingOutro.price, currency: listingOutro.currency } : null);
   }, [conversationId, listingOutro]);
   const changeOutro = useCallback(
     (next: OutroText) => {
