@@ -59,13 +59,15 @@ export async function GET(req: Request, { params }: Ctx) {
       let url: string | null = null;
       let downloadUrl: string | null = null;
       if (
-        (artifact.kind === "voiceover" || artifact.kind === "image") &&
+        (artifact.kind === "voiceover" || artifact.kind === "image" || artifact.kind === "video") &&
         artifact.output_path
       ) {
         const filename =
           artifact.kind === "image"
             ? `Roogo - ${String(artifact.title).replace(/[^\p{L}\p{N} ()-]/gu, "")}.png`
-            : "Roogo - Voix off.mp3";
+            : artifact.kind === "video"
+              ? `Roogo - ${String(artifact.text || artifact.title).replace(/[^\p{L}\p{N} ()',-]/gu, "")}.mp4`
+              : "Roogo - Voix off.mp3";
         const [play, download] = await Promise.all([
           storage.createSignedUrl(artifact.output_path, 3600),
           storage.createSignedUrl(artifact.output_path, 3600, { download: filename }),
@@ -133,6 +135,17 @@ export async function PATCH(req: Request, { params }: Ctx) {
   if (typeof body?.property_id === "string") {
     const property = await loadPropertyRow(body.property_id);
     if (!property) return errorResponse("Bien introuvable", 404, req);
+    // A project belongs to one property (Salif, 2026-10-10): once it has results,
+    // its property is fixed, or one listing's voice and posters show on another.
+    if (conv.property_id && conv.property_id !== property.id) {
+      const { count } = await supabaseAdmin
+        .from("studio_artifacts")
+        .select("id", { count: "exact", head: true })
+        .eq("conversation_id", conv.id);
+      if ((count ?? 0) > 0) {
+        return errorResponse("Ce projet a déjà des résultats : créez un nouveau projet pour ce bien.", 409, req);
+      }
+    }
     update.property_id = property.id;
     if (conv.title === "Nouvelle conversation") {
       update.title = propertyTitle(property, propertyLabels);

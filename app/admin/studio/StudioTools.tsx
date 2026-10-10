@@ -142,7 +142,7 @@ async function fetchEstimate(
 const chip = (active: boolean) =>
   cn(
     "min-h-11 rounded-full px-4 text-sm font-bold transition-colors",
-    active ? "bg-neutral-900 text-white" : "bg-neutral-100 text-neutral-600",
+    active ? "bg-primary text-white" : "bg-neutral-100 text-neutral-600",
   );
 
 const fieldClass =
@@ -229,7 +229,7 @@ export function ToolsPanel({
         Créer
       </h3>
 
-      <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
+      <div className="grid gap-2">
         <button
           type="button"
           disabled={!posterOk || busy !== null}
@@ -237,15 +237,20 @@ export function ToolsPanel({
             const usd = estimates.poster?.estimateUsd;
             if (usd != null) void run("poster", { format: "4x5" }, usd);
           }}
-          className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-primary px-4 text-sm font-bold text-white transition-all active:scale-[0.985] disabled:opacity-40"
+          className="flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-primary-hover active:scale-[0.985] disabled:opacity-40"
         >
           {busy === "poster" ? (
-            <SpinnerGapIcon size={18} className="animate-spin" />
+            <SpinnerGapIcon size={18} className="size-[18px] shrink-0 animate-spin" />
           ) : (
-            <ImageSquareIcon size={18} weight="bold" />
+            <ImageSquareIcon size={18} weight="bold" className="size-[18px] shrink-0" />
           )}
-          Affiche du bien{price("poster")}
+          Affiche du bien
         </button>
+        {posterOk && estimates.poster?.estimateUsd != null && (
+          <p className="-mt-1 text-center text-xs tabular-nums text-neutral-500">
+            Environ {money(estimates.poster.estimateUsd)}
+          </p>
+        )}
         {posterOk && (
           <button
             type="button"
@@ -256,27 +261,27 @@ export function ToolsPanel({
           </button>
         )}
         {!posterOk && estimates.poster?.reason && (
-          <p className="text-xs font-medium text-neutral-400">{estimates.poster.reason}</p>
+          <p className="text-xs font-medium text-neutral-500">{estimates.poster.reason}</p>
         )}
 
-        <div className="grid grid-cols-2 gap-2">
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
             disabled={!cutoutOk || busy !== null}
             onClick={() => setOpen(open === "cutout" ? null : "cutout")}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-neutral-100 px-3 text-sm font-bold text-neutral-700 disabled:opacity-40"
+            className="flex h-11 flex-1 basis-32 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-neutral-100 px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-200 disabled:opacity-40"
           >
-            <ScissorsIcon size={18} weight="bold" />
-            Détourer une photo
+            <ScissorsIcon size={18} weight="bold" className="size-[18px] shrink-0" />
+            Détourer
           </button>
           <button
             type="button"
             disabled={busy !== null}
             onClick={() => setOpen(open === "greeting" ? null : "greeting")}
-            className="flex min-h-12 items-center justify-center gap-2 rounded-2xl bg-neutral-100 px-3 text-sm font-bold text-neutral-700 disabled:opacity-40"
+            className="flex h-11 flex-1 basis-32 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-neutral-100 px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-200 disabled:opacity-40"
           >
-            <ImageSquareIcon size={18} weight="bold" />
-            Affiche de voeux
+            <ImageSquareIcon size={18} weight="bold" className="size-[18px] shrink-0" />
+            Affiche libre
           </button>
         </div>
       </div>
@@ -405,7 +410,7 @@ function PosterForm({
       <input className={fieldClass} value={headline} onChange={(e) => setHeadline(e.target.value)} aria-label="Titre" />
       <input className={fieldClass} value={place} onChange={(e) => setPlace(e.target.value)} aria-label="Lieu" />
       <input className={fieldClass} value={price} onChange={(e) => setPrice(e.target.value)} aria-label="Prix" />
-      <p className="text-xs font-medium text-neutral-400">
+      <p className="text-xs font-medium text-neutral-500">
         Le numéro de téléphone de Roogo est ajouté automatiquement.
       </p>
       <div className="flex flex-wrap gap-2">
