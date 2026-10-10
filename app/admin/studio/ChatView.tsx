@@ -108,7 +108,8 @@ export function ChatView({
         )}
       </header>
 
-      <div className="flex flex-1 flex-col gap-5 px-4 pb-2 pt-6 md:px-8">
+      {/* A fixed reading width: folding a side panel widens the margins, not the lines (Salif, 2026-10-10). */}
+      <div className="mx-auto flex w-full max-w-[680px] flex-1 flex-col gap-5 px-4 pb-2 pt-6 md:px-6">
         {showPicker && (
           <section className="mx-auto w-full max-w-xl space-y-3">
             <h2 className="text-center text-sm font-semibold text-neutral-600">
@@ -170,7 +171,7 @@ export function ChatView({
         <div ref={bottomRef} className="scroll-mb-48" />
       </div>
 
-      <div className={cn("sticky bottom-3 z-10 mx-3 mb-3 mt-2 rounded-[24px] p-3 md:mx-5", glassStrong)}>
+      <div className={cn("sticky bottom-3 z-10 mx-auto mb-3 mt-2 w-[calc(100%-1.5rem)] max-w-[656px] rounded-[24px] p-3", glassStrong)}>
         {canWrite ? (
           <Composer sending={sending} showQuickReplies={entries.length > 0} onSend={onSend} />
         ) : (

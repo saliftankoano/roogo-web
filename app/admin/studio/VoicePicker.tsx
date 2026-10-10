@@ -96,40 +96,53 @@ export function VoicePicker({
 
   return (
     <div className="space-y-3">
-      <section
-        aria-label="Voix"
-        className="grid grid-cols-2 gap-2 rounded-2xl bg-neutral-50 p-1.5"
-      >
-        {voices.map((voice) => {
-          const usable = voice.status === "active";
-          const selected = usable && selectedKey === voice.key;
-          return (
-            <button
-              key={voice.id}
-              type="button"
-              disabled={!usable}
-              onClick={() => onSelect(voice.key)}
-              aria-pressed={selected}
-              className={cn(
-                "flex min-h-14 flex-col items-center justify-center rounded-2xl px-3 py-2 text-sm font-bold transition-colors",
-                selected ? "bg-white text-primary shadow-sm" : "text-neutral-500",
-                !usable && "opacity-60",
-              )}
-            >
-              <span className="flex items-center gap-1">
-                {!usable && <LockSimpleIcon size={14} weight="bold" />}
-                {voice.label}
-              </span>
-              <span className="text-xs font-medium opacity-70">
-                {usable
-                  ? (voice.description ?? "")
-                  : voice.status === "pending"
-                    ? "En préparation"
-                    : "Acceptation requise"}
-              </span>
-            </button>
-          );
-        })}
+      <section aria-label="Voix" className="grid gap-2">
+        <h2 className="text-[15px] font-semibold text-neutral-900">Voix disponibles</h2>
+        <p className="text-sm text-neutral-600">La voix choisie lit tous les scripts de vos prochaines voix off.</p>
+        <ul className="grid gap-2">
+          {voices.map((voice) => {
+            const usable = voice.status === "active";
+            const selected = usable && selectedKey === voice.key;
+            return (
+              <li key={voice.id}>
+                <button
+                  type="button"
+                  disabled={!usable}
+                  onClick={() => onSelect(voice.key)}
+                  aria-pressed={selected}
+                  className={cn(
+                    "flex w-full items-center gap-3 rounded-2xl border p-3 text-left transition-colors",
+                    usable ? "cursor-pointer" : "cursor-not-allowed opacity-70",
+                    selected
+                      ? "border-primary/40 bg-white shadow-[0_0_0_3px_rgba(201,106,46,0.10)]"
+                      : "border-[rgba(74,52,36,0.10)] bg-white/60 hover:bg-white",
+                  )}
+                >
+                  <span
+                    className={cn(
+                      "flex size-10 shrink-0 items-center justify-center rounded-full text-sm font-bold",
+                      selected ? "bg-primary text-white" : "bg-[#efe4d8] text-[#8a4924]",
+                    )}
+                  >
+                    {usable ? voice.label.replace(/^Voix (de |d')/i, "").slice(0, 1).toUpperCase() : <LockSimpleIcon size={16} weight="bold" />}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-semibold text-neutral-900">{voice.label}</span>
+                    <span className="block truncate text-xs text-neutral-500">
+                      {usable
+                        ? (voice.description ?? (voice.kind === "system" ? "Voix Roogo par défaut" : "Voix clonée"))
+                        : voice.status === "pending"
+                          ? "En préparation"
+                          : "Acceptation requise"}
+                    </span>
+                  </span>
+                  {voice.isMine && <span className="shrink-0 rounded-full bg-[#f3ebe2] px-2 py-0.5 text-[11px] font-bold text-neutral-600">Ma voix</span>}
+                  {selected && <span className="shrink-0 text-xs font-semibold text-[#b45a22]">Choisie</span>}
+                </button>
+              </li>
+            );
+          })}
+        </ul>
       </section>
 
       {lockedMine && terms && (
@@ -170,25 +183,26 @@ export function VoicePicker({
       {mine.map((voice) => (
         <div
           key={voice.id}
-          className="flex flex-wrap items-center justify-between gap-2 rounded-2xl bg-neutral-50 px-4 py-3 text-sm"
+          className="flex flex-wrap items-center justify-between gap-2 rounded-2xl border border-[rgba(74,52,36,0.10)] bg-white/40 px-4 py-3 text-sm"
         >
-          <span className="font-medium text-neutral-600">
-            Ma voix : <strong className="text-neutral-900">{voice.label}</strong>
+          <span className="text-neutral-600">
+            Votre voix clonée : <strong className="text-neutral-900">{voice.label}</strong>
           </span>
           {confirmRevokeId === voice.id ? (
-            <span className="flex items-center gap-2">
+            <span className="flex flex-wrap items-center gap-2">
+              <span className="text-xs text-neutral-600">Elle ne pourra plus être utilisée.</span>
               <button
                 type="button"
                 disabled={busy}
                 onClick={() => revoke(voice)}
-                className="min-h-11 rounded-xl bg-red-600 px-4 text-sm font-bold text-white disabled:opacity-40"
+                className="min-h-10 cursor-pointer rounded-full bg-red-600 px-4 text-sm font-semibold text-white disabled:opacity-40"
               >
-                Oui, retirer ma voix
+                Confirmer le retrait
               </button>
               <button
                 type="button"
                 onClick={() => setConfirmRevokeId(null)}
-                className="min-h-11 rounded-xl bg-neutral-200 px-4 text-sm font-bold text-neutral-700"
+                className="min-h-10 cursor-pointer rounded-full px-3 text-sm font-semibold text-neutral-600 hover:bg-white"
               >
                 Annuler
               </button>
@@ -197,7 +211,7 @@ export function VoicePicker({
             <button
               type="button"
               onClick={() => setConfirmRevokeId(voice.id)}
-              className="min-h-11 rounded-xl bg-neutral-200 px-4 text-sm font-bold text-neutral-700"
+              className="min-h-10 cursor-pointer rounded-full px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
             >
               Retirer ma voix
             </button>

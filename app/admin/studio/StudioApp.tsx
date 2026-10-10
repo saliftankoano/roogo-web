@@ -1,5 +1,7 @@
 "use client";
 
+import { createPortal } from "react-dom";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
@@ -22,6 +24,7 @@ import { PropertyPicker } from "./PropertyPicker";
 import { StudioEditor } from "./StudioEditor";
 import { useJobs } from "./StudioTools";
 import { StudioVisuals } from "./StudioVisuals";
+import { VoiceStudio } from "./VoiceStudio";
 import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
 import { glass, stage } from "./studio-ui";
 import {
@@ -43,7 +46,8 @@ const VIEW_TITLE: Record<Exclude<CenterView, "chat">, string> = {
   editor: "Vidéo du bien",
   visuals: "Visuels",
   glossary: "Prononciation",
-  voices: "Voix",
+  voices: "Gérer les voix",
+  voiceover: "Voix off",
   clone: "Cloner une voix",
 };
 
@@ -84,6 +88,10 @@ export function StudioApp() {
   const [budget, setBudget] = useState<Budget | null>(null);
   const [creatingVisual, setCreatingVisual] = useState(false);
   const [switching, setSwitching] = useState(false);
+  // Overlays render on <body>: the Studio wrapper is translated, and a transform
+  // turns "fixed" into "relative to the wrapper", so they opened wherever the chat was scrolled.
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => setPortalReady(true), []);
 
   const [voice, setVoice] = useState("sandrine");
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
@@ -560,6 +568,18 @@ export function StudioApp() {
             card={cardProps}
           />
         )}
+        {view === "voiceover" && (
+          <VoiceStudio
+            artifacts={artifacts}
+            voices={voices}
+            voice={voice}
+            onVoice={chooseVoice}
+            canWrite={canWrite}
+            card={cardProps}
+            onAskScript={() => setView("chat")}
+            onManage={() => setView("voices")}
+          />
+        )}
         {view === "glossary" && (
           <div className="p-4 md:p-6">
             <GlossaryPanel
@@ -641,6 +661,9 @@ export function StudioApp() {
         </div>
       </div>
 
+      {portalReady &&
+        createPortal(
+          <>
       <AnimatePresence>
         {sheet && (
           <motion.div
@@ -728,6 +751,9 @@ export function StudioApp() {
           </motion.div>
         )}
       </AnimatePresence>
+          </>,
+          document.body,
+        )}
     </div>
   );
 }

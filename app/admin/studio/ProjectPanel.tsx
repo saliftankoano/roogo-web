@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  ArrowUpRightIcon,
   ArrowsLeftRightIcon,
   CaretRightIcon,
   ClosedCaptioningIcon,
@@ -22,7 +23,7 @@ import type { StudioCurrency } from "@/lib/studio/currency";
 import type { VoiceInfo } from "./VoicePicker";
 import type { Artifact, Budget, ConversationDetail } from "./studio-types";
 
-export type CenterView = "chat" | "editor" | "visuals" | "glossary" | "voices" | "clone";
+export type CenterView = "chat" | "editor" | "visuals" | "glossary" | "voices" | "voiceover" | "clone";
 
 const ease = [0.22, 1, 0.36, 1] as const;
 
@@ -53,9 +54,6 @@ export function ProjectPanel({
   money,
   currency,
   onCurrency,
-  voices,
-  voice,
-  onVoice,
   cloningEnabled,
   canWrite,
   onSwitchProperty,
@@ -78,12 +76,11 @@ export function ProjectPanel({
   onSwitchProperty: () => void;
   onJump: (artifactId: string) => void;
 }) {
-  const [open, setOpen] = useState<"pinned" | "voice" | null>("pinned");
+  const [open, setOpen] = useState<"pinned" | null>("pinned");
   const property = detail?.property ?? null;
   const artifacts = detail?.artifacts ?? [];
   const scripts = artifacts.filter((a) => a.kind === "script").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const pinned = artifacts.filter((a) => a.pinned).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const activeVoices = voices.filter((v) => v.status === "active");
   const used = budget ? Math.min(1, budget.usedUsd / Math.max(budget.capUsd, 0.0001)) : 0;
 
   const action = (
@@ -101,7 +98,7 @@ export function ProjectPanel({
       aria-label={collapsed ? label : undefined}
       aria-expanded={opts.expandable ? opts.expanded : undefined}
       className={cn(
-        "flex shrink-0 items-center rounded-full border text-[15px] font-semibold transition-[background-color,border-color,color] duration-150",
+        "flex shrink-0 cursor-pointer items-center rounded-full border text-[15px] font-semibold transition-[background-color,border-color,color] duration-150",
         collapsed ? "size-11 justify-center self-center" : "h-12 w-full gap-3 px-4",
         opts.active
           ? "border-primary/35 bg-white text-[#b45a22]"
@@ -218,7 +215,8 @@ export function ProjectPanel({
                       key={a.id}
                       type="button"
                       onClick={() => onJump(a.id)}
-                      className="flex min-w-0 items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-left text-[13px] font-semibold text-neutral-800 hover:bg-white"
+                      title="Voir dans la conversation"
+                      className="group flex min-w-0 cursor-pointer items-center gap-2 rounded-xl bg-white/80 px-3 py-2 text-left text-[13px] font-semibold text-neutral-800 transition-[background-color,box-shadow] hover:bg-white hover:shadow-[0_0_0_1px_rgba(201,106,46,0.30)] focus-visible:outline-2 focus-visible:outline-primary"
                     >
                       <Icon size={14} weight="bold" className="size-3.5 shrink-0 text-neutral-500" />
                       <span className="min-w-0 flex-1 truncate">{pinnedLabel(a, scripts)}</span>
@@ -227,6 +225,7 @@ export function ProjectPanel({
                           {Math.floor(a.meta.duration_seconds / 60)}:{String(Math.round(a.meta.duration_seconds % 60)).padStart(2, "0")}
                         </span>
                       )}
+                      <ArrowUpRightIcon size={14} weight="bold" className="size-3.5 shrink-0 text-primary opacity-0 transition-opacity group-hover:opacity-100 group-focus-visible:opacity-100" />
                     </button>
                   );
                 })
@@ -236,48 +235,7 @@ export function ProjectPanel({
         )}
       </AnimatePresence>
 
-      {action("voice", "Voix", WaveformIcon, () => {
-        if (collapsed) onToggle();
-        setOpen(open === "voice" ? null : "voice");
-      }, { expandable: true, expanded: !collapsed && open === "voice" })}
-      <AnimatePresence initial={false}>
-        {!collapsed && open === "voice" && (
-          <motion.div
-            initial={{ height: 0, opacity: 0 }}
-            animate={{ height: "auto", opacity: 1 }}
-            exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.26, ease }}
-            className="-mt-1 overflow-hidden"
-          >
-            <div className="grid gap-1.5 px-1 pb-1" role="radiogroup" aria-label="Voix des scripts">
-              {activeVoices.map((v) => (
-                <button
-                  key={v.key}
-                  type="button"
-                  role="radio"
-                  aria-checked={v.key === voice}
-                  onClick={() => onVoice(v.key)}
-                  className={cn(
-                    "flex items-center gap-2 rounded-xl px-3 py-2 text-left text-[13px] font-semibold",
-                    v.key === voice ? "bg-white text-[#b45a22] shadow-[0_0_0_1px_rgba(201,106,46,0.35)]" : "bg-white/55 text-neutral-700 hover:bg-white/90",
-                  )}
-                >
-                  <span className="min-w-0 flex-1 truncate">{v.label}</span>
-                  {v.key === voice && <span className="shrink-0 text-[11px] font-medium">choisie</span>}
-                </button>
-              ))}
-              <button
-                type="button"
-                onClick={() => onView("voices")}
-                className="px-3 py-1.5 text-left text-xs font-semibold text-neutral-500 hover:text-neutral-800"
-              >
-                Gérer les voix
-              </button>
-            </div>
-          </motion.div>
-        )}
-      </AnimatePresence>
-
+      {action("voiceover", "Voix off", WaveformIcon, () => onView(view === "voiceover" ? "chat" : "voiceover"), { active: view === "voiceover" })}
       {action("editor", "Vidéo du bien", FilmSlateIcon, () => onView(view === "editor" ? "chat" : "editor"), { active: view === "editor" })}
       {action("visuals", "Créer un visuel", ImageSquareIcon, () => onView(view === "visuals" ? "chat" : "visuals"), { active: view === "visuals" })}
       {action("glossary", "Prononciation", TranslateIcon, () => onView(view === "glossary" ? "chat" : "glossary"), { active: view === "glossary" })}
