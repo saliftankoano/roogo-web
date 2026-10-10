@@ -593,6 +593,13 @@ export function StudioApp() {
             property={detail?.property ?? null}
             ordered={ordered}
             canWrite={canWrite}
+            money={money}
+            videoRemainingUsd={budget?.video?.remainingUsd ?? null}
+            onRendered={() => {
+              if (detail) void loadDetail(detail.conversation.id);
+              void loadBudget();
+            }}
+            onOpenArtifact={jumpTo}
           />
         )}
         {view === "visuals" && (

@@ -520,6 +520,35 @@ function CaptionsCard({
   );
 }
 
+function VideoCard({ artifact, onChanged }: { artifact: Artifact; onChanged: () => void }) {
+  const seconds = typeof artifact.meta.duration_seconds === "number" ? Math.round(artifact.meta.duration_seconds) : null;
+  return (
+    <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
+      <header className="flex items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-neutral-900">
+          {artifact.title}
+          {seconds !== null && <span className="ml-2 text-sm font-normal tabular-nums text-neutral-500">{seconds} s</span>}
+        </h3>
+        <CardActions artifact={artifact} onChanged={onChanged} />
+      </header>
+      {artifact.url ? (
+        <video controls playsInline preload="metadata" src={artifact.url} className="mx-auto aspect-[9/16] max-h-[520px] rounded-2xl bg-neutral-900" />
+      ) : (
+        <p className="text-sm font-medium text-neutral-500">La vidéo n&apos;est plus disponible.</p>
+      )}
+      {artifact.downloadUrl && (
+        <a
+          href={artifact.downloadUrl}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-neutral-100 text-sm font-bold text-primary"
+        >
+          <DownloadSimpleIcon size={16} weight="bold" />
+          Télécharger la vidéo
+        </a>
+      )}
+    </article>
+  );
+}
+
 // Pinned first, then newest first.
 export function orderArtifacts(artifacts: Artifact[]): Artifact[] {
   return [...artifacts].sort((a, b) => {
@@ -544,6 +573,9 @@ export function ArtifactCard({
   }
   if (artifact.kind === "captions") {
     return <CaptionsCard artifact={artifact} onChanged={common.onChanged} />;
+  }
+  if (artifact.kind === "video") {
+    return <VideoCard artifact={artifact} onChanged={common.onChanged} />;
   }
   return (
     <VoiceCard

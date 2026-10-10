@@ -16,6 +16,16 @@ export const VIDEO_TEMPLATES: { id: VideoTemplateId; label: string; description:
   },
 ];
 
+/**
+ * HeyGen bills HyperFrames renders by output length. Measured on our account on
+ * 2026-10-10: a 40 s 1080p render took $0.08, about $0.12 per minute.
+ */
+export const VIDEO_USD_PER_MINUTE = 0.12;
+
+export function estimateVideoCostUsd(seconds: number): number {
+  return Math.max(0.01, Math.ceil((Math.max(0, seconds) / 60) * VIDEO_USD_PER_MINUTE * 100) / 100);
+}
+
 export const VIDEO_SIZE = { width: 1080, height: 1920, fps: 30 } as const;
 
 /** The crossfade between two photos, in seconds. */

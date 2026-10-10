@@ -14,6 +14,7 @@ import {
   PlayIcon,
   RewindIcon,
   SkipBackIcon,
+  SpinnerGapIcon,
   VideoCameraIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -26,6 +27,7 @@ import {
   MAX_VOICE_DELAY,
   clampVoiceDelay,
   defaultOutro,
+  estimateVideoCostUsd,
   OUTRO_ONLY_SECONDS,
   outroStart,
   type OutroText,
@@ -131,11 +133,19 @@ export function StudioEditor({
   property,
   ordered,
   canWrite,
+  money,
+  videoRemainingUsd,
+  onRendered,
+  onOpenArtifact,
 }: {
   conversationId: string | null;
   property: PropertySummary | null;
   ordered: Artifact[];
   canWrite: boolean;
+  money: (usd: number) => string;
+  videoRemainingUsd: number | null;
+  onRendered: () => void;
+  onOpenArtifact: (artifactId: string) => void;
 }) {
   const template = VIDEO_TEMPLATES[0];
   const voice = [...ordered].reverse().find((a) => a.kind === "voiceover");
@@ -178,6 +188,65 @@ export function StudioEditor({
     setOutro(listingOutro);
     writeOutro(conversationId, null);
   }, [conversationId, listingOutro]);
+
+  /* ---- rendering (HeyGen) ---- */
+  const [render, setRender] = useState<
+    | { state: "idle" }
+    | { state: "starting" }
+    | { state: "running"; id: string; startedAt: number }
+    | { state: "done"; artifactId: string | null }
+    | { state: "failed"; error: string }
+  >({ state: "idle" });
+  const [now, setNow] = useState(() => Date.now());
+
+  // Resume a render still running after a reload or a switch of view.
+  useEffect(() => {
+    setRender({ state: "idle" });
+    if (!conversationId) return;
+    let cancelled = false;
+    void fetch(`/api/admin/studio/videos?conversation_id=${conversationId}`)
+      .then((r) => (r.ok ? r.json() : null))
+      .then((data: { running?: { id: string; createdAt: string }[] } | null) => {
+        const job = data?.running?.[0];
+        if (!cancelled && job) setRender({ state: "running", id: job.id, startedAt: new Date(job.createdAt).getTime() });
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId]);
+
+  const renderId = render.state === "running" ? render.id : null;
+  const onRenderedRef = useRef(onRendered);
+  onRenderedRef.current = onRendered;
+  useEffect(() => {
+    if (!renderId) return;
+    let stopped = false;
+    const tick = async () => {
+      setNow(Date.now());
+      try {
+        const res = await fetch(`/api/admin/studio/videos/${renderId}`);
+        const data = (await res.json().catch(() => ({}))) as { state?: string; artifactId?: string; error?: string };
+        if (stopped) return;
+        if (data.state === "done") {
+          setRender({ state: "done", artifactId: data.artifactId ?? null });
+          onRenderedRef.current();
+        } else if (data.state === "failed" || res.status === 404) {
+          setRender({ state: "failed", error: data.error ?? "Le rendu a échoué." });
+          onRenderedRef.current();
+        }
+      } catch {
+        // Transient: next tick.
+      }
+    };
+    const timer = window.setInterval(tick, 4000);
+    const clock = window.setInterval(() => setNow(Date.now()), 1000);
+    return () => {
+      stopped = true;
+      window.clearInterval(timer);
+      window.clearInterval(clock);
+    };
+  }, [renderId]);
   const [photos, setPhotos] = useState<string[]>(listingPhotos);
   useEffect(() => {
     setPhotos(mergeOrder(readOrder(conversationId), listingPhotos));
@@ -289,6 +358,72 @@ export function StudioEditor({
   const shotIndex = inOutro ? -1 : shots.findIndex((s) => time >= s.start && time < s.end);
   const shot = shotIndex >= 0 ? shots[shotIndex] : null;
 
+  const renderSeconds = mode === "outro" ? OUTRO_ONLY_SECONDS : total;
+  const estimateUsd = estimateVideoCostUsd(renderSeconds);
+  const blocker = !canWrite
+    ? "Lecture seule"
+    : mode === "full" && !voice
+      ? "Générez d'abord la voix off"
+      : mode === "full" && photos.length === 0
+        ? "Ce bien n'a pas de photo"
+        : videoRemainingUsd !== null && estimateUsd > videoRemainingUsd
+          ? "Budget vidéo du mois atteint"
+          : null;
+
+  async function createVideo() {
+    if (!conversationId || blocker) return;
+    setRender({ state: "starting" });
+    try {
+      const res = await fetch("/api/admin/studio/videos", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          conversation_id: conversationId,
+          mode,
+          photos,
+          voice_delay: voiceDelay,
+          outro,
+          acknowledged_cost_usd: estimateUsd,
+        }),
+      });
+      const data = (await res.json().catch(() => ({}))) as { id?: string; error?: string; estimateUsd?: number };
+      if (!res.ok || !data.id) {
+        setRender({
+          state: "failed",
+          error: res.status === 409 ? "Le prix a changé. Vérifiez-le puis relancez." : (data.error ?? "Le rendu n'a pas pu démarrer."),
+        });
+        return;
+      }
+      setRender({ state: "running", id: data.id, startedAt: Date.now() });
+      onRendered();
+    } catch {
+      setRender({ state: "failed", error: "Connexion impossible. Réessayez." });
+    }
+  }
+
+  const action = {
+    label: mode === "outro" ? "Créer la fin" : "Créer la vidéo",
+    price: money(estimateUsd),
+    blocker,
+    busy: render.state === "starting" || render.state === "running",
+    status:
+      render.state === "running"
+        ? `Rendu en cours · ${Math.max(0, Math.round((now - render.startedAt) / 1000))} s (environ 1 min)`
+        : render.state === "starting"
+          ? "Envoi au rendu…"
+          : render.state === "failed"
+            ? render.error
+            : render.state === "done"
+              ? "Vidéo prête"
+              : null,
+    tone: render.state === "failed" ? ("error" as const) : render.state === "done" ? ("ok" as const) : ("info" as const),
+    onCreate: () => void createVideo(),
+    onOpen:
+      render.state === "done" && render.artifactId
+        ? () => onOpenArtifact((render as { artifactId: string }).artifactId)
+        : undefined,
+  };
+
   if (!property) {
     return (
       <EditorFrame templateLabel={template.label}>
@@ -309,6 +444,7 @@ export function StudioEditor({
       description={mode === "outro" ? `${OUTRO_ONLY_SECONDS} s à ajouter à la fin d'une vidéo filmée sur place.` : template.description}
       mode={mode}
       onMode={setMode}
+      action={action}
     >
       <div className="grid md:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
         <aside className="space-y-4 border-neutral-200 p-3 md:border-r">
@@ -404,12 +540,23 @@ function EditorFrame({
   description,
   mode,
   onMode,
+  action,
   children,
 }: {
   templateLabel: string;
   description?: string;
   mode?: "full" | "outro";
   onMode?: (mode: "full" | "outro") => void;
+  action?: {
+    label: string;
+    price: string;
+    blocker: string | null;
+    busy: boolean;
+    status: string | null;
+    tone: "info" | "ok" | "error";
+    onCreate: () => void;
+    onOpen?: () => void;
+  };
   children: React.ReactNode;
 }) {
   return (
@@ -445,16 +592,42 @@ function EditorFrame({
           </div>
         )}
         {description && <span className="hidden text-xs text-neutral-500 lg:inline">{description}</span>}
-        <button
-          type="button"
-          disabled
-          title="Le rendu de la vidéo arrive bientôt"
-          className="ml-auto inline-flex h-9 shrink-0 items-center gap-1.5 whitespace-nowrap rounded-xl bg-neutral-100 px-3 text-sm font-semibold text-neutral-400"
-        >
-          <VideoCameraIcon size={16} weight="bold" className="size-4 shrink-0" />
-          Créer la vidéo
-          <span className="text-xs font-medium">(bientôt)</span>
-        </button>
+        {action ? (
+          <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
+            {action.status && (
+              <span
+                role="status"
+                className={cn(
+                  "inline-flex min-w-0 items-center gap-1.5 truncate text-xs font-semibold",
+                  action.tone === "error" ? "text-red-700" : action.tone === "ok" ? "text-green-700" : "text-neutral-600",
+                )}
+              >
+                {action.busy && <SpinnerGapIcon size={14} className="size-3.5 shrink-0 animate-spin" />}
+                {action.status}
+                {action.onOpen && (
+                  <button type="button" onClick={action.onOpen} className="cursor-pointer underline underline-offset-2">
+                    Voir
+                  </button>
+                )}
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={action.onCreate}
+              disabled={action.busy || action.blocker !== null}
+              title={action.blocker ?? `Prix estimé : ${action.price}, pris sur le budget vidéo du mois`}
+              className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-[0_6px_16px_-8px_rgba(201,106,46,0.8)] transition-transform active:scale-[0.985] disabled:cursor-not-allowed disabled:bg-neutral-200 disabled:text-neutral-500 disabled:shadow-none"
+            >
+              {action.busy ? (
+                <SpinnerGapIcon size={16} className="size-4 shrink-0 animate-spin" />
+              ) : (
+                <VideoCameraIcon size={16} weight="bold" className="size-4 shrink-0" />
+              )}
+              {action.blocker ?? action.label}
+              {!action.blocker && <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-xs font-bold tabular-nums">≈ {action.price}</span>}
+            </button>
+          </div>
+        ) : null}
       </div>
       {children}
     </div>

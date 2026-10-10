@@ -32,6 +32,7 @@ const KIND_ICON = {
   voiceover: WaveformIcon,
   image: ImageSquareIcon,
   captions: ClosedCaptioningIcon,
+  video: FilmSlateIcon,
 } as const;
 
 function pinnedLabel(a: Artifact, scripts: Artifact[]) {
@@ -81,7 +82,6 @@ export function ProjectPanel({
   const artifacts = detail?.artifacts ?? [];
   const scripts = artifacts.filter((a) => a.kind === "script").sort((a, b) => a.createdAt.localeCompare(b.createdAt));
   const pinned = artifacts.filter((a) => a.pinned).sort((a, b) => b.createdAt.localeCompare(a.createdAt));
-  const used = budget ? Math.min(1, budget.usedUsd / Math.max(budget.capUsd, 0.0001)) : 0;
 
   const action = (
     key: string,
@@ -152,29 +152,46 @@ export function ProjectPanel({
         </button>
       </div>
 
-      {/* Budget first (Salif, 2026-10-09): the price is what people check before acting. */}
+      {/* Budget first (Salif, 2026-10-09): the price is what people check before acting.
+          Two separate pots (2026-10-10): voices and images, and videos. */}
       {budget && !collapsed && (
-        <div className="grid gap-2 rounded-[20px] border border-white/80 bg-white/60 p-3.5">
+        <div className="grid gap-3 rounded-[20px] border border-white/80 bg-white/60 p-3.5">
           <div className="flex items-center justify-between gap-2">
-            <span className="text-xs text-neutral-500">Reste ce mois</span>
+            <span className="text-xs font-semibold text-neutral-600">Budget du mois</span>
             <button
               type="button"
               onClick={onCurrency}
               aria-label={currency === "FCFA" ? "Afficher en dollars" : "Afficher en FCFA"}
-              className="inline-flex h-8 w-[5.25rem] shrink-0 items-center justify-between rounded-lg border border-[rgba(74,52,36,0.10)] bg-white/80 px-2.5 text-[13px] font-semibold text-neutral-700"
+              className="inline-flex h-8 w-[5.25rem] shrink-0 cursor-pointer items-center justify-between rounded-lg border border-[rgba(74,52,36,0.10)] bg-white/80 px-2.5 text-[13px] font-semibold text-neutral-700"
             >
               <span className="tabular-nums">{currency === "FCFA" ? "FCFA" : "USD"}</span>
               <ArrowsLeftRightIcon size={14} weight="bold" className="size-3.5 shrink-0 text-neutral-400" />
             </button>
           </div>
-          <span className="whitespace-nowrap text-lg font-bold tabular-nums text-neutral-900">{money(budget.remainingUsd)}</span>
-          <span className="h-1.5 overflow-hidden rounded-full bg-[rgba(74,52,36,0.10)]">
-            <span
-              className="block h-full rounded-full bg-[linear-gradient(90deg,#e09a62,#c96a2e)] transition-[width] duration-500"
-              style={{ width: `${Math.max(2, (1 - used) * 100)}%` }}
-            />
-          </span>
-          <span className="text-xs tabular-nums text-neutral-500">sur {money(budget.capUsd)}</span>
+          {[
+            { key: "media", label: "Voix et images", hint: "Voix off, affiches, détourage, sous-titres", pot: budget },
+            ...(budget.video ? [{ key: "video", label: "Vidéos", hint: "Vidéos et fins créées dans l'Éditeur", pot: budget.video }] : []),
+          ].map(({ key, label, hint, pot }) => {
+            const left = 1 - Math.min(1, pot.usedUsd / Math.max(pot.capUsd, 0.0001));
+            return (
+              <div key={key} className="grid gap-1" title={hint}>
+                <div className="flex items-baseline justify-between gap-2">
+                  <span className="text-xs text-neutral-500">{label}</span>
+                  <span className="whitespace-nowrap text-[15px] font-bold tabular-nums text-neutral-900">{money(pot.remainingUsd)}</span>
+                </div>
+                <span className="h-1.5 overflow-hidden rounded-full bg-[rgba(74,52,36,0.10)]">
+                  <span
+                    className={cn(
+                      "block h-full rounded-full transition-[width] duration-500",
+                      key === "video" ? "bg-[linear-gradient(90deg,#7aa7d6,#3f73ab)]" : "bg-[linear-gradient(90deg,#e09a62,#c96a2e)]",
+                    )}
+                    style={{ width: `${Math.max(2, left * 100)}%` }}
+                  />
+                </span>
+                <span className="text-[11px] tabular-nums text-neutral-500">reste sur {money(pot.capUsd)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 

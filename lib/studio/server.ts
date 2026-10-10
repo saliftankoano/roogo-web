@@ -20,6 +20,34 @@ export async function getMonthlyCapUsd(userId: string): Promise<number> {
   return data ? Number(data.monthly_cap_usd) : defaultMonthlyCapUsd();
 }
 
+/** Videos have their own pot (Salif, 2026-10-10): about 6 cents per 40 s video. */
+const FALLBACK_VIDEO_CAP_USD = 3;
+
+export function defaultVideoCapUsd(): number {
+  const raw = Number(process.env.STUDIO_DEFAULT_VIDEO_CAP_USD);
+  return Number.isFinite(raw) && raw >= 0 ? raw : FALLBACK_VIDEO_CAP_USD;
+}
+
+export async function getVideoCapUsd(userId: string): Promise<number> {
+  const { data } = await supabaseAdmin
+    .from("studio_user_limits")
+    .select("monthly_video_cap_usd")
+    .eq("user_id", userId)
+    .maybeSingle();
+  return data?.monthly_video_cap_usd != null ? Number(data.monthly_video_cap_usd) : defaultVideoCapUsd();
+}
+
+export async function getVideoUsedThisMonthUsd(userId: string): Promise<number> {
+  const { data } = await supabaseAdmin
+    .from("studio_generations")
+    .select("est_cost_usd")
+    .eq("user_id", userId)
+    .eq("kind", "video")
+    .in("status", ["running", "finalizing", "done"])
+    .gte("created_at", startOfMonthIso());
+  return (data ?? []).reduce((sum, row) => sum + Number(row.est_cost_usd), 0);
+}
+
 export async function getUsedThisMonthUsd(userId: string): Promise<number> {
   const { data } = await supabaseAdmin
     .from("studio_generations")

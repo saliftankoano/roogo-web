@@ -36,6 +36,7 @@
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "date-fns": "^4.1.0",
+    "fflate": "^0.8.2",
     "framer-motion": "^12.34.0",
     "gsap": "^3.13.0",
     "heic-to": "^1.4.2",

@@ -36,7 +36,7 @@ export type ChatMessage = {
 
 export type Artifact = {
   id: string;
-  kind: "script" | "voiceover" | "image" | "captions";
+  kind: "script" | "voiceover" | "image" | "captions" | "video";
   title: string;
   text: string;
   voiceKey: string | null;
@@ -79,6 +79,8 @@ export type Budget = {
   usedUsd: number;
   remainingUsd: number;
   fcfaPerUsd: number;
+  /** Videos (HeyGen) have their own monthly pot, separate from voices and images. */
+  video?: { capUsd: number; usedUsd: number; remainingUsd: number };
 };
 
 export type Estimate = {

@@ -59,13 +59,15 @@ export async function GET(req: Request, { params }: Ctx) {
       let url: string | null = null;
       let downloadUrl: string | null = null;
       if (
-        (artifact.kind === "voiceover" || artifact.kind === "image") &&
+        (artifact.kind === "voiceover" || artifact.kind === "image" || artifact.kind === "video") &&
         artifact.output_path
       ) {
         const filename =
           artifact.kind === "image"
             ? `Roogo - ${String(artifact.title).replace(/[^\p{L}\p{N} ()-]/gu, "")}.png`
-            : "Roogo - Voix off.mp3";
+            : artifact.kind === "video"
+              ? `Roogo - ${String(artifact.text || artifact.title).replace(/[^\p{L}\p{N} ()',-]/gu, "")}.mp4`
+              : "Roogo - Voix off.mp3";
         const [play, download] = await Promise.all([
           storage.createSignedUrl(artifact.output_path, 3600),
           storage.createSignedUrl(artifact.output_path, 3600, { download: filename }),
