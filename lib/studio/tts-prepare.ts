@@ -40,7 +40,7 @@ const TENS = [
   "soixante",
 ];
 
-function below100(n: number): string {
+function below100(n: number, final = true): string {
   if (n < 20) return UNITS[n];
   if (n < 70) {
     const ten = Math.floor(n / 10);
@@ -55,17 +55,40 @@ function below100(n: number): string {
   }
   // 80 to 99: quatre-vingts, quatre-vingt-un ... quatre-vingt-dix-neuf
   const rest = n - 80;
-  if (rest === 0) return "quatre-vingts";
+  if (rest === 0) return final ? "quatre-vingts" : "quatre-vingt";
   return `quatre-vingt-${UNITS[rest]}`;
 }
 
-function below1000(n: number): string {
-  if (n < 100) return below100(n);
+// "final": cent and quatre-vingt take an s only at the very end of a number
+// ("deux cents", but "deux cent mille", "quatre-vingt mille").
+function below1000(n: number, final = true): string {
+  if (n < 100) return below100(n, final);
   const hundreds = Math.floor(n / 100);
   const rest = n % 100;
   const head = hundreds === 1 ? "cent" : `${UNITS[hundreds]} cent`;
-  if (rest === 0) return hundreds === 1 ? "cent" : `${UNITS[hundreds]} cents`;
-  return `${head} ${below100(rest)}`;
+  if (rest === 0) return hundreds === 1 || !final ? head : `${UNITS[hundreds]} cents`;
+  return `${head} ${below100(rest, final)}`;
+}
+
+/**
+ * French words for any whole amount up to 999 999 999 999, for prices:
+ * 50 000 000 -> "cinquante millions", 1 500 000 -> "un million cinq cent mille".
+ */
+export function amountToFrench(n: number): string {
+  if (!Number.isInteger(n) || n < 0 || n >= 1e12) {
+    throw new RangeError("amountToFrench supports integers below 10^12");
+  }
+  if (n === 0) return "zéro";
+  const parts: string[] = [];
+  const billions = Math.floor(n / 1e9);
+  const millions = Math.floor((n % 1e9) / 1e6);
+  const thousands = Math.floor((n % 1e6) / 1e3);
+  const rest = n % 1e3;
+  if (billions) parts.push(`${below1000(billions)} milliard${billions > 1 ? "s" : ""}`);
+  if (millions) parts.push(`${below1000(millions)} million${millions > 1 ? "s" : ""}`);
+  if (thousands) parts.push(thousands === 1 ? "mille" : `${below1000(thousands, false)} mille`);
+  if (rest) parts.push(below1000(rest));
+  return parts.join(" ");
 }
 
 /** French words for 0 to 9999 (enough for years and small figures). */
@@ -168,6 +191,48 @@ function countedReplace(
   return { out, count };
 }
 
+const ACCENTS: Record<string, string> = {
+  a: "aàâä",
+  c: "cç",
+  e: "eéèêë",
+  i: "iîï",
+  o: "oôö",
+  u: "uùûü",
+  y: "yÿ",
+};
+
+/**
+ * A pattern for a glossary term that also matches the usual variants staff and
+ * the script model write (Salif, 2026-10-10): any case, with or without accents,
+ * and spaces or hyphens between words ("Tanghin", "TANGHIN", "Tanghîn",
+ * "Bobo-Dioulasso", "Bobo Dioulasso"). Plurals are added by the caller.
+ */
+export function tolerantPattern(term: string): string {
+  return [...term.normalize("NFD").replace(/\p{M}/gu, "")]
+    .map((ch) => {
+      if (/[\s-]/.test(ch)) return "[\\s\\-]+";
+      const lower = ch.toLowerCase();
+      return ACCENTS[lower] ? `[${ACCENTS[lower]}]` : escapeRegExp(ch);
+    })
+    .join("")
+    .replace(/(\[\\s\\-\]\+)+/g, "[\\s\\-]+");
+}
+
+// Amounts written in digits before a currency ("50 000 000 FCFA", "250.000 F CFA").
+// Spoken in words so the voice never misreads a long number.
+const PRICE_PATTERN =
+  /(?<![\d])(\d{1,3}(?:[ .\u00a0\u202f]\d{3})+|\d{4,12})\s?(?:F\s?CFA|FCFA|francs?\s+CFA|XOF)\b/gi;
+
+function applyPrices(text: string): { out: string; count: number } {
+  return countedReplace(text, PRICE_PATTERN, (_match: string, digits: string) => {
+    const value = Number(digits.replace(/\D/g, ""));
+    if (!Number.isSafeInteger(value) || value >= 1e12) return _match;
+    const words = amountToFrench(value);
+    // "cinquante millions de francs CFA", but "deux cent mille francs CFA".
+    return `${words}${/(million|milliard)s?$/.test(words) ? " de" : ""} francs CFA`;
+  });
+}
+
 /**
  * Team glossary entries run first so a team override beats the built-in
  * table. Whole words only, case-insensitive, letters and digits of any
@@ -185,10 +250,11 @@ function applyGlossaryDetailed(
     const term = entry.term.trim();
     if (!term) continue;
     const pattern = new RegExp(
-      `(?<![\\p{L}\\p{N}])${escapeRegExp(term)}(?![\\p{L}\\p{N}])`,
+      `(?<![\\p{L}\\p{N}])${tolerantPattern(term)}(s|x)?(?![\\p{L}\\p{N}])`,
       "giu",
     );
-    const result = countedReplace(out, pattern, entry.spoken);
+    // A plural keeps its ending: "parcelles" -> "par-celles".
+    const result = countedReplace(out, pattern, (_match: string, plural?: string) => entry.spoken + (plural ?? ""));
     out = result.out;
     if (result.count) replacements.push({ term, spoken: entry.spoken, count: result.count });
   }
@@ -246,9 +312,13 @@ export function prepareForSpeechDetailed(
   glossary: ReadonlyArray<GlossaryEntry> = [],
 ): { spoken: string; replacements: SpeechReplacement[] } {
   const team = applyGlossaryDetailed(displayText.trim(), glossary);
-  const builtIn = applyRespellingsDetailed(team.out);
+  const prices = applyPrices(team.out);
+  const builtIn = applyRespellingsDetailed(prices.out);
   const spoken = applyYears(applyPhones(builtIn.out));
-  return { spoken, replacements: [...team.replacements, ...builtIn.replacements] };
+  const priceRule = prices.count
+    ? [{ term: "Prix en chiffres", spoken: "prix en lettres", count: prices.count }]
+    : [];
+  return { spoken, replacements: [...team.replacements, ...priceRule, ...builtIn.replacements] };
 }
 
 /** Display text in, spoken text out. */
