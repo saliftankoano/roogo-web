@@ -137,6 +137,14 @@ const RESPELLINGS: Respelling[] = [
   { term: "Ouaga", spoken: "Waga", pattern: /\bOuaga\b/gi, replacement: "Waga" },
   { term: "Burkina Faso", spoken: "Bourkina Faso", pattern: /\bBurkina\s+Faso\b/gi, replacement: "Bourkina Faso" },
   { term: "Burkina", spoken: "Bourkina", pattern: /\bBurkina\b/gi, replacement: "Bourkina" },
+  // Found on 2026-10-10: the voice spelled "roogobf.com" letter by letter. The
+  // Roogo rule below only matches the word on its own, not inside the domain.
+  {
+    term: "roogobf.com",
+    spoken: "Rohgo bé èf point com",
+    pattern: /\b(?:https?:\/\/)?(?:www\.)?roogobf\.com\b/gi,
+    replacement: "Rohgo bé èf point com",
+  },
   { term: "Roogo", spoken: "Rohgo", pattern: /\bRoogo\b/gi, replacement: "Rohgo" },
   { term: "Nagrin", spoken: "Nagrain", pattern: /\bNagrin\b/gi, replacement: "Nagrain" },
   {
@@ -158,6 +166,7 @@ const RESPELLINGS: Respelling[] = [
 
 /** Built-in respellings, shown read-only in the team glossary. */
 export const BUILTIN_RESPELLINGS: ReadonlyArray<{ term: string; spoken: string }> = [
+  { term: "roogobf.com", spoken: "Rohgo bé èf point com" },
   { term: "Roogo", spoken: "Rohgo" },
   { term: "Burkina Faso", spoken: "Bourkina Faso" },
   { term: "Ouaga / Ouagadougou", spoken: "Waga" },
