@@ -11,6 +11,7 @@ import {
 } from "./ai-tools";
 import { alignScriptToWords, buildCues, toSrt } from "./captions";
 import { normalizeScript } from "./copy-rules";
+import { buildMusicPrompt, generatedTitle, isMusicMood } from "./music";
 import {
   loadPropertyRow,
   propertyLabels,
@@ -162,6 +163,22 @@ export async function prepareJob(
     };
   }
 
+  if (tool === "music") {
+    const mood = isMusicMood(params.mood) ? params.mood : null;
+    const details = asString(params.details, 240);
+    if (!mood && !details) return fail(400, "Choisissez une ambiance ou décrivez la musique.");
+    return {
+      ok: true,
+      job: {
+        tool,
+        endpoint,
+        input: { prompt: buildMusicPrompt(mood, details) },
+        estimateUsd: estimateJobCostUsd({ tool }),
+        context: { tool, mood, details, title: generatedTitle(mood, details) },
+      },
+    };
+  }
+
   // captions: needs one of this conversation's voice-over artifacts.
   const artifactId = typeof params.artifact_id === "string" ? params.artifact_id : "";
   const { data: artifact } = await supabaseAdmin
@@ -213,6 +230,35 @@ function imageUrlOf(tool: JobTool, data: Record<string, unknown>): string | null
   }
   const images = data.images as Array<{ url?: string }> | undefined;
   return images?.[0]?.url ?? null;
+}
+
+const MAX_AUDIO_BYTES = 20 * 1024 * 1024;
+
+async function downloadAudio(url: string): Promise<Buffer | null> {
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return null;
+    const bytes = Buffer.from(await response.arrayBuffer());
+    return bytes.length > 0 && bytes.length <= MAX_AUDIO_BYTES ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Length of a constant-bitrate MP3 from its first frame header (Lyria returns 192 kbps CBR). */
+function mp3Seconds(bytes: Buffer): number | null {
+  const KBPS = [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320];
+  let i = 0;
+  if (bytes.subarray(0, 3).toString("latin1") === "ID3" && bytes.length > 10) {
+    i = 10 + ((bytes[6] << 21) | (bytes[7] << 14) | (bytes[8] << 7) | bytes[9]);
+  }
+  for (; i < Math.min(bytes.length - 4, i + 64 * 1024); i++) {
+    if (bytes[i] === 0xff && (bytes[i + 1] & 0xe0) === 0xe0) {
+      const kbps = KBPS[(bytes[i + 2] >> 4) & 0x0f];
+      if (kbps) return Math.round(((bytes.length - i) * 8) / (kbps * 1000) * 100) / 100;
+    }
+  }
+  return null;
 }
 
 async function downloadImage(url: string): Promise<Buffer | null> {
@@ -329,6 +375,38 @@ export async function finishJob(
       .single();
     if (!inserted) return { ok: false, error: "Les sous-titres n'ont pas pu être enregistrés." };
     return { ok: true, artifactId: inserted.id };
+  }
+
+  /* ----- music: joins the team library, not the project ----- */
+  if (tool === "music") {
+    const url = (result.data.audio as { url?: string } | undefined)?.url;
+    if (!url) return { ok: false, error: "Aucune musique reçue." };
+    const audio = await downloadAudio(url);
+    if (!audio) return { ok: false, error: "La musique n'a pas pu être téléchargée." };
+    const path = `music/generated/${randomUUID()}.mp3`;
+    const { error: uploadError } = await supabaseAdmin.storage
+      .from(STUDIO_BUCKET)
+      .upload(path, audio, { contentType: "audio/mpeg", upsert: false });
+    if (uploadError) {
+      console.error("Studio: music upload failed", uploadError.message);
+      return { ok: false, error: "La musique n'a pas pu être conservée." };
+    }
+    const { data: track } = await supabaseAdmin
+      .from("studio_music_tracks")
+      .insert({
+        title: String(context.title ?? "Musique générée").slice(0, 120),
+        source: "generated",
+        prompt: typeof context.details === "string" ? context.details : null,
+        duration_seconds: mp3Seconds(audio),
+        storage_path: path,
+        created_by: gen.user_id,
+        generation_id: gen.id,
+      })
+      .select("id")
+      .single();
+    if (!track) return { ok: false, error: "La musique n'a pas pu être enregistrée." };
+    await supabaseAdmin.from("studio_generations").update({ output_path: path }).eq("id", gen.id);
+    return { ok: true, artifactId: track.id };
   }
 
   /* ----- images ----- */

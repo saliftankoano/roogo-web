@@ -63,10 +63,25 @@ async function prepare(
   outro.backgroundUrl =
     sent.backgroundUrl === null ? null : typeof sent.backgroundUrl === "string" && allowed.has(sent.backgroundUrl) ? sent.backgroundUrl : base.backgroundUrl;
 
+  // Optional music from the team library, signed long enough for HeyGen's queue.
+  let musicUrl: string | null = null;
+  if (typeof body.music_track_id === "string" && body.music_track_id) {
+    const { data: track } = await supabaseAdmin
+      .from("studio_music_tracks")
+      .select("storage_path")
+      .eq("id", body.music_track_id)
+      .eq("archived", false)
+      .maybeSingle();
+    if (!track) return { ok: false, status: 400, error: "Cette musique n'existe plus. Choisissez-en une autre." };
+    const { data: signedMusic } = await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrl(track.storage_path, 3 * 3600);
+    if (!signedMusic?.signedUrl) return { ok: false, status: 500, error: "La musique n'est pas accessible." };
+    musicUrl = signedMusic.signedUrl;
+  }
+
   const mode = body.mode === "outro" ? "outro" : "full";
   const shortTitle = property.title.split(",").slice(0, 2).join(",");
   if (mode === "outro") {
-    const built = buildOutroOnly({ outro, logoUrl: LOGO_URL });
+    const built = buildOutroOnly({ outro, logoUrl: LOGO_URL, musicUrl });
     return { ok: true, job: { ...built, mode, title: `Fin seule · ${shortTitle}` } };
   }
 
@@ -100,6 +115,7 @@ async function prepare(
     voiceDelay: clampVoiceDelay(Number(body.voice_delay)),
     script: script?.text ?? undefined,
     logoUrl: LOGO_URL,
+    musicUrl,
     outro,
   });
   return { ok: true, job: { html: built.html, durationSeconds: built.durationSeconds, mode, title: `Visite POV · ${shortTitle}` } };
