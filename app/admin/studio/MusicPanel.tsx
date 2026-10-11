@@ -51,6 +51,7 @@ export function MusicPanel({
   videoSeconds,
   resume,
   onGenerated,
+  onGenerationState,
 }: {
   open: boolean;
   onClose: () => void;
@@ -65,6 +66,8 @@ export function MusicPanel({
   /** A generation still running from before (after a reload). */
   resume: { id: string; createdAt: string } | null;
   onGenerated: (trackId: string | null) => void;
+  /** Shown next to the "Musique" button, since this drawer is often closed. */
+  onGenerationState: (state: "running" | "failed" | null, message?: string) => void;
 }) {
   const [tab, setTab] = useState<"library" | "generate">("library");
   const [playingId, setPlayingId] = useState<string | null>(null);
@@ -173,6 +176,7 @@ export function MusicPanel({
                 canWrite={canWrite}
                 money={money}
                 resume={resume}
+                onState={onGenerationState}
                 onGenerated={(id) => {
                   onGenerated(id);
                   setTab("library");
@@ -308,12 +312,14 @@ function GenerateForm({
   canWrite,
   money,
   resume,
+  onState,
   onGenerated,
 }: {
   conversationId: string | null;
   canWrite: boolean;
   money: (usd: number) => string;
   resume: { id: string; createdAt: string } | null;
+  onState: (state: "running" | "failed" | null, message?: string) => void;
   onGenerated: (trackId: string | null) => void;
 }) {
   const [mood, setMood] = useState<MusicMood | null>("joyful");
@@ -325,6 +331,14 @@ function GenerateForm({
   useEffect(() => {
     if (resume) setState({ kind: "running", id: resume.id, startedAt: new Date(resume.createdAt).getTime() });
   }, [resume]);
+
+  const onStateRef = useRef(onState);
+  onStateRef.current = onState;
+  useEffect(() => {
+    if (state.kind === "running" || state.kind === "starting") onStateRef.current("running");
+    else if (state.kind === "error") onStateRef.current("failed", state.message);
+    else onStateRef.current(null);
+  }, [state]);
 
   const runningId = state.kind === "running" ? state.id : null;
   const onGeneratedRef = useRef(onGenerated);

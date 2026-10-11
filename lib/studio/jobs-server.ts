@@ -341,7 +341,9 @@ export async function finishJob(
       ok: false,
       error:
         result.status === 422
-          ? "L'image a été refusée par le filtre de sécurité. Changez le texte ou la photo."
+          ? tool === "music"
+            ? "La musique a été refusée par le filtre de sécurité. Changez la description."
+            : "L'image a été refusée par le filtre de sécurité. Changez le texte ou la photo."
           : "Le résultat n'a pas pu être récupéré. Réessayez.",
     };
   }
