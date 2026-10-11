@@ -229,6 +229,8 @@ export function StudioEditor({
   /* ---- music ---- */
   const [tracks, setTracks] = useState<MusicTrack[]>([]);
   const [tracksLoading, setTracksLoading] = useState(true);
+  const [tracksFailed, setTracksFailed] = useState(false);
+  const [musicJob, setMusicJob] = useState<{ state: "running" | "failed"; message?: string } | null>(null);
   const [musicResume, setMusicResume] = useState<{ id: string; createdAt: string } | null>(null);
   const [musicId, setMusicId] = useState<string | null>(null);
   const [musicOpen, setMusicOpen] = useState(false);
@@ -236,13 +238,19 @@ export function StudioEditor({
   const loadTracks = useCallback(async () => {
     try {
       const res = await fetch("/api/admin/studio/music");
-      if (!res.ok) return;
+      if (!res.ok) {
+        setTracksFailed(true);
+        return;
+      }
+      setTracksFailed(false);
       const data = (await res.json()) as { tracks?: MusicTrack[]; running?: { id: string; createdAt: string }[] };
       // Keep the first signed URL per track: re-signing would restart the preview.
       setTracks((current) =>
         (data.tracks ?? []).map((t) => ({ ...t, url: current.find((c) => c.id === t.id)?.url ?? t.url })),
       );
       setMusicResume(data.running?.[0] ?? null);
+    } catch {
+      setTracksFailed(true);
     } finally {
       setTracksLoading(false);
     }
@@ -477,7 +485,9 @@ export function StudioEditor({
           photos,
           voice_delay: voiceDelay,
           outro,
-          music_track_id: musicId,
+          // While the library is loading (or could not load), trust the saved choice:
+          // the server refuses a track that no longer exists.
+          music_track_id: tracksLoading || tracksFailed ? musicId : (music?.id ?? null),
           acknowledged_cost_usd: estimateUsd,
         }),
       });
@@ -556,11 +566,12 @@ export function StudioEditor({
           money={money}
           videoSeconds={renderSeconds}
           resume={musicResume}
+          onGenerationState={(state, message) => setMusicJob(state ? { state, message } : null)}
           onGenerated={(id) => {
+            onRendered(); // refreshes the budget the music was paid from
             void loadTracks().then(() => {
               if (id) chooseMusic(id);
             });
-            onRendered();
           }}
         />
         <aside className="space-y-4 border-neutral-200 p-3 md:border-r">
@@ -610,6 +621,18 @@ export function StudioEditor({
               <span className="min-w-0 flex-1 truncate">{music ? music.title : "Ajouter une musique"}</span>
               <span className="shrink-0 text-xs font-semibold text-primary">{music ? "Changer" : "Choisir"}</span>
             </button>
+            {musicJob && (
+              <p
+                role="status"
+                className={cn(
+                  "flex items-center gap-1.5 px-1 text-xs",
+                  musicJob.state === "failed" ? "font-semibold text-red-700" : "text-neutral-500",
+                )}
+              >
+                {musicJob.state === "running" && <SpinnerGapIcon size={12} className="size-3 shrink-0 animate-spin" />}
+                {musicJob.state === "running" ? "Musique en création, environ 40 s" : musicJob.message}
+              </p>
+            )}
           </section>
 
           <section className="space-y-2">
