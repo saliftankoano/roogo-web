@@ -362,3 +362,53 @@ function Fold({ label, children }: { label: string; children: React.ReactNode })
     </div>
   );
 }
+
+/**
+ * Shown while the Studio loads a project: the same shape as the project page
+ * (header, script, three result tiles) with the shared shimmer, so nothing
+ * jumps when the real page arrives.
+ */
+export function ProjectSkeleton() {
+  return (
+    <div className="flex min-h-[calc(100dvh-14rem)] flex-col @container" aria-busy="true" aria-label="Chargement du projet">
+      <header className="flex items-center gap-4 border-b border-[rgba(74,52,36,0.10)] px-5 py-4 md:px-7">
+        <span className="studio-skeleton size-12 shrink-0 rounded-[16px]" />
+        <span className="grid min-w-0 flex-1 gap-2">
+          <span className="studio-skeleton h-5 w-2/5 rounded-full" />
+          <span className="studio-skeleton h-3.5 w-3/5 rounded-full" />
+        </span>
+      </header>
+      <div className="grid w-full gap-4 p-4 md:p-5 @4xl:grid-cols-[minmax(0,1.2fr)_minmax(280px,1fr)] @4xl:items-start">
+        <div className="grid min-w-0 gap-3">
+          <span className="studio-skeleton h-4 w-20 rounded-full" />
+          <div className="grid gap-3 rounded-[22px] border border-[rgba(74,52,36,0.10)] bg-white/75 p-4">
+            <span className="studio-skeleton h-4 w-32 rounded-full" />
+            {["w-full", "w-11/12", "w-full", "w-4/5", "w-2/3"].map((width, i) => (
+              <span key={i} className={cn("studio-skeleton h-3.5 rounded-full", width)} />
+            ))}
+            <span className="mt-2 flex gap-2">
+              <span className="studio-skeleton h-10 w-40 rounded-xl" />
+              <span className="studio-skeleton h-10 w-24 rounded-xl" />
+            </span>
+          </div>
+          <div className="grid gap-2 rounded-[22px] border border-[rgba(74,52,36,0.10)] bg-white/75 p-4">
+            <span className="studio-skeleton h-3.5 w-36 rounded-full" />
+            <span className="studio-skeleton h-11 w-full rounded-2xl" />
+          </div>
+        </div>
+        <div className="grid min-w-0 gap-3 @xl:grid-cols-3 @4xl:grid-cols-1">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="grid gap-3 rounded-[22px] border border-[rgba(74,52,36,0.10)] bg-white/75 p-3.5">
+              <span className="flex items-center gap-2.5">
+                <span className="studio-skeleton size-8 shrink-0 rounded-full" />
+                <span className="studio-skeleton h-4 w-24 rounded-full" />
+                <span className="studio-skeleton ml-auto h-8 w-16 rounded-full" />
+              </span>
+              <span className="studio-skeleton h-9 w-full rounded-xl" />
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}

@@ -185,9 +185,18 @@ export function MusicPanel({
             </div>
             {tab !== "library" ? null : (
               loading ? (
-                <div className="space-y-2">
-                  {[0, 1, 2, 3].map((i) => (
-                    <div key={i} className="studio-skeleton h-14 rounded-xl" />
+                // Same shape as a track row, so nothing jumps when the list arrives.
+                <div className="space-y-1.5" aria-busy="true" aria-label="Chargement des musiques">
+                  <span className="studio-skeleton mb-1 ml-1 block h-3 w-14 rounded-full" />
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <div key={i} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-2.5 py-2">
+                      <span className="studio-skeleton size-8 rounded-full" />
+                      <span className="grid gap-1.5">
+                        <span className="studio-skeleton h-3.5 w-3/5 rounded-full" />
+                        <span className="studio-skeleton h-3 w-2/5 rounded-full" />
+                      </span>
+                      <span className="studio-skeleton h-8 w-16 rounded-lg" />
+                    </div>
                   ))}
                 </div>
               ) : tracks.length === 0 ? (
@@ -253,14 +262,15 @@ function TrackGroup({
   return (
     <section className="space-y-1.5">
       <h4 className="px-1 text-[11px] font-bold uppercase tracking-wide text-neutral-400">{label}</h4>
-      {tracks.map((track) => {
+      {tracks.map((track, index) => {
         const selected = track.id === selectedId;
         const tooShort = track.seconds != null && track.seconds < videoSeconds;
         return (
           <div
             key={track.id}
+            style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}
             className={cn(
-              "grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border bg-white px-2.5 py-2 transition-colors",
+              "grid animate-[studio-rise_0.32s_cubic-bezier(0.22,1,0.36,1)_both] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border bg-white px-2.5 py-2 transition-colors motion-reduce:animate-none",
               selected ? "border-primary/60 shadow-[0_6px_16px_-12px_rgba(201,106,46,0.8)]" : "border-neutral-200",
             )}
           >
