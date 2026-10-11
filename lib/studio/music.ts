@@ -44,3 +44,9 @@ export function generatedTitle(mood: MusicMood | null, details: string): string 
   const title = [label, short].filter(Boolean).join(", ");
   return title ? title.charAt(0).toUpperCase() + title.slice(1) : "Musique générée";
 }
+
+/** File name for a downloaded track, read like a title: "Roogo - Musique - Good Day Ouaga.mp3". */
+export function musicDownloadName(title: string): string {
+  const clean = title.replace(/[^\p{L}\p{N} ,'()-]/gu, " ").replace(/\s+/g, " ").trim();
+  return clean ? `Roogo - Musique - ${clean}.mp3` : "Roogo - Musique.mp3";
+}
