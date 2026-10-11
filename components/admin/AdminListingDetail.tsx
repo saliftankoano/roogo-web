@@ -635,7 +635,7 @@ export default function AdminListingDetail({
                       <p>{statusError.message}</p>
                       {statusError.code === "sale_mandate_required" && (
                         <Link
-                          href="/admin/sale-chat"
+                          href="/admin/discussions-vente"
                           className="mt-2 inline-flex font-semibold text-[#A84F1C] underline underline-offset-2"
                         >
                           Ouvrir les conversations ventes

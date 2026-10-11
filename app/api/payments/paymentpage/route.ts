@@ -373,7 +373,7 @@ export async function POST(req: Request) {
       process.env.PAWAPAY_PAYMENTPAGE_RETURN_URL?.trim();
     const baseUrl =
       process.env.NEXT_PUBLIC_APP_URL || "https://www.roogobf.com";
-    const fallbackReturnUrl = `${baseUrl.replace(/\/+$/, "")}/payments/callback`;
+    const fallbackReturnUrl = `${baseUrl.replace(/\/+$/, "")}/paiements/retour`;
 
     let validatedExplicitReturnUrl: string | null = null;
     if (explicitReturnUrl) {

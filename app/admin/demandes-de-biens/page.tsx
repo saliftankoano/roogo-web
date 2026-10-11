@@ -600,7 +600,7 @@ function ResponseCard({
           </p>
           {response.commission_confirmed_at ? (
             <a
-              href={`/admin/property-requests/${response.request_id}/responses/${response.id}/agreement`}
+              href={`/admin/demandes-de-biens/${response.request_id}/reponses/${response.id}/accord`}
               className="mt-3 inline-block text-sm font-bold text-primary"
               target="_blank"
               rel="noreferrer"

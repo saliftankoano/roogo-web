@@ -124,7 +124,7 @@ See the [consolidation decision](./DECISIONS.md#consolidate-unapplied-payment-mi
 
 As of 2026-09-08, ROO-20 is implemented and reviewed on draft PRs [web #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile #30](https://github.com/saliftankoano/roogo/pull/30). Shared database migrations and the mobile release have not been performed by this task. Local tests and preview deployments are not production release evidence.
 
-An [appel à biens](./DOMAIN.md#appel-à-biens) captures a customer's property need. Operations owns the call and follow-up in **Opérations → Appels à biens** (`/admin/property-requests`); mobile agents and owners supply proposals. Staff publish a draft by selecting **Ouvert** and close it when no further proposals are needed. The backend authenticates Clerk bearer tokens and enforces identity, role, privacy and submission rules.
+An [appel à biens](./DOMAIN.md#appel-à-biens) captures a customer's property need. Operations owns the call and follow-up in **Opérations → Appels à biens** (`/admin/demandes-de-biens`); mobile agents and owners supply proposals. Staff publish a draft by selecting **Ouvert** and close it when no further proposals are needed. The backend authenticates Clerk bearer tokens and enforces identity, role, privacy and submission rules.
 
 | Actor | Access and responsibility |
 | --- | --- |
