@@ -70,6 +70,8 @@ export function MusicPanel({
   onGenerationState: (state: "running" | "failed" | null, message?: string) => void;
 }) {
   const [tab, setTab] = useState<"library" | "generate">("library");
+  const setTabRef = useRef(setTab);
+  setTabRef.current = setTab;
   const [playingId, setPlayingId] = useState<string | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -181,6 +183,7 @@ export function MusicPanel({
                   onGenerated(id);
                   setTab("library");
                 }}
+                onError={() => setTabRef.current("generate")}
               />
             </div>
             {tab !== "library" ? null : (
@@ -314,6 +317,7 @@ function GenerateForm({
   resume,
   onState,
   onGenerated,
+  onError,
 }: {
   conversationId: string | null;
   canWrite: boolean;
@@ -321,6 +325,7 @@ function GenerateForm({
   resume: { id: string; createdAt: string } | null;
   onState: (state: "running" | "failed" | null, message?: string) => void;
   onGenerated: (trackId: string | null) => void;
+  onError: () => void;
 }) {
   const [mood, setMood] = useState<MusicMood | null>("joyful");
   const [details, setDetails] = useState("");
@@ -343,6 +348,8 @@ function GenerateForm({
   const runningId = state.kind === "running" ? state.id : null;
   const onGeneratedRef = useRef(onGenerated);
   onGeneratedRef.current = onGenerated;
+  const onErrorRef = useRef(onError);
+  onErrorRef.current = onError;
   useEffect(() => {
     if (!runningId) return;
     let stopped = false;
@@ -358,6 +365,7 @@ function GenerateForm({
           onGeneratedRef.current(data.artifactId ?? null);
         } else if (data.state === "failed" || res.status === 404) {
           setState({ kind: "error", message: data.error ?? "La création a échoué." });
+          onErrorRef.current();
         }
       } catch {
         // Transient: next tick.
