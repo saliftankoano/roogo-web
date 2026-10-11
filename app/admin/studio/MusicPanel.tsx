@@ -5,6 +5,7 @@ import { createPortal } from "react-dom";
 import { motion } from "framer-motion";
 import {
   CheckIcon,
+  DownloadSimpleIcon,
   MusicNotesIcon,
   PauseIcon,
   PlayIcon,
@@ -24,6 +25,7 @@ export type MusicTrack = {
   author: string | null;
   createdAt: string;
   url: string | null;
+  downloadUrl: string | null;
 };
 
 export const MUSIC_PRICE_USD = estimateJobCostUsd({ tool: "music" });
@@ -189,12 +191,13 @@ export function MusicPanel({
                 <div className="space-y-1.5" aria-busy="true" aria-label="Chargement des musiques">
                   <span className="studio-skeleton mb-1 ml-1 block h-3 w-14 rounded-full" />
                   {[0, 1, 2, 3, 4].map((i) => (
-                    <div key={i} className="grid grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-2.5 py-2">
+                    <div key={i} className="grid grid-cols-[32px_minmax(0,1fr)_auto_auto] items-center gap-2.5 rounded-xl border border-neutral-200 bg-white px-2.5 py-2">
                       <span className="studio-skeleton size-8 rounded-full" />
                       <span className="grid gap-1.5">
                         <span className="studio-skeleton h-3.5 w-3/5 rounded-full" />
                         <span className="studio-skeleton h-3 w-2/5 rounded-full" />
                       </span>
+                      <span className="studio-skeleton size-8 rounded-lg" />
                       <span className="studio-skeleton h-8 w-16 rounded-lg" />
                     </div>
                   ))}
@@ -270,7 +273,7 @@ function TrackGroup({
             key={track.id}
             style={{ animationDelay: `${Math.min(index, 8) * 35}ms` }}
             className={cn(
-              "grid animate-[studio-rise_0.32s_cubic-bezier(0.22,1,0.36,1)_both] grid-cols-[32px_minmax(0,1fr)_auto] items-center gap-2.5 rounded-xl border bg-white px-2.5 py-2 transition-colors motion-reduce:animate-none",
+              "grid animate-[studio-rise_0.32s_cubic-bezier(0.22,1,0.36,1)_both] grid-cols-[32px_minmax(0,1fr)_auto_auto] items-center gap-2.5 rounded-xl border bg-white px-2.5 py-2 transition-colors motion-reduce:animate-none",
               selected ? "border-primary/60 shadow-[0_6px_16px_-12px_rgba(201,106,46,0.8)]" : "border-neutral-200",
             )}
           >
@@ -295,6 +298,18 @@ function TrackGroup({
                   .join(" · ")}
               </span>
             </span>
+            {track.downloadUrl ? (
+              <a
+                href={track.downloadUrl}
+                aria-label={`Télécharger ${track.title}`}
+                title="Télécharger"
+                className="flex size-8 items-center justify-center rounded-lg text-neutral-500 transition-colors hover:bg-primary/5 hover:text-primary"
+              >
+                <DownloadSimpleIcon size={16} weight="bold" />
+              </a>
+            ) : (
+              <span aria-hidden className="size-8" />
+            )}
             {selected ? (
               <span className="inline-flex items-center gap-1 rounded-full bg-green-50 px-2 py-0.5 text-[11px] font-bold text-green-700">
                 <CheckIcon size={11} weight="bold" />

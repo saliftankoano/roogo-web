@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { musicDownloadName } from "@/lib/studio/music";
 import { STUDIO_BUCKET } from "@/lib/studio/server";
 
 export async function OPTIONS(req: Request) {
@@ -9,7 +10,8 @@ export async function OPTIONS(req: Request) {
 }
 
 // The team's music library: Roogo instrumentals first, then tracks made in the
-// Studio, newest first. Links are signed for an hour, for listening only.
+// Studio, newest first. Links are signed for an hour: one to listen, one to
+// download with a readable file name (the team asked to download, 2026-10-11).
 export async function GET(req: Request) {
   const staff = await getStaffOrFounder(req);
   if (!staff) return errorResponse("Forbidden", 403, req);
@@ -29,7 +31,10 @@ export async function GET(req: Request) {
   const storage = supabaseAdmin.storage.from(STUDIO_BUCKET);
   const tracks = await Promise.all(
     (rows ?? []).map(async (row) => {
-      const { data } = await storage.createSignedUrl(row.storage_path, 3600);
+      const [{ data }, { data: download }] = await Promise.all([
+        storage.createSignedUrl(row.storage_path, 3600),
+        storage.createSignedUrl(row.storage_path, 3600, { download: musicDownloadName(row.title) }),
+      ]);
       const author = (Array.isArray(row.users) ? row.users[0] : row.users) as { full_name?: string | null } | null;
       return {
         id: row.id,
@@ -39,6 +44,7 @@ export async function GET(req: Request) {
         author: author?.full_name ?? null,
         createdAt: row.created_at,
         url: data?.signedUrl ?? null,
+        downloadUrl: download?.signedUrl ?? null,
       };
     }),
   );
