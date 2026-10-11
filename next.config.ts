@@ -24,6 +24,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // The ffmpeg binary is spawned at runtime (Studio video compression), so it
+  // must not be bundled and must ship with the route that uses it.
+  serverExternalPackages: ["ffmpeg-static"],
+  outputFileTracingIncludes: {
+    "/api/admin/studio/videos/[id]": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "25mb", // Increase body size limit for image uploads
