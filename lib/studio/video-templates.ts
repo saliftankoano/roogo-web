@@ -382,3 +382,18 @@ ${shotTweens}
 
   return { html, durationSeconds: total, shots };
 }
+
+/**
+ * File name for a downloaded studio video, read like a real title:
+ * "Roogo - Maison à vendre, Koubri - Visite du bien.mp4" or "... - Fin de vidéo.mp4".
+ * `label` is the stored artifact text ("Visite POV · <bien>" or "Fin seule · <bien>").
+ */
+export function videoDownloadName(label: string, fallbackTitle = ""): string {
+  const [kind, ...rest] = label.split("·").map((part) => part.trim());
+  const place = rest.join(" ").trim();
+  const what = /^fin/i.test(kind) || /^fin/i.test(fallbackTitle) ? "Fin de vidéo" : "Visite du bien";
+  const clean = (text: string) =>
+    text.replace(/[^\p{L}\p{N} ,'()-]/gu, " ").replace(/\s+/g, " ").trim();
+  const subject = clean(place || (kind && !/^(visite pov|fin seule)$/i.test(kind) ? kind : ""));
+  return subject ? `Roogo - ${subject} - ${what}.mp4` : `Roogo - ${what}.mp4`;
+}

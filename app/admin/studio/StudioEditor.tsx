@@ -3,6 +3,7 @@
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  DownloadSimpleIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
   DotsSixVerticalIcon,
@@ -148,6 +149,10 @@ export function StudioEditor({
   onOpenArtifact: (artifactId: string) => void;
 }) {
   const template = VIDEO_TEMPLATES[0];
+  // The newest finished video of this project, offered for download in the header.
+  const latestVideo = ordered
+    .filter((a) => a.kind === "video" && a.downloadUrl)
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   // The newest voice-over, by date (pinning must not change which one is used):
   // the render route picks the same one.
   const voice = ordered
@@ -424,6 +429,8 @@ export function StudioEditor({
               : null,
     tone: render.state === "failed" ? ("error" as const) : render.state === "done" ? ("ok" as const) : ("info" as const),
     onCreate: () => void createVideo(),
+    downloadUrl: latestVideo?.downloadUrl ?? null,
+    downloadLabel: latestVideo?.title === "Fin seule" ? "Télécharger la fin" : "Télécharger la vidéo",
     onOpen:
       render.state === "done" && render.artifactId
         ? () => onOpenArtifact((render as { artifactId: string }).artifactId)
@@ -562,6 +569,8 @@ function EditorFrame({
     tone: "info" | "ok" | "error";
     onCreate: () => void;
     onOpen?: () => void;
+    downloadUrl?: string | null;
+    downloadLabel?: string;
   };
   children: React.ReactNode;
 }) {
@@ -616,6 +625,16 @@ function EditorFrame({
                   </button>
                 )}
               </span>
+            )}
+            {action.downloadUrl && (
+              <a
+                href={action.downloadUrl}
+                title="La vidéo la plus récente de ce projet"
+                className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-3.5 text-sm font-semibold text-primary transition-colors hover:bg-primary/5 active:scale-[0.985]"
+              >
+                <DownloadSimpleIcon size={16} weight="bold" className="size-4 shrink-0" />
+                {action.downloadLabel ?? "Télécharger la vidéo"}
+              </a>
             )}
             <button
               type="button"
