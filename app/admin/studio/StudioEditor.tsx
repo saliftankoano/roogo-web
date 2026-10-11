@@ -2,6 +2,7 @@
 
 import Image from "next/image";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
 import {
   DownloadSimpleIcon,
   ArrowLeftIcon,
@@ -547,7 +548,7 @@ export function StudioEditor({
 
   return (
     <EditorFrame
-      templateLabel={mode === "outro" ? "Fin seule" : template.label}
+      templateLabel={template.label}
       description={mode === "outro" ? `${OUTRO_ONLY_SECONDS} s à ajouter à la fin d'une vidéo filmée sur place.` : template.description}
       mode={mode}
       onMode={setMode}
@@ -574,9 +575,20 @@ export function StudioEditor({
             });
           }}
         />
-        <aside className="space-y-4 border-neutral-200 p-3 md:border-r">
+        <aside className="flex flex-col border-neutral-200 p-3 md:border-r">
+          {/* Folds instead of disappearing, so switching modes does not make the page jump. */}
+          <AnimatePresence initial={false}>
           {mode === "full" && (
-          <>
+          <motion.div
+            key="full-only"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+          {/* Spacing lives inside the fold so it collapses with it. */}
+          <div className="space-y-4 pb-4">
           <section className="space-y-2">
             <div className="flex items-baseline justify-between gap-2 px-1">
               <h3 className="text-xs font-semibold text-neutral-500">Photos du bien ({photos.length})</h3>
@@ -601,9 +613,12 @@ export function StudioEditor({
               </p>
             )}
           </section>
-
-          </>
+          </div>
+          </motion.div>
           )}
+          </AnimatePresence>
+
+          <div className="space-y-4">
 
           <section className="space-y-1.5">
             <h3 className="px-1 text-xs font-semibold text-neutral-500">Musique</h3>
@@ -643,6 +658,7 @@ export function StudioEditor({
               <OutroEditor outro={outro} photos={listingPhotos} canWrite={canWrite} onChange={changeOutro} onReset={resetOutro} />
             )}
           </section>
+          </div>
         </aside>
 
         <div className="relative min-h-[440px] overflow-hidden bg-[#faf7f4] lg:min-h-[560px]">
@@ -668,7 +684,17 @@ export function StudioEditor({
         </div>
       </div>
 
-      <div className={cn("shrink-0 border-t border-neutral-200 p-3", mode === "outro" && "hidden")}>
+      <AnimatePresence initial={false}>
+      {mode === "full" && (
+      <motion.div
+        key="timeline"
+        initial={{ height: 0, opacity: 0 }}
+        animate={{ height: "auto", opacity: 1 }}
+        exit={{ height: 0, opacity: 0 }}
+        transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+        className="shrink-0 overflow-hidden"
+      >
+      <div className="border-t border-neutral-200 p-3">
         <Timeline
           shots={shots}
           total={total}
@@ -687,6 +713,9 @@ export function StudioEditor({
           onKey={onKey}
         />
       </div>
+      </motion.div>
+      )}
+      </AnimatePresence>
 
       {voiceSrc && (
         <audio key={voiceSrc.id} ref={audioRef} src={voiceSrc.url} preload="auto" className="hidden" />
@@ -745,16 +774,23 @@ function EditorFrame({
                 aria-selected={mode === key}
                 onClick={() => onMode(key)}
                 className={cn(
-                  "h-8 cursor-pointer rounded-[10px] px-3 text-xs font-semibold transition-colors",
-                  mode === key ? "bg-primary/10 text-[#b45a22]" : "text-neutral-500 hover:text-neutral-800",
+                  "relative h-8 cursor-pointer rounded-[10px] px-3 text-xs font-semibold transition-colors",
+                  mode === key ? "text-[#b45a22]" : "text-neutral-500 hover:text-neutral-800",
                 )}
               >
-                {label}
+                {mode === key && (
+                  <motion.span
+                    layoutId="editor-mode-pill"
+                    transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
+                    className="absolute inset-0 rounded-[10px] bg-primary/10"
+                  />
+                )}
+                <span className="relative">{label}</span>
               </button>
             ))}
           </div>
         )}
-        {description && <span className="hidden text-xs text-neutral-500 lg:inline">{description}</span>}
+        {description && <span className="order-last hidden basis-full truncate text-xs text-neutral-500 lg:block">{description}</span>}
         {action ? (
           <div className="ml-auto flex min-w-0 flex-wrap items-center justify-end gap-2">
             {action.status && (
