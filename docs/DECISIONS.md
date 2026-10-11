@@ -7,6 +7,76 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Page addresses are French; old ones redirect, except the payment return — 2026-10-11
+
+**Decision:** Rename the 9 English page addresses to French (`/bienvenue`, `/paiements/retour`, and seven admin pages such as `/admin/demandes-de-biens` and `/admin/assistance`). Every old address answers with a permanent redirect in one hop, keeping the query string. The old payment return `/payments/callback` is **not** redirected: it keeps serving the same page directly. `/api/` addresses, `/app`, `/p/[id]`, `/admin`, `/blog`, `/talent`, `/mebo` and `/confidentialite/en` keep their names.
+
+**Why:** Salif wants every address in French. Payments must stay as fast as possible, so a payment started before the change must not take an extra hop on its way back. The mobile app only calls `/api/` and opens listing and terms pages, so it is unaffected (checked on 2026-10-11, including older installed versions; the payment return address is chosen by the server, not the app).
+
+**Ruled out / alternatives:** Redirecting the payment return (one extra round trip for in-flight payments). Renaming `/api/` routes (the mobile app and PawaPay call them). `/admin/appels-a-biens`, which matches the page title, was offered; Salif kept `/admin/demandes-de-biens`.
+
+**Status:** Settled. Full before/after list in [#58](https://github.com/saliftankoano/roogo-web/pull/58). The one-hop fix for old admin addresses is #59.
+
+### Studio videos are re-encoded before storage — 2026-10-11
+
+**Decision:** Re-encode every HeyGen render on the server before saving it (ffmpeg, H.264 CRF 23, 8 Mbps cap, AAC 160k). A file still over 48 MB fails with a clear message.
+
+**Why:** HeyGen has no bitrate setting and rendered a 34 s video of a field at 85 MB. Supabase refuses any upload over 50 MB project-wide, whatever the bucket says (measured: 49 MB accepted, 51 MB refused), so Ablassé's video failed. Re-encoding gave 12.9 MB with no visible difference, and staff download on mobile data.
+
+**Ruled out / alternatives:** Raising the Supabase limit (plan-dependent, and the files would stay heavy to download). HeyGen `draft` quality (lower picture quality, size not guaranteed). 720p renders (visible loss).
+
+**Status:** Settled. Verified on production on 2026-10-11: 1.25 MB → 0.36 MB (Fin seule) and 13.3 MB → 3.7 MB (full video, ready in 95 s). See [how videos are made](./SYSTEM.md#how-does-a-studio-video-get-made-and-stored).
+
+### Studio music: Roogo tracks and generated instrumentals only — 2026-10-11
+
+**Decision:** The Studio music library holds the 7 tracks Roogo uses in its own productions (6 instrumentals and "Roogo vous rapproche"). Staff can generate instrumentals with fal **Lyria 3 Pro** (about $0.08 a track, paid from the voices-and-images budget); generated tracks join the shared library. The music plays from the first frame to the last, low under the voice (0.08), up when nobody speaks (0.32), faded at the end.
+
+**Why:** Salif wants the team to choose or generate music for videos and to hear the song clearly before and after the voice. Lyria 3 Pro led the instrumental ranking for under a tenth of Eleven Music's price; a real test call returned an 86 s instrumental with no vocals.
+
+**Ruled out / alternatives:** The 11 artist songs in the vault (Floby, Fils-Belem, Naza and others) and a Facebook reel clip: no licence was found, and Facebook, Instagram and TikTok detect them and can mute or block posts and ads. Staff can add such songs with the platform's own music picker when posting. Eleven Music (exact length but about 10 times the price). Lyria 2 (30 s maximum).
+
+**Status:** Settled for the library and model. Open: the artist songs join the library only when Salif confirms their rights. See [how music is mixed](./SYSTEM.md#how-does-music-play-in-a-studio-video).
+
+### Build-time assets ship with the app — 2026-10-11
+
+**Decision:** Fonts used by app pages are bundled with the repo (`next/font/local`) instead of fetched from Google Fonts during the build.
+
+**Why:** On 2026-10-11 Google answered a Nunito request with URLs Turbopack could not parse, and the production build failed although the same code had built minutes earlier. A build must not depend on a third party's response format.
+
+**Ruled out / alternatives:** Retrying the build (works only by luck). The Studio outro preview has no Nunito Black file yet, so weight 900 uses ExtraBold in that preview; rendered videos are unaffected.
+
+**Status:** Settled.
+
+### Studio videos are built from listing photos and templates — 2026-10-10
+
+**Decision:** Studio videos are HyperFrames pages built from a template and rendered in the HeyGen cloud: **Visite POV** (the listing's photos as a walkthrough, the voice-over, then the outro) and **Fin seule** (the 6 s outro alone, for videos filmed in person). The outro photo and text are editable, but the price always comes from the listing, in the editor and on the server. Videos have their own monthly budget, separate from voices and images, and every button shows its price.
+
+**Why:** Salif wanted photo-based template videos the team can make without filming, and an ending to add to videos they film themselves. A price typed by hand could be wrong on a published ad. HeyGen costs scale differently from voices and images, so one shared pot would let videos starve the rest.
+
+**Ruled out / alternatives:** Rendering on our own servers (no renderer in our stack). AI video models (banned for the Studio since 2026-09-21). One shared budget.
+
+**Status:** Settled. The outro design is council version D, approved 2026-10-10; the full record is in the Obsidian vault (`08 Decisions/Studio photo videos from templates.md`).
+
+### A Studio project is one property, laid out as script plus result tiles — 2026-10-10
+
+**Decision:** A Studio project belongs to one property; everything made for it (script, voice-overs, visuals, videos) stays with it, and changing the property of a project that already has results opens a new project. The page shows the script and the assistant on the left and compact Voix off, Visuels and Vidéo tiles on the right; a tile opens its tool full size, and a tool switcher and the side panel move between tools.
+
+**Why:** Staff found the chat-centred layout confusing and could not see how to start a voice, visual or video. Results carried over between properties by mistake.
+
+**Ruled out / alternatives:** Chat in the centre with results inside the conversation, and stacked full-width result cards (both tried and rejected by Salif). A full admin redesign (would force re-recording the staff training videos). Dark theme (not Roogo's brand).
+
+**Status:** Settled (council layout A).
+
+### Studio pronunciation: the glossary guides the writer, rules make the speech — 2026-10-10
+
+**Decision:** The team glossary and built-in respellings are sent to the script-writing model, so names are spelled the way the rules expect. The text sent to the voice is still produced by deterministic rules, which now ignore case and accents and accept plurals and hyphen variants. Prices, phone numbers and years are converted only by these rules, and prices are spoken in words ("cinquante millions de francs CFA"). Staff see "Texte envoyé à la voix" before paying.
+
+**Why:** Exact matching missed variants. Letting a model write the spoken text could silently drop a zero from a price or change a phone digit.
+
+**Ruled out / alternatives:** A model writing respelled words into the visible script (staff and captions would read misspellings). A second model pass only for speech (not repeatable, extra cost; kept as a later option if the rules still miss words).
+
+**Status:** Settled. See [pronunciation](./SYSTEM.md#how-does-the-studio-make-the-voice-say-words-correctly).
+
 ### Gallery order determines the principal photo — 2026-10-05
 
 **Decision:** Let users reorder photos with drag handles or arrows. The first photo is always the principal photo; persist the complete order and principal flag in one transaction.

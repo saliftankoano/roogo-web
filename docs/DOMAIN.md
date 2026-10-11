@@ -31,6 +31,7 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
 - **External records and rails:** identity, ownership, RCCM business evidence,
   contracts, and Mobile Money records are kept as distinct evidence; government
   per-diem ceilings constrain eligible event rates.
+- **Content Studio (staff):** staff turn a live annonce into marketing content in one **projet**: script, voice-over, visuals and a video, each paid from a monthly budget with the price shown before every click.
 - **Payment evidence:** collection, reservation fulfillment and notification receipt are distinct. The payment-safety PRs remain pending release; see [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover).
 
 ## Customer payments
@@ -294,3 +295,64 @@ for Mebo.
 **Why it matters for building:** A valid Roogo login does not automatically make
 someone an approved advertiser. Business proof, completeness, feature access,
 and review state independently govern what the user may submit or edit.
+
+## Content Studio
+
+### Projet (Studio)
+
+**Meaning:** The Studio's unit of work: one property and everything made for it (scripts, voice-overs, visuals, videos). Another property means another project.
+
+**Origin:** Coined for the Studio on 2026-10-10 (Salif).
+
+**Why it matters for building:** Results must never carry over between properties; changing the property of a project that already has results opens a new project.
+
+**Evidence:** [Decision](./DECISIONS.md#a-studio-project-is-one-property-laid-out-as-script-plus-result-tiles--2026-10-10).
+
+### Visite POV
+
+**Meaning:** The first Studio video template: the listing's photos shown as a walkthrough under the voice-over, ending on the Roogo outro with the price and the number to call.
+
+**Origin:** Roogo's point-of-view listing video format, made into a template on 2026-10-10.
+
+**Why it matters for building:** Only the listing's own photos are allowed, and the outro price always comes from the listing.
+
+**Evidence:** [How a video is made](./SYSTEM.md#how-does-a-studio-video-get-made-and-stored).
+
+### Fin seule
+
+**Meaning:** The 6-second Roogo outro on its own, to add at the end of a video the team filmed in person.
+
+**Origin:** Requested by Salif on 2026-10-10.
+
+**Why it matters for building:** It has no voice or watermark, keeps the music up the whole time, and is labelled "Fin de vidéo" when downloaded.
+
+### Voix et images / Vidéos (budgets)
+
+**Meaning:** The two monthly Studio budgets per person. **Voix et images** pays for voice-overs, previews, images, subtitles and music (Cartesia and fal); **Vidéos** pays for HeyGen renders.
+
+**Origin:** Split by Salif on 2026-10-10.
+
+**Why it matters for building:** Every paid action reserves from exactly one pot before calling the provider, and the price is shown on the button.
+
+**Evidence:** `reserve_studio_spend` (migrations 082, 083).
+
+### Glossaire de prononciation / Texte envoyé à la voix
+
+**Meaning:** The team's list of words with how to say them, and the respelled text actually sent to the voice, shown before paying. The visible script keeps normal spelling.
+
+**Origin:** Studio feature; matching made tolerant on 2026-10-10.
+
+**Why it matters for building:** Respellings and numbers are produced by rules, never by a model, so prices and phone numbers cannot change.
+
+**Evidence:** [Pronunciation](./SYSTEM.md#how-does-the-studio-make-the-voice-say-words-correctly).
+
+### Bibliothèque musicale (Studio)
+
+**Meaning:** The team's music for Studio videos: Roogo's own tracks plus instrumentals generated in the Studio, shared by everyone.
+
+**Origin:** 2026-10-11 (Salif).
+
+**Why it matters for building:** Only tracks Roogo has the right to use belong here; commercial artist songs wait for rights confirmation.
+
+**Evidence:** [Decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
+
