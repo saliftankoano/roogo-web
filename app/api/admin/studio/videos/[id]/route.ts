@@ -5,8 +5,10 @@ import { getStaffOrFounder } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { renderStatus } from "@/lib/studio/heygen-server";
 import { STUDIO_BUCKET } from "@/lib/studio/server";
+import { MAX_STORED_VIDEO_BYTES, compressVideo } from "@/lib/studio/video-compress";
 
-export const maxDuration = 60;
+// Re-encoding a 40 s render takes well under a minute; the margin is for slow machines.
+export const maxDuration = 300;
 
 // A render that never finishes must not stay "running" against the video budget.
 const MAX_RENDER_MINUTES = 15;
@@ -79,6 +81,15 @@ export async function GET(req: Request, { params }: Ctx) {
     return failRender("La vidéo n'a pas pu être téléchargée.", "finalizing");
   }
 
+  // Smaller file, same picture: fits the storage limit and the team's data plans.
+  const received = video.length;
+  const compressed = await compressVideo(video);
+  if (compressed && compressed.length < video.length) video = compressed;
+  if (video.length > MAX_STORED_VIDEO_BYTES) {
+    console.error("Studio: video too large to store", { received, stored: video.length, compressed: Boolean(compressed) });
+    return failRender("La vidéo est trop lourde pour être conservée. Prévenez Salif.", "finalizing");
+  }
+
   const path = `${gen.user_id}/${randomUUID()}.mp4`;
   const { error: uploadError } = await supabaseAdmin.storage
     .from(STUDIO_BUCKET)
@@ -104,6 +115,7 @@ export async function GET(req: Request, { params }: Ctx) {
         duration_seconds: status.durationSeconds ?? input.seconds ?? null,
         render_id: input.render_id ?? gen.provider_request_id,
         bytes: video.length,
+        received_bytes: received,
       },
     })
     .select("id")
