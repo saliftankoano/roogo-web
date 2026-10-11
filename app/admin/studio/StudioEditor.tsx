@@ -19,7 +19,7 @@ import {
   VideoCameraIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { Nunito } from "next/font/google";
+import localFont from "next/font/local";
 import { CONTACT_NUMBER } from "@/lib/studio/chat-prompt";
 import {
   TAIL,
@@ -917,7 +917,17 @@ function ShotPreview({ shot, time }: { shot: Shot; time: number }) {
 }
 
 // The rendered outro is set in Nunito; the preview must use it too or lines wrap differently.
-const nunito = Nunito({ subsets: ["latin"], weight: ["700", "800", "900"], display: "swap" });
+// Bundled, not fetched from Google at build time: a Google Fonts response that
+// Turbopack could not parse broke the production build on 2026-10-11. No Black
+// file here, so 900 uses ExtraBold in this preview (the render is unaffected).
+const nunito = localFont({
+  src: [
+    { path: "./fonts/Nunito-Bold.ttf", weight: "700", style: "normal" },
+    { path: "./fonts/Nunito-ExtraBold.ttf", weight: "800", style: "normal" },
+    { path: "./fonts/Nunito-ExtraBold.ttf", weight: "900", style: "normal" },
+  ],
+  display: "swap",
+});
 
 /**
  * Mirrors the rendered outro (lib/studio/video-templates.ts, council version D,
