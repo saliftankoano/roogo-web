@@ -29,12 +29,20 @@ export async function GET(req: Request, { params }: Ctx) {
     .select("id, user_id, kind, status, input, conversation_id, created_at, error")
     .eq("id", id)
     .eq("user_id", staff.id)
-    .in("kind", ["image", "transcription"])
+    .in("kind", ["image", "transcription", "music"])
     .maybeSingle();
   if (!gen) return errorResponse("Tâche introuvable", 404, req);
 
   const respond = (body: Record<string, unknown>) => cors(NextResponse.json(body), req);
 
+  if (gen.status === "done" && gen.kind === "music") {
+    const { data: track } = await supabaseAdmin
+      .from("studio_music_tracks")
+      .select("id")
+      .eq("generation_id", gen.id)
+      .maybeSingle();
+    return respond({ state: "done", artifactId: track?.id ?? null });
+  }
   if (gen.status === "done") {
     const { data: artifact } = await supabaseAdmin
       .from("studio_artifacts")

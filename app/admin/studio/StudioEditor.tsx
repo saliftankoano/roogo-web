@@ -33,10 +33,14 @@ import {
   outroStart,
   type OutroText,
   planShots,
+  musicEnvelope,
+  musicLevelAt,
+  MUSIC_ALONE,
   type Shot,
 } from "@/lib/studio/video-templates";
 import { mergeOrder, moveItem } from "@/lib/studio/photo-order";
 import { OutroEditor } from "./OutroEditor";
+import { MusicPanel, type MusicTrack } from "./MusicPanel";
 import type { Artifact, PropertySummary } from "./studio-types";
 
 /* ---------- pure helpers (exported for tests) ---------- */
@@ -121,6 +125,28 @@ function writeOutro(conversationId: string | null, value: OutroText | null) {
   }
 }
 
+// The chosen music, per project (Salif, 2026-10-11).
+const MUSIC_KEY = (conversationId: string) => `roogo-studio-music:${conversationId}`;
+
+function readMusic(conversationId: string | null): string | null {
+  if (!conversationId) return null;
+  try {
+    return window.localStorage.getItem(MUSIC_KEY(conversationId));
+  } catch {
+    return null;
+  }
+}
+
+function writeMusic(conversationId: string | null, id: string | null) {
+  if (!conversationId) return;
+  try {
+    if (id) window.localStorage.setItem(MUSIC_KEY(conversationId), id);
+    else window.localStorage.removeItem(MUSIC_KEY(conversationId));
+  } catch {
+    // Not critical: the video is made without music.
+  }
+}
+
 /* ---------- editor ---------- */
 
 /**
@@ -199,6 +225,51 @@ export function StudioEditor({
     setOutro(listingOutro);
     writeOutro(conversationId, null);
   }, [conversationId, listingOutro]);
+
+  /* ---- music ---- */
+  const [tracks, setTracks] = useState<MusicTrack[]>([]);
+  const [tracksLoading, setTracksLoading] = useState(true);
+  const [tracksFailed, setTracksFailed] = useState(false);
+  const [musicJob, setMusicJob] = useState<{ state: "running" | "failed"; message?: string } | null>(null);
+  const [musicResume, setMusicResume] = useState<{ id: string; createdAt: string } | null>(null);
+  const [musicId, setMusicId] = useState<string | null>(null);
+  const [musicOpen, setMusicOpen] = useState(false);
+  useEffect(() => setMusicId(readMusic(conversationId)), [conversationId]);
+  const loadTracks = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/music");
+      if (!res.ok) {
+        setTracksFailed(true);
+        return;
+      }
+      setTracksFailed(false);
+      const data = (await res.json()) as { tracks?: MusicTrack[]; running?: { id: string; createdAt: string }[] };
+      // Keep the first signed URL per track: re-signing would restart the preview.
+      setTracks((current) =>
+        (data.tracks ?? []).map((t) => ({ ...t, url: current.find((c) => c.id === t.id)?.url ?? t.url })),
+      );
+      setMusicResume(data.running?.[0] ?? null);
+    } catch {
+      setTracksFailed(true);
+    } finally {
+      setTracksLoading(false);
+    }
+  }, []);
+  useEffect(() => {
+    void loadTracks();
+  }, [loadTracks]);
+  const chooseMusic = useCallback(
+    (id: string | null) => {
+      setMusicId(id);
+      writeMusic(conversationId, id);
+    },
+    [conversationId],
+  );
+  const music = tracks.find((t) => t.id === musicId) ?? null;
+  const musicPoints = useMemo(
+    () => musicEnvelope(total, voice ? { start: voiceDelay, end: voiceDelay + voiceSeconds } : null),
+    [total, voice, voiceDelay, voiceSeconds],
+  );
 
   /* ---- rendering (HeyGen) ---- */
   const [render, setRender] = useState<
@@ -280,6 +351,7 @@ export function StudioEditor({
   const [time, setTime] = useState(0);
   const [playing, setPlaying] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const musicRef = useRef<HTMLAudioElement | null>(null);
   const frameRef = useRef(0);
   const startRef = useRef<{ at: number; from: number }>({ at: 0, from: 0 });
   const timeRef = useRef(0);
@@ -292,8 +364,26 @@ export function StudioEditor({
     );
   }, [voice?.id, voice?.url]);
 
+  const syncMusic = useCallback(
+    (at: number, shouldPlay: boolean) => {
+      const audio = musicRef.current;
+      if (!audio) return;
+      const length = Number.isFinite(audio.duration) ? audio.duration : Infinity;
+      if (at >= length) {
+        audio.pause();
+        return;
+      }
+      audio.volume = Math.min(1, Math.max(0, musicLevelAt(musicPoints, at)));
+      if (Math.abs(audio.currentTime - at) > 0.25) audio.currentTime = at;
+      if (shouldPlay && audio.paused) void audio.play().catch(() => {});
+      if (!shouldPlay) audio.pause();
+    },
+    [musicPoints],
+  );
+
   const syncAudio = useCallback(
     (at: number, shouldPlay: boolean) => {
+      syncMusic(at, shouldPlay);
       const audio = audioRef.current;
       if (!audio) return;
       const offset = at - voiceDelay;
@@ -306,7 +396,7 @@ export function StudioEditor({
       if (shouldPlay && audio.paused) void audio.play().catch(() => setPlaying(false));
       if (!shouldPlay) audio.pause();
     },
-    [voiceSeconds, voiceDelay],
+    [voiceSeconds, voiceDelay, syncMusic],
   );
 
   const seek = useCallback(
@@ -323,6 +413,7 @@ export function StudioEditor({
   useEffect(() => {
     if (!playing) {
       audioRef.current?.pause();
+      musicRef.current?.pause();
       return;
     }
     startRef.current = { at: performance.now(), from: timeRef.current };
@@ -394,6 +485,9 @@ export function StudioEditor({
           photos,
           voice_delay: voiceDelay,
           outro,
+          // While the library is loading (or could not load), trust the saved choice:
+          // the server refuses a track that no longer exists.
+          music_track_id: tracksLoading || tracksFailed ? musicId : (music?.id ?? null),
           acknowledged_cost_usd: estimateUsd,
         }),
       });
@@ -459,7 +553,27 @@ export function StudioEditor({
       onMode={setMode}
       action={action}
     >
-      <div className="grid md:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+      <div className="relative grid md:grid-cols-[minmax(260px,320px)_minmax(0,1fr)]">
+        <MusicPanel
+          open={musicOpen}
+          onClose={() => setMusicOpen(false)}
+          tracks={tracks}
+          loading={tracksLoading}
+          selectedId={music?.id ?? null}
+          onSelect={chooseMusic}
+          conversationId={conversationId}
+          canWrite={canWrite}
+          money={money}
+          videoSeconds={renderSeconds}
+          resume={musicResume}
+          onGenerationState={(state, message) => setMusicJob(state ? { state, message } : null)}
+          onGenerated={(id) => {
+            onRendered(); // refreshes the budget the music was paid from
+            void loadTracks().then(() => {
+              if (id) chooseMusic(id);
+            });
+          }}
+        />
         <aside className="space-y-4 border-neutral-200 p-3 md:border-r">
           {mode === "full" && (
           <>
@@ -490,6 +604,36 @@ export function StudioEditor({
 
           </>
           )}
+
+          <section className="space-y-1.5">
+            <h3 className="px-1 text-xs font-semibold text-neutral-500">Musique</h3>
+            <button
+              type="button"
+              onClick={() => setMusicOpen(true)}
+              className={cn(
+                "flex w-full cursor-pointer items-center gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors",
+                music
+                  ? "bg-[rgba(91,58,122,0.08)] text-neutral-800 hover:bg-[rgba(91,58,122,0.12)]"
+                  : "border border-dashed border-neutral-300 text-neutral-500 hover:border-primary/50 hover:text-primary",
+              )}
+            >
+              <MusicNotesIcon size={16} weight="bold" className={cn("shrink-0", music ? "text-[#5b3a7a]" : "")} />
+              <span className="min-w-0 flex-1 truncate">{music ? music.title : "Ajouter une musique"}</span>
+              <span className="shrink-0 text-xs font-semibold text-primary">{music ? "Changer" : "Choisir"}</span>
+            </button>
+            {musicJob && (
+              <p
+                role="status"
+                className={cn(
+                  "flex items-center gap-1.5 px-1 text-xs",
+                  musicJob.state === "failed" ? "font-semibold text-red-700" : "text-neutral-500",
+                )}
+              >
+                {musicJob.state === "running" && <SpinnerGapIcon size={12} className="size-3 shrink-0 animate-spin" />}
+                {musicJob.state === "running" ? "Musique en création, environ 40 s" : musicJob.message}
+              </p>
+            )}
+          </section>
 
           <section className="space-y-2">
             <h3 className="px-1 text-xs font-semibold text-neutral-500">
@@ -533,6 +677,9 @@ export function StudioEditor({
           voiceDelay={voiceDelay}
           onMoveVoice={canWrite ? moveVoice : undefined}
           hasVoice={Boolean(voiceSrc)}
+          musicTitle={music?.title ?? null}
+          musicPoints={musicPoints}
+          onOpenMusic={() => setMusicOpen(true)}
           time={time}
           playing={playing}
           onSeek={seek}
@@ -544,6 +691,7 @@ export function StudioEditor({
       {voiceSrc && (
         <audio key={voiceSrc.id} ref={audioRef} src={voiceSrc.url} preload="auto" className="hidden" />
       )}
+      {music?.url && <audio key={music.id} ref={musicRef} src={music.url} preload="auto" className="hidden" />}
     </EditorFrame>
   );
 }
@@ -850,6 +998,9 @@ function Timeline({
   voiceDelay,
   onMoveVoice,
   hasVoice,
+  musicTitle,
+  musicPoints,
+  onOpenMusic,
   time,
   playing,
   onSeek,
@@ -863,6 +1014,9 @@ function Timeline({
   voiceDelay: number;
   onMoveVoice?: (delay: number) => void;
   hasVoice: boolean;
+  musicTitle: string | null;
+  musicPoints: { t: number; v: number }[];
+  onOpenMusic: () => void;
   time: number;
   playing: boolean;
   onSeek: (time: number) => void;
@@ -1070,10 +1224,35 @@ function Timeline({
               </span>
             </div>
             <div className={cn("relative", TRACK)}>
-              <span className="absolute inset-0 flex items-center rounded-md border border-dashed border-neutral-200 px-2 text-[11px] font-medium text-neutral-400">
-                <MusicNotesIcon size={12} weight="bold" className="mr-1 shrink-0" />
-                Bientôt
-              </span>
+              {musicTitle ? (
+                <button
+                  type="button"
+                  onClick={onOpenMusic}
+                  title="Changer la musique"
+                  className="absolute inset-0 cursor-pointer overflow-hidden rounded-md border border-[rgba(91,58,122,0.25)] bg-[rgba(91,58,122,0.08)] text-left"
+                >
+                  {/* The music's level over the video: low under the voice, up when nobody speaks. */}
+                  <svg aria-hidden viewBox="0 0 100 10" preserveAspectRatio="none" className="absolute inset-0 size-full">
+                    <polygon
+                      points={`0,10 ${musicPoints.map((p) => `${(p.t / total) * 100},${10 - (p.v / MUSIC_ALONE) * 8}`).join(" ")} 100,10`}
+                      fill="rgba(91,58,122,0.22)"
+                    />
+                  </svg>
+                  <span className="relative flex h-full items-center gap-1 px-2 text-[11px] font-bold text-[#5b3a7a]">
+                    <MusicNotesIcon size={12} weight="bold" className="shrink-0" />
+                    <span className="truncate">{musicTitle}</span>
+                  </span>
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  onClick={onOpenMusic}
+                  className="absolute inset-0 flex cursor-pointer items-center rounded-md border border-dashed border-neutral-300 px-2 text-[11px] font-semibold text-neutral-500 transition-colors hover:border-primary/50 hover:text-primary"
+                >
+                  <MusicNotesIcon size={12} weight="bold" className="mr-1 shrink-0" />
+                  Ajouter une musique
+                </button>
+              )}
             </div>
           </div>
 

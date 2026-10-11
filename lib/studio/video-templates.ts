@@ -68,7 +68,6 @@ export type VisitePovInput = {
   /** The script that was spoken, used to start the outro on the call to action. */
   script?: string;
   musicUrl?: string | null;
-  musicVolume?: number;
   logoUrl: string;
   outro: {
     headline: string;
@@ -203,7 +202,6 @@ export function buildOutroOnly(input: {
   outro: OutroText;
   logoUrl: string;
   musicUrl?: string | null;
-  musicVolume?: number;
   seconds?: number;
 }): { html: string; durationSeconds: number } {
   const total = round(input.seconds ?? OUTRO_ONLY_SECONDS);
@@ -266,8 +264,16 @@ function compose(
   const outroAt = outroFrom - XF / 2;
   const priceSize =
     o.price.length > 10 ? Math.max(96, Math.floor(1500 / o.price.length)) : 150;
+  // Music runs the whole video: low under the voice, up when nobody speaks,
+  // faded out on the last frame (Salif, 2026-10-11).
+  const voiceSpan =
+    delay !== null && input.voiceUrl ? { start: delay, end: delay + input.voiceSeconds } : null;
+  const musicLane = JSON.stringify({
+    version: 1,
+    lanes: [{ target: "volume", points: musicEnvelope(total, voiceSpan) }],
+  });
   const music = input.musicUrl
-    ? `\n      <audio id="music" src="${esc(input.musicUrl)}" data-start="0" data-duration="${n(total)}" data-volume="${input.musicVolume ?? 0.09}" data-fade-in="1.2" data-fade-out="1.6"></audio>`
+    ? `\n      <audio id="music" src="${esc(input.musicUrl)}" data-start="0" data-duration="${n(total)}" data-track-index="10" data-volume="1" data-automation='${musicLane}'></audio>`
     : "";
 
   const html = `<!DOCTYPE html>
@@ -396,4 +402,61 @@ export function videoDownloadName(label: string, fallbackTitle = ""): string {
     text.replace(/[^\p{L}\p{N} ,'()-]/gu, " ").replace(/\s+/g, " ").trim();
   const subject = clean(place || (kind && !/^(visite pov|fin seule)$/i.test(kind) ? kind : ""));
   return subject ? `Roogo - ${subject} - ${what}.mp4` : `Roogo - ${what}.mp4`;
+}
+
+/* ---------- music level (Salif, 2026-10-11) ---------- */
+
+/** Music level while the voice speaks, and when it does not (0 to 1). */
+export const MUSIC_UNDER_VOICE = 0.08;
+export const MUSIC_ALONE = 0.32;
+const RAMP = 0.6;
+const FADE_IN = 0.8;
+const FADE_OUT = 1.6;
+
+type Point = { t: number; v: number };
+
+/**
+ * The music's volume over the video, as points for a HyperFrames volume lane
+ * (`t` in seconds from the start of the video). `voice` is when the voice plays;
+ * null for an outro on its own.
+ */
+export function musicEnvelope(total: number, voice: { start: number; end: number } | null): Point[] {
+  const end = round(total);
+  const fadeOutAt = Math.max(FADE_IN, end - FADE_OUT);
+  const points: Point[] = [
+    { t: 0, v: 0 },
+    { t: Math.min(FADE_IN, fadeOutAt), v: MUSIC_ALONE },
+  ];
+  if (voice && voice.end > voice.start) {
+    const down = Math.max(FADE_IN, voice.start - RAMP / 2);
+    const up = Math.min(fadeOutAt, voice.end + RAMP / 2);
+    if (up > down + RAMP) {
+      points.push(
+        { t: down, v: MUSIC_ALONE },
+        { t: down + RAMP, v: MUSIC_UNDER_VOICE },
+        { t: up - RAMP < down + RAMP ? down + RAMP : up - RAMP, v: MUSIC_UNDER_VOICE },
+        { t: up, v: MUSIC_ALONE },
+      );
+    }
+  }
+  points.push({ t: fadeOutAt, v: MUSIC_ALONE }, { t: end, v: 0 });
+  // Sorted, rounded, and never two points at the same time.
+  const out: Point[] = [];
+  for (const p of points.sort((a, b) => a.t - b.t)) {
+    const t = round(p.t);
+    if (out.length && t <= out[out.length - 1].t) continue;
+    out.push({ t, v: p.v });
+  }
+  return out;
+}
+
+/** The level at time `t`, for the editor's preview (same curve as the render). */
+export function musicLevelAt(points: Point[], t: number): number {
+  if (!points.length || t <= points[0].t) return points[0]?.v ?? 0;
+  for (let i = 1; i < points.length; i++) {
+    const a = points[i - 1];
+    const b = points[i];
+    if (t <= b.t) return a.v + ((b.v - a.v) * (t - a.t)) / (b.t - a.t || 1);
+  }
+  return points[points.length - 1].v;
 }

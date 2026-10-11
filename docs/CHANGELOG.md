@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-11
+
+- **Music in the Studio video editor**: the "Musique" lane and a "Musique" section in the editor open a drawer with the team library (7 Roogo tracks: the 6 instrumentals and "Roogo vous rapproche") and "Générer", which makes an instrumental of about 1 min 30 with fal Lyria 3 Pro (≈ $0.08, paid from "Voix et images"). Generated tracks join the library for everyone. The music plays from the first frame to the last: low under the voice, louder when nobody speaks, faded on the end, in full videos and "Fin seule". The 11 artist songs in the vault stay out until their rights are confirmed. Migration 083 applied by Salif.
+
 ## 2026-10-10
 
 - **Studio videos can be downloaded**: a "Télécharger la vidéo" button now sits under the video on the project page and next to "Créer la vidéo" in the editor (newest video of the project). Files are named like a title, for example `Roogo - Maison à vendre, Koubri - Visite du bien.mp4` or `... - Fin de vidéo.mp4`.
