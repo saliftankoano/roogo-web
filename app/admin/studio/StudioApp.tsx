@@ -20,7 +20,7 @@ import { estimateJobCostUsd } from "@/lib/studio/ai-tools";
 import { DEFAULT_FCFA_PER_USD, formatMoney, type StudioCurrency } from "@/lib/studio/currency";
 import { parseSseBuffer } from "@/lib/studio/sse";
 import { orderArtifacts } from "./ArtifactsPanel";
-import { ProjectView } from "./ProjectView";
+import { ProjectView, ProjectSkeleton } from "./ProjectView";
 import { CloneVoice } from "./CloneVoice";
 import { GlossaryPanel } from "./GlossaryPanel";
 import { HistoryPanel } from "./HistoryPanel";
@@ -631,7 +631,7 @@ export function StudioApp() {
           card={cardProps}
         />
       ) : (
-        <div className="m-6 h-40 animate-pulse rounded-3xl bg-white/50" />
+        <ProjectSkeleton />
       )
     ) : (
       <div ref={attachTool} className="flex flex-col">
