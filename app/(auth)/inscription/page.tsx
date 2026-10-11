@@ -30,7 +30,7 @@ export default function SignUpPage() {
         }}
         routing="hash"
         signInUrl="/connexion"
-        forceRedirectUrl="/onboarding"
+        forceRedirectUrl="/bienvenue"
       />
       <Link
         href="/blog/comment-s-inscrire-roogo-proprietaire"

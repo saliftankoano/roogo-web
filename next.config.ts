@@ -41,6 +41,19 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // French addresses (Salif, 2026-10-11). Old links, bookmarks and payments
+      // already in progress keep working; query strings are carried over.
+      { source: "/onboarding", destination: "/bienvenue", permanent: true },
+      { source: "/payments/callback", destination: "/paiements/retour", permanent: true },
+      { source: "/admin/property-requests/:id/responses/:responseId/agreement", destination: "/admin/demandes-de-biens/:id/reponses/:responseId/accord", permanent: true },
+      { source: "/admin/property-requests/:path*", destination: "/admin/demandes-de-biens/:path*", permanent: true },
+      { source: "/admin/visit-requests/:path*", destination: "/admin/demandes-de-visite/:path*", permanent: true },
+      { source: "/admin/ownership-verifications/:path*", destination: "/admin/verifications-propriete/:path*", permanent: true },
+      { source: "/admin/hotel-verifications/:path*", destination: "/admin/verifications-hotels/:path*", permanent: true },
+      { source: "/admin/hotel-events/:path*", destination: "/admin/evenements-hotels/:path*", permanent: true },
+      { source: "/admin/sale-chat/:path*", destination: "/admin/discussions-vente/:path*", permanent: true },
+      { source: "/admin/support/:path*", destination: "/admin/assistance/:path*", permanent: true },
+
       {
         source: "/tutoriels",
         destination: "/blog/tutoriels",

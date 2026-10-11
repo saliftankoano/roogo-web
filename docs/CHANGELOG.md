@@ -8,6 +8,8 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-11
 
+- **French page addresses**: the 9 English addresses are now French (Salif, 2026-10-11): `/onboarding` → `/bienvenue`, `/payments/callback` → `/paiements/retour`, and in the admin `/demandes-de-biens` (with `/reponses/[id]/accord`), `/demandes-de-visite`, `/verifications-propriete`, `/verifications-hotels`, `/evenements-hotels`, `/discussions-vente`, `/assistance`. Every old address answers with a permanent redirect that keeps the query string, so bookmarks, messages and payments in progress still land. `/api/` addresses are unchanged.
+
 - **Studio videos are compressed before saving**: HeyGen renders a 34 s video of a field at 85 MB, over Supabase's 50 MB upload limit, so Ablassé's video failed with "La vidéo n'a pas pu être conservée". Every render is now re-encoded on the server (ffmpeg, H.264 CRF 23, 8 Mbps cap): same picture to the eye, about a seventh of the size (12.9 MB), lighter to download on a phone. His failed render was restored by hand from HeyGen.
 
 - **Music in the Studio video editor**: the "Musique" lane and a "Musique" section in the editor open a drawer with the team library (7 Roogo tracks: the 6 instrumentals and "Roogo vous rapproche") and "Générer", which makes an instrumental of about 1 min 30 with fal Lyria 3 Pro (≈ $0.08, paid from "Voix et images"). Generated tracks join the library for everyone. The music plays from the first frame to the last: low under the voice, louder when nobody speaks, faded on the end, in full videos and "Fin seule". The 11 artist songs in the vault stay out until their rights are confirmed. Migration 083 applied by Salif.

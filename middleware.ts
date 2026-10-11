@@ -174,7 +174,7 @@ const isPublicRoute = createRouteMatcher([
   "/p/(.*)",
   "/proprietes/(.*)",
   // Payment callback — accessed from PawaPay redirect; Safari has no Clerk session
-  "/payments/callback",
+  "/paiements/retour",
 ]);
 
 // Routes that bypass the onboarding gate:
@@ -182,7 +182,7 @@ const isPublicRoute = createRouteMatcher([
 // - admin/personnel routes (staff and founders are exempt)
 // - all API routes (server-side, no session-based gate needed)
 const isOnboardingGateExempt = createRouteMatcher([
-  "/onboarding(.*)",
+  "/bienvenue(.*)",
   "/admin(.*)",
   "/personnel(.*)",
   "/api(.*)",
@@ -224,7 +224,7 @@ export default clerkMiddleware(
         const isBypassRole = ["staff", "founder"].includes(gateState.userType);
 
         if (!gateState.hasCompletedOnboarding && !isBypassRole) {
-          return NextResponse.redirect(new URL("/onboarding", req.url));
+          return NextResponse.redirect(new URL("/bienvenue", req.url));
         }
       }
     }
