@@ -175,6 +175,7 @@ const isPublicRoute = createRouteMatcher([
   "/proprietes/(.*)",
   // Payment callback — accessed from PawaPay redirect; Safari has no Clerk session
   "/paiements/retour",
+  "/payments/callback", // old address, still served directly for payments in progress
 ]);
 
 // Routes that bypass the onboarding gate:
