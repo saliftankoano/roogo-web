@@ -14,6 +14,7 @@ import { propertyTitle, toPropertySummary } from "@/lib/studio/property-context"
 import { STUDIO_BUCKET } from "@/lib/studio/server";
 import { isVoiceUsable } from "@/lib/studio/voices";
 import { loadVoiceByKey } from "@/lib/studio/voices-server";
+import { videoDownloadName } from "@/lib/studio/video-templates";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -66,7 +67,7 @@ export async function GET(req: Request, { params }: Ctx) {
           artifact.kind === "image"
             ? `Roogo - ${String(artifact.title).replace(/[^\p{L}\p{N} ()-]/gu, "")}.png`
             : artifact.kind === "video"
-              ? `Roogo - ${String(artifact.text || artifact.title).replace(/[^\p{L}\p{N} ()',-]/gu, "")}.mp4`
+              ? videoDownloadName(String(artifact.text ?? ""), String(artifact.title ?? ""))
               : "Roogo - Voix off.mp3";
         const [play, download] = await Promise.all([
           storage.createSignedUrl(artifact.output_path, 3600),

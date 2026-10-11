@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-10
+
+- **Studio videos can be downloaded**: a "Télécharger la vidéo" button now sits under the video on the project page and next to "Créer la vidéo" in the editor (newest video of the project). Files are named like a title, for example `Roogo - Maison à vendre, Koubri - Visite du bien.mp4` or `... - Fin de vidéo.mp4`.
+
 ## 2026-10-05
 
 - **Photo tutorial audio added**: Salif approved his French Cartesia voice and music. The 45-second final MP4 includes narration, ducked licensed music and a fade-out; audio components, decoding and motion continuity verified. [Delivery evidence](./photo-gallery-video-delivery.md).

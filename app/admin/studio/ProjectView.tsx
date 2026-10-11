@@ -4,6 +4,7 @@ import Image from "next/image";
 import { useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
 import {
+  DownloadSimpleIcon,
   ArrowRightIcon,
   CaretDownIcon,
   FileTextIcon,
@@ -227,7 +228,18 @@ export function ProjectView({
             action={canWrite && property ? { label: "Éditeur", onClick: open("editor") } : undefined}
           >
             {video?.url ? (
-              <video controls playsInline preload="metadata" src={video.url} className="mx-auto aspect-[9/16] max-h-56 rounded-xl bg-neutral-900" />
+              <div className="grid gap-2">
+                <video controls playsInline preload="metadata" src={video.url} className="mx-auto aspect-[9/16] max-h-56 rounded-xl bg-neutral-900" />
+                {video.downloadUrl && (
+                  <a
+                    href={video.downloadUrl}
+                    className="inline-flex min-h-10 items-center justify-center gap-2 rounded-xl bg-neutral-100 text-sm font-semibold text-primary transition-colors hover:bg-primary/10"
+                  >
+                    <DownloadSimpleIcon size={16} weight="bold" className="size-4 shrink-0" />
+                    Télécharger la vidéo
+                  </a>
+                )}
+              </div>
             ) : (
               <p className="text-xs text-neutral-500">
                 {voice ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur." : "Une fin seule est possible dès maintenant."}
