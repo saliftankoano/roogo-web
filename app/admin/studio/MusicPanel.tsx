@@ -106,7 +106,7 @@ export function MusicPanel({
     // Stays mounted when closed, so a music being generated keeps being followed.
     <motion.aside
           initial={false}
-          animate={open ? { x: 0, opacity: 1 } : { x: 24, opacity: 0 }}
+          animate={open ? { x: 0, opacity: 1 } : { x: 16, opacity: 0 }}
           transition={{ duration: 0.22, ease: [0.22, 1, 0.36, 1] }}
           aria-label="Musique"
           aria-hidden={!open}
