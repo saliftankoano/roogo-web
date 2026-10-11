@@ -738,3 +738,55 @@ The web control displays pending and saved states, blocks overlapping mutations,
 The original alert came from writing to a nonexistent column after image flags had already committed. The transaction and shared read views eliminate that diagnosed partial-save path. Regression checks cover persistence, rollback, stale edits, authorization and view security; these safeguards cannot guarantee that authentication, networks or database services never fail.
 
 See [ordered-gallery decision](./DECISIONS.md#gallery-order-determines-the-principal-photo--2026-10-05) and [photo principale](./DOMAIN.md#photo-principale). Run `npm run test:primary-photo`; optional concurrency checks require `ROOGO_PHOTO_ORDER_TEST_CONTAINER` pointing to a disposable local Postgres fixture, never production.
+
+## How does a Studio video get made and stored?
+
+The editor sends the project, the photo order, the voice position, the outro text and (optionally) a music track. The server rebuilds everything that matters from its own records: it accepts only the listing's own photos, takes the newest voice-over of the project, and always takes the price from the listing, whatever the browser sends. It reserves the price from the person's **video** budget, writes a self-contained HyperFrames page from the template, and submits it to HeyGen. Pressing the priced button is the confirmation.
+
+```mermaid
+sequenceDiagram
+  participant E as Éditeur vidéo
+  participant S as roogo-web
+  participant H as HeyGen (HyperFrames)
+  participant B as Storage (content-studio)
+  E->>S: Créer la vidéo (photos, voice position, outro, music)
+  S->>S: rebuild from records, reserve video budget
+  S->>H: render the template page
+  loop every 4 s
+    E->>S: poll the render
+    S->>H: status
+  end
+  S->>S: first poll that sees it finished claims it
+  S->>H: download the MP4
+  S->>S: re-encode (ffmpeg, about 1/7 of the size)
+  S->>B: store, then add the video to the project
+```
+
+The diagram leaves out failures: a render that fails or takes more than 15 minutes is marked failed and stops counting against the budget. Only one poll can claim a finished render, so a video is saved once even with several tabs open. The page polls; if nobody has the editor open, the render is saved the next time someone opens it.
+
+- **Templates:** **Visite POV** lasts voice start + voice length + 1.4 s; the voice starts 0.4 s in and staff can slide it up to 6 s. **Fin seule** is the 6 s outro alone, without voice or watermark.
+- **Price:** $0.12 per rendered minute, rounded up to the cent. Videos have their own monthly cap (`STUDIO_DEFAULT_VIDEO_CAP_USD`, or the person's `monthly_video_cap_usd`), counted apart from voices, images, subtitles and music.
+- **Storage:** Supabase refuses files over 50 MB whatever the bucket setting, so every render is re-encoded before storing (85 MB → 12.9 MB on a real render); a file still over 48 MB fails with a message. The ffmpeg binary ships with the save route (`outputFileTracingIncludes`). See the [decision](./DECISIONS.md#studio-videos-are-re-encoded-before-storage--2026-10-11).
+- **Download:** the project page and the editor offer the newest video with a signed link that names the file like a title (`Roogo - <bien> - Visite du bien.mp4` or `- Fin de vidéo.mp4`).
+
+Why templates and separate budgets: [decision](./DECISIONS.md#studio-videos-are-built-from-listing-photos-and-templates--2026-10-10).
+
+## How does music play in a Studio video?
+
+The music is one audio track under the whole video, from the first frame to the last. Its level follows a curve written into the page as a HyperFrames volume lane: it fades in, sits at 0.32 while nobody speaks, drops to 0.08 about 0.3 s before the voice and rises again just after it, then fades out over the last 1.6 s. "Fin seule" has no voice, so the song stays up the whole time. The editor preview plays the music with the same curve (`musicEnvelope`, `musicLevelAt`), so what staff hear is what renders.
+
+Tracks live in `studio_music_tracks` and the `content-studio` bucket. **Library** tracks were uploaded once from the vault by `scripts/upload-studio-music.mjs`; **generated** tracks come from fal Lyria 3 Pro through the same job pipeline as images (ledger kind `music`, paid from the voices-and-images budget) and are shared with the whole team. The chosen track is remembered per project in the browser and sent with the render; a track that no longer exists is refused by the server. Lyria has no "instrumental" switch, so the prompt always asks for no vocals in several ways. See the [decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
+
+## How does the Studio make the voice say words correctly?
+
+The visible script stays in correct French; a separate "texte envoyé à la voix" is produced by deterministic rules and shown before paying.
+
+1. The script-writing model receives the team glossary and the built-in respellings, so it spells names the way the rules expect.
+2. The rules replace glossary words regardless of case, accents, plurals and hyphen variants (a longer word containing the term is left alone), then apply built-in respellings: Roogo → "Rohgo", Ouagadougou → "Waga", roogobf.com → "Rohgo bé èf point com".
+3. Prices become words with "de" after millions ("cinquante millions de francs CFA"), phone numbers are read in pairs, years in full. Only the rules touch numbers, never a model.
+
+Why: [decision](./DECISIONS.md#studio-pronunciation-the-glossary-guides-the-writer-rules-make-the-speech--2026-10-10).
+
+## Why do old page addresses keep working?
+
+Renamed pages answer their old address with a permanent redirect, query string included (`next.config.ts`). Old admin addresses take two hops (to a trailing slash, then the page) until [#59](https://github.com/saliftankoano/roogo-web/pull/59) is merged, then one. The old payment return `/payments/callback` is the exception: it serves the same page as `/paiements/retour` directly, so a payment started before the rename returns without an extra hop. New payments return to `/paiements/retour` because the server builds the return address (`PAWAPAY_PAYMENTPAGE_RETURN_URL` is not set in production). The mobile app only calls `/api/` and opens listing and terms pages, none of which were renamed. See the [decision](./DECISIONS.md#page-addresses-are-french-old-ones-redirect-except-the-payment-return--2026-10-11).

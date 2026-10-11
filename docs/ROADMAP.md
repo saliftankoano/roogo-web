@@ -28,6 +28,8 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 - [ ] **Finish ROO-20 release validation** — make customer calls usable by agents, owners and operations across both products. As of 2026-09-08, [web PR #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile PR #30](https://github.com/saliftankoano/roogo/pull/30) are reviewed draft implementations, not shipped features. Done when: a deployed test backend with migrations 068 and 069 supports native agent and owner submission, image/PDF selection, real private uploads, receipt access and retry checks; any resulting issues are resolved. Local automated coverage and renter access-denial checks are recorded in [PR #31](https://github.com/saliftankoano/roogo-web/pull/31).
 
+- [ ] **Studio staff training video, with the new music section** — staff learn the new Studio from one walkthrough (project, script, voice, pronunciation, visuals, editor, music, video, Fin seule). Done when: the music section is captured and narrated, the final MP4 passes the motion and transcription checks, and it is delivered to the vault `06 Product and technology/Videos/`. Approved by Salif on 2026-10-11.
+
 ## Next
 
 - [ ] **Roll out the coordinated property-request workflow** — make the reviewed feature available with its backend dependencies in place. Done when: the paired PRs are merged, the matching web/API deployment is verified (Roogo migrations 068/069 are now operator-confirmed executed; another target requires its own history check), and only then the mobile counterpart is released and checked. No new environment variables are required. Staff must supply approved commission terms before opening calls. Record verified release evidence in [CHANGELOG.md](./CHANGELOG.md), then close this item. See the [product decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08).
@@ -36,7 +38,17 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
+- [ ] **Artist songs in the Studio music library** — staff can pick popular local songs. Done when: Salif confirms the rights for a song; only then is it uploaded. Until then, songs are added with the platform's music picker when posting. [Decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
+
+- [ ] **A model pass on the spoken text, only if needed** — fixes pronunciations the rules still miss. Done when: real use shows words the tolerant rules miss; numbers must stay rule-only. [Decision](./DECISIONS.md#studio-pronunciation-the-glossary-guides-the-writer-rules-make-the-speech--2026-10-10).
+
 ## Recently completed
+
+- [x] **French page addresses — 2026-10-11** — 9 renames with redirects; the payment return stays direct. [#58](https://github.com/saliftankoano/roogo-web/pull/58), [CHANGELOG](./CHANGELOG.md#2026-10-11).
+
+- [x] **Studio music, video compression and loading skeleton — 2026-10-11** — music library and Lyria generation (#54), bundled fonts (#55), skeleton (#56), compressed renders that fixed Ablassé's failed save (#57); all verified on production. [CHANGELOG](./CHANGELOG.md#2026-10-11).
+
+- [x] **Studio project page, photo videos, pronunciation and downloads — 2026-10-10** — #51, #52, #53 deployed; real renders verified. [CHANGELOG](./CHANGELOG.md#2026-10-10).
 
 - [x] **Photo-order training video delivered — 2026-10-05** — actual production recording with Salif French narration and credited music; 45-second 1080p MP4, audio/decode/continuity checks passed, QuickTime playback started. [Delivery record](./photo-gallery-video-delivery.md).
 
