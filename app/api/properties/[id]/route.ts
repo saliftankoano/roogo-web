@@ -177,7 +177,7 @@ export async function PATCH(
     if (updates.price !== undefined) {
       const newPrice = Number(updates.price);
       // Sale listings: the public price must stay on the ladder above the
-      // owner's price (team floor for staff, hard floor +10% for founders).
+      // owner's price (staff above +10%, founders at +10%, nobody below).
       const decision = await checkPublicSalePriceChange({
         propertyId,
         newPrice,

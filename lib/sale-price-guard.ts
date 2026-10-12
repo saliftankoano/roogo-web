@@ -1,9 +1,9 @@
 // Guard for changes to the PUBLIC price of a sale listing (properties.price).
 //
-// The public price must stay on the approved ladder above the owner's price
-// (Salif, 2026-10-11): staff may set any price down to the team floor (+15%);
-// between the team floor and the hard floor (+10%) only a founder may; below the
-// hard floor is refused for everyone. The owner's price is the signed mandate's
+// The public price must stay on the approved ladder above the owner's price:
+// staff may set any price above the hard floor (+10%) on their own; a price AT
+// the floor (up to its display value, rounded up to 50,000 FCFA) needs a
+// founder (Salif, 2026-10-12); below the floor is refused for everyone. The owner's price is the signed mandate's
 // desired_price, or the private asking price before a mandate exists.
 
 import { priceLadder, type SaleLadderPcts } from "@/lib/sale-economics";
@@ -27,7 +27,7 @@ export function evaluateSalePriceChange(params: {
   if (!Number.isFinite(newPrice) || newPrice <= 0) {
     return { ok: false, status: 422, error: "Prix invalide." };
   }
-  const { exact } = priceLadder(ownerPrice, pcts);
+  const { exact, display } = priceLadder(ownerPrice, pcts);
   if (newPrice < exact.hardFloor) {
     return {
       ok: false,
@@ -35,11 +35,11 @@ export function evaluateSalePriceChange(params: {
       error: `Prix refusé : le minimum absolu pour ce bien est ${fcfa(exact.hardFloor)}.`,
     };
   }
-  if (newPrice < exact.teamFloor && !isFounder) {
+  if (newPrice <= display.hardFloor && !isFounder) {
     return {
       ok: false,
       status: 403,
-      error: `Un prix sous ${fcfa(exact.teamFloor)} demande l'accord de Salif.`,
+      error: `Le prix plancher (${fcfa(display.hardFloor)}) demande l'accord de Salif.`,
     };
   }
   return { ok: true };

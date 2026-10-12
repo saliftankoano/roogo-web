@@ -408,7 +408,7 @@ export async function getLatestMandateForProperty(propertyId: string) {
  * Guard for a change to the PUBLIC price (properties.price) of a sale listing.
  * The owner's price is the latest signed mandate's desired_price, or before any
  * mandate, the private asking price from the listing wizard. The new price must
- * stay on the ladder: staff down to +15%, founders down to +10%, never below.
+ * stay on the ladder: staff above +10%, founders at +10%, never below.
  * Non-sale listings and sales with no known owner price are not constrained.
  */
 export async function checkPublicSalePriceChange(params: {

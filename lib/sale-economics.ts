@@ -8,9 +8,10 @@
 // - Commission (migration 050): Roogo earns base% of the owner's price D plus
 //   split% of any surplus above D. Owner receives the final price minus that.
 // - The public price defaults to the top of the ladder: D + 30%, never D itself.
-// - Ladder of markups over D: listing +30%, target +20%, the team may accept down
-//   to +15%, between +15% and +10% only with the founder's approval, below +10%
-//   refused (hard stop).
+// - Ladder of markups over D: listing +30%, target +20%, +15% as a negotiation
+//   reference point. The team may accept any price above +10% on its own; a
+//   price AT the +10% floor needs the founder's approval; below +10% refused
+//   (hard stop). (Founder, 2026-10-12: approval only at the floor.)
 // - Notary 2%, buyer referrer 2% and seller referrer 1% of the final price are
 //   paid out of Roogo's commission, never out of the owner's share.
 // - Bypass: if sold within 12 months to a buyer Roogo introduced, Roogo is owed

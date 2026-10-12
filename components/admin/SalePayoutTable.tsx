@@ -9,7 +9,7 @@ import {
 const LEVEL_LABELS: Record<SaleLadderLevel, string> = {
   listing: "Prix affiché",
   target: "Cible",
-  teamFloor: "Minimum équipe",
+  teamFloor: "Négociation",
   hardFloor: "Plancher absolu",
 };
 

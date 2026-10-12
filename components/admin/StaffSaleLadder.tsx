@@ -12,10 +12,13 @@ import { cn } from "@/lib/utils";
 const RUNGS: Record<SaleLadderLevel, { label: string; rule: string }> = {
   listing: { label: "Prix affiché", rule: "Prix de départ, publié par défaut." },
   target: { label: "Objectif", rule: "Le propriétaire reçoit exactement son prix." },
-  teamFloor: { label: "Minimum équipe", rule: "L'équipe peut accepter seule jusqu'ici." },
+  teamFloor: {
+    label: "Négociation",
+    rule: "Repère. L'équipe peut accepter seule tout prix au-dessus du plancher.",
+  },
   hardFloor: {
     label: "Plancher absolu",
-    rule: "Uniquement avec l'accord de Salif. Jamais en dessous.",
+    rule: "À ce prix, accord de Salif obligatoire. Jamais en dessous.",
   },
 };
 
