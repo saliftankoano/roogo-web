@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Studio field media go straight to the shared Drive — 2026-10-12
+
+**Decision:** Visit photos and videos dropped in the Studio are stored in the shared Google Drive "Roogo" (`Vente|Location / Quartier - Nom du propriétaire`, the field sheet rule), uploaded by the browser directly to Google through a resumable session the server opens as a service account. The Studio keeps an index (`studio_field_media`) and a signed stream route so video templates (HeyGen) can use the clips. A file is marked ready only after Drive confirms it in the right folder at the right size.
+
+**Why:** Staff already file visits in that Drive by hand, so Drive stays the one place to look. Footage is 100 MB to 1 GB, and Supabase refuses anything over 50 MB while Vercel bodies stop near 4.5 MB, so the bytes must skip both. Opening the session with the browser's Origin is what lets Google answer the browser's chunks with CORS headers. No new dependency: the service-account token is a JWT signed with node:crypto.
+
+**Ruled out / alternatives:** Supabase storage, including resumable TUS (50 MB project cap). Sending media through our API (body limits, cost). The `googleapis` SDK (large, not needed for four calls). Per-person OAuth (each staff member would need Drive consent; the service account works for everyone). Converting HEIC or re-encoding videos before upload (Drive is the archive of originals).
+
+**Status:** Built on branch `feat/studio-field-media`, not deployed. Not tested against Google: the direct browser upload (CORS) and the relay fallback are unverified until the service account exists. Migration 086 not run. See [how it works](./SYSTEM.md#how-do-field-photos-and-videos-reach-the-shared-drive).
+
 ### Studio videos can be made with music only — 2026-10-11
 
 **Decision:** A full Studio video no longer requires a voice-over: the team picks a music (for example a Roogo song) and the photos set the pace. There is no separate "music only" mode; the voice-over is simply optional and can be unticked. The team sets the music and voice levels with two sliders, kept in each browser, not in the database. With nothing to hear, the create button opens the music drawer; an empty voice lane opens the Voix off tool. The outro accepts an optional second phone number.

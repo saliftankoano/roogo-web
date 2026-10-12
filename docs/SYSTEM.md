@@ -787,6 +787,61 @@ The visible script stays in correct French; a separate "texte envoyé à la voix
 
 Why: [decision](./DECISIONS.md#studio-pronunciation-the-glossary-guides-the-writer-rules-make-the-speech--2026-10-10).
 
+## How do field photos and videos reach the shared Drive?
+
+Staff open a property's project in the Studio and drop the visit's files in **Médias du terrain**. Each file goes from the browser straight to the shared Google Drive "Roogo", in `Vente` (sales) or `Location` (everything else), then a folder named `Quartier - Nom du propriétaire`. The owner name is the seller from a direct sale intake, else the account that listed the property. An existing folder with the same name is reused even if accents, case or dash style differ (oldest first). Missing parts become `Sans quartier` or `Propriétaire inconnu`.
+
+```mermaid
+sequenceDiagram
+  participant B as Studio (browser)
+  participant S as roogo-web
+  participant G as Google Drive
+  B->>S: POST /api/admin/studio/media (name, size, type, duration)
+  S->>G: find or create Vente|Location / Quartier - Propriétaire
+  S->>G: open a resumable session (Origin = the Studio's origin)
+  S-->>B: session address, row "uploading"
+  loop 16 MiB chunks
+    B->>G: PUT bytes (Content-Range)
+  end
+  B->>S: POST /media/[id]/finalize
+  S->>G: session status, then file id, folder and size
+  S-->>B: row "ready"
+```
+
+- **Why direct:** Supabase refuses files over 50 MB and Vercel request bodies stop near 4.5 MB, while phone footage is 100 MB to 1 GB. The bytes never pass through Supabase; they pass through Vercel only in the fallback. Limit 5 GB per file.
+- **Fallback:** if Google refuses the browser before the first chunk (CORS, network filter), the same session is fed in 4 MiB chunks through `PUT /api/admin/studio/media/[id]/chunk`. It is slower, but it works.
+- **Resume:** after a network error the browser asks `GET /api/admin/studio/media/[id]` how many bytes Google kept and continues from there. After a reload, dropping the same file again (same person, property, name and size, within 6 days) resumes the old session.
+- **Ready means checked:** finalize asks Drive itself. A file is ready only if the session is complete and the file exists in the chosen folder, not in the bin, at exactly the announced size. Otherwise the row is `failed` with the reason.
+- **Index:** `studio_field_media` (migration 086): property, kind, name, type, size, duration, Drive file and folder ids, status, uploader. The Drive session address is kept only while uploading. Service role only.
+- **Video length:** `duration_seconds` is set at finalize from Drive's `videoMediaMetadata.durationMillis`, else from the browser's own reading of the file before upload. If both are missing (Drive still processing, a codec the browser cannot read), the list route asks Drive again, five rows per call, until it is filled.
+- **Originals are kept as shot** (HEIC, MOV): Drive is the archive. The panel shows Drive's preview images.
+
+### Using the clips in other features (shared contract)
+
+- `GET /api/admin/studio/media?propertyId=<uuid>` (staff) returns `{ media: [{ id, kind, fileName, mimeType, sizeBytes, durationSeconds, status, driveFileId, createdAt, driveUrl, folderPath, error }], folderUrl, driveConfigured }`, newest first.
+- `signedFieldMediaUrl(mediaId, ttlSeconds?)` in `lib/studio/field-media.ts` returns `https://www.roogobf.com/api/admin/studio/media/<id>/stream?exp=<unix>&token=<hmac>`. It is valid 3 hours by default and 24 hours at most, for that file only. It throws if the file is not `ready`.
+- `GET|HEAD /api/admin/studio/media/[id]/stream` streams the Drive file with Range support (206). It opens with a valid token, without a session (public in `middleware.ts`), or with a staff session. `?thumb=1` returns Drive's preview image. Long files pass through a Vercel function (max 300 s) and count as Vercel data transfer.
+- The token is HMAC-SHA256 over `studio-field-media:v1:<id>:<exp>` with `STUDIO_MEDIA_URL_SECRET`, or a key derived from `SUPABASE_SERVICE_ROLE_KEY` when that is not set. Changing the secret revokes every link. The base URL is `STUDIO_PUBLIC_BASE_URL`, else `NEXT_PUBLIC_APP_URL`, else `https://www.roogobf.com`.
+
+### Setup (Salif, once)
+
+1. **Google Cloud project.** At [console.cloud.google.com](https://console.cloud.google.com), signed in with the Roogo Workspace account, create a project (or pick one), for example `roogo-studio`.
+2. **Enable the Drive API.** APIs & Services, Library, search "Google Drive API", Enable.
+3. **Create the service account.** IAM & Admin, Service Accounts, Create service account: name `roogo-studio-drive`, no roles needed, Done. Copy its address (`roogo-studio-drive@<project>.iam.gserviceaccount.com`).
+4. **Create a key.** Open the service account, Keys, Add key, Create new key, JSON. A file downloads. Keep it private; never put it in the vault or a repository.
+   - If Workspace blocks key creation (policy `iam.disableServiceAccountKeyCreation`), an organisation admin must allow it for this project under IAM & Admin, Organization policies.
+5. **Add it to the shared drive.** In Google Drive, the shared drive "Roogo", Manage members, paste the service account address, role **Content manager**, uncheck "Notify", Send. If sharing outside the domain is blocked, allow it for this address in the Admin console (Apps, Google Workspace, Drive and Docs, Sharing settings).
+6. **Vercel environment variables** (Production, and Preview if you test there):
+   - `GOOGLE_SERVICE_ACCOUNT_EMAIL` = `client_email` from the JSON.
+   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` = `private_key` from the JSON, pasted whole, including `-----BEGIN PRIVATE KEY-----`. Both real line breaks and `\n` work.
+   - `ROOGO_SHARED_DRIVE_ID` = `0AMeNoBD5FUIfUk9PVA`.
+   - `STUDIO_MEDIA_URL_SECRET` (recommended) = a long random value, for example from `openssl rand -base64 48`.
+   - Optional: `STUDIO_PUBLIC_BASE_URL` if stream links must point somewhere other than `https://www.roogobf.com`.
+7. **Run migration 086** (`supabase/migrations/086_studio_field_media.sql`) on Roogo, then redeploy.
+8. **Check:** upload one photo and one video of about 200 MB from the Studio, confirm they appear in `Location/<Quartier - Propriétaire>` in the Drive, that the panel shows them, and that the browser console has no "switching to the relay" warning (that warning means the direct CORS path was refused).
+
+Why: [decision](./DECISIONS.md#studio-field-media-go-straight-to-the-shared-drive--2026-10-12).
+
 ## Why do old page addresses keep working?
 
 Renamed pages answer their old address with a permanent redirect, query string included (`next.config.ts`). Old admin addresses take two hops (to a trailing slash, then the page) until [#59](https://github.com/saliftankoano/roogo-web/pull/59) is merged, then one. The old payment return `/payments/callback` is the exception: it serves the same page as `/paiements/retour` directly, so a payment started before the rename returns without an extra hop. New payments return to `/paiements/retour` because the server builds the return address (`PAWAPAY_PAYMENTPAGE_RETURN_URL` is not set in production). The mobile app only calls `/api/` and opens listing and terms pages, none of which were renamed. See the [decision](./DECISIONS.md#page-addresses-are-french-old-ones-redirect-except-the-payment-return--2026-10-11).
