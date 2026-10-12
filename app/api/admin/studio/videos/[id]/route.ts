@@ -5,6 +5,7 @@ import { getStaffOrFounder } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { renderStatus } from "@/lib/studio/heygen-server";
 import { STUDIO_BUCKET } from "@/lib/studio/server";
+import { videoArtifactTitle } from "@/lib/studio/video-templates";
 import { MAX_STORED_VIDEO_BYTES, compressVideo } from "@/lib/studio/video-compress";
 
 // Re-encoding a 40 s render takes well under a minute; the margin is for slow machines.
@@ -99,19 +100,20 @@ export async function GET(req: Request, { params }: Ctx) {
     return failRender("La vidéo n'a pas pu être conservée.", "finalizing");
   }
 
-  const input = (gen.input ?? {}) as { mode?: string; title?: string; seconds?: number; render_id?: string };
+  const input = (gen.input ?? {}) as { mode?: string; template?: string; title?: string; seconds?: number; render_id?: string };
   const { data: inserted } = await supabaseAdmin
     .from("studio_artifacts")
     .insert({
       conversation_id: gen.conversation_id,
       kind: "video",
-      title: input.mode === "outro" ? "Fin seule" : "Vidéo du bien (Visite POV)",
+      title: videoArtifactTitle(input),
       text: input.title ?? "",
       generation_id: gen.id,
       output_path: path,
       pinned: true,
       meta: {
         mode: input.mode ?? "full",
+        template: input.template ?? "visite-pov",
         duration_seconds: status.durationSeconds ?? input.seconds ?? null,
         render_id: input.render_id ?? gen.provider_request_id,
         bytes: video.length,
