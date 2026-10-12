@@ -39,6 +39,7 @@ const OUTRO_FIELDS: (keyof OutroText)[] = [
   "note",
   "contactLabel",
   "phone",
+  "phone2",
   "footer",
 ];
 

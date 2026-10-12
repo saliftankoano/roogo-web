@@ -1108,6 +1108,8 @@ const nunito = localFont({
 function OutroPreview({ outro }: { outro: OutroText }) {
   const dim = "rgba(244,232,215,0.72)";
   const photo = outro.backgroundUrl;
+  const phones = [outro.phone, outro.phone2].map((p) => (p ?? "").trim()).filter(Boolean);
+  const two = phones.length > 1;
   return (
     <div className={`absolute inset-0 animate-[studio-fade_0.4s_ease-out] overflow-hidden bg-[linear-gradient(180deg,#cb7215,#a85c0e)] [container-type:inline-size] ${nunito.className}`}>
       {photo && (
@@ -1148,15 +1150,22 @@ function OutroPreview({ outro }: { outro: OutroText }) {
       {outro.note && (
         <p className="absolute inset-x-0 top-[53.4%] px-[5cqw] text-center text-[3.3cqw] font-bold" style={{ color: dim }}>{outro.note}</p>
       )}
-      {outro.phone && (
-        <div className="absolute inset-x-0 top-[67.7%] px-[5cqw] text-center">
+      {phones.length > 0 && (
+        <div className={cn("absolute inset-x-0 px-[5cqw] text-center", two ? "top-[65.1%]" : "top-[67.7%]")}>
           {outro.contactLabel && <p className="text-[3.5cqw] font-extrabold" style={{ color: dim }}>{outro.contactLabel}</p>}
-          <p
-            className="mt-[2.4cqw] inline-block whitespace-nowrap rounded-full px-[5.5cqw] py-[2.4cqw] text-[7.4cqw] font-black leading-none tracking-[0.18cqw] text-white tabular-nums"
-            style={{ background: photo ? "#cb7215" : "#2b241d" }}
-          >
-            {outro.phone}
-          </p>
+          {phones.map((phone) => (
+            <div key={phone}>
+              <p
+                className={cn(
+                  "inline-block whitespace-nowrap rounded-full font-black leading-none tracking-[0.18cqw] text-white tabular-nums",
+                  two ? "mt-[1.85cqw] px-[4.8cqw] py-[2cqw] text-[6.3cqw]" : "mt-[2.4cqw] px-[5.5cqw] py-[2.4cqw] text-[7.4cqw]",
+                )}
+                style={{ background: photo ? "#cb7215" : "#2b241d" }}
+              >
+                {phone}
+              </p>
+            </div>
+          ))}
         </div>
       )}
       {outro.footer && (

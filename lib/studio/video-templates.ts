@@ -82,6 +82,8 @@ export type VisitePovInput = {
     note?: string;
     contactLabel?: string;
     phone?: string;
+    /** A second number, optional (Salif, 2026-10-11). Stacked under the first. */
+    phone2?: string;
     footer?: string;
     backgroundUrl?: string | null;
   };
@@ -194,6 +196,7 @@ export function defaultOutro(
     note: "",
     contactLabel: "Appelez ou écrivez-nous sur WhatsApp",
     phone,
+    phone2: "",
     footer: "roogobf.com",
     backgroundUrl: property.image,
   };
@@ -254,6 +257,8 @@ function compose(
   const { total, outroFrom, shots, delay } = plan;
   const o = input.outro;
   const XF = CROSSFADE;
+  // One or two numbers; two are stacked and a little smaller so the outro keeps its balance.
+  const phones = [o.phone, o.phone2].map((p) => (p ?? "").trim()).filter(Boolean);
 
   const shotHtml = shots
     .map((s, i) => {
@@ -340,6 +345,8 @@ function compose(
       .note { top: 1026px; font-size: 36px; font-weight: 700; color: ${OUTRO_COLORS.support}; }
       .contact { top: 1300px; }
       .contact-label { font-size: 38px; font-weight: 800; color: ${OUTRO_COLORS.support}; }
+      .contact.two { top: 1250px; }
+      .contact.two .phone-pill { margin-top: 20px; padding: 22px 52px; font-size: 68px; }
       .phone-pill { display: inline-block; margin-top: 26px; background: ${o.backgroundUrl ? "#cb7215" : "#2b241d"}; border-radius: 100px;
         padding: 26px 60px; font-size: 80px; font-weight: 900; color: #fff; letter-spacing: 2px; line-height: 1; }
       .footer { top: 1760px; font-size: 34px; font-weight: 800; color: ${OUTRO_COLORS.support}; letter-spacing: 1px; }
@@ -366,8 +373,8 @@ ${shotHtml}${
             : ""
         }
         <div id="rule" class="rule"></div>${o.note ? `\n        <div id="note" class="line note">${esc(o.note)}</div>` : ""}${
-          o.phone
-            ? `\n        <div id="contact" class="line contact"><div class="contact-label">${esc(o.contactLabel ?? "Appelez ou écrivez-nous sur WhatsApp")}</div><div class="phone-pill">${esc(o.phone)}</div></div>`
+          phones.length
+            ? `\n        <div id="contact" class="line contact${phones.length > 1 ? " two" : ""}"><div class="contact-label">${esc(o.contactLabel ?? "Appelez ou écrivez-nous sur WhatsApp")}</div>${phones.map((p) => `<div><span class="phone-pill">${esc(p)}</span></div>`).join("")}</div>`
             : ""
         }
         <div id="footer" class="line footer">${esc(o.footer ?? "roogobf.com")}</div>
@@ -392,7 +399,7 @@ ${shotTweens}
             : ""
         }
         tl.fromTo("#rule", { opacity: 0, scaleX: 0.3 }, { opacity: 1, scaleX: 1, duration: 0.45, ease: "power3.out" }, o + 1.4);${o.note ? `\n        tl.fromTo("#note", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, o + 1.5);` : ""}${
-          o.phone
+          phones.length
             ? `\n        tl.fromTo("#contact", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.55, ease: "back.out(1.6)" }, o + 2.0);`
             : ""
         }
