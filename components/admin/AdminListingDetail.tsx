@@ -37,6 +37,7 @@ import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import ImportExistingLeaseWizard from "@/components/admin/ImportExistingLeaseWizard";
+import StaffSaleLadder from "@/components/admin/StaffSaleLadder";
 import {
   updatePropertyStatus,
   updateProperty,
@@ -1257,6 +1258,8 @@ export default function AdminListingDetail({
               </div>
             )}
           </section>
+
+          {isSaleListing && <StaffSaleLadder propertyId={listing.id} />}
 
           {saleIntake?.status === "unlinked" && (
             <section className="rounded-[32px] border border-amber-200 bg-amber-50 p-6">

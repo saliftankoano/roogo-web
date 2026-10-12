@@ -157,6 +157,9 @@ const isPublicRoute = createRouteMatcher([
   // Ownership documents (Roogo Sell) — mobile authenticates with Bearer JWT
   "/api/properties/(.*)/ownership-documents",
   "/api/properties/(.*)/ownership-documents/upload-url",
+  // Sale price ladder — staff only; the handler validates the session or the
+  // mobile Bearer JWT and returns 403 to everyone else.
+  "/api/properties/(.*)/sale-ladder",
   // Sale chat — mobile authenticates with Bearer JWT
   "/api/sale-chat/(.*)",
   // Hotel operations — the handler validates the mobile Bearer JWT and admin role.

@@ -6,10 +6,14 @@ import {
 import { MANDATE_TERMS_VERSION } from "@/lib/sale";
 import {
   DEFAULT_SALE_ECONOMICS,
+  commissionAt,
   payoutTable,
   publishedListingPrice,
+  roogoNetAfterFees,
   type SaleFeePcts,
+  type SaleLadderLevel,
   type SaleLadderPcts,
+  type SalePayoutRow,
 } from "@/lib/sale-economics";
 import {
   evaluateSalePriceChange,
@@ -460,4 +464,87 @@ export async function getPrivateAskingPrice(propertyId: string) {
   }
   const value = Number(data?.seller_asking_price);
   return Number.isFinite(value) && value > 0 ? value : null;
+}
+
+export type StaffSaleLadder = {
+  ownerPrice: number;
+  /** Where the owner's price comes from: the signed (or latest) mandate, or the
+   * listing wizard before any mandate. */
+  ownerPriceSource: "mandate" | "listing";
+  mandateStatus: MandateRow["status"] | null;
+  currentPrice: number;
+  baseCommissionPct: number;
+  surplusSplitPct: number;
+  /** Highest rung at or below the current public price, or "belowFloor". */
+  currentLevel: SaleLadderLevel | "belowFloor";
+  rows: (SalePayoutRow & {
+    roogoAfterNotary: number;
+    roogoAfterAllFees: number;
+  })[];
+};
+
+/**
+ * Staff-only view of a sale listing's price ladder: what the owner receives and
+ * what Roogo keeps at each rung, and where the current public price sits.
+ * Returns null for non-sales or when the owner's price is unknown. Never expose
+ * this to owners or buyers: it contains the owner's private price.
+ */
+export async function getStaffSaleLadder(
+  propertyId: string,
+): Promise<StaffSaleLadder | null> {
+  const { data: property, error } = await supabaseAdmin
+    .from("properties")
+    .select("listing_type, price")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!property || property.listing_type !== "vendre") return null;
+
+  const mandate = await getLatestMandateForProperty(propertyId);
+  const live =
+    mandate && ["sent", "signed"].includes(mandate.status) && mandate.desired_price != null
+      ? mandate
+      : null;
+  let ownerPrice = live ? Number(live.desired_price) : null;
+  const ownerPriceSource: StaffSaleLadder["ownerPriceSource"] = live
+    ? "mandate"
+    : "listing";
+  if (ownerPrice == null) ownerPrice = await getPrivateAskingPrice(propertyId);
+  if (ownerPrice == null || !(ownerPrice > 0)) return null;
+
+  const ladder = (live && mandateLadder(live)) ?? (await getSaleLadderConfig());
+  const fees = await getSaleLadderConfig();
+  let base = Number(live?.base_commission_pct);
+  let split = Number(live?.surplus_split_pct);
+  if (!Number.isFinite(base) || !Number.isFinite(split)) {
+    const commission = await getSaleCommissionConfig();
+    base = commission.baseCommissionPct;
+    split = commission.surplusSplitPct;
+  }
+
+  const pcts = { ...ladder, baseCommissionPct: base, surplusSplitPct: split };
+  const rows = payoutTable(ownerPrice, pcts).map((row) => {
+    const c = commissionAt(row.price, ownerPrice as number, pcts);
+    return {
+      ...row,
+      roogoAfterNotary: roogoNetAfterFees(c, fees).roogoNet,
+      roogoAfterAllFees: roogoNetAfterFees(c, fees, {
+        buyerReferred: true,
+        sellerReferred: true,
+      }).roogoNet,
+    };
+  });
+
+  const currentPrice = Number(property.price) || 0;
+  const reached = rows.find((row) => currentPrice >= row.price);
+  return {
+    ownerPrice,
+    ownerPriceSource,
+    mandateStatus: mandate?.status ?? null,
+    currentPrice,
+    baseCommissionPct: base,
+    surplusSplitPct: split,
+    currentLevel: reached ? reached.level : "belowFloor",
+    rows,
+  };
 }
