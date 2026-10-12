@@ -61,8 +61,13 @@ export type VisitePovInput = {
   photos: string[];
   /** Short facts shown over the photos, in order (price, size, rooms...). */
   chips?: string[];
+  /** Empty when the video has no voice-over: its length then comes from the photos. */
   voiceUrl: string;
   voiceSeconds: number;
+  /** The voice's level, 1 = the usual level (VOICE_GAIN). Set in the editor. */
+  voiceLevel?: number;
+  /** The music's level when nobody speaks, 0 to 1. Defaults to MUSIC_ALONE, or MUSIC_SOLO in a video without voice. */
+  musicLevel?: number;
   /** When the voice starts, in seconds (moved in the editor). Defaults to VOICE_DELAY. */
   voiceDelay?: number;
   /** The script that was spoken, used to start the outro on the call to action. */
@@ -77,6 +82,8 @@ export type VisitePovInput = {
     note?: string;
     contactLabel?: string;
     phone?: string;
+    /** A second number, optional (Salif, 2026-10-11). Stacked under the first. */
+    phone2?: string;
     footer?: string;
     backgroundUrl?: string | null;
   };
@@ -189,6 +196,7 @@ export function defaultOutro(
     note: "",
     contactLabel: "Appelez ou écrivez-nous sur WhatsApp",
     phone,
+    phone2: "",
     footer: "roogobf.com",
     backgroundUrl: property.image,
   };
@@ -202,6 +210,7 @@ export function buildOutroOnly(input: {
   outro: OutroText;
   logoUrl: string;
   musicUrl?: string | null;
+  musicLevel?: number;
   seconds?: number;
 }): { html: string; durationSeconds: number } {
   const total = round(input.seconds ?? OUTRO_ONLY_SECONDS);
@@ -212,11 +221,28 @@ export function buildOutroOnly(input: {
   return { html, durationSeconds: total };
 }
 
+/** Each photo's time when there is no voice to pace the video. */
+export const SILENT_SHOT = (MIN_SHOT + MAX_SHOT) / 2;
+
+/**
+ * A video without a voice-over (Salif, 2026-10-11): the music carries it. Each
+ * photo gets SILENT_SHOT seconds, then the outro holds as long as an outro alone.
+ */
+export function silentTiming(photoCount: number): { outroFrom: number; total: number } {
+  const outroFrom = round(Math.max(1, photoCount) * SILENT_SHOT);
+  return { outroFrom, total: round(outroFrom + OUTRO_ONLY_SECONDS) };
+}
+
 export function buildVisitePov(input: VisitePovInput): {
   html: string;
   durationSeconds: number;
   shots: Shot[];
 } {
+  if (!input.voiceUrl) {
+    const { outroFrom, total } = silentTiming(input.photos.length);
+    const shots = planShots(input.photos, outroFrom, input.chips);
+    return compose({ ...input, musicLevel: input.musicLevel ?? MUSIC_SOLO }, { total, outroFrom, shots, delay: null });
+  }
   const delay = clampVoiceDelay(input.voiceDelay ?? VOICE_DELAY);
   const total = round(delay + input.voiceSeconds + TAIL);
   const outroFrom = outroStart(input.voiceSeconds, input.script, delay);
@@ -231,6 +257,8 @@ function compose(
   const { total, outroFrom, shots, delay } = plan;
   const o = input.outro;
   const XF = CROSSFADE;
+  // One or two numbers; two are stacked and a little smaller so the outro keeps its balance.
+  const phones = [o.phone, o.phone2].map((p) => (p ?? "").trim()).filter(Boolean);
 
   const shotHtml = shots
     .map((s, i) => {
@@ -270,8 +298,9 @@ function compose(
     delay !== null && input.voiceUrl ? { start: delay, end: delay + input.voiceSeconds } : null;
   const musicLane = JSON.stringify({
     version: 1,
-    lanes: [{ target: "volume", points: musicEnvelope(total, voiceSpan) }],
+    lanes: [{ target: "volume", points: musicEnvelope(total, voiceSpan, input.musicLevel) }],
   });
+  const voiceGain = round(VOICE_GAIN * clampVoiceLevel(input.voiceLevel ?? 1));
   const music = input.musicUrl
     ? `\n      <audio id="music" src="${esc(input.musicUrl)}" data-start="0" data-duration="${n(total)}" data-track-index="10" data-volume="1" data-automation='${musicLane}'></audio>`
     : "";
@@ -316,6 +345,8 @@ function compose(
       .note { top: 1026px; font-size: 36px; font-weight: 700; color: ${OUTRO_COLORS.support}; }
       .contact { top: 1300px; }
       .contact-label { font-size: 38px; font-weight: 800; color: ${OUTRO_COLORS.support}; }
+      .contact.two { top: 1250px; }
+      .contact.two .phone-pill { margin-top: 20px; padding: 22px 52px; font-size: 68px; }
       .phone-pill { display: inline-block; margin-top: 26px; background: ${o.backgroundUrl ? "#cb7215" : "#2b241d"}; border-radius: 100px;
         padding: 26px 60px; font-size: 80px; font-weight: 900; color: #fff; letter-spacing: 2px; line-height: 1; }
       .footer { top: 1760px; font-size: 34px; font-weight: 800; color: ${OUTRO_COLORS.support}; letter-spacing: 1px; }
@@ -342,15 +373,15 @@ ${shotHtml}${
             : ""
         }
         <div id="rule" class="rule"></div>${o.note ? `\n        <div id="note" class="line note">${esc(o.note)}</div>` : ""}${
-          o.phone
-            ? `\n        <div id="contact" class="line contact"><div class="contact-label">${esc(o.contactLabel ?? "Appelez ou écrivez-nous sur WhatsApp")}</div><div class="phone-pill">${esc(o.phone)}</div></div>`
+          phones.length
+            ? `\n        <div id="contact" class="line contact${phones.length > 1 ? " two" : ""}"><div class="contact-label">${esc(o.contactLabel ?? "Appelez ou écrivez-nous sur WhatsApp")}</div>${phones.map((p) => `<div><span class="phone-pill">${esc(p)}</span></div>`).join("")}</div>`
             : ""
         }
         <div id="footer" class="line footer">${esc(o.footer ?? "roogobf.com")}</div>
       </section>
 ${
-        delay !== null
-          ? `      <audio id="voice" src="${esc(input.voiceUrl)}" data-start="${n(delay)}" data-duration="${n(total - delay)}" data-volume="${VOICE_GAIN}"></audio>`
+        delay !== null && input.voiceUrl
+          ? `      <audio id="voice" src="${esc(input.voiceUrl)}" data-start="${n(delay)}" data-duration="${n(total - delay)}" data-volume="${voiceGain}"></audio>`
           : ""
       }${music}
       <script>
@@ -368,7 +399,7 @@ ${shotTweens}
             : ""
         }
         tl.fromTo("#rule", { opacity: 0, scaleX: 0.3 }, { opacity: 1, scaleX: 1, duration: 0.45, ease: "power3.out" }, o + 1.4);${o.note ? `\n        tl.fromTo("#note", { opacity: 0, y: 16 }, { opacity: 1, y: 0, duration: 0.45, ease: "power3.out" }, o + 1.5);` : ""}${
-          o.phone
+          phones.length
             ? `\n        tl.fromTo("#contact", { opacity: 0, y: 24 }, { opacity: 1, y: 0, duration: 0.55, ease: "back.out(1.6)" }, o + 2.0);`
             : ""
         }
@@ -409,6 +440,21 @@ export function videoDownloadName(label: string, fallbackTitle = ""): string {
 /** Music level while the voice speaks, and when it does not (0 to 1). */
 export const MUSIC_UNDER_VOICE = 0.08;
 export const MUSIC_ALONE = 0.32;
+/** Without a voice-over the music is the star: near full level by default. */
+export const MUSIC_SOLO = 0.9;
+/** Under the voice, the music keeps this share of its level (0.08 / 0.32). */
+const DUCK = MUSIC_UNDER_VOICE / MUSIC_ALONE;
+
+/** Staff set the music level from 0 to 100 % (Salif, 2026-10-11). */
+export function clampMusicLevel(value: number): number {
+  return Number.isFinite(value) ? Math.round(Math.min(1, Math.max(0, value)) * 100) / 100 : MUSIC_ALONE;
+}
+
+/** The voice level from 0 to 200 % of the usual level. */
+export const MAX_VOICE_LEVEL = 2;
+export function clampVoiceLevel(value: number): number {
+  return Number.isFinite(value) ? Math.round(Math.min(MAX_VOICE_LEVEL, Math.max(0, value)) * 100) / 100 : 1;
+}
 const RAMP = 0.6;
 const FADE_IN = 0.8;
 const FADE_OUT = 1.6;
@@ -420,26 +466,32 @@ type Point = { t: number; v: number };
  * (`t` in seconds from the start of the video). `voice` is when the voice plays;
  * null for an outro on its own.
  */
-export function musicEnvelope(total: number, voice: { start: number; end: number } | null): Point[] {
+export function musicEnvelope(
+  total: number,
+  voice: { start: number; end: number } | null,
+  level: number = MUSIC_ALONE,
+): Point[] {
   const end = round(total);
   const fadeOutAt = Math.max(FADE_IN, end - FADE_OUT);
+  const alone = clampMusicLevel(level);
+  const under = round(alone * DUCK);
   const points: Point[] = [
     { t: 0, v: 0 },
-    { t: Math.min(FADE_IN, fadeOutAt), v: MUSIC_ALONE },
+    { t: Math.min(FADE_IN, fadeOutAt), v: alone },
   ];
   if (voice && voice.end > voice.start) {
     const down = Math.max(FADE_IN, voice.start - RAMP / 2);
     const up = Math.min(fadeOutAt, voice.end + RAMP / 2);
     if (up > down + RAMP) {
       points.push(
-        { t: down, v: MUSIC_ALONE },
-        { t: down + RAMP, v: MUSIC_UNDER_VOICE },
-        { t: up - RAMP < down + RAMP ? down + RAMP : up - RAMP, v: MUSIC_UNDER_VOICE },
-        { t: up, v: MUSIC_ALONE },
+        { t: down, v: alone },
+        { t: down + RAMP, v: under },
+        { t: up - RAMP < down + RAMP ? down + RAMP : up - RAMP, v: under },
+        { t: up, v: alone },
       );
     }
   }
-  points.push({ t: fadeOutAt, v: MUSIC_ALONE }, { t: end, v: 0 });
+  points.push({ t: fadeOutAt, v: alone }, { t: end, v: 0 });
   // Sorted, rounded, and never two points at the same time.
   const out: Point[] = [];
   for (const p of points.sort((a, b) => a.t - b.t)) {

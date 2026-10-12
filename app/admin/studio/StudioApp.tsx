@@ -689,6 +689,7 @@ export function StudioApp() {
               void loadBudget();
             }}
             onOpenArtifact={jumpTo}
+            onAddVoice={() => setView("voiceover")}
           />
         )}
         {view === "visuals" && (

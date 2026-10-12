@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Studio videos can be made with music only — 2026-10-11
+
+**Decision:** A full Studio video no longer requires a voice-over: the team picks a music (for example a Roogo song) and the photos set the pace. There is no separate "music only" mode; the voice-over is simply optional and can be unticked. The team sets the music and voice levels with two sliders, kept in each browser, not in the database. With nothing to hear, the create button opens the music drawer; an empty voice lane opens the Voix off tool. The outro accepts an optional second phone number.
+
+**Why:** Salif wants a viral variant of the walkthrough video with a Roogo song and on-screen property facts instead of a voice-over. He preferred letting the team drop the voice-over to adding a mode, and preferred volume controls to a warning when a sung song meets a voice-over. Levels are set each time, as in any editing app, so storing them was not worth a migration.
+
+**Ruled out / alternatives:** A third "Musique seule" mode (one more concept to learn). Blocking or warning on song plus voice-over. Saving levels per project in the database. A silent video with neither voice nor music (still refused).
+
+**Status:** Built and shown to Salif locally on 2026-10-11; PR pending.
+
 ### Page addresses are French; old ones redirect, except the payment return — 2026-10-11
 
 **Decision:** Rename the 9 English page addresses to French (`/bienvenue`, `/paiements/retour`, and seven admin pages such as `/admin/demandes-de-biens` and `/admin/assistance`). Every old address answers with a permanent redirect in one hop, keeping the query string. The old payment return `/payments/callback` is **not** redirected: it keeps serving the same page directly. `/api/` addresses, `/app`, `/p/[id]`, `/admin`, `/blog`, `/talent`, `/mebo` and `/confidentialite/en` keep their names.
