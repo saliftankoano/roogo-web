@@ -242,7 +242,7 @@ export function ProjectView({
               </div>
             ) : (
               <p className="text-xs text-neutral-500">
-                {voice ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur." : "Une fin seule est possible dès maintenant."}
+                {voice ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur." : "Possible dès maintenant avec une musique, sans voix off."}
               </p>
             )}
           </Tile>

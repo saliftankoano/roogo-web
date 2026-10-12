@@ -4,8 +4,9 @@
 //
 //   node --env-file=.env.local scripts/upload-studio-music.mjs [vault Musique folder]
 //
-// Only the tracks Roogo uses in its own productions. The artist songs in
-// Musique/Chansons stay out until their rights are confirmed. The source files
+// Only the tracks Roogo uses in its own productions, including Roogo's own
+// Suno songs (Pro plan). Other artists' songs in Musique/Chansons stay out
+// until their rights are confirmed. The source files
 // are never modified: WAV is converted to MP3 in a temp folder first.
 // Safe to run again: a track already uploaded is skipped.
 
@@ -25,6 +26,28 @@ const TRACKS = [
   { file: "Instrumentales/sobo-burkinbila.mp3", title: "Sobo Burkinbila" },
   { file: "Instrumentales/tout-prendre-djo.mp3", title: "Tout prendre djo" },
   { file: "Chansons/roogo-vous-rapproche.wav", title: "Roogo vous rapproche" },
+  // Roogo's own Suno songs and instrumentals, made on the Pro plan (commercial use
+  // allowed); added for the whole team on 2026-10-11 (Salif).
+  { file: "Chansons/roogo-a-verifie.mp3", title: "Rohgo a vérifié" },
+  { file: "Instrumentales/basse-urbaine.mp3", title: "Basse urbaine" },
+  { file: "Instrumentales/basse-roogomatise.mp3", title: "Basse roogomatisé" },
+  { file: "Chansons/trouve-ta-place.mp3", title: "Trouve ta place" },
+  { file: "Chansons/la-bonne-adresse.mp3", title: "La bonne adresse" },
+  { file: "Chansons/trouve-ta-place-ehe.mp3", title: "Trouve ta place éhé" },
+  { file: "Chansons/roogo-le-bon-choix.mp3", title: "Roogo le bon choix" },
+  { file: "Chansons/l-appli-immo-du-burkina.mp3", title: "L'appli Immo du Burkina" },
+  { file: "Chansons/franglita-side-by-side.mp3", title: "Franglita - Side by side" },
+  { file: "Chansons/reste-pres-de-moi.mp3", title: "Reste près de moi" },
+  { file: "Chansons/franglais-ensemble-ou-together.mp3", title: "Franglais - ensemble ou together" },
+  { file: "Chansons/zouk-du-faso.mp3", title: "Zouk du Faso" },
+  { file: "Chansons/nouveau-chez-vous.mp3", title: "Nouveau chez-vous" },
+  { file: "Chansons/rohgo-trouvez-votre-maison.mp3", title: "Rohgo, trouvez votre maison" },
+  { file: "Chansons/ton-bien-prend-son-envole.mp3", title: "Ton bien prend son envole" },
+  { file: "Chansons/j-ai-trouve-la-reponse.mp3", title: "J'ai trouvé la reponse" },
+  { file: "Chansons/mon-bien-est-en-ligne.mp3", title: "Mon bien est en ligne" },
+  { file: "Chansons/je-reprends-confiance-avec-roogo.mp3", title: "Je reprends Confiance avec Roogo" },
+  { file: "Chansons/le-jour-est-a-nous.mp3", title: "Le jour est à nous" },
+  { file: "Chansons/choisissez-contactez.mp3", title: "Choisissez, contactez" },
 ];
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;

@@ -14,6 +14,7 @@ import {
   MusicNotesIcon,
   PauseIcon,
   PlayIcon,
+  PlusIcon,
   RewindIcon,
   SkipBackIcon,
   SpinnerGapIcon,
@@ -200,6 +201,7 @@ export function StudioEditor({
   videoRemainingUsd,
   onRendered,
   onOpenArtifact,
+  onAddVoice,
 }: {
   conversationId: string | null;
   property: PropertySummary | null;
@@ -209,6 +211,8 @@ export function StudioEditor({
   videoRemainingUsd: number | null;
   onRendered: () => void;
   onOpenArtifact: (artifactId: string) => void;
+  /** Opens the Voix off tool, one click from the editor (Salif, 2026-10-11). */
+  onAddVoice?: () => void;
 }) {
   const template = VIDEO_TEMPLATES[0];
   // The newest finished video of this project, offered for download in the header.
@@ -581,6 +585,11 @@ export function StudioEditor({
               : null,
     tone: render.state === "failed" ? ("error" as const) : render.state === "done" ? ("ok" as const) : ("info" as const),
     onCreate: () => void createVideo(),
+    // Nothing to hear yet: the button opens the music drawer instead of sitting greyed out.
+    fix:
+      canWrite && mode === "full" && !withVoice && !music && !musicId
+        ? { label: "Choisir une musique", onClick: () => setMusicOpen(true) }
+        : null,
     downloadUrl: latestVideo?.downloadUrl ?? null,
     downloadLabel: latestVideo?.title === "Fin seule" ? "Télécharger la fin" : "Télécharger la vidéo",
     onOpen:
@@ -693,9 +702,21 @@ export function StudioEditor({
                 )}
               </>
             ) : (
-              <p className="px-1 text-xs text-neutral-500">
-                Aucune voix off. La vidéo peut se faire avec la musique seule, ou générez une voix depuis le script.
-              </p>
+              <>
+                <p className="px-1 text-xs text-neutral-500">
+                  Aucune voix off. La vidéo peut se faire avec la musique seule.
+                </p>
+                {canWrite && onAddVoice && (
+                  <button
+                    type="button"
+                    onClick={onAddVoice}
+                    className="flex w-full cursor-pointer items-center gap-2 rounded-lg border border-dashed border-neutral-300 px-2 py-2 text-left text-sm text-neutral-600 transition-colors hover:border-primary/50 hover:text-primary"
+                  >
+                    <PlusIcon size={14} weight="bold" className="shrink-0" />
+                    Ajouter une voix off
+                  </button>
+                )}
+              </>
             )}
           </section>
           </div>
@@ -799,6 +820,10 @@ export function StudioEditor({
           onMoveVoice={canWrite && withVoice ? moveVoice : undefined}
           hasVoice={Boolean(voiceSrc)}
           withVoice={withVoice}
+          onAddVoice={
+            !canWrite ? undefined : voice ? () => changeMix({ useVoice: true }) : onAddVoice
+          }
+          addVoiceLabel={voice ? "Remettre la voix off" : "Ajouter une voix off"}
           musicTitle={music?.title ?? null}
           musicPoints={musicPoints}
           onOpenMusic={() => setMusicOpen(true)}
@@ -841,6 +866,7 @@ function EditorFrame({
     status: string | null;
     tone: "info" | "ok" | "error";
     onCreate: () => void;
+    fix?: { label: string; onClick: () => void } | null;
     onOpen?: () => void;
     downloadUrl?: string | null;
     downloadLabel?: string;
@@ -916,6 +942,17 @@ function EditorFrame({
                 {action.downloadLabel ?? "Télécharger la vidéo"}
               </a>
             )}
+            {action.fix && !action.busy ? (
+              <button
+                type="button"
+                onClick={action.fix.onClick}
+                title="Une vidéo a besoin d'une musique ou d'une voix off"
+                className="inline-flex h-10 shrink-0 cursor-pointer items-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-white shadow-[0_6px_16px_-8px_rgba(201,106,46,0.8)] transition-transform active:scale-[0.985]"
+              >
+                <MusicNotesIcon size={16} weight="bold" className="size-4 shrink-0" />
+                {action.fix.label}
+              </button>
+            ) : (
             <button
               type="button"
               onClick={action.onCreate}
@@ -931,6 +968,7 @@ function EditorFrame({
               {action.blocker ?? action.label}
               {!action.blocker && <span className="rounded-md bg-white/20 px-1.5 py-0.5 text-xs font-bold tabular-nums">≈ {action.price}</span>}
             </button>
+            )}
           </div>
         ) : null}
       </div>
@@ -1183,6 +1221,8 @@ function Timeline({
   onMoveVoice,
   hasVoice,
   withVoice,
+  onAddVoice,
+  addVoiceLabel,
   musicTitle,
   musicPoints,
   onOpenMusic,
@@ -1200,6 +1240,8 @@ function Timeline({
   onMoveVoice?: (delay: number) => void;
   hasVoice: boolean;
   withVoice: boolean;
+  onAddVoice?: () => void;
+  addVoiceLabel: string;
   musicTitle: string | null;
   musicPoints: { t: number; v: number }[];
   onOpenMusic: () => void;
@@ -1348,9 +1390,20 @@ function Timeline({
             </div>
             <div className={cn("relative", TRACK)}>
               {!withVoice ? (
-                <span className="absolute inset-0 flex items-center rounded-md border border-dashed border-neutral-300 px-2 text-[11px] font-semibold text-neutral-400">
-                  Sans voix off
-                </span>
+                onAddVoice ? (
+                  <button
+                    type="button"
+                    onClick={onAddVoice}
+                    className="absolute inset-0 flex cursor-pointer items-center rounded-md border border-dashed border-neutral-300 px-2 text-[11px] font-semibold text-neutral-500 transition-colors hover:border-primary/50 hover:text-primary"
+                  >
+                    <PlusIcon size={12} weight="bold" className="mr-1 shrink-0" />
+                    {addVoiceLabel}
+                  </button>
+                ) : (
+                  <span className="absolute inset-0 flex items-center rounded-md border border-dashed border-neutral-300 px-2 text-[11px] font-semibold text-neutral-400">
+                    Sans voix off
+                  </span>
+                )
               ) : (
               <span
                 role={onMoveVoice ? "slider" : undefined}
