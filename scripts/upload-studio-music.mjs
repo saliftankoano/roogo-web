@@ -48,6 +48,22 @@ const TRACKS = [
   { file: "Chansons/je-reprends-confiance-avec-roogo.mp3", title: "Je reprends Confiance avec Roogo" },
   { file: "Chansons/le-jour-est-a-nous.mp3", title: "Le jour est à nous" },
   { file: "Chansons/choisissez-contactez.mp3", title: "Choisissez, contactez" },
+  // Older Roogo Suno instrumentals (2026-04 to 2026-10), added 2026-10-11 (Salif).
+  { file: "Instrumentales/balafon-market-bounce.mp3", title: "Balafon Market Bounce" },
+  { file: "Instrumentales/bam-bam-doum.mp3", title: "Bam Bam Doum" },
+  { file: "Instrumentales/dusk-at-the-window.mp3", title: "Dusk at the Window" },
+  { file: "Instrumentales/green-ledger-flow.mp3", title: "Green Ledger Flow" },
+  { file: "Instrumentales/molo-decale.mp3", title: "Molo décalé" },
+  { file: "Instrumentales/music-loop.mp3", title: "Music loop" },
+  { file: "Instrumentales/quatre-pas-bobo.mp3", title: "Quatre Pas Bobo" },
+  { file: "Instrumentales/quiet-platform-drift.mp3", title: "Quiet Platform Drift" },
+  { file: "Instrumentales/quiet-workspace.mp3", title: "Quiet Workspace" },
+  { file: "Instrumentales/roogo-never-give-up.mp3", title: "Roogo never give up" },
+  { file: "Instrumentales/roogo-smooth-day.mp3", title: "Roogo Smooth Day" },
+  { file: "Instrumentales/roogo-wa-naang-tondo.mp3", title: "Roogo wa naang tondo" },
+  { file: "Instrumentales/sahel-blues.mp3", title: "Sahel Blues" },
+  { file: "Instrumentales/sahel-signal.mp3", title: "Sahel Signal" },
+  { file: "Instrumentales/soft-access-loop.mp3", title: "Soft Access Loop" },
 ];
 
 const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
