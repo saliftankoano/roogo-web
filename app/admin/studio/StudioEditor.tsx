@@ -37,6 +37,11 @@ import {
   musicEnvelope,
   musicLevelAt,
   MUSIC_ALONE,
+  MUSIC_SOLO,
+  MAX_VOICE_LEVEL,
+  clampMusicLevel,
+  clampVoiceLevel,
+  silentTiming,
   type Shot,
 } from "@/lib/studio/video-templates";
 import { mergeOrder, moveItem } from "@/lib/studio/photo-order";
@@ -148,6 +153,36 @@ function writeMusic(conversationId: string | null, id: string | null) {
   }
 }
 
+// Voice on or off, and the two levels, per project (Salif, 2026-10-11).
+const MIX_KEY = (conversationId: string) => `roogo-studio-mix:${conversationId}`;
+
+type Mix = { useVoice: boolean; musicLevel: number | null; voiceLevel: number };
+const DEFAULT_MIX: Mix = { useVoice: true, musicLevel: null, voiceLevel: 1 };
+
+function readMix(conversationId: string | null): Mix {
+  if (!conversationId) return DEFAULT_MIX;
+  try {
+    const raw = window.localStorage.getItem(MIX_KEY(conversationId));
+    const saved = raw ? (JSON.parse(raw) as Partial<Mix>) : {};
+    return {
+      useVoice: saved.useVoice !== false,
+      musicLevel: typeof saved.musicLevel === "number" ? clampMusicLevel(saved.musicLevel) : null,
+      voiceLevel: typeof saved.voiceLevel === "number" ? clampVoiceLevel(saved.voiceLevel) : 1,
+    };
+  } catch {
+    return DEFAULT_MIX;
+  }
+}
+
+function writeMix(conversationId: string | null, mix: Mix) {
+  if (!conversationId) return;
+  try {
+    window.localStorage.setItem(MIX_KEY(conversationId), JSON.stringify(mix));
+  } catch {
+    // Not critical: the levels fall back to their defaults.
+  }
+}
+
 /* ---------- editor ---------- */
 
 /**
@@ -187,6 +222,20 @@ export function StudioEditor({
     .sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0];
   const script = ordered.find((a) => a.kind === "script" && a.pinned) ?? ordered.find((a) => a.kind === "script");
   const voiceSeconds = seconds(voice) ?? DEFAULT_VOICE_SECONDS;
+  // The voice-over is optional; the team also sets the voice and music levels.
+  const [mix, setMix] = useState<Mix>(DEFAULT_MIX);
+  useEffect(() => setMix(readMix(conversationId)), [conversationId]);
+  const changeMix = useCallback(
+    (patch: Partial<Mix>) => {
+      setMix((current) => {
+        const next = { ...current, ...patch };
+        writeMix(conversationId, next);
+        return next;
+      });
+    },
+    [conversationId],
+  );
+  const withVoice = Boolean(voice) && mix.useVoice;
   const [voiceDelay, setVoiceDelay] = useState(VOICE_DELAY);
   useEffect(() => setVoiceDelay(readDelay(conversationId)), [conversationId]);
   const moveVoice = useCallback(
@@ -197,10 +246,16 @@ export function StudioEditor({
     },
     [conversationId],
   );
-  const total = Math.round((voiceDelay + voiceSeconds + TAIL) * 100) / 100;
-  const outroFrom = outroStart(voiceSeconds, script?.text, voiceDelay);
-
   const listingPhotos = useMemo(() => property?.photos ?? [], [property?.photos]);
+  const [photos, setPhotos] = useState<string[]>(listingPhotos);
+  useEffect(() => {
+    setPhotos(mergeOrder(readOrder(conversationId), listingPhotos));
+  }, [conversationId, listingPhotos]);
+
+  // With a voice, the video lasts as long as the voice; without one, the photos set the pace.
+  const silent = silentTiming(Math.min(photos.length, 12));
+  const total = withVoice ? Math.round((voiceDelay + voiceSeconds + TAIL) * 100) / 100 : silent.total;
+  const outroFrom = withVoice ? outroStart(voiceSeconds, script?.text, voiceDelay) : silent.outroFrom;
 
   // "Vidéo complète" builds the whole Visite POV; "Fin seule" makes only the outro,
   // for videos the team filmed in person (Salif, 2026-10-10).
@@ -267,9 +322,10 @@ export function StudioEditor({
     [conversationId],
   );
   const music = tracks.find((t) => t.id === musicId) ?? null;
+  const musicLevel = mix.musicLevel ?? (withVoice ? MUSIC_ALONE : MUSIC_SOLO);
   const musicPoints = useMemo(
-    () => musicEnvelope(total, voice ? { start: voiceDelay, end: voiceDelay + voiceSeconds } : null),
-    [total, voice, voiceDelay, voiceSeconds],
+    () => musicEnvelope(total, withVoice ? { start: voiceDelay, end: voiceDelay + voiceSeconds } : null, musicLevel),
+    [total, withVoice, voiceDelay, voiceSeconds, musicLevel],
   );
 
   /* ---- rendering (HeyGen) ---- */
@@ -330,11 +386,6 @@ export function StudioEditor({
       window.clearInterval(clock);
     };
   }, [renderId]);
-  const [photos, setPhotos] = useState<string[]>(listingPhotos);
-  useEffect(() => {
-    setPhotos(mergeOrder(readOrder(conversationId), listingPhotos));
-  }, [conversationId, listingPhotos]);
-
   const reorder = useCallback(
     (from: number, to: number) => {
       setPhotos((current) => {
@@ -387,6 +438,8 @@ export function StudioEditor({
       syncMusic(at, shouldPlay);
       const audio = audioRef.current;
       if (!audio) return;
+      // The browser cannot play louder than 1; the render applies the full level.
+      audio.volume = Math.min(1, mix.voiceLevel);
       const offset = at - voiceDelay;
       if (offset < 0 || offset >= (Number.isFinite(audio.duration) ? audio.duration : voiceSeconds)) {
         audio.pause();
@@ -397,7 +450,7 @@ export function StudioEditor({
       if (shouldPlay && audio.paused) void audio.play().catch(() => setPlaying(false));
       if (!shouldPlay) audio.pause();
     },
-    [voiceSeconds, voiceDelay, syncMusic],
+    [voiceSeconds, voiceDelay, syncMusic, mix.voiceLevel],
   );
 
   const seek = useCallback(
@@ -465,8 +518,8 @@ export function StudioEditor({
   const estimateUsd = estimateVideoCostUsd(renderSeconds);
   const blocker = !canWrite
     ? "Lecture seule"
-    : mode === "full" && !voice
-      ? "Générez d'abord la voix off"
+    : mode === "full" && !withVoice && !music && !musicId
+      ? "Ajoutez une voix off ou une musique"
       : mode === "full" && photos.length === 0
         ? "Ce bien n'a pas de photo"
         : videoRemainingUsd !== null && estimateUsd > videoRemainingUsd
@@ -485,6 +538,10 @@ export function StudioEditor({
           mode,
           photos,
           voice_delay: voiceDelay,
+          use_voice: mix.useVoice,
+          voice_level: mix.voiceLevel,
+          // Unset means the template's default for this video (with or without voice).
+          music_level: mix.musicLevel,
           outro,
           // While the library is loading (or could not load), trust the saved choice:
           // the server refuses a track that no longer exists.
@@ -604,12 +661,40 @@ export function StudioEditor({
           <section className="space-y-1.5">
             <h3 className="px-1 text-xs font-semibold text-neutral-500">Voix off</h3>
             {voice ? (
-              <p className="rounded-lg bg-green-50 px-2 py-2 text-sm text-neutral-800">
-                {voice.title} · {clock(voiceSeconds)}
-              </p>
+              <>
+                <label
+                  className={cn(
+                    "flex items-center gap-2 rounded-lg px-2 py-2 text-sm",
+                    mix.useVoice ? "bg-green-50 text-neutral-800" : "bg-neutral-100 text-neutral-500",
+                    canWrite && "cursor-pointer",
+                  )}
+                >
+                  <input
+                    type="checkbox"
+                    checked={mix.useVoice}
+                    disabled={!canWrite}
+                    onChange={(event) => changeMix({ useVoice: event.target.checked })}
+                    className="size-4 shrink-0 accent-[#c96a2e]"
+                  />
+                  <span className={cn("min-w-0 flex-1 truncate", !mix.useVoice && "line-through")}>
+                    {voice.title} · {clock(voiceSeconds)}
+                  </span>
+                </label>
+                {mix.useVoice ? (
+                  <LevelSlider
+                    label="Volume de la voix"
+                    value={mix.voiceLevel}
+                    max={MAX_VOICE_LEVEL}
+                    disabled={!canWrite}
+                    onChange={(value) => changeMix({ voiceLevel: value })}
+                  />
+                ) : (
+                  <p className="px-1 text-xs text-neutral-500">Vidéo sans voix off : la musique porte la vidéo.</p>
+                )}
+              </>
             ) : (
               <p className="px-1 text-xs text-neutral-500">
-                Aucune voix. Générez-la depuis le script dans le Chat ; l&apos;aperçu suppose {DEFAULT_VOICE_SECONDS} s.
+                Aucune voix off. La vidéo peut se faire avec la musique seule, ou générez une voix depuis le script.
               </p>
             )}
           </section>
@@ -636,6 +721,16 @@ export function StudioEditor({
               <span className="min-w-0 flex-1 truncate">{music ? music.title : "Ajouter une musique"}</span>
               <span className="shrink-0 text-xs font-semibold text-primary">{music ? "Changer" : "Choisir"}</span>
             </button>
+            {music && (
+              <LevelSlider
+                label="Volume de la musique"
+                value={musicLevel}
+                max={1}
+                disabled={!canWrite}
+                onChange={(value) => changeMix({ musicLevel: value })}
+                hint={withVoice ? "Baisse toute seule sous la voix." : undefined}
+              />
+            )}
             {musicJob && (
               <p
                 role="status"
@@ -701,8 +796,9 @@ export function StudioEditor({
           outroFrom={outroFrom}
           voiceSeconds={voiceSeconds}
           voiceDelay={voiceDelay}
-          onMoveVoice={canWrite ? moveVoice : undefined}
+          onMoveVoice={canWrite && withVoice ? moveVoice : undefined}
           hasVoice={Boolean(voiceSrc)}
+          withVoice={withVoice}
           musicTitle={music?.title ?? null}
           musicPoints={musicPoints}
           onOpenMusic={() => setMusicOpen(true)}
@@ -717,7 +813,7 @@ export function StudioEditor({
       )}
       </AnimatePresence>
 
-      {voiceSrc && (
+      {voiceSrc && withVoice && (
         <audio key={voiceSrc.id} ref={audioRef} src={voiceSrc.url} preload="auto" className="hidden" />
       )}
       {music?.url && <audio key={music.id} ref={musicRef} src={music.url} preload="auto" className="hidden" />}
@@ -1032,6 +1128,48 @@ function OutroPreview({ outro }: { outro: OutroText }) {
   );
 }
 
+/* ---------- levels ---------- */
+
+/** A volume from 0 to `max` (1 = 100 %), shown in percent (Salif, 2026-10-11). */
+function LevelSlider({
+  label,
+  value,
+  max,
+  disabled,
+  onChange,
+  hint,
+}: {
+  label: string;
+  value: number;
+  max: number;
+  disabled?: boolean;
+  onChange: (value: number) => void;
+  hint?: string;
+}) {
+  const percent = Math.round(value * 100);
+  return (
+    <div className="space-y-1 px-1">
+      <div className="flex items-baseline justify-between gap-2 text-xs">
+        <span className="font-semibold text-neutral-600">{label}</span>
+        <span className="font-mono tabular-nums text-neutral-700">{percent} %</span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={Math.round(max * 100)}
+        step={5}
+        value={percent}
+        disabled={disabled}
+        aria-label={label}
+        aria-valuetext={`${percent} %`}
+        onChange={(event) => onChange(Number(event.target.value) / 100)}
+        className="h-2 w-full cursor-pointer accent-[#c96a2e] disabled:cursor-not-allowed"
+      />
+      {hint && <p className="text-[11px] text-neutral-500">{hint}</p>}
+    </div>
+  );
+}
+
 /* ---------- timeline ---------- */
 
 const TRACK = "h-9";
@@ -1044,6 +1182,7 @@ function Timeline({
   voiceDelay,
   onMoveVoice,
   hasVoice,
+  withVoice,
   musicTitle,
   musicPoints,
   onOpenMusic,
@@ -1060,6 +1199,7 @@ function Timeline({
   voiceDelay: number;
   onMoveVoice?: (delay: number) => void;
   hasVoice: boolean;
+  withVoice: boolean;
   musicTitle: string | null;
   musicPoints: { t: number; v: number }[];
   onOpenMusic: () => void;
@@ -1133,9 +1273,9 @@ function Timeline({
           </span>
         </div>
         <p className="w-full text-[11px] text-neutral-500">
-          {hasVoice
+          {withVoice
             ? "Cliquez sur la règle ou glissez la tête de lecture. Glissez la voix off pour la décaler."
-            : `Sans voix, l'aperçu suppose ${DEFAULT_VOICE_SECONDS} s de narration.`}
+            : "Sans voix off, chaque photo reste environ 3 s puis la fin s'affiche."}
         </p>
       </div>
 
@@ -1207,6 +1347,11 @@ function Timeline({
               </span>
             </div>
             <div className={cn("relative", TRACK)}>
+              {!withVoice ? (
+                <span className="absolute inset-0 flex items-center rounded-md border border-dashed border-neutral-300 px-2 text-[11px] font-semibold text-neutral-400">
+                  Sans voix off
+                </span>
+              ) : (
               <span
                 role={onMoveVoice ? "slider" : undefined}
                 tabIndex={onMoveVoice ? 0 : undefined}
@@ -1268,6 +1413,7 @@ function Timeline({
                   </span>
                 )}
               </span>
+              )}
             </div>
             <div className={cn("relative", TRACK)}>
               {musicTitle ? (
@@ -1280,7 +1426,7 @@ function Timeline({
                   {/* The music's level over the video: low under the voice, up when nobody speaks. */}
                   <svg aria-hidden viewBox="0 0 100 10" preserveAspectRatio="none" className="absolute inset-0 size-full">
                     <polygon
-                      points={`0,10 ${musicPoints.map((p) => `${(p.t / total) * 100},${10 - (p.v / MUSIC_ALONE) * 8}`).join(" ")} 100,10`}
+                      points={`0,10 ${musicPoints.map((p) => `${(p.t / total) * 100},${10 - p.v * 9}`).join(" ")} 100,10`}
                       fill="rgba(91,58,122,0.22)"
                     />
                   </svg>
