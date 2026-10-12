@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Studio publishing calendar: founder approval and direct Meta posting — 2026-10-12
+
+**Decision:** The Studio gets a weekly publishing calendar (`/admin/studio/calendrier`). Every post moves À faire, À valider, Validé, Publié or Échec; only a founder can set Validé, and a Vercel cron every 10 minutes publishes validated, due posts directly through the Meta Graph API (Facebook Page Reels, photos, multi-photo, text and the 3D link comment; Instagram Reels, image and carousel). "Planifier une visite" creates the five cadence posts on business days. Captions come from a deterministic template. The Page id, Instagram user id and Page token live only in Vercel environment variables, not in a table. TikTok is shown as "bientôt" and not built.
+
+**Why:** Posting is manual today (Meta Business Suite, TikTok Studio) and the cadence after each visit is easy to miss. The rule "nothing is published without Salif's written OK" becomes a button only founders have, and any later edit removes the OK. Roogo publishes to one Page and one Instagram account and the token must be a secret anyway, so a `studio_social_accounts` table would add a migration, a settings screen and a second place to rotate for one row; ids next to the token in env vars keep rotation in one place. Each post is claimed by one conditional update and a stale claim is failed, never re-taken, because re-taking could post twice. A template caption keeps the price and phone number exact, like the Studio's speech rules.
+
+**Ruled out / alternatives:** Meta's own scheduled publishing (`scheduled_publish_time`): it would publish without our final check and split the source of truth. Encrypted tokens in the database: not needed for one account. A third-party scheduler (Buffer, Later): cost and another login, no link to Studio media. TikTok's Content Posting API: unaudited apps can only post privately (`SELF_ONLY`); see the roadmap. Auto-retrying stale claims.
+
+**Status:** Built on branch `feat/studio-publishing-calendar`, not deployed. Migration 085 not applied. No call to Meta was made; Salif must create the Meta app and set the env vars ([setup](./SYSTEM.md#setting-up-the-meta-connection-salif-once)). Layout wireframe awaiting Salif's approval. Open: public holidays in the business-day count, default slot per cadence step.
+
 ### Studio videos can be made with music only — 2026-10-11
 
 **Decision:** A full Studio video no longer requires a voice-over: the team picks a music (for example a Roogo song) and the photos set the pace. There is no separate "music only" mode; the voice-over is simply optional and can be unticked. The team sets the music and voice levels with two sliders, kept in each browser, not in the database. With nothing to hear, the create button opens the music drawer; an empty voice lane opens the Voix off tool. The outro accepts an optional second phone number.

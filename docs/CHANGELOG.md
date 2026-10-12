@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-12
+
+- **Studio publishing calendar with automatic Facebook and Instagram posting** (web, branch `feat/studio-publishing-calendar`, not merged, not deployed; migration 085 not applied): week view with 12:00 and 19:00 slots, status chips and a network filter; a post editor with Studio media or listing photos, "Générer la légende", networks, date, slot and responsible person; "Planifier une visite" creates the five cadence posts on business days; only founders can "Valider"; a cron every 10 minutes publishes validated posts through the Meta Graph API and records links or a French error with "Réessayer". TikTok shown as "bientôt". [Decision](./DECISIONS.md#studio-publishing-calendar-founder-approval-and-direct-meta-posting--2026-10-12), [system](./SYSTEM.md#how-does-the-studio-publishing-calendar-post-to-facebook-and-instagram).
+
 ## 2026-10-11
 
 - **Studio videos without a voice-over, volume sliders, second phone number** (web, branch `feat/studio-music-without-voice`, not merged): "Vidéo complète" no longer needs a voice-over. Without one, the music carries the video (about 3.5 s per photo, then a 6 s outro, music at 90 % with no ducking). An existing voice-over can be unticked. Two sliders set the music (0 to 100 %, still ducked a quarter under a voice) and the voice (0 to 200 %); they are kept per browser. With neither a voice nor a music, the header button becomes "Choisir une musique"; the empty voice lane opens the Voix off tool. The outro takes an optional second number, stacked and slightly smaller. [Decision](./DECISIONS.md#studio-videos-can-be-made-with-music-only--2026-10-11).
