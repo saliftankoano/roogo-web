@@ -4,16 +4,32 @@ import {
   postSaleMessage,
 } from "@/lib/sale-chat";
 import { MANDATE_TERMS_VERSION } from "@/lib/sale";
+import {
+  DEFAULT_SALE_ECONOMICS,
+  payoutTable,
+  publishedListingPrice,
+  type SaleFeePcts,
+  type SaleLadderPcts,
+} from "@/lib/sale-economics";
+import {
+  evaluateSalePriceChange,
+  type SalePriceDecision,
+} from "@/lib/sale-price-guard";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // The price + exclusivity mandate the owner signs. Economics v2 (migration 050):
 // staff send an offer built on the owner's desired price; Roogo's commission is a
 // base percentage of that amount plus a share of any surplus above it at closing.
 // The percentages come from listing_config and are snapshotted onto the mandate so
-// later settings changes never rewrite an agreed mandate. Signing stamps
-// properties.price = desired_price and unlocks publishing; staff adjust the public
-// price afterwards without notifying the seller. The offer and signature are
-// mirrored into the seller↔Roogo thread.
+// later settings changes never rewrite an agreed mandate.
+//
+// Listing ladder (Salif, 2026-10-11): the public price is never the owner's own
+// number. Sending a mandate snapshots the ladder (sale_economics_config, migration
+// 075) onto it; signing publishes properties.price = desired_price + listing
+// markup (+30%). Staff move the public price within the ladder afterwards
+// (checkPublicSalePriceChange). The owner sees the listing price and the payout
+// table on the offer card. The offer and signature are mirrored into the
+// seller↔Roogo thread.
 
 export type MandateRow = {
   id: string;
@@ -30,6 +46,15 @@ export type MandateRow = {
   base_commission_pct: number | null;
   /** v2: snapshot of Roogo's surplus share (decimal fraction) at send time. */
   surplus_split_pct: number | null;
+  /** Ladder snapshot at send time (migration 075; null on mandates sent before
+   * 2026-10-11, which fall back to the live config). */
+  listing_markup_pct: number | null;
+  target_markup_pct: number | null;
+  team_floor_markup_pct: number | null;
+  hard_floor_markup_pct: number | null;
+  notary_fee_pct: number | null;
+  buyer_referral_pct: number | null;
+  seller_referral_pct: number | null;
   exclusivity_days: number;
   exclusivity_start_at: string | null;
   exclusivity_end_at: string | null;
@@ -74,6 +99,70 @@ export async function getSaleCommissionConfig() {
   };
 }
 
+function num(value: unknown) {
+  const n = typeof value === "number" ? value : Number(value);
+  return Number.isFinite(n) ? n : Number.NaN;
+}
+
+export type SaleLadderConfig = SaleLadderPcts & SaleFeePcts;
+
+/**
+ * The live price ladder and helper fees (sale_economics_config, service role
+ * only). Falls back to the approved defaults if the table cannot be read, so a
+ * sale is never published at the owner's own price.
+ */
+export async function getSaleLadderConfig(): Promise<SaleLadderConfig> {
+  const { data, error } = await supabaseAdmin
+    .from("sale_economics_config")
+    .select(
+      "listing_markup_pct, target_markup_pct, team_floor_markup_pct, hard_floor_markup_pct, notary_fee_pct, buyer_referral_pct, seller_referral_pct",
+    )
+    .eq("id", "default")
+    .maybeSingle();
+  const config: SaleLadderConfig = {
+    listingMarkupPct: num(data?.listing_markup_pct),
+    targetMarkupPct: num(data?.target_markup_pct),
+    teamFloorMarkupPct: num(data?.team_floor_markup_pct),
+    hardFloorMarkupPct: num(data?.hard_floor_markup_pct),
+    notaryFeePct: num(data?.notary_fee_pct),
+    buyerReferralPct: num(data?.buyer_referral_pct),
+    sellerReferralPct: num(data?.seller_referral_pct),
+  };
+  const valid =
+    !error &&
+    Object.values(config).every((v) => Number.isFinite(v) && v >= 0 && v <= 1) &&
+    config.hardFloorMarkupPct <= config.teamFloorMarkupPct &&
+    config.teamFloorMarkupPct <= config.targetMarkupPct &&
+    config.targetMarkupPct <= config.listingMarkupPct;
+  if (!valid) {
+    console.warn("Sale ladder config unavailable, using defaults:", {
+      code: error?.code ?? null,
+    });
+    const d = DEFAULT_SALE_ECONOMICS;
+    return {
+      listingMarkupPct: d.listingMarkupPct,
+      targetMarkupPct: d.targetMarkupPct,
+      teamFloorMarkupPct: d.teamFloorMarkupPct,
+      hardFloorMarkupPct: d.hardFloorMarkupPct,
+      notaryFeePct: d.notaryFeePct,
+      buyerReferralPct: d.buyerReferralPct,
+      sellerReferralPct: d.sellerReferralPct,
+    };
+  }
+  return config;
+}
+
+/** The ladder snapshotted on a mandate, or null for mandates sent before it. */
+function mandateLadder(mandate: MandateRow): SaleLadderPcts | null {
+  const pcts = {
+    listingMarkupPct: num(mandate.listing_markup_pct),
+    targetMarkupPct: num(mandate.target_markup_pct),
+    teamFloorMarkupPct: num(mandate.team_floor_markup_pct),
+    hardFloorMarkupPct: num(mandate.hard_floor_markup_pct),
+  };
+  return Object.values(pcts).every(Number.isFinite) ? pcts : null;
+}
+
 /**
  * Staff sends a mandate to the property's owner. Cancels any previous live offer,
  * posts a mandate_offer card into the seller thread, and notifies the owner.
@@ -92,7 +181,16 @@ export async function sendMandate(params: {
     return { ok: false as const, reason: "invalid_price" as const };
   }
 
-  const commission = await getSaleCommissionConfig();
+  const [commission, ladder] = await Promise.all([
+    getSaleCommissionConfig(),
+    getSaleLadderConfig(),
+  ]);
+  const listingPrice = publishedListingPrice(desiredPrice, ladder);
+  const payout = payoutTable(desiredPrice, {
+    ...ladder,
+    baseCommissionPct: commission.baseCommissionPct,
+    surplusSplitPct: commission.surplusSplitPct,
+  });
 
   const { data: property, error: propertyError } = await supabaseAdmin
     .from("properties")
@@ -131,6 +229,13 @@ export async function sendMandate(params: {
       desired_price: desiredPrice,
       base_commission_pct: commission.baseCommissionPct,
       surplus_split_pct: commission.surplusSplitPct,
+      listing_markup_pct: ladder.listingMarkupPct,
+      target_markup_pct: ladder.targetMarkupPct,
+      team_floor_markup_pct: ladder.teamFloorMarkupPct,
+      hard_floor_markup_pct: ladder.hardFloorMarkupPct,
+      notary_fee_pct: ladder.notaryFeePct,
+      buyer_referral_pct: ladder.buyerReferralPct,
+      seller_referral_pct: ladder.sellerReferralPct,
       exclusivity_days: exclusivityDays,
       status: "sent",
       terms_version: MANDATE_TERMS_VERSION,
@@ -143,8 +248,9 @@ export async function sendMandate(params: {
     throw insertError ?? new Error("Failed to insert mandate");
   }
 
-  // The card the owner sees: their price, the commission on it, and the surplus
-  // clause. Deliberately no list price; the seller never sees Roogo's price.
+  // The card the owner sees: their price, the commission on it, the surplus
+  // clause, the listing price Roogo will publish and what they receive at each
+  // rung of the ladder (decision of 2026-10-11: owners see the table).
   const { message } = await postSaleMessage({
     conversationId: conversation.id,
     senderId: staffId,
@@ -156,6 +262,8 @@ export async function sendMandate(params: {
       desired_price: desiredPrice,
       base_commission_pct: commission.baseCommissionPct,
       surplus_split_pct: commission.surplusSplitPct,
+      listing_price: listingPrice,
+      payout_table: payout,
       exclusivity_days: exclusivityDays,
     },
   });
@@ -177,10 +285,10 @@ export async function sendMandate(params: {
 }
 
 /**
- * The owner signs a mandate. Stamps properties.price = desired_price (v2; legacy
- * rows fall back to list_price), computes the exclusivity window, and posts a
- * mandate_signed card into the seller thread. Staff adjust the public price later
- * through the admin tools, without notifying the seller.
+ * The owner signs a mandate. Publishes properties.price at the top of the ladder
+ * (desired_price + listing markup; legacy spread rows fall back to list_price),
+ * computes the exclusivity window, and posts a mandate_signed card into the
+ * seller thread. Staff move the price within the ladder afterwards.
  */
 export async function signMandate(params: {
   mandateId: string;
@@ -220,8 +328,12 @@ export async function signMandate(params: {
     .eq("status", "sent");
   if (updateError) throw updateError;
 
-  // Publish at the owner's desired amount; staff may re-price afterwards.
-  const publishedPrice = mandate.desired_price ?? mandate.list_price;
+  // Publish at the top of the ladder, never at the owner's own price.
+  let publishedPrice: number | null = mandate.list_price;
+  if (mandate.desired_price != null) {
+    const ladder = mandateLadder(mandate) ?? (await getSaleLadderConfig());
+    publishedPrice = publishedListingPrice(Number(mandate.desired_price), ladder);
+  }
   if (publishedPrice != null) {
     await supabaseAdmin
       .from("properties")
@@ -250,6 +362,7 @@ export async function signMandate(params: {
         desired_price: mandate.desired_price,
         base_commission_pct: mandate.base_commission_pct,
         surplus_split_pct: mandate.surplus_split_pct,
+        listing_price: publishedPrice,
         exclusivity_end_at: end.toISOString(),
         signed_typed_name: typedName,
       },
@@ -285,4 +398,66 @@ export async function getLatestMandateForProperty(propertyId: string) {
     .maybeSingle<MandateRow>();
   if (error) throw error;
   return data ?? null;
+}
+
+/**
+ * Guard for a change to the PUBLIC price (properties.price) of a sale listing.
+ * The owner's price is the latest signed mandate's desired_price, or before any
+ * mandate, the private asking price from the listing wizard. The new price must
+ * stay on the ladder: staff down to +15%, founders down to +10%, never below.
+ * Non-sale listings and sales with no known owner price are not constrained.
+ */
+export async function checkPublicSalePriceChange(params: {
+  propertyId: string;
+  newPrice: number;
+  userType: string | null | undefined;
+}): Promise<SalePriceDecision> {
+  const { data: property, error } = await supabaseAdmin
+    .from("properties")
+    .select("listing_type")
+    .eq("id", params.propertyId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!property || property.listing_type !== "vendre") return { ok: true };
+
+  const { data: mandate, error: mandateError } = await supabaseAdmin
+    .from("property_mandates")
+    .select("*")
+    .eq("property_id", params.propertyId)
+    .eq("status", "signed")
+    .order("signed_at", { ascending: false })
+    .limit(1)
+    .maybeSingle<MandateRow>();
+  if (mandateError) throw mandateError;
+
+  let ownerPrice: number | null =
+    mandate?.desired_price != null ? Number(mandate.desired_price) : null;
+  if (ownerPrice == null) {
+    ownerPrice = await getPrivateAskingPrice(params.propertyId);
+  }
+  if (ownerPrice == null || !(ownerPrice > 0)) return { ok: true };
+
+  const pcts = (mandate && mandateLadder(mandate)) ?? (await getSaleLadderConfig());
+  return evaluateSalePriceChange({
+    newPrice: params.newPrice,
+    ownerPrice,
+    pcts,
+    isFounder: params.userType === "founder",
+  });
+}
+
+/** The owner's asking price from the listing wizard (service role only). */
+export async function getPrivateAskingPrice(propertyId: string) {
+  const { data, error } = await supabaseAdmin
+    .from("sale_asking_prices")
+    .select("seller_asking_price")
+    .eq("property_id", propertyId)
+    .maybeSingle();
+  if (error) {
+    // Table missing until migration 084 runs. Never log the amount.
+    console.warn("Private asking price unavailable:", { propertyId, code: error.code });
+    return null;
+  }
+  const value = Number(data?.seller_asking_price);
+  return Number.isFinite(value) && value > 0 ? value : null;
 }

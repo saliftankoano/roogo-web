@@ -4,13 +4,16 @@
 // Economics v2 (migration 050): the owner names the amount they want to receive
 // (desired_price). Roogo takes a base commission on that amount plus a share of any
 // surplus when the sale closes above it. The percentages live on listing_config
-// (founder-editable) and are snapshotted onto each mandate at send time. The seller
-// never sees Roogo's public listing price (properties.price), which staff set and
-// adjust freely. See lib/sale-mandate.ts and migrations 042 + 050.
+// (founder-editable) and are snapshotted onto each mandate at send time.
+//
+// Listing ladder (2026-10-11): the public price (properties.price) defaults to the
+// owner's price + 30% and stays within the ladder (lib/sale-economics.ts). The
+// owner sees the listing price and the payout table on the mandate. See
+// lib/sale-mandate.ts and migrations 042, 050, 075.
 
 // Bump when the seller-facing mandate terms text changes, so each signed mandate
 // records exactly which version was agreed to.
-export const MANDATE_TERMS_VERSION = "2026-07-v2";
+export const MANDATE_TERMS_VERSION = "2026-10-v2-ladder";
 
 // Default exclusivity period Roogo proposes on a mandate, in days.
 export const DEFAULT_MANDATE_EXCLUSIVITY_DAYS = 90;

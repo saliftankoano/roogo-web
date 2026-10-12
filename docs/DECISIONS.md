@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Sales: keep 10% + 50/50, publish at the top of the price ladder — 2026-10-11
+
+**Decision:** Keep the v2 commission (10% of the owner's price + 50% of the surplus, migration 050) and stop publishing the owner's own price. A sale listing is published at owner price + 30% (`publishedListingPrice`, on creation and again on mandate signing). Staff may move the public price down to +15%; between +15% and +10% only a founder; below +10% nobody (`checkPublicSalePriceChange` on `PATCH /api/properties/[id]`). Owners cannot change a sale's price through a listing edit. The ladder is snapshotted onto each mandate (075 columns, on v2 mandates) and the offer card carries the listing price and the payout table. Notary and referrer fees come out of Roogo's commission. The owner's price moves to the private `sale_asking_prices` table (migration 084) and staff prefill mandates from it, never from `properties.price`.
+
+**Why:** Salif, 2026-10-11: owners responded well to 10% + 50/50, but publishing the owner's number locked every sale into the lowest profit tier. At the +20% target the owner receives exactly his price, which is the pitch. The owner's price must be private once the public price differs, or negotiation starts at the owner's number.
+
+**Ruled out / alternatives:** The guaranteed-net economics on `feat/sale-v3-guaranteed-price` (seller always nets his price, Roogo keeps the margin), approved 2026-09-27 and never shipped; its ladder, markup and guard are reused here, its closing panel and v3 mandate are not. A lower floor at the owner's price (Salif chose a hard stop at +10%).
+
+**Status:** Built on `feat/sale-listing-ladder`, not merged, not deployed. Run 084 before deploying. Vault: "Roogo Sell commission with listing ladder".
+
 ### Page addresses are French; old ones redirect, except the payment return — 2026-10-11
 
 **Decision:** Rename the 9 English page addresses to French (`/bienvenue`, `/paiements/retour`, and seven admin pages such as `/admin/demandes-de-biens` and `/admin/assistance`). Every old address answers with a permanent redirect in one hop, keeping the query string. The old payment return `/payments/callback` is **not** redirected: it keeps serving the same page directly. `/api/` addresses, `/app`, `/p/[id]`, `/admin`, `/blog`, `/talent`, `/mebo` and `/confidentialite/en` keep their names.

@@ -1,3 +1,5 @@
+import { getSaleLadderConfig } from "@/lib/sale-mandate";
+import { publishedListingPrice } from "@/lib/sale-economics";
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import {
@@ -815,16 +817,23 @@ export async function POST(req: Request) {
       city: parsedListingData.ville,
     });
 
+    // A sale is published at the top of the price ladder (owner price + 30%,
+    // Salif 2026-10-11), never at the owner's own number. The owner's price is
+    // kept privately in sale_asking_prices (migration 084). Signing the mandate
+    // re-derives the public price from the mandate's desired_price.
+    const publicPrice = isSaleListing
+      ? publishedListingPrice(
+          parsedListingData.prixMensuel,
+          await getSaleLadderConfig(),
+        )
+      : parsedListingData.prixMensuel;
+
     const propertyData = {
       agent_id: directOwner ? null : parsedListingData.owner_id || user.id,
       hotel_id: hotelId,
       slug: propertySlug,
       description: sanitizeString(parsedListingData.description) || null,
-      // For a sale, the wizard price is the owner's NET asking price; Roogo's public
-      // sale price is set later from the signed mandate. We seed `price` with the
-      // asking as a placeholder (never shown publicly while en_attente).
-      price: parsedListingData.prixMensuel,
-      seller_asking_price: isSaleListing ? parsedListingData.prixMensuel : null,
+      price: publicPrice,
       listing_type: listingType,
       property_type: parsedListingData.type,
       status: propertyStatus as "en_attente" | "en_ligne",
@@ -1004,6 +1013,24 @@ export async function POST(req: Request) {
         console.error("Error creating sale intake:", intakeError);
         await supabase.from("properties").delete().eq("id", propertyId);
         return errorResponse("Failed to create direct sale intake", 500, req);
+      }
+    }
+
+    if (isSaleListing) {
+      const { error: askingError } = await supabase
+        .from("sale_asking_prices")
+        .insert({
+          property_id: propertyId,
+          seller_asking_price: parsedListingData.prixMensuel,
+          source: "listing_wizard",
+        });
+      if (askingError) {
+        // Best effort: the owner's price is agreed in the mandate anyway. Never
+        // log the amount.
+        console.error("Could not store the private sale asking price:", {
+          propertyId,
+          code: askingError.code,
+        });
       }
     }
 
