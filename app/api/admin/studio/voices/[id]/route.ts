@@ -60,7 +60,7 @@ export async function DELETE(
 
   // The voice is already unusable. Now remove a Studio-made clone at Cartesia.
   let providerDeleted: boolean | null = null;
-  if (revoked.kind === "cloned") {
+  if (revoked.kind === "cloned" || revoked.kind === "guest") {
     providerDeleted = await deleteCartesiaVoice(revoked.cartesia_voice_id);
     if (providerDeleted) {
       await supabaseAdmin

@@ -9,11 +9,12 @@ export type VoiceInfo = {
   key: string;
   label: string;
   description: string | null;
-  kind: "system" | "cloned";
+  kind: "system" | "cloned" | "guest";
   status: "active" | "locked" | "pending" | "revoked";
   isMine: boolean;
   canAccept: boolean;
   canRevoke: boolean;
+  guestName?: string | null;
 };
 
 export type TermsInfo = {
@@ -130,7 +131,7 @@ export function VoicePicker({
                     <span className="block truncate text-sm font-semibold text-neutral-900">{voice.label}</span>
                     <span className="block truncate text-xs text-neutral-500">
                       {usable
-                        ? (voice.description ?? (voice.kind === "system" ? "Voix Roogo par défaut" : "Voix clonée"))
+                        ? (voice.description ?? (voice.kind === "system" ? "Voix Roogo par défaut" : voice.kind === "guest" ? "Voix d'un invité" : "Voix clonée"))
                         : voice.status === "pending"
                           ? "En préparation"
                           : "Acceptation requise"}
@@ -213,7 +214,7 @@ export function VoicePicker({
               onClick={() => setConfirmRevokeId(voice.id)}
               className="min-h-10 cursor-pointer rounded-full px-3 text-sm font-semibold text-red-700 hover:bg-red-50"
             >
-              Retirer ma voix
+              {voice.isMine ? "Retirer ma voix" : "Retirer cette voix"}
             </button>
           )}
         </div>

@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { termsFullText, TERMS_VERSION } from "./consent-terms";
+import { guestTermsFullText, termsFullText, GUEST_TERMS_VERSION, TERMS_VERSION } from "./consent-terms";
 import type { StudioVoice } from "./voices";
 
 type VoiceRow = {
@@ -9,13 +9,15 @@ type VoiceRow = {
   label: string;
   description: string | null;
   cartesia_voice_id: string;
-  kind: "system" | "cloned";
+  kind: "system" | "cloned" | "guest";
   owner_user_id: string | null;
   status: "active" | "locked" | "pending" | "revoked";
+  guest_name: string | null;
+  added_by: string | null;
 };
 
 const COLUMNS =
-  "id, key, label, description, cartesia_voice_id, kind, owner_user_id, status";
+  "id, key, label, description, cartesia_voice_id, kind, owner_user_id, status, guest_name, added_by";
 
 function toVoice(row: VoiceRow): StudioVoice {
   return {
@@ -27,6 +29,8 @@ function toVoice(row: VoiceRow): StudioVoice {
     kind: row.kind,
     ownerUserId: row.owner_user_id,
     status: row.status,
+    guestName: row.guest_name,
+    addedBy: row.added_by,
   };
 }
 
@@ -62,6 +66,11 @@ export function currentTermsHash(): string {
 }
 
 export const CURRENT_TERMS_VERSION = TERMS_VERSION;
+export const CURRENT_GUEST_TERMS_VERSION = GUEST_TERMS_VERSION;
+
+export function currentGuestTermsHash(): string {
+  return createHash("sha256").update(guestTermsFullText()).digest("hex");
+}
 
 // Cartesia calls that manage voices use the documented bearer auth and the
 // current API version. (The TTS call in the voiceover route keeps the shape

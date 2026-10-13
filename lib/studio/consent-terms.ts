@@ -25,3 +25,26 @@ export function termsFullText(): string {
 
 export const TERMS_CHECKBOX_LABEL =
   "J'ai lu ces conditions et j'autorise Kazedra Tech à utiliser ma voix comme indiqué.";
+
+// Terms read and accepted by a guest (an owner, a client) whose voice a staff
+// member records in the Studio (Salif, 2026-10-13): Roogo marketing, with no
+// time limit. Bump GUEST_TERMS_VERSION whenever the text changes.
+export const GUEST_TERMS_VERSION = "voix-invite-v1-2026-10-13";
+
+export const GUEST_TERMS_TITLE = "Utilisation de ma voix par Roogo";
+
+export const GUEST_TERMS_PARAGRAPHS: ReadonlyArray<string> = [
+  "J'autorise Kazedra Tech, qui exploite Roogo, à enregistrer ma voix et à créer une voix numérique à partir de cet enregistrement, par intelligence artificielle.",
+  "Ma voix et sa version numérique seront utilisées pour le marketing et la communication de Roogo : vidéos, publicités, réseaux sociaux, site web et application.",
+  "Cette autorisation est donnée sans limite de durée. Elle permet à Roogo d'utiliser ma voix aussi longtemps qu'il le souhaite, y compris pour de nouveaux contenus.",
+  "Ma voix ne sera pas utilisée pour me faire dire des propos qui portent atteinte à ma dignité, ni pour usurper mon identité en dehors de Roogo.",
+  "Cette autorisation est volontaire et gratuite. Je peux la refuser sans aucune conséquence sur mes relations avec Roogo.",
+  "Kazedra Tech conserve la preuve de cette acceptation : la date, mon nom, l'enregistrement de ma voix, le compte de la personne qui l'a recueillie et la version de ce texte.",
+];
+
+export function guestTermsFullText(): string {
+  return [GUEST_TERMS_TITLE, ...GUEST_TERMS_PARAGRAPHS].join("\n\n");
+}
+
+export const GUEST_TERMS_CHECKBOX_LABEL =
+  "J'ai lu ces conditions et j'autorise Roogo à utiliser ma voix pour son marketing, sans limite de durée.";

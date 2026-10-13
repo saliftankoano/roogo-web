@@ -111,3 +111,17 @@ export function matchChallenge(
 // speech and the clip reaches the length Cartesia asks for.
 export const READ_ALOUD_PARAGRAPH =
   "Bonjour, je vous présente une belle maison à louer à Ouagadougou. Elle est calme, lumineuse et bien placée, près des commerces et des écoles. Si elle vous intéresse, vous pouvez la visiter dès cette semaine. Nous répondons à toutes vos questions avec plaisir, et nous restons disponibles pour vous accompagner à chaque étape.";
+
+/** What a guest reads aloud: the use and the duration are in the sentence itself. */
+export function buildGuestChallengeSentence(guestName: string, code: string, date: Date): string {
+  const name = guestName.trim() || "la personne qui enregistre";
+  return `Je m'appelle ${name}. J'autorise Roogo à créer une voix numérique à partir de ma voix et à l'utiliser pour son marketing, sans limite de durée, le ${frenchDate(date)}. Mon code est ${codeAsWords(code)}.`;
+}
+
+/** A guest's name as typed by staff: letters, spaces, hyphens and apostrophes, 2 to 60 characters. */
+export function cleanGuestName(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const name = value.normalize("NFC").replace(/\s+/g, " ").trim();
+  if (name.length < 2 || name.length > 60) return null;
+  return /^[\p{L}' -]+$/u.test(name) ? name : null;
+}

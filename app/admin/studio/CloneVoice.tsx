@@ -5,6 +5,7 @@ import {
   MicrophoneIcon,
   SpinnerGapIcon,
   StopIcon,
+  UserPlusIcon,
   XIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
@@ -19,11 +20,13 @@ type Challenge = {
   maxSeconds: number;
 };
 
-type Step = "idle" | "terms" | "record" | "sending" | "done";
+type Step = "idle" | "guest" | "terms" | "record" | "sending" | "done";
 
 type Props = {
   voices: VoiceInfo[];
   terms: TermsInfo | null;
+  /** Terms read by a guest (Roogo marketing, no time limit). */
+  guestTerms: TermsInfo | null;
   onChanged: () => void;
 };
 
@@ -33,9 +36,14 @@ function formatClock(seconds: number) {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
-export function CloneVoice({ voices, terms, onChanged }: Props) {
+export function CloneVoice({ voices, terms, guestTerms, onChanged }: Props) {
   const ownVoice = voices.find((v) => v.isMine && v.status !== "revoked") ?? null;
   const [step, setStep] = useState<Step>("idle");
+  // Guest mode (Salif, 2026-10-13): a staff member records an outside person,
+  // who reads the guest terms and sentence themselves.
+  const [guestName, setGuestName] = useState<string | null>(null);
+  const [nameDraft, setNameDraft] = useState("");
+  const activeTerms = guestName ? guestTerms : terms;
   const [agreed, setAgreed] = useState(false);
   const [challenge, setChallenge] = useState<Challenge | null>(null);
   const [recording, setRecording] = useState(false);
@@ -59,6 +67,8 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
 
   function reset() {
     setStep("idle");
+    setGuestName(null);
+    setNameDraft("");
     setAgreed(false);
     setChallenge(null);
     setClip(null);
@@ -72,7 +82,11 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
     setBusy(true);
     setMessage(null);
     try {
-      const res = await fetch("/api/admin/studio/voices/challenge", { method: "POST" });
+      const res = await fetch("/api/admin/studio/voices/challenge", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(guestName ? { guest_name: guestName } : {}),
+      });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) {
         setMessage(data.error ?? "Le défi n'a pas pu être créé.");
@@ -137,7 +151,7 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
   }
 
   async function send() {
-    if (!clip || !challenge || !terms) return;
+    if (!clip || !challenge || !activeTerms) return;
     setBusy(true);
     setStep("sending");
     setMessage(null);
@@ -146,7 +160,7 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
       form.append("clip", clip, "voice.wav");
       form.append("challenge_id", challenge.id);
       form.append("accepted", "true");
-      form.append("terms_version", terms.version);
+      form.append("terms_version", activeTerms.version);
       const res = await fetch("/api/admin/studio/voices/clone", {
         method: "POST",
         body: form,
@@ -171,24 +185,14 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
 
   if (!terms) return null;
 
-  // Someone who already has a voice cannot clone another: they must remove it
-  // first (the "Retirer ma voix" action in the voice picker).
-  if (ownVoice && step !== "done") {
-    return (
-      <p className="rounded-2xl bg-neutral-50 px-4 py-3 text-sm font-medium text-neutral-600">
-        Vous avez déjà une voix ({ownVoice.label}). Pour la remplacer, retirez-la
-        d&apos;abord avec « Retirer ma voix », puis créez-en une nouvelle.
-      </p>
-    );
-  }
-
   if (step === "done") {
     return (
       <div className="space-y-2 rounded-3xl border border-primary/30 bg-primary/5 p-4">
-        <p className="font-bold text-primary">Votre voix est prête.</p>
+        <p className="font-bold text-primary">{guestName ? `La voix de ${guestName} est prête.` : "Votre voix est prête."}</p>
         <p className="text-sm font-medium text-neutral-600">
-          Elle apparaît dans la liste des voix pour toute l&apos;équipe. Vous
-          pouvez la retirer à tout moment.
+          {guestName
+            ? "Elle apparaît dans la liste des voix pour toute l'équipe, marquée « invité »."
+            : "Elle apparaît dans la liste des voix pour toute l'équipe. Vous pouvez la retirer à tout moment."}
         </p>
         <button
           type="button"
@@ -203,14 +207,35 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
 
   if (step === "idle") {
     return (
-      <button
-        type="button"
-        onClick={() => setStep("terms")}
-        className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-100 px-4 text-sm font-bold text-neutral-700"
-      >
-        <MicrophoneIcon size={18} weight="bold" />
-        Cloner ma voix
-      </button>
+      <div className="space-y-3">
+        {/* Someone who already has a voice cannot clone another of their own:
+            they must remove it first ("Retirer ma voix" in the voice picker). */}
+        {ownVoice ? (
+          <p className="rounded-2xl bg-neutral-50 px-4 py-3 text-sm font-medium text-neutral-600">
+            Vous avez déjà une voix ({ownVoice.label}). Pour la remplacer, retirez-la
+            d&apos;abord avec « Retirer ma voix », puis créez-en une nouvelle.
+          </p>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setStep("terms")}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-neutral-100 px-4 text-sm font-bold text-neutral-700"
+          >
+            <MicrophoneIcon size={18} weight="bold" />
+            Cloner ma voix
+          </button>
+        )}
+        {guestTerms && (
+          <button
+            type="button"
+            onClick={() => setStep("guest")}
+            className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl border border-primary/30 bg-white px-4 text-sm font-bold text-primary"
+          >
+            <UserPlusIcon size={18} weight="bold" />
+            Ajouter la voix d&apos;un invité
+          </button>
+        )}
+      </div>
     );
   }
 
@@ -218,7 +243,7 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
     <section className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between">
         <h2 className="text-sm font-bold uppercase tracking-wider text-neutral-500">
-          Cloner ma voix
+          {guestName || step === "guest" ? "Voix d'un invité" : "Cloner ma voix"}
         </h2>
         <button
           type="button"
@@ -230,11 +255,52 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
         </button>
       </header>
 
-      {step === "terms" && (
+      {step === "guest" && (
+        <form
+          className="space-y-3"
+          onSubmit={(event) => {
+            event.preventDefault();
+            const name = nameDraft.replace(/\s+/g, " ").trim();
+            if (name.length < 2) return;
+            setGuestName(name);
+            setAgreed(false);
+            setStep("terms");
+          }}
+        >
+          <p className="text-sm font-medium text-neutral-600">
+            L&apos;invité doit être avec vous : il lit lui-même les conditions, puis la phrase
+            et le texte à voix haute.
+          </p>
+          <label className="block space-y-1.5">
+            <span className="text-sm font-bold text-neutral-900">Nom et prénom de l&apos;invité</span>
+            <input
+              value={nameDraft}
+              onChange={(event) => setNameDraft(event.target.value.slice(0, 60))}
+              autoComplete="off"
+              placeholder="Ex. : Didier Ilboudo"
+              className="min-h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-[15px] outline-none focus:border-primary/50"
+            />
+          </label>
+          <button
+            type="submit"
+            disabled={nameDraft.trim().length < 2}
+            className="flex min-h-12 w-full items-center justify-center rounded-2xl bg-primary px-6 text-sm font-bold text-white disabled:opacity-40"
+          >
+            Continuer
+          </button>
+        </form>
+      )}
+
+      {step === "terms" && activeTerms && (
         <>
-          <h3 className="font-bold text-neutral-900">{terms.title}</h3>
+          {guestName && (
+            <p className="rounded-2xl bg-amber-50 px-3 py-2 text-sm font-bold text-amber-900">
+              Donnez l&apos;appareil à {guestName} : c&apos;est lui qui lit et accepte.
+            </p>
+          )}
+          <h3 className="font-bold text-neutral-900">{activeTerms.title}</h3>
           <div className="space-y-2 text-sm text-neutral-700">
-            {terms.paragraphs.map((p) => (
+            {activeTerms.paragraphs.map((p) => (
               <p key={p}>{p}</p>
             ))}
           </div>
@@ -245,7 +311,7 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
               onChange={(e) => setAgreed(e.target.checked)}
               className="mt-1 size-5 shrink-0 accent-[#C96A2E]"
             />
-            {terms.checkboxLabel}
+            {activeTerms.checkboxLabel}
           </label>
           <button
             type="button"
@@ -321,7 +387,7 @@ export function CloneVoice({ voices, terms, onChanged }: Props) {
                     )}
                   >
                     {busy && <SpinnerGapIcon size={18} className="animate-spin" />}
-                    Créer ma voix
+                    {guestName ? `Créer la voix de ${guestName}` : "Créer ma voix"}
                   </button>
                   {seconds < challenge.minSeconds - 0.5 && (
                     <p className="text-sm font-bold text-red-600">
