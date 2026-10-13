@@ -42,7 +42,7 @@ export async function GET(req: Request) {
     isMine: voice.ownerUserId === staff.id,
     canAccept: canAcceptVoiceTerms(staff, voice),
     // The house voice is never withdrawn from the UI; staff and guest voices can be.
-    canRevoke: voice.kind !== "system" && canRevokeVoice(staff, voice),
+    canRevoke: !(voice.ownerUserId === null && voice.kind === "system") && canRevokeVoice(staff, voice),
     guestName: voice.guestName ?? null,
   }));
 

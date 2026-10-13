@@ -32,9 +32,6 @@ export async function DELETE(
 
   const voice = await loadVoiceById(id);
   if (!voice) return errorResponse("Voix introuvable", 404, req);
-  if (voice.ownerUserId === null) {
-    return errorResponse("Cette voix n'a pas de propriétaire.", 400, req);
-  }
   if (!canRevokeVoice(staff, voice)) {
     return errorResponse(
       "Vous ne pouvez retirer que votre propre voix.",

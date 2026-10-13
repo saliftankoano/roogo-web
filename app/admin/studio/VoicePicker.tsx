@@ -45,7 +45,7 @@ export function VoicePicker({
   const [message, setMessage] = useState<string | null>(null);
 
   const lockedMine = voices.find((voice) => voice.canAccept);
-  const mine = voices.filter((voice) => voice.isMine && voice.canRevoke);
+  const mine = voices.filter((voice) => voice.canRevoke);
 
   async function accept(voice: VoiceInfo) {
     if (!terms) return;
