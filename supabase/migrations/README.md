@@ -2,6 +2,10 @@
 
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
+## Property reference codes — 2026-10-14
+
+- [x] [088_property_references_executed.sql](./088_property_references_executed.sql) — **executed 2026-10-14 (confirmed by Salif, then verified read-only through the Roogo API).** Short public codes for listings (`VEN-NNN` for sales, `LOC-NNN` for rentals): `properties.reference`, assigned once at insert by a trigger and refused on update, numbered in creation order for existing rows (49 rows: VEN-001 to VEN-023, LOC-001 to LOC-026), exposed through `property_details` and `public_property_details`. Numbered 088 because 085 to 087 belong to the publishing and field-media branches. Before this run, the column did not exist (checked by the API and in the SQL editor); the "85" run earlier that day was the publishing branch's `085_studio_publications.sql`.
+
 ## Content Studio — 2026-10-06
 
 - [x] [075_content_studio_executed.sql](./075_content_studio_executed.sql) — operator-confirmed by Salif on 2026-10-06 ("mig ran"). Staff voice-over ledger, per-person caps, the spend-reserve function and the private `content-studio` bucket. The number 075 is also used by the unrelated principal-photo repair above: the two are different files applied independently, so do not replay either by number.

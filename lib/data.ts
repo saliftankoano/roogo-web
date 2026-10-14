@@ -10,6 +10,7 @@ import { getCityLabel } from "./property-url";
 export type Property = {
   id: string;
   slug?: string | null;
+  reference?: string | null;
   owner_id?: string;
   location: string;
   address: string;
@@ -68,6 +69,7 @@ export type Property = {
 interface DBProperty {
   id: string;
   slug?: string | null;
+  reference?: string | null;
   owner_id: string | null;
   quartier: string;
   city: string;
@@ -131,6 +133,7 @@ function mapProperty(p: DBProperty): Property {
   return {
     id: p.id,
     slug: p.slug || null,
+    reference: p.reference || null,
     owner_id: isSale ? undefined : p.owner_id || undefined,
     location: unescapeText(`${p.quartier}, ${getCityLabel(p.city)}`),
     address: unescapeText(p.address),
