@@ -268,7 +268,7 @@ export function PlanSheet({ mode, artifactId, publication, slots, daySlots, star
       <h3 id="plan-where" className={label}>
         Où
       </h3>
-      <div className="grid grid-cols-3 gap-2">
+      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
         {(["facebook", "instagram"] as const).map((n) => {
           const on = networks.includes(n);
           return (
@@ -278,7 +278,7 @@ export function PlanSheet({ mode, artifactId, publication, slots, daySlots, star
               aria-pressed={on}
               onClick={() => setNetworks((cur) => (on ? cur.filter((x) => x !== n) : [...cur, n]))}
               className={cn(
-                "inline-flex h-12 min-w-0 items-center justify-center gap-2 rounded-2xl px-2 text-sm font-semibold transition-colors",
+                "inline-flex h-12 min-w-0 items-center justify-center gap-1.5 rounded-2xl px-1.5 text-[13px] font-semibold transition-colors sm:text-sm",
                 on ? "bg-white text-[#1F1A16] ring-2 ring-[#C96A2E]" : "bg-white/60 text-neutral-500 ring-1 ring-[rgba(74,52,36,0.12)]",
               )}
             >
@@ -290,7 +290,7 @@ export function PlanSheet({ mode, artifactId, publication, slots, daySlots, star
         <span
           title={TIKTOK_PENDING_TOOLTIP}
           aria-disabled="true"
-          className="inline-flex h-12 min-w-0 cursor-help items-center justify-center gap-2 rounded-2xl border border-dashed border-[rgba(74,52,36,0.18)] px-2 text-sm font-semibold text-neutral-400"
+          className="inline-flex h-12 min-w-0 cursor-help items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[rgba(74,52,36,0.18)] px-2.5 text-[13px] font-semibold text-neutral-400 sm:text-sm"
         >
           <NetworkIcon network="tiktok" size={18} label={false} className="opacity-50 grayscale" />
           <span className="truncate">Bientôt</span>

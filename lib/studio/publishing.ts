@@ -542,9 +542,13 @@ export function publicationStage(
   }
 }
 
-/** The four steps of the stepper: 0 Vidéo prête, 1 Proposée, 2 Validée et programmée, 3 Publiée. */
+/**
+ * The current step of the four-step stepper (0 Vidéo prête, 1 Proposée,
+ * 2 Validée et programmée, 3 Publiée). Waiting for Salif keeps step 1 current;
+ * once validated, steps 0 to 2 are done and "Publiée" is next.
+ */
 export function stageStep(stage: PublicationStage): number {
-  return { pret: 1, renvoye: 1, propose: 1, programme: 2, echec: 2, publie: 3 }[stage];
+  return { pret: 1, renvoye: 1, propose: 1, programme: 3, echec: 3, publie: 3 }[stage];
 }
 
 export function stageLabel(stage: PublicationStage, role: Role): string {
@@ -708,7 +712,7 @@ export function suggestSlots(opts: {
         scheduledAt: iso,
         recommended: false,
         taken: title !== undefined,
-        hint: title !== undefined ? `Déjà pris : ${title.toLowerCase()}` : "Créneau libre",
+        hint: title !== undefined ? `Déjà pris : ${title.replace(/^./, (c) => c.toLowerCase())}` : "Créneau libre",
       };
       if (!option.taken && !firstFree) firstFree = option;
       out.push(option);
