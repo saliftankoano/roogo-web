@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Studio guest voices: consent for Roogo marketing without time limit — 2026-10-13
+
+**Decision:** Staff can add the voice of a guest (an owner, a client) who is present. The guest reads the guest terms and a consent sentence that states the voice will be used for Roogo marketing without time limit. Guest voices never use the staff member's single voice slot; a founder or the staff member who recorded the guest can withdraw one.
+
+**Why:** A staff member tried to clone an owner's voice and was told to remove their own voice first. Salif chose long-term marketing rights over limits ("helps us more in the long run").
+
+**Ruled out / alternatives:** Lifting the one-voice limit for staff (anyone's voice from any account, no consent). The council's property limit, expiry and per-voice founder approval (not adopted by Salif). Imported real recordings instead of clones (council's first step, not chosen).
+
+**Status:** Settled. Open risk: Burkina Faso's personal-data law (loi 001-2021) may allow withdrawal whatever the text says, so withdrawal stays available; counsel review of the guest text is pending (vault `08 Decisions/Studio voice cloning and consent.md`).
+
 ### Studio videos can be made with music only — 2026-10-11
 
 **Decision:** A full Studio video no longer requires a voice-over: the team picks a music (for example a Roogo song) and the photos set the pace. There is no separate "music only" mode; the voice-over is simply optional and can be unticked. The team sets the music and voice levels with two sliders, kept in each browser, not in the database. With nothing to hear, the create button opens the music drawer; an empty voice lane opens the Voix off tool. The outro accepts an optional second phone number.

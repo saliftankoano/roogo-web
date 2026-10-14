@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-14
+
+- **Studio guest voices** (web #64, migration 084 applied by Salif): staff can add the voice of an outside person who is present; the guest reads terms and a consent sentence stating Roogo marketing use without time limit. Guest voices are labelled "(invité)", do not use the staff member's own voice slot, and can be withdrawn by a founder or the staff member who recorded them. [Decision](./DECISIONS.md#studio-guest-voices-consent-for-roogo-marketing-without-time-limit--2026-10-13).
+
 ## 2026-10-11
 
 - **Studio videos without a voice-over, volume sliders, second phone number** (web, branch `feat/studio-music-without-voice`, not merged): "Vidéo complète" no longer needs a voice-over. Without one, the music carries the video (about 3.5 s per photo, then a 6 s outro, music at 90 % with no ducking). An existing voice-over can be unticked. Two sliders set the music (0 to 100 %, still ducked a quarter under a voice) and the voice (0 to 200 %); they are kept per browser. With neither a voice nor a music, the header button becomes "Choisir une musique"; the empty voice lane opens the Voix off tool. The outro takes an optional second number, stacked and slightly smaller. [Decision](./DECISIONS.md#studio-videos-can-be-made-with-music-only--2026-10-11).

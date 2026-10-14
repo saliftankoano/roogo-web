@@ -13,6 +13,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 - [x] [081_studio_ai_tools_executed.sql](./081_studio_ai_tools_executed.sql) — **executed 2026-10-06 (confirmed by Salif).** Studio fal tools: ledger kinds `image` and `transcription`, the `finalizing` status, `provider_request_id`, artifact kinds `image` and `captions` with `meta`, the updated `reserve_studio_spend`, and image types in the `content-studio` bucket.
 - [x] [082_studio_video_renders_executed.sql](./082_studio_video_renders_executed.sql) — **executed 2026-10-10 (confirmed by Salif).** Studio video renders through HeyGen: ledger and artifact kind `video`, the separate monthly video budget (`studio_user_limits.monthly_video_cap_usd`, counted apart from voices and images in `reserve_studio_spend`), and MP4 up to 100 MB in the `content-studio` bucket.
 - [x] [083_studio_music_executed.sql](./083_studio_music_executed.sql) — **executed 2026-10-11 (confirmed by Salif).** Studio music: the team library `studio_music_tracks` (Roogo tracks and tracks generated with fal Lyria 3 Pro), ledger kind `music`, paid from the voices-and-images pot in `reserve_studio_spend`.
+- [x] [084_studio_guest_voices_executed.sql](./084_studio_guest_voices_executed.sql) — **executed 2026-10-14 (confirmed by Salif).** Studio guest voices: kind `guest` with `guest_name` and `added_by`, `subject` / `subject_name` on challenges and consents, and `revoke_studio_voice` allowing the staff member who added a guest voice.
 
 ## Ordered photo galleries — 2026-10-05
 
