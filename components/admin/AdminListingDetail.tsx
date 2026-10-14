@@ -1280,6 +1280,14 @@ export default function AdminListingDetail({
                       />
                     )}
                   </p>
+                  {listing.reference && (
+                    <p className="mt-2 flex items-center gap-2 text-sm font-semibold text-neutral-700">
+                      <HashIcon size={16} weight="bold" />
+                      <span className="font-mono tracking-wide">
+                        {listing.reference}
+                      </span>
+                    </p>
+                  )}
                 </div>
               </div>
 
