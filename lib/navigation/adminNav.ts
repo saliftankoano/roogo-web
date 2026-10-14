@@ -9,6 +9,7 @@ import {
   HandshakeIcon,
   HouseLineIcon,
   IdentificationCardIcon,
+  ListChecksIcon,
   MicrophoneIcon,
   PencilSimpleLineIcon,
 } from "@phosphor-icons/react";
@@ -21,6 +22,16 @@ export const studioNavItem: AdminNavItemLink = {
   href: "/admin/studio",
   id: "admin-nav-studio",
   icon: MicrophoneIcon,
+};
+
+// "Mon briefing": first item of the admin navbar only (the public Navbar keeps
+// its own list). It is active on /admin itself and on /admin/equipe.
+export const todayNavItem: AdminNavItemLink = {
+  type: "link",
+  label: "Aujourd’hui",
+  href: "/admin",
+  id: "admin-nav-today",
+  icon: ListChecksIcon,
 };
 
 export type AdminNavItem = {

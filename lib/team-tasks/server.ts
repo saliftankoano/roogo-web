@@ -154,7 +154,7 @@ function namesOf(people: Person[]): PersonNames {
   return new Map(people.map((p) => [p.id, { firstName: p.firstName }]));
 }
 
-type Snapshot = {
+export type Snapshot = {
   now: Date;
   people: Person[];
   titlesReady: boolean;
@@ -279,7 +279,12 @@ function demandesFor(viewer: Viewer, rows: StaffTaskRow[], names: PersonNames, n
 }
 
 export async function getBriefingPayload(viewer: Viewer, now = new Date()): Promise<BriefingPayload> {
-  const snap = await snapshot(viewer, now);
+  return briefingFromSnapshot(viewer, await snapshot(viewer, now));
+}
+
+/** Pure assembly of the briefing from loaded data (also used with mocked data in development). */
+export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot): BriefingPayload {
+  const now = snap.now;
   const mine = snap.items.filter((item) => item.ownerId === viewer.id);
   const parts = buildBriefing(mine, now);
   const names = namesOf(snap.people);
@@ -358,7 +363,12 @@ function longWeekTitle(startKey: string, endKey: string) {
 
 export async function getBoardPayload(viewer: Viewer, now = new Date()): Promise<ServiceResult<BoardPayload>> {
   if (!isDirectorOrFounder(viewer.level)) return fail(403, "L’équipe est réservée au Directeur et au Fondateur.");
-  const snap = await snapshot(viewer, now);
+  return { ok: true, value: boardFromSnapshot(viewer, await snapshot(viewer, now)) };
+}
+
+/** Pure assembly of the week board from loaded data (also used with mocked data in development). */
+export function boardFromSnapshot(viewer: Viewer, snap: Snapshot): BoardPayload {
+  const now = snap.now;
   const todayKey = dayKey(now);
   const week = weekBounds(todayKey);
   const names = namesOf(snap.people);
@@ -393,27 +403,24 @@ export async function getBoardPayload(viewer: Viewer, now = new Date()): Promise
     .map((row) => rowToItem(row, names))
     .filter((item): item is BriefingItem => !!item && !isOpen(item));
   return {
-    ok: true,
-    value: {
-      viewerId: viewer.id,
-      viewerIsFounder: viewer.isFounder,
-      weekTitle: longWeekTitle(week.startKey, week.endKey),
-      weekShortTitle: `Semaine ${rangeLabel(week.startKey, week.endKey)}`,
-      todayLabel: `Aujourd’hui ${weekdayAndDate(todayKey)}`,
-      columns,
-      unassigned: { ...unassignedColumn, person: null, asks: [] },
-      pastWeeks: bundlePastWeeks(doneItems, snap.people, now),
-      assignees: snap.people
-        .filter((person) => assignmentKind(viewer, person) === "manuel")
-        .map((person) => ({ id: person.id, firstName: person.firstName, isMe: person.id === viewer.id })),
-      people: composerPeople(viewer, snap.people, snap.items, now),
-      titles: snap.people
-        .filter((person) => person.level !== "fondateur")
-        .map((person) => ({ userId: person.id, title: isStaffTitle(person.level) ? person.level : null })),
-      titlesReady: snap.titlesReady,
-      tasksReady: snap.tasksReady,
-      failedSources: snap.failedSources,
-    },
+    viewerId: viewer.id,
+    viewerIsFounder: viewer.isFounder,
+    weekTitle: longWeekTitle(week.startKey, week.endKey),
+    weekShortTitle: `Semaine ${rangeLabel(week.startKey, week.endKey)}`,
+    todayLabel: `Aujourd’hui ${weekdayAndDate(todayKey)}`,
+    columns,
+    unassigned: { ...unassignedColumn, person: null, asks: [] },
+    pastWeeks: bundlePastWeeks(doneItems, snap.people, now),
+    assignees: snap.people
+      .filter((person) => assignmentKind(viewer, person) === "manuel")
+      .map((person) => ({ id: person.id, firstName: person.firstName, isMe: person.id === viewer.id })),
+    people: composerPeople(viewer, snap.people, snap.items, now),
+    titles: snap.people
+      .filter((person) => person.level !== "fondateur")
+      .map((person) => ({ userId: person.id, title: isStaffTitle(person.level) ? person.level : null })),
+    titlesReady: snap.titlesReady,
+    tasksReady: snap.tasksReady,
+    failedSources: snap.failedSources,
   };
 }
 
