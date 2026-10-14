@@ -432,6 +432,12 @@ export function PropertyDetailClient({
                       <span className="text-primary font-bold">{getPropertyTypeLabel(listing.propertyType)}</span>
                     </>
                   )}
+                  {listing.reference && (
+                    <>
+                      <span className="text-neutral-300">|</span>
+                      <span className="font-mono font-semibold tracking-wide text-neutral-500">Réf. {listing.reference}</span>
+                    </>
+                  )}
                 </div>
               </div>
             </div>
