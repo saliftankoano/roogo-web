@@ -25,6 +25,7 @@ function mapAdminProperty(row: PropertyDetailsRow) {
 
   return {
     id: asString(row.id),
+    reference: asString(row.reference) || null,
     location: [quartier, city].filter(Boolean).join(", ") || asString(row.address),
     address: asString(row.address),
     price: asNumber(row.price),
