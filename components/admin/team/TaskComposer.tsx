@@ -71,7 +71,7 @@ export function TaskComposer({
   useEffect(() => {
     if (!open) return;
     returnFocus.current = document.activeElement as HTMLElement | null;
-    setOwnerId(presetOwnerId ?? (people.find((p) => !p.isMe)?.id ?? me?.id ?? ""));
+    setOwnerId(presetOwnerId ?? (people.find((p) => !p.isMe && p.mode === "manuel")?.id ?? me?.id ?? ""));
     setSent(null);
     setError(null);
     const frame = requestAnimationFrame(() => firstFieldRef.current?.focus());

@@ -111,7 +111,7 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
     );
 
   return (
-    <div ref={rootRef} className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 text-[#1F1A16] lg:gap-5">
+    <div ref={rootRef} className="mx-auto flex w-full max-w-[1400px] flex-col gap-4 pb-20 text-[#1F1A16] lg:gap-5 lg:pb-0">
       <CreamBackdrop />
       {data.canSeeTeam && (
         <div data-anim>
@@ -142,7 +142,7 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
           <div aria-hidden="true" className="h-2 flex-1 overflow-hidden rounded-full bg-[#E9DFD2] lg:h-2.5">
             <div
               className={cn("h-full rounded-full transition-[width] duration-500", pct === 100 ? "bg-[#2F7A48]" : "bg-[#C96A2E]")}
-              style={{ width: `${Math.max(pct, 3)}%` }}
+              style={{ width: total ? `${Math.max(pct, 3)}%` : "0%" }}
             />
           </div>
           <span className="whitespace-nowrap text-[13px] font-extrabold lg:text-sm" aria-live="polite">
@@ -222,7 +222,7 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
           <button
             type="button"
             onClick={() => setComposerOpen(true)}
-            className="inline-flex h-12 items-center justify-center gap-2 self-stretch rounded-full bg-[#C96A2E] px-5 text-[15px] font-extrabold text-white transition-colors hover:bg-[#8A4924] sm:self-start lg:self-stretch"
+            className="hidden h-12 items-center justify-center gap-2 self-stretch rounded-full bg-[#C96A2E] px-5 text-[15px] font-extrabold text-white transition-colors hover:bg-[#8A4924] lg:inline-flex"
           >
             <PlusIcon size={18} weight="bold" aria-hidden="true" />
             {data.canSeeTeam ? "Donner une tâche" : "Ajouter une tâche"}
@@ -247,6 +247,16 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
           </section>
         </aside>
       </div>
+
+      <button
+        type="button"
+        onClick={() => setComposerOpen(true)}
+        aria-label={data.canSeeTeam ? "Donner une tâche" : "Ajouter une tâche"}
+        className="fixed bottom-6 right-4 z-40 inline-flex h-14 items-center gap-1.5 rounded-full bg-[#C96A2E] pl-4 pr-5 text-[15px] font-extrabold text-white shadow-[0_14px_30px_-12px_rgba(201,106,46,0.8)] lg:hidden"
+      >
+        <PlusIcon size={18} weight="bold" aria-hidden="true" />
+        Tâche
+      </button>
 
       {me && (
         <TaskComposer

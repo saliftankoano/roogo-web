@@ -121,7 +121,15 @@ function DesktopNavLink({
       )}
       <span className="relative z-10 flex items-center gap-2">
         <Icon size={18} weight={isActive ? "fill" : "bold"} />
-        <span className="whitespace-nowrap">{item.label}</span>
+        {/* Between lg and xl the bar is already full: Aujourd’hui shows its icon and count only. */}
+        <span
+          className={cn(
+            "whitespace-nowrap",
+            item.id === todayNavItem.id && "sr-only xl:not-sr-only",
+          )}
+        >
+          {item.label}
+        </span>
         {badge}
       </span>
     </Link>

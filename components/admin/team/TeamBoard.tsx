@@ -178,7 +178,7 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
       <div className="-m-1.5 hidden overflow-x-auto p-1.5 pb-2.5 lg:block">
         <div
           className="grid items-start gap-3.5"
-          style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(256px, 1fr))`, minWidth: columns.length * 270 }}
+          style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(256px, 1fr))`, minWidth: columns.length * 256 + (columns.length - 1) * 14 }}
         >
           {columns.map((column) => (
             <Column key={column.person?.id ?? "unassigned"} column={column} actions={actions} variant="desktop" />
