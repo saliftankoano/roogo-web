@@ -17,6 +17,7 @@ import {
   WarningCircleIcon,
   EnvelopeIcon,
   PhoneIcon,
+  HashIcon,
   BuildingsIcon,
   FacebookLogoIcon,
   InfoIcon,
@@ -878,11 +879,6 @@ export default function AdminListingDetail({
             </div>
             <h1 className="text-2xl font-bold text-neutral-900">
               {listing.location}
-              {listing.reference && (
-                <span className="ml-3 align-middle font-mono text-sm font-semibold tracking-wide text-neutral-400">
-                  {listing.reference}
-                </span>
-              )}
             </h1>
             <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium">
               <MapPinIcon size={14} weight="bold" />
@@ -1373,6 +1369,19 @@ export default function AdminListingDetail({
               </div>
 
               <div className="space-y-3 pt-2 border-t border-neutral-50">
+                {listing.reference && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
+                      <HashIcon size={16} weight="bold" />
+                    </div>
+                    <span
+                      title="Référence de l'annonce"
+                      className="font-mono font-semibold tracking-wide text-neutral-700"
+                    >
+                      {listing.reference}
+                    </span>
+                  </div>
+                )}
                 {listing.agent?.phone && (
                   <div className="flex items-center gap-3 text-sm">
                     <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
