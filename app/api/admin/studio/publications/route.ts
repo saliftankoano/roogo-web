@@ -37,15 +37,26 @@ export async function GET(req: Request) {
     return errorResponse("Calendrier indisponible", 500, req);
   }
 
-  const [posts, team] = await Promise.all([toDtos((data ?? []) as PublicationRow[]), staffDirectory()]);
+  // The founder's tray "À valider par vous": every waiting post, whatever the week.
+  const role = roleOf(staff);
+  const { data: waitingRows } =
+    role === "founder"
+      ? await supabaseAdmin.from("studio_publications").select(PUBLICATION_COLUMNS).eq("status", "a_valider").order("scheduled_at", { ascending: true }).limit(20)
+      : { data: [] };
+  const [posts, team, waiting] = await Promise.all([
+    toDtos((data ?? []) as PublicationRow[]),
+    staffDirectory(),
+    toDtos((waitingRows ?? []) as PublicationRow[]),
+  ]);
   return cors(
     NextResponse.json({
       week: monday,
       posts,
       slots: publishSlots(),
       meta: metaStatus(),
-      me: { id: staff.id, role: roleOf(staff) },
+      me: { id: staff.id, role },
       team,
+      waiting,
     }),
     req,
   );

@@ -80,7 +80,7 @@ export function canRetry(role: Role, status: PublicationStatus, approved: boolea
 }
 
 /** Fields whose change voids an approval: what goes out, where and when. */
-export const CONTENT_FIELDS = ["caption", "artifact_id", "photo_urls", "media_type", "networks", "scheduled_at"] as const;
+export const CONTENT_FIELDS = ["caption", "hashtags", "artifact_id", "photo_urls", "media_type", "networks", "scheduled_at"] as const;
 
 /**
  * Status after an edit. Editing approved or failed content sends it back to
@@ -514,3 +514,227 @@ export function summarizeErrors(results: PublicationResults): string | null {
 
 /** A claim older than this means the run died mid-publish. */
 export const STALE_CLAIM_MINUTES = 15;
+
+// ---------------------------------------------------------------------------
+// Studio publishing flow (design approved 2026-10-13): a finished Studio video
+// is planned from its project, the team generates the description, sends it
+// to Salif, Salif validates or sends it back with a comment.
+// ---------------------------------------------------------------------------
+
+/** What the video card and the stepper show. Derived, never stored. */
+export type PublicationStage = "pret" | "renvoye" | "propose" | "programme" | "publie" | "echec";
+
+export function publicationStage(
+  post: { status: PublicationStatus; returnedAt?: string | null } | null | undefined,
+): PublicationStage {
+  if (!post) return "pret";
+  switch (post.status) {
+    case "a_faire":
+      return post.returnedAt ? "renvoye" : "pret";
+    case "a_valider":
+      return "propose";
+    case "valide":
+      return "programme";
+    case "publie":
+      return "publie";
+    case "echec":
+      return "echec";
+  }
+}
+
+/** The four steps of the stepper: 0 Vidéo prête, 1 Proposée, 2 Validée et programmée, 3 Publiée. */
+export function stageStep(stage: PublicationStage): number {
+  return { pret: 1, renvoye: 1, propose: 1, programme: 2, echec: 2, publie: 3 }[stage];
+}
+
+export function stageLabel(stage: PublicationStage, role: Role): string {
+  return {
+    pret: "Prête, pas encore planifiée",
+    renvoye: "À corriger",
+    propose: role === "founder" ? "À valider par vous" : "En attente de Salif",
+    programme: "Programmée",
+    publie: "Publiée",
+    echec: "Échec de publication",
+  }[stage];
+}
+
+/** Only a founder sends a post back, and only one waiting for validation. */
+export function canReturn(role: Role, status: PublicationStatus): boolean {
+  return role === "founder" && status === "a_valider";
+}
+
+export const RETURN_TAGS = ["Son", "Description", "Date", "Image"] as const;
+export type ReturnTag = (typeof RETURN_TAGS)[number];
+
+export function cleanReturnInput(comment: unknown, tags: unknown): { comment: string; tags: ReturnTag[]; error: string | null } {
+  const text = typeof comment === "string" ? comment.replace(/\s*[—–]\s*/g, ", ").trim().slice(0, 1000) : "";
+  const list = Array.isArray(tags) ? [...new Set(tags.filter((t): t is ReturnTag => (RETURN_TAGS as readonly string[]).includes(String(t))))] : [];
+  return { comment: text, tags: list, error: text ? null : "Dites ce qu'il faut corriger." };
+}
+
+/** Sending to the founder needs a description, whatever the screen allowed. */
+export function submitProblems(caption: string | null | undefined): CaptionProblem[] {
+  return (caption ?? "").trim() ? [] : [{ code: "empty", message: "Générez ou écrivez la description d'abord." }];
+}
+
+// --- Description and hashtags ---------------------------------------------
+
+export const MAX_HASHTAGS = 5;
+export const MAX_EMOJI = 2;
+const EMOJI_RE = /\p{Extended_Pictographic}(?:️|‍\p{Extended_Pictographic})*/gu;
+const PHONE_RE = /(?:\+?226[\s.]?)?\b(?:\d{2}[\s.]?){3}\d{2}\b/;
+
+/** "#Ouaga 2000", "Saint-Léon" -> "#Ouaga2000", "#SaintLeon". Empty when nothing is left. */
+export function normalizeHashtag(raw: string): string {
+  const word = hashtagWord(String(raw ?? "").replace(/^#+/, ""));
+  return word ? `#${word}` : "";
+}
+
+export function normalizeHashtags(raw: readonly string[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const tag of raw) {
+    const clean = normalizeHashtag(tag);
+    if (!clean || seen.has(clean.toLowerCase())) continue;
+    seen.add(clean.toLowerCase());
+    out.push(clean);
+    if (out.length >= MAX_HASHTAGS) break;
+  }
+  return out;
+}
+
+export type CaptionChecks = { site: boolean; phone: boolean; noEmDash: boolean; hashtags: number };
+
+export function captionChecks(caption: string, hashtags: readonly string[]): CaptionChecks {
+  return {
+    site: /^roogobf\.com$/im.test(caption),
+    phone: PHONE_RE.test(caption),
+    noEmDash: !/[—–]/.test(caption),
+    hashtags: hashtags.length,
+  };
+}
+
+/**
+ * House rules applied after the model and on every save, so what Salif
+ * approves is already clean: no em or en dash, roogobf.com (never roogo.bf)
+ * on its own line right after the phone line (both added when missing), at
+ * most two emoji, hashtags moved out of the text, at most five, no accents.
+ */
+export function finalizeCaption(input: { caption: string; hashtags?: readonly string[] }): { caption: string; hashtags: string[] } {
+  let text = String(input.caption ?? "").replace(/\r\n?/g, "\n");
+  text = text
+    .replace(/[ \t]*[—–][ \t]*/g, ", ")
+    .replace(/,\s*,/g, ",")
+    .replace(/(^|\n),\s*/g, "$1")
+    .replace(/roogo\.bf\b/gi, "roogobf.com");
+
+  // Hashtag-only lines leave the text and join the hashtag list.
+  const fromText: string[] = [];
+  let lines = text.split("\n").filter((line) => {
+    const t = line.trim();
+    if (t && /^(#[\p{L}\p{N}_]+[\s,]*)+$/u.test(t)) {
+      fromText.push(...(t.match(/#[\p{L}\p{N}_]+/gu) ?? []));
+      return false;
+    }
+    return true;
+  });
+
+  // At most two emoji in the whole text.
+  let emoji = 0;
+  lines = lines.map((line) =>
+    line.replace(EMOJI_RE, (m) => (++emoji <= MAX_EMOJI ? m : "")).replace(/[ \t]{2,}/g, " ").replace(/[ \t]+$/g, ""),
+  );
+
+  // The site sits on its own line right under the phone line.
+  lines = lines.filter((line) => line.trim().toLowerCase() !== CAPTION_SITE);
+  let phoneAt = lines.findIndex((line) => PHONE_RE.test(line));
+  if (phoneAt < 0) {
+    while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+    lines.push("", CAPTION_CONTACT);
+    phoneAt = lines.length - 1;
+  }
+  lines.splice(phoneAt + 1, 0, CAPTION_SITE);
+
+  const caption = lines.join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const hashtags = normalizeHashtags([...(input.hashtags ?? []), ...fromText]);
+  return { caption, hashtags };
+}
+
+/** Exactly what goes out: the approved description, then the hashtags. */
+export function postText(caption: string, hashtags: readonly string[] | null | undefined): string {
+  const tags = (hashtags ?? []).join(" ").trim();
+  const body = (caption ?? "").trim();
+  return tags ? `${body}\n\n${tags}` : body;
+}
+
+// --- Slots for "Planifier la publication" ---------------------------------
+
+export type SlotOption = { scheduledAt: string; recommended: boolean; taken: boolean; hint: string };
+
+/**
+ * The slot list of the planning sheet: the recommended slot first (J+2 business
+ * days after the visit, last slot of the day, or the next free evening), then
+ * the following slots. A slot another post already holds is shown but disabled.
+ */
+export function suggestSlots(opts: {
+  now: Date;
+  slots: string[];
+  visitDate?: string | null;
+  place?: string | null;
+  taken: Array<{ scheduledAt: string; title: string }>;
+  count?: number;
+}): SlotOption[] {
+  const count = opts.count ?? 4;
+  const ordered = opts.slots.length ? [...opts.slots].sort() : [...DEFAULT_SLOTS];
+  const takenBy = new Map(opts.taken.map((t) => [new Date(t.scheduledAt).getTime(), t.title]));
+  const nowMs = opts.now.getTime();
+  const today = opts.now.toISOString().slice(0, 10);
+  const recommendedIso = opts.visitDate && isIsoDate(opts.visitDate) ? slotToIso(addBusinessDays(opts.visitDate, 2), ordered[ordered.length - 1]) : null;
+  const recommendedUsable = recommendedIso && new Date(recommendedIso).getTime() > nowMs && !takenBy.has(new Date(recommendedIso).getTime());
+
+  const out: SlotOption[] = [];
+  let firstFree: SlotOption | null = null;
+  // Start at the recommended day when it is usable, otherwise tomorrow.
+  let day = recommendedUsable ? recommendedIso!.slice(0, 10) : addDays(today, 1);
+  for (let guard = 0; out.length < count && guard < 60; guard++, day = addDays(day, 1)) {
+    for (const slot of ordered) {
+      const iso = slotToIso(day, slot);
+      const ms = new Date(iso).getTime();
+      if (ms <= nowMs) continue;
+      // Before the recommended slot on its own day: skip, so it comes first.
+      if (recommendedUsable && ms < new Date(recommendedIso!).getTime()) continue;
+      const title = takenBy.get(ms);
+      const option: SlotOption = {
+        scheduledAt: iso,
+        recommended: false,
+        taken: title !== undefined,
+        hint: title !== undefined ? `Déjà pris : ${title.toLowerCase()}` : "Créneau libre",
+      };
+      if (!option.taken && !firstFree) firstFree = option;
+      out.push(option);
+      if (out.length >= count) break;
+    }
+  }
+  const rec = recommendedUsable ? out[0] : firstFree;
+  if (rec) {
+    rec.recommended = true;
+    rec.hint = recommendedUsable ? `Recommandé : J+2 de la visite${opts.place ? ` de ${opts.place}` : ""}` : "Recommandé : prochain créneau libre";
+  }
+  return out;
+}
+
+const LONG_DAYS = ["dimanche", "lundi", "mardi", "mercredi", "jeudi", "vendredi", "samedi"];
+
+/** "Lundi 12 oct. à 19:00" (Ouagadougou time). */
+export function slotLabel(iso: string): string {
+  const { date, slot } = isoToDateAndSlot(iso);
+  const d = toDate(date);
+  const name = LONG_DAYS[d.getUTCDay()];
+  return `${name[0].toUpperCase()}${name.slice(1)} ${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]} à ${slot}`;
+}
+
+/** "Facebook et Instagram". */
+export function networksLabel(networks: readonly Network[]): string {
+  const names = networks.map((n) => NETWORK_LABELS[n]);
+  return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
+}

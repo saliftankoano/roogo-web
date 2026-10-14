@@ -6,6 +6,9 @@ import {
   CONTENT_FIELDS,
   canChangeStatus,
   canRetry,
+  canReturn,
+  cleanReturnInput,
+  submitProblems,
   statusAfterEdit,
   type PublicationStatus,
 } from "@/lib/studio/publishing";
@@ -62,7 +65,22 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const nowIso = new Date().toISOString();
   let update: Record<string, unknown> = {};
 
-  if (action === "retry") {
+  if (action === "return") {
+    // "Renvoyer" (founder): back to the team with a required comment. The
+    // post no longer holds its slot until it is sent again.
+    if (!canReturn(role, row.status)) return errorResponse("Seul un fondateur peut renvoyer une publication en attente.", 403, req);
+    const input = cleanReturnInput(body.comment, body.tags);
+    if (input.error) return errorResponse(input.error, 400, req);
+    update = {
+      status: "a_faire",
+      approved_by: null,
+      approved_at: null,
+      returned_by: staff.id,
+      returned_at: nowIso,
+      review_comment: input.comment,
+      review_tags: input.tags,
+    };
+  } else if (action === "retry") {
     if (!canRetry(role, row.status, Boolean(row.approved_by))) return errorResponse("Seule une publication en échec peut être relancée.", 409, req);
     update = { status: "valide", last_error: null, claimed_at: null };
   } else if (action) {
@@ -76,14 +94,25 @@ export async function PATCH(req: Request, { params }: Ctx) {
       if (problems.length) return cors(NextResponse.json({ error: problems[0].message, problems }, { status: 422 }), req);
       update = { status: "valide", approved_by: staff.id, approved_at: nowIso, last_error: null };
     } else {
-      update = { status: target, approved_by: null, approved_at: null };
+      if (target === "a_valider" && row.status === "a_faire") {
+        const problems = submitProblems(row.caption);
+        if (problems.length) return errorResponse(problems[0].message, 400, req);
+        update = { status: target, approved_by: null, approved_at: null, submitted_by: staff.id, submitted_at: nowIso };
+      } else {
+        update = { status: target, approved_by: null, approved_at: null };
+      }
     }
+    // Any other move ends a "sent back" state.
+    update.returned_at = null;
   } else {
     const { values, error } = await parsePostInput(body, row);
     if (error) return errorResponse(error, 400, req);
     const changed = CONTENT_FIELDS.some((field) => field in values && !same(field, values[field as keyof typeof values], row[field]));
     const next = statusAfterEdit(row.status, changed);
     update = { ...values };
+    if (["caption", "hashtags"].some((field) => field in values && !same(field, values[field as keyof typeof values], row[field as keyof PublicationRow]))) {
+      Object.assign(update, { caption_edited_by: staff.id, caption_edited_at: nowIso });
+    }
     if (next !== row.status) Object.assign(update, { status: next, approved_by: null, approved_at: null });
   }
 

@@ -7,6 +7,9 @@ import {
   STALE_CLAIM_MINUTES,
   captionProblems,
   finalStatus,
+  finalizeCaption,
+  normalizeHashtags,
+  postText,
   isJpegUrl,
   mediaProblems,
   networksToPublish,
@@ -30,7 +33,7 @@ import {
 } from "./meta-graph";
 
 export const PUBLICATION_COLUMNS =
-  "id, property_id, artifact_id, title, cadence_step, visit_date, media_type, photo_urls, caption, notes, networks, scheduled_at, assignee_id, status, approved_by, approved_at, claimed_at, published_at, results, last_error, created_by, created_at, updated_at";
+  "id, property_id, artifact_id, title, cadence_step, visit_date, media_type, photo_urls, caption, notes, networks, scheduled_at, assignee_id, status, approved_by, approved_at, claimed_at, published_at, results, last_error, created_by, created_at, updated_at, hashtags, caption_model, caption_generated_at, caption_edited_by, caption_edited_at, submitted_by, submitted_at, returned_by, returned_at, review_comment, review_tags";
 
 export type PublicationRow = {
   id: string;
@@ -56,6 +59,17 @@ export type PublicationRow = {
   created_by: string | null;
   created_at: string;
   updated_at: string;
+  hashtags: string[];
+  caption_model: string | null;
+  caption_generated_at: string | null;
+  caption_edited_by: string | null;
+  caption_edited_at: string | null;
+  submitted_by: string | null;
+  submitted_at: string | null;
+  returned_by: string | null;
+  returned_at: string | null;
+  review_comment: string | null;
+  review_tags: string[];
 };
 
 /** Signed links Meta downloads from. Three hours covers a slow Instagram video. */
@@ -74,12 +88,21 @@ export function metaStatus() {
   return { facebook, instagram, missing };
 }
 
-export type ArtifactInfo = { id: string; kind: string; title: string; output_path: string | null; property_id: string | null };
+export type ArtifactInfo = {
+  id: string;
+  kind: string;
+  title: string;
+  text: string;
+  meta: Record<string, unknown>;
+  output_path: string | null;
+  conversation_id: string;
+  property_id: string | null;
+};
 
 export async function loadArtifactInfo(id: string): Promise<ArtifactInfo | null> {
   const { data } = await supabaseAdmin
     .from("studio_artifacts")
-    .select("id, kind, title, output_path, studio_conversations(property_id)")
+    .select("id, kind, title, text, meta, output_path, conversation_id, studio_conversations(property_id)")
     .eq("id", id)
     .maybeSingle();
   if (!data) return null;
@@ -88,7 +111,10 @@ export async function loadArtifactInfo(id: string): Promise<ArtifactInfo | null>
     id: data.id,
     kind: data.kind,
     title: data.title,
+    text: data.text ?? "",
+    meta: (data.meta as Record<string, unknown> | null) ?? {},
     output_path: data.output_path,
+    conversation_id: data.conversation_id,
     property_id: (conv as { property_id?: string | null } | null)?.property_id ?? null,
   };
 }
@@ -97,7 +123,7 @@ export async function loadArtifactInfo(id: string): Promise<ArtifactInfo | null>
 export async function approvalProblems(row: PublicationRow): Promise<CaptionProblem[]> {
   const artifact = row.artifact_id ? await loadArtifactInfo(row.artifact_id) : null;
   const problems = [
-    ...captionProblems(row.caption, { mediaType: row.media_type, step: row.cadence_step }),
+    ...captionProblems(postText(row.caption, row.hashtags), { mediaType: row.media_type, step: row.cadence_step }),
     ...mediaProblems({
       mediaType: row.media_type,
       networks: row.networks,
@@ -255,6 +281,8 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
     };
 
     const { media, error: mediaError } = await mediaFor(row);
+    // Exactly what the founder approved: the description, then the hashtags.
+    const text = row.cadence_step === "tour_3d_link" ? row.caption : postText(row.caption, row.hashtags);
     for (const network of networksToPublish(row.networks, results)) {
       let result: NetworkResult;
       if (!media) {
@@ -265,10 +293,10 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
         } else if (row.cadence_step === "tour_3d_link") {
           const parent = await carouselPostId(row);
           result = parent
-            ? await publishFacebook(deps, meta.config, media, row.caption, { commentOn: parent })
+            ? await publishFacebook(deps, meta.config, media, text, { commentOn: parent })
             : { status: "failed", error: "Le carrousel photos de cette visite n'est pas encore publié sur Facebook." };
         } else {
-          result = await publishFacebook(deps, meta.config, media, row.caption);
+          result = await publishFacebook(deps, meta.config, media, text);
         }
       } else {
         if (!meta.instagram || !meta.config) {
@@ -286,7 +314,7 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
             },
             meta.config,
             media,
-            row.caption,
+            text,
             { existingContainerId: results.instagram?.container_id ?? null },
           );
         }
@@ -345,6 +373,16 @@ export type PublicationDto = {
   results: PublicationResults;
   lastError: string | null;
   createdById: string | null;
+  hashtags: string[];
+  captionModel: string | null;
+  captionGeneratedAt: string | null;
+  captionEditedByName: string | null;
+  submittedByName: string | null;
+  submittedAt: string | null;
+  returnedAt: string | null;
+  returnedByName: string | null;
+  reviewComment: string | null;
+  reviewTags: string[];
 };
 
 export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> {
@@ -362,7 +400,7 @@ export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> 
       artifacts.set(a.id, { kind: a.kind, title: a.title, url: a.output_path ? byPath.get(a.output_path) ?? null : null });
     }
   }
-  const userIds = [...new Set(rows.flatMap((r) => [r.assignee_id, r.approved_by]).filter((id): id is string => Boolean(id)))];
+  const userIds = [...new Set(rows.flatMap((r) => [r.assignee_id, r.approved_by, r.submitted_by, r.returned_by, r.caption_edited_by]).filter((id): id is string => Boolean(id)))];
   const names = new Map<string, string>();
   if (userIds.length) {
     const { data } = await supabaseAdmin.from("users").select("id, full_name").in("id", userIds);
@@ -395,6 +433,16 @@ export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> 
       results: r.results ?? {},
       lastError: r.last_error,
       createdById: r.created_by,
+      hashtags: r.hashtags ?? [],
+      captionModel: r.caption_model ?? null,
+      captionGeneratedAt: r.caption_generated_at ?? null,
+      captionEditedByName: r.caption_edited_by ? names.get(r.caption_edited_by) ?? null : null,
+      submittedByName: r.submitted_by ? names.get(r.submitted_by) ?? null : null,
+      submittedAt: r.submitted_at ?? null,
+      returnedAt: r.returned_at ?? null,
+      returnedByName: r.returned_by ? names.get(r.returned_by) ?? null : null,
+      reviewComment: r.review_comment ?? null,
+      reviewTags: r.review_tags ?? [],
     };
   });
 }
@@ -404,7 +452,10 @@ export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> 
 // ---------------------------------------------------------------------------
 
 export type PostInput = Partial<
-  Pick<PublicationRow, "property_id" | "artifact_id" | "title" | "media_type" | "photo_urls" | "caption" | "notes" | "networks" | "scheduled_at" | "assignee_id">
+  Pick<
+    PublicationRow,
+    "property_id" | "artifact_id" | "title" | "media_type" | "photo_urls" | "caption" | "hashtags" | "notes" | "networks" | "scheduled_at" | "assignee_id"
+  >
 >;
 
 const MAX_CAPTION = 2200;
@@ -444,6 +495,10 @@ export async function parsePostInput(
     if (caption.length > MAX_CAPTION) return { values, error: "La légende dépasse 2 200 caractères." };
     values.caption = caption;
   }
+  if (has("hashtags")) {
+    if (!Array.isArray(body.hashtags) || body.hashtags.some((t) => typeof t !== "string")) return { values, error: "Hashtags invalides" };
+    values.hashtags = normalizeHashtags(body.hashtags as string[]);
+  }
   if (has("notes")) values.notes = String(body.notes ?? "").slice(0, 1000);
   if (has("networks")) {
     if (!Array.isArray(body.networks)) return { values, error: "Réseaux invalides" };
@@ -465,6 +520,17 @@ export async function parsePostInput(
       if (!data || !["staff", "founder"].includes(data.user_type ?? "")) return { values, error: "Cette personne ne fait pas partie de l'équipe." };
     }
     values.assignee_id = (v as string | null) || null;
+  }
+
+  // House rules on every save of a description (not on a bare 3D tour link).
+  const mediaType = values.media_type ?? current?.media_type ?? null;
+  if (values.caption !== undefined && mediaType && mediaType !== "text" && values.caption.trim()) {
+    const clean = finalizeCaption({ caption: values.caption, hashtags: values.hashtags ?? current?.hashtags ?? [] });
+    values.caption = clean.caption;
+    values.hashtags = clean.hashtags;
+  }
+  if (postText(values.caption ?? current?.caption ?? "", values.hashtags ?? current?.hashtags ?? []).length > MAX_CAPTION) {
+    return { values, error: "La légende dépasse 2 200 caractères." };
   }
 
   // Cross-checks on the post as it will be stored.
@@ -489,4 +555,83 @@ export async function parsePostInput(
     if (photos.some((u) => !allowed.has(u))) return { values, error: "Seules les photos de l'annonce peuvent être publiées." };
   }
   return { values, error: null };
+}
+
+// ---------------------------------------------------------------------------
+// Planning a finished video from its Studio project
+// ---------------------------------------------------------------------------
+
+/** Posts that hold their slot: everything except one Salif sent back. */
+export async function takenSlots(fromIso: string, toIso: string, exceptIds: string[]): Promise<Array<{ scheduledAt: string; title: string }>> {
+  const { data } = await supabaseAdmin
+    .from("studio_publications")
+    .select("id, title, scheduled_at, returned_at, property_id")
+    .gte("scheduled_at", fromIso)
+    .lt("scheduled_at", toIso);
+  const rows = (data ?? []).filter((r) => !exceptIds.includes(r.id) && !r.returned_at);
+  const places = await propertySummaries(rows.map((r) => r.property_id ?? ""));
+  return rows.map((r) => {
+    const place = r.property_id ? places.get(r.property_id)?.place : null;
+    return { scheduledAt: r.scheduled_at as string, title: [r.title || "publication", place ? `de ${place}` : null].filter(Boolean).join(" ") };
+  });
+}
+
+/**
+ * The publication of one Studio video: the newest row pointing at it, else a
+ * cadence "Visite commentée" of the same property still waiting for a video
+ * (planned with "Planifier une visite"), which the video then fills.
+ */
+export async function publicationForArtifact(artifactId: string, propertyId: string | null): Promise<{ row: PublicationRow | null; cadence: PublicationRow | null }> {
+  const { data } = await supabaseAdmin
+    .from("studio_publications")
+    .select(PUBLICATION_COLUMNS)
+    .eq("artifact_id", artifactId)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  const row = ((data?.[0] as PublicationRow | undefined) ?? null);
+  if (row || !propertyId) return { row, cadence: null };
+  const { data: cadence } = await supabaseAdmin
+    .from("studio_publications")
+    .select(PUBLICATION_COLUMNS)
+    .eq("property_id", propertyId)
+    .eq("cadence_step", "walkthrough")
+    .eq("status", "a_faire")
+    .is("artifact_id", null)
+    .order("scheduled_at", { ascending: true })
+    .limit(1);
+  return { row: null, cadence: ((cadence?.[0] as PublicationRow | undefined) ?? null) };
+}
+
+/** The latest visit date known for a property (from "Planifier une visite"). */
+export async function lastVisitDate(propertyId: string | null): Promise<string | null> {
+  if (!propertyId) return null;
+  const { data } = await supabaseAdmin
+    .from("studio_publications")
+    .select("visit_date")
+    .eq("property_id", propertyId)
+    .not("visit_date", "is", null)
+    .order("visit_date", { ascending: false })
+    .limit(1);
+  return (data?.[0]?.visit_date as string | undefined) ?? null;
+}
+
+export async function waitingCount(): Promise<number> {
+  const { count } = await supabaseAdmin
+    .from("studio_publications")
+    .select("id", { count: "exact", head: true })
+    .eq("status", "a_valider");
+  return count ?? 0;
+}
+
+/** Script and voice-over of the project that made this video, for the description. */
+export async function projectTexts(conversationId: string): Promise<{ script: string; voiceover: string }> {
+  const { data } = await supabaseAdmin
+    .from("studio_artifacts")
+    .select("kind, text, pinned, created_at")
+    .eq("conversation_id", conversationId)
+    .in("kind", ["script", "voiceover"])
+    .order("created_at", { ascending: false });
+  const rows = data ?? [];
+  const pick = (kind: string) => (rows.find((r) => r.kind === kind && r.pinned) ?? rows.find((r) => r.kind === kind))?.text ?? "";
+  return { script: String(pick("script")), voiceover: String(pick("voiceover")) };
 }
