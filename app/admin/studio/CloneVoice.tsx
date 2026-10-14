@@ -277,7 +277,7 @@ export function CloneVoice({ voices, terms, guestTerms, onChanged }: Props) {
               value={nameDraft}
               onChange={(event) => setNameDraft(event.target.value.slice(0, 60))}
               autoComplete="off"
-              placeholder="Ex. : Didier Ilboudo"
+              placeholder="Prénom et nom"
               className="min-h-12 w-full rounded-2xl border border-neutral-200 bg-white px-4 text-[15px] outline-none focus:border-primary/50"
             />
           </label>
