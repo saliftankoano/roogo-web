@@ -8,6 +8,7 @@ import {
   isStaffLikeUserType,
 } from "@/lib/user-types";
 import { DashboardMotionFrame } from "@/components/motion/DashboardMotionFrame";
+import { AdminContent } from "@/components/admin/AdminContent";
 
 export const metadata: Metadata = {
   title: "Administration | Roogo",
@@ -38,9 +39,9 @@ export default async function AdminLayout({
   return (
     <div className="min-h-screen flex flex-col bg-neutral-50/50">
       <AdminNavbar />
-      <div className="grow container mx-auto px-6 pt-40 pb-12">
+      <AdminContent>
         <DashboardMotionFrame>{children}</DashboardMotionFrame>
-      </div>
+      </AdminContent>
       <Footer />
     </div>
   );

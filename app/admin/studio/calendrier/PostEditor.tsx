@@ -24,7 +24,9 @@ import {
   canChangeStatus,
   canRetry,
   captionProblems,
+  finalizeCaption,
   isJpegUrl,
+  postText,
   isoToDateAndSlot,
   mediaProblems,
   slotToIso,
@@ -84,6 +86,7 @@ export function PostEditor({
   const [artifactId, setArtifactId] = useState<string | null>(post?.artifactId ?? null);
   const [photoUrls, setPhotoUrls] = useState<string[]>(post?.photoUrls ?? []);
   const [caption, setCaption] = useState(post?.caption ?? "");
+  const [hashtags, setHashtags] = useState<string[]>(post?.hashtags ?? []);
   const [notes, setNotes] = useState(post?.notes ?? "");
   const [networks, setNetworks] = useState<Network[]>(post?.networks ?? ["facebook", "instagram"]);
   const [date, setDate] = useState(start.date);
@@ -121,7 +124,7 @@ export function PostEditor({
   const artifactKind = artifact?.kind ?? null;
   const problems = useMemo(() => {
     const list = [
-      ...captionProblems(caption, { mediaType, step: post?.cadenceStep ?? null }),
+      ...captionProblems(mediaType === "text" ? caption : postText(caption, hashtags), { mediaType, step: post?.cadenceStep ?? null }),
       ...mediaProblems({
         mediaType,
         networks,
@@ -135,7 +138,7 @@ export function PostEditor({
       list.push({ code: "ig-jpeg", message: "Instagram n'accepte que des images JPEG." });
     }
     return list;
-  }, [caption, mediaType, networks, artifactId, artifactKind, photoUrls, post?.cadenceStep]);
+  }, [caption, hashtags, mediaType, networks, artifactId, artifactKind, photoUrls, post?.cadenceStep]);
 
   const payload = () => ({
     title,
@@ -144,6 +147,7 @@ export function PostEditor({
     mediaType,
     photoUrls: mediaType === "image" || mediaType === "carousel" ? photoUrls : [],
     caption,
+    hashtags: mediaType === "text" ? [] : hashtags,
     notes,
     networks,
     scheduledAt: slotToIso(date, slot),
@@ -206,7 +210,10 @@ export function PostEditor({
         body: JSON.stringify({ propertyId: property.id }),
       });
       if (!res.ok) throw new Error(await readError(res));
-      setCaption(((await res.json()) as { caption: string }).caption);
+      // The template's hashtag line becomes the hashtag list, as on the server.
+      const clean = finalizeCaption({ caption: ((await res.json()) as { caption: string }).caption });
+      setCaption(clean.caption);
+      setHashtags(clean.hashtags);
     } catch (e) {
       setMessage(e instanceof Error ? e.message : "Erreur");
     } finally {
@@ -259,6 +266,11 @@ export function PostEditor({
         </header>
 
         <div className="min-h-0 flex-1 space-y-5 overflow-y-auto px-4 py-4">
+          {post?.returnedAt && post.reviewComment && (
+            <p className="rounded-2xl bg-[#FCEFD4] px-3 py-2 text-[13px] text-[#6E4300]">
+              <span className="block font-bold">{post.returnedByName ?? "Salif"} a renvoyé cette publication</span>« {post.reviewComment} »
+            </p>
+          )}
           {post?.notes && <p className="rounded-2xl bg-white/70 px-3 py-2 text-[13px] text-neutral-600 ring-1 ring-inset ring-[rgba(74,52,36,0.08)]">{post.notes}</p>}
 
           {/* Results first when the post went out or failed. */}
@@ -450,7 +462,25 @@ export function PostEditor({
               className={cn(field, "font-[inherit] text-[14px] leading-relaxed")}
               aria-label="Légende"
             />
-            <span className="text-right text-[11px] tabular-nums text-neutral-400">{caption.length} / 2 200</span>
+            {mediaType !== "text" && hashtags.length > 0 && (
+              <ul aria-label="Hashtags" className="flex flex-wrap gap-1.5">
+                {hashtags.map((tag) => (
+                  <li key={tag}>
+                    <button
+                      type="button"
+                      disabled={locked}
+                      onClick={() => setHashtags((cur) => cur.filter((t) => t !== tag))}
+                      aria-label={`Retirer ${tag}`}
+                      className="inline-flex h-8 items-center gap-1 rounded-full bg-[#FFF1E4] px-3 text-[12px] font-bold text-[#A8521D] hover:bg-[#FCE3CC]"
+                    >
+                      {tag}
+                      <XIcon size={11} weight="bold" />
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
+            <span className="text-right text-[11px] tabular-nums text-neutral-400">{postText(caption, mediaType === "text" ? [] : hashtags).length} / 2 200</span>
           </section>
 
           <section className="grid gap-1.5">
@@ -575,7 +605,8 @@ export function PostEditor({
             <button
               type="button"
               onClick={() => void act("submit")}
-              disabled={busy !== null}
+              disabled={busy !== null || !caption.trim()}
+              title={!caption.trim() ? "Écrivez ou générez la légende d'abord." : undefined}
               className="inline-flex h-10 items-center gap-1.5 rounded-full bg-amber-500 px-4 text-sm font-semibold text-white hover:bg-amber-600 disabled:opacity-50"
             >
               <PaperPlaneTiltIcon size={15} weight="bold" />

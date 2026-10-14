@@ -18,6 +18,23 @@ import {
   type AdminNavItem,
 } from "../../lib/navigation/adminNav";
 import { roogoMotion } from "@/lib/motion";
+import { useStudioApprovals } from "./useStudioApprovals";
+
+/** Founder only: posts waiting for validation, on the Studio item. */
+function ApprovalBadge({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      aria-label={`${count} publication${count > 1 ? "s" : ""} à valider`}
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E9A23B] px-1.5 text-[11px] font-bold leading-none text-[#1F1A16]",
+        className,
+      )}
+    >
+      {count > 9 ? "9+" : count}
+    </span>
+  );
+}
 
 function isLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -48,9 +65,11 @@ function getActiveGroupId(pathname: string, navItems: AdminNavEntry[]) {
 function DesktopNavLink({
   item,
   isActive,
+  badge = 0,
 }: {
   item: AdminNavItem;
   isActive: boolean;
+  badge?: number;
 }) {
   const Icon = item.icon;
 
@@ -73,6 +92,7 @@ function DesktopNavLink({
       <span className="relative z-10 flex items-center gap-2">
         <Icon size={18} weight={isActive ? "fill" : "bold"} />
         <span className="whitespace-nowrap">{item.label}</span>
+        <ApprovalBadge count={badge} />
       </span>
     </Link>
   );
@@ -93,6 +113,7 @@ export function AdminNavbar() {
   const isFounder = userType === "founder";
 
   const navItems = useMemo(() => getAdminNavItems(isFounder), [isFounder]);
+  const waitingApprovals = useStudioApprovals(isFounder);
   const activeEntryId = useMemo(
     () => getActiveEntryId(pathname, navItems),
     [navItems, pathname],
@@ -174,6 +195,7 @@ export function AdminNavbar() {
                   key={item.id}
                   item={item}
                   isActive={isActive}
+                  badge={item.id === studioNavItem.id ? waitingApprovals : 0}
                 />
               );
             }
@@ -305,13 +327,14 @@ export function AdminNavbar() {
             aria-label="Studio de contenu"
             aria-current={isLinkActive(pathname, studioNavItem.href) ? "page" : undefined}
             className={cn(
-              "ml-1 rounded-full p-2 transition-colors lg:hidden",
+              "relative ml-1 rounded-full p-2 transition-colors lg:hidden",
               isLinkActive(pathname, studioNavItem.href)
                 ? "bg-primary/10 text-primary"
                 : "bg-neutral-100 text-neutral-600 hover:text-primary",
             )}
           >
             <studioNavItem.icon size={22} weight="bold" />
+            <ApprovalBadge count={waitingApprovals} className="absolute -right-1 -top-1" />
           </Link>
 
           <button
@@ -434,6 +457,7 @@ export function AdminNavbar() {
                 >
                   <Icon size={24} weight={isActive ? "fill" : "bold"} />
                   {item.label}
+                  {item.id === studioNavItem.id && <ApprovalBadge count={waitingApprovals} />}
                 </Link>
               );
             })}

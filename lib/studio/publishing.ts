@@ -738,3 +738,18 @@ export function networksLabel(networks: readonly Network[]): string {
   const names = networks.map((n) => NETWORK_LABELS[n]);
   return names.length <= 1 ? names.join("") : `${names.slice(0, -1).join(", ")} et ${names[names.length - 1]}`;
 }
+
+const LONG_MONTHS = ["janvier", "février", "mars", "avril", "mai", "juin", "juillet", "août", "septembre", "octobre", "novembre", "décembre"];
+
+/** "12 au 18 octobre", "28 sept. au 4 oct." (the calendar's inline title). */
+export function weekRangeLabel(monday: string): string {
+  const a = toDate(monday);
+  const b = toDate(addDays(monday, 6));
+  if (a.getUTCMonth() === b.getUTCMonth()) return `${a.getUTCDate()} au ${b.getUTCDate()} ${LONG_MONTHS[b.getUTCMonth()]}`;
+  return `${a.getUTCDate()} ${MONTHS[a.getUTCMonth()]} au ${b.getUTCDate()} ${MONTHS[b.getUTCMonth()]}`;
+}
+
+/** "lun", "mar"... for the phone's week strip. */
+export function shortDayName(iso: string): string {
+  return LONG_DAYS[toDate(iso).getUTCDay()].slice(0, 3);
+}

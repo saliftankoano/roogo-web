@@ -1,10 +1,8 @@
 "use client";
 
 import Image from "next/image";
-import Link from "next/link";
 import {
   ArrowsLeftRightIcon,
-  CalendarDotsIcon,
   CaretRightIcon,
   FilmSlateIcon,
   ImageSquareIcon,
@@ -194,20 +192,6 @@ export function ProjectPanel({
       {cloningEnabled &&
         action("clone", "Cloner une voix", MicrophoneStageIcon, () => onView(view === "clone" ? "chat" : "clone"), { active: view === "clone" })}
 
-      <span className={cn("h-px bg-[rgba(74,52,36,0.10)]", collapsed ? "w-8" : "-mx-1")} />
-      {/* The team's publishing calendar (2026-10-12): a separate full-width page. */}
-      <Link
-        href="/admin/studio/calendrier"
-        title={collapsed ? "Calendrier de publication" : undefined}
-        aria-label={collapsed ? "Calendrier de publication" : undefined}
-        className={cn(
-          "flex shrink-0 items-center rounded-full border border-[rgba(74,52,36,0.10)] bg-white/50 text-[15px] font-semibold text-neutral-700 transition-colors hover:bg-white/90",
-          collapsed ? "size-11 justify-center self-center" : "h-12 w-full gap-3 px-4",
-        )}
-      >
-        <CalendarDotsIcon size={18} weight="bold" className="size-[18px] shrink-0" />
-        {!collapsed && <span className="min-w-0 flex-1 truncate text-left">Calendrier</span>}
-      </Link>
     </div>
   );
 }

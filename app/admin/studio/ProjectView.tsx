@@ -18,6 +18,7 @@ import { cn } from "@/lib/utils";
 import { ArtifactCard, type CardProps } from "./ArtifactsPanel";
 import { Composer, LiveReply, Message, OldScript } from "./ChatView";
 import { PropertyPicker } from "./PropertyPicker";
+import { PublicationCard } from "./publishing/PublicationCard";
 import type { Artifact, ConversationDetail, PropertySummary } from "./studio-types";
 import type { CenterView } from "./ProjectPanel";
 
@@ -246,6 +247,13 @@ export function ProjectView({
               </p>
             )}
           </Tile>
+
+          {/* A finished video is planned from here (design 2026-10-13): status, stepper, one action. */}
+          {video?.url && (
+            <div className="min-w-0 @xl:col-span-3 @4xl:col-span-1">
+              <PublicationCard artifactId={video.id} madeBy={startedBy} />
+            </div>
+          )}
         </div>
       </div>
 

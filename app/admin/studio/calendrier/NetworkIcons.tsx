@@ -1,19 +1,72 @@
 "use client";
 
-import { FacebookLogoIcon, InstagramLogoIcon, TiktokLogoIcon } from "@phosphor-icons/react";
+import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { NETWORK_LABELS, type Network } from "@/lib/studio/publishing";
 
-const ICONS = { facebook: FacebookLogoIcon, instagram: InstagramLogoIcon, tiktok: TiktokLogoIcon } as const;
-const TONES: Record<Network, string> = {
-  facebook: "text-[#1877f2]",
-  instagram: "text-[#c13584]",
-  tiktok: "text-neutral-900",
-};
+/**
+ * The networks' own colourful logos (Salif, 2026-10-13: real platform logos,
+ * not monochrome glyphs). Drawn inline so they stay sharp at 14 to 20 px.
+ */
+function FacebookLogo({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <circle cx="12" cy="12" r="12" fill="#1877F2" />
+      <path
+        fill="#fff"
+        d="M16.67 15.47 17.2 12h-3.33V9.75c0-.95.47-1.88 1.95-1.88h1.51V4.92s-1.37-.23-2.68-.23c-2.74 0-4.53 1.66-4.53 4.66V12H7.08v3.47h3.04V24a12.1 12.1 0 0 0 3.75 0v-8.53z"
+      />
+    </svg>
+  );
+}
 
-export function NetworkIcon({ network, size = 14, className }: { network: Network; size?: number; className?: string }) {
-  const Icon = ICONS[network];
-  return <Icon size={size} weight="fill" aria-label={NETWORK_LABELS[network]} className={cn("shrink-0", TONES[network], className)} />;
+function InstagramLogo({ size }: { size: number }) {
+  const id = useId().replace(/:/g, "");
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <defs>
+        <radialGradient id={`ig-${id}`} cx="0.3" cy="1.07" r="1.3">
+          <stop offset="0" stopColor="#FFDD55" />
+          <stop offset="0.1" stopColor="#FFDD55" />
+          <stop offset="0.5" stopColor="#FF543E" />
+          <stop offset="1" stopColor="#C837AB" />
+        </radialGradient>
+      </defs>
+      <rect width="24" height="24" rx="6" fill={`url(#ig-${id})`} />
+      <rect x="5.2" y="5.2" width="13.6" height="13.6" rx="4" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <circle cx="12" cy="12" r="3.3" fill="none" stroke="#fff" strokeWidth="1.8" />
+      <circle cx="16.3" cy="7.7" r="1.05" fill="#fff" />
+    </svg>
+  );
+}
+
+function TiktokLogo({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <rect width="24" height="24" rx="6" fill="#111" />
+      <path fill="#25F4EE" d="M10.3 10.6v-.8a5.9 5.9 0 0 0-.8-.06 5.2 5.2 0 0 0-2.9 9.5 5.2 5.2 0 0 1 3.7-8.64z" />
+      <path fill="#25F4EE" d="M10.45 17.6a2.35 2.35 0 0 0 2.35-2.27V4.55h1.98a3.8 3.8 0 0 1-.06-.69h-2.7v10.79a2.35 2.35 0 0 1-3.43 2.06 2.35 2.35 0 0 0 1.86.89zM18.4 8.3v-.75a3.7 3.7 0 0 1-2.05-.62 3.8 3.8 0 0 0 2.05 1.37z" />
+      <path fill="#FE2C55" d="M16.35 6.93a3.78 3.78 0 0 1-.94-2.5h-.72a3.8 3.8 0 0 0 1.66 2.5zM9.5 12.24a2.35 2.35 0 0 0-1.09 4.43 2.35 2.35 0 0 1 2.89-3.6v-2.47a5.2 5.2 0 0 0-.8-.06h-.12v1.88a2.35 2.35 0 0 0-.88-.18z" />
+      <path fill="#fff" d="M18.4 8.3v1.87a6.6 6.6 0 0 1-3.86-1.24v5.62a5.13 5.13 0 0 1-8 4.24 5.13 5.13 0 0 0 8.85-3.52V9.65a6.6 6.6 0 0 0 3.86 1.24V8.4a3.8 3.8 0 0 1-.85-.1zM14.54 13.55V7.93a6.6 6.6 0 0 0 3.86 1.24V8.3a3.8 3.8 0 0 1-2.05-1.37 3.8 3.8 0 0 1-1.66-2.5h-1.98v10.79a2.35 2.35 0 0 1-4.3 1.45 2.35 2.35 0 0 1 2.89-3.6v-1.89a5.13 5.13 0 0 0-3.71 8.66 5.13 5.13 0 0 0 8.95-3.53z" />
+    </svg>
+  );
+}
+
+const LOGOS = { facebook: FacebookLogo, instagram: InstagramLogo, tiktok: TiktokLogo } as const;
+
+export function NetworkIcon({ network, size = 14, className, label = true }: { network: Network; size?: number; className?: string; label?: boolean }) {
+  const Logo = LOGOS[network];
+  return (
+    <span
+      role={label ? "img" : undefined}
+      aria-label={label ? NETWORK_LABELS[network] : undefined}
+      aria-hidden={label ? undefined : true}
+      className={cn("inline-flex shrink-0", className)}
+      style={{ width: size, height: size }}
+    >
+      <Logo size={size} />
+    </span>
+  );
 }
 
 export function NetworkIcons({ networks, size = 14 }: { networks: Network[]; size?: number }) {
