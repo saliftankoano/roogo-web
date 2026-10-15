@@ -274,7 +274,7 @@ function Detail({ detail, names, ref }: { detail: FichePayload; names: Map<strin
               </div>
             );
           })}
-          {detail.folderPath && <span className="text-xs text-[#6B625B]">{detail.folderPath}</span>}
+          {detail.folderPath && <span className="text-xs text-[#6B625B]">{detail.folderPath.split("/").join(" / ")}</span>}
         </section>
       </div>
 

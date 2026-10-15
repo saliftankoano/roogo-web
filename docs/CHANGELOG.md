@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-15
+
+- **Fiche de visite in the app** (web, branch `feat/fiche-visite`, not merged, migrations 086 and 090 not run): the paper field visit sheet becomes seven screens on the phone (and the same sheet on a computer). Every tick records its time; the four time buttons tell the team in the briefing ("Sur le terrain aujourd’hui") with an optional WhatsApp share; step 3 is ticks only (position, facts for captions, the four shots in order, red notice when 3 boxes are ticked within 20 s); step 5 is the only upload step, one button per deliverable straight into the property's Drive folder; finishing creates six tasks in the assignees' briefings (business days) and stores the planned publication dates. Directeur and Fondateur follow every sheet in Studio > Visites terrain (`/admin/studio/visites`). [Decision](./DECISIONS.md#the-field-visit-sheet-moves-into-the-app--2026-10-15).
+
 ## 2026-10-14
 
 - **Studio guest voices** (web #64, migration 084 applied by Salif): staff can add the voice of an outside person who is present; the guest reads terms and a consent sentence stating Roogo marketing use without time limit. Guest voices are labelled "(invité)", do not use the staff member's own voice slot, and can be withdrawn by a founder or the staff member who recorded them. [Decision](./DECISIONS.md#studio-guest-voices-consent-for-roogo-marketing-without-time-limit--2026-10-13).

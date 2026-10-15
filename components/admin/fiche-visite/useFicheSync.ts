@@ -78,7 +78,8 @@ export function useFicheSync({ initial, serverKnown, readOnly, onSaved, onConfli
   const inflight = useRef<Promise<boolean> | null>(null);
   const again = useRef(false);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const skipNext = useRef(true);
+  // The last sheet that is not a change of the team's (first render, resume, server version).
+  const quiet = useRef<FicheData | null>(initial);
   const callbacks = useRef({ onSaved, onConflict });
   callbacks.current = { onSaved, onConflict };
   const readOnlyRef = useRef(readOnly);
@@ -140,10 +141,8 @@ export function useFicheSync({ initial, serverKnown, readOnly, onSaved, onConfli
 
   // Every change: local copy at once, server after a pause.
   useEffect(() => {
-    if (skipNext.current) {
-      skipNext.current = false;
-      return;
-    }
+    if (quiet.current === data) return;
+    quiet.current = null;
     if (readOnlyRef.current) return;
     dirtyRef.current = true;
     writeLocal({ data, dirty: true, savedAt: null });
@@ -185,9 +184,10 @@ export function useFicheSync({ initial, serverKnown, readOnly, onSaved, onConfli
   /** Replaces the sheet (resume, server version) without counting it as a change, unless `dirty`. */
   const replace = useCallback((next: FicheData, options: { dirty?: boolean; serverKnown?: boolean } = {}) => {
     if (options.serverKnown !== undefined) knownRef.current = options.serverKnown;
-    skipNext.current = !options.dirty;
     dirtyRef.current = !!options.dirty;
-    setData(options.dirty ? { ...next, updatedAt: new Date().toISOString() } : { ...next });
+    const value = options.dirty ? { ...next, updatedAt: new Date().toISOString() } : { ...next };
+    quiet.current = options.dirty ? null : value;
+    setData(value);
   }, []);
 
   /** Saves now and says whether the server has the latest version. */

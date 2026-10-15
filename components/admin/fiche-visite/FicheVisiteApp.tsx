@@ -563,7 +563,7 @@ export function FicheVisiteApp({ property, people, viewerId, server, openedById,
                   <span className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-[#2F7A48] text-white">
                     <CheckIcon size={18} weight="bold" aria-hidden="true" />
                   </span>
-                  <span className="flex min-w-0 flex-1 flex-col">
+                  <span className="flex min-w-[190px] flex-1 flex-col">
                     <span className="text-base font-extrabold lg:text-[17px]">
                       {cur.time.done} : {hhmm(timeDone)}
                     </span>
@@ -573,7 +573,7 @@ export function FicheVisiteApp({ property, people, viewerId, server, openedById,
                     href={whatsappShareUrl(whatsappText(cur.time.done, hhmm(timeDone), place, property.reference))}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex h-11 items-center gap-1.5 rounded-full border border-[#CFE3D4] bg-white px-3 text-xs font-extrabold text-[#1F1A16] no-underline lg:h-10 lg:text-[13px]"
+                    className="ml-[52px] inline-flex h-11 items-center gap-1.5 rounded-full border border-[#CFE3D4] bg-white px-3 text-xs font-extrabold text-[#1F1A16] no-underline lg:ml-0 lg:h-10 lg:text-[13px]"
                   >
                     <WhatsappLogoIcon size={16} weight="bold" aria-hidden="true" />
                     Aussi sur WhatsApp
@@ -1019,7 +1019,7 @@ function RetourStep({
         <span className={cn("text-xs font-extrabold lg:text-[13px]", done ? "text-[#245C33]" : "text-[#6E4300]")}>{done ? "Tout est dans le Drive" : "Il reste des fichiers"}</span>
       </div>
       <span className="text-xs text-[#6B625B]">
-        Dossier créé tout seul : <b className="break-words">{folderPath}</b>
+        Dossier créé tout seul : <b className="break-words">{folderPath.split("/").join(" / ")}</b>
         {folderUrl && (
           <>
             {" "}

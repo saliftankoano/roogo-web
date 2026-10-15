@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### The field visit sheet moves into the app — 2026-10-15
+
+**Decision:** The "Fiche de visite de bien" (paper sheet of 2 October 2026) is filled in Roogo, from the listing page or the briefing, following the approved canvas (phone and computer). Tick times are the device's own clock; the four time buttons notify the team inside Roogo (briefing "Sur le terrain aujourd’hui"), WhatsApp is optional. Files are uploaded only at "Retour au bureau", one button per deliverable, into `Vente|Location / <CODE> <titre> / <type>` in the shared Drive. "Photos et vidéos supprimées des appareils" can be ticked only once every deliverable has a file confirmed by Drive. Sending the sheet creates six manual tasks (source key `field-visit:<id>:<task>`, so finishing twice creates nothing new) due on business days (Monday to Friday), and stores the planned publication dates (J+1, J+2, J+4, J+5).
+
+**Why:** The paper sheet relied on memory and WhatsApp; the tick times show the Directeur and the founder when each thing was really done, and nothing is lost when the phone has no network (autosave on the phone and on the server).
+
+**Ruled out / alternatives:** A "Règles de publication" screen in the flow (rejected by Salif). Uploads on site at step 3 (step 3 stays a checklist; files go up on the office Wi-Fi). Sending WhatsApp messages through an API (only a share link). Creating publications in the Studio calendar now (that branch is not merged; `lib/field-visits/publications.ts` is the hook).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Open points: Burkina public holidays are not skipped yet; the Drive folder name follows the canvas (`<CODE> <titre>`) while the paper sheet and the Studio's Médias du terrain panel use `Quartier - Nom du propriétaire`, so the same property can get two folders until one rule is chosen. Needs migrations 086 then 090 and the Google service account. See [how it works](./SYSTEM.md#how-does-the-field-visit-sheet-fiche-de-visite-work).
+
 ### Studio guest voices: consent for Roogo marketing without time limit — 2026-10-13
 
 **Decision:** Staff can add the voice of a guest (an owner, a client) who is present. The guest reads the guest terms and a consent sentence that states the voice will be used for Roogo marketing without time limit. Guest voices never use the staff member's single voice slot; a founder or the staff member who recorded the guest can withdraw one.
