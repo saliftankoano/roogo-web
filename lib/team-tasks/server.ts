@@ -47,6 +47,7 @@ import {
   type StaffTitle,
 } from "./core";
 import { loadAutoItems, propertyLabel } from "./sources";
+import { fieldNoticesToday, type FieldNotice } from "@/lib/field-visits/server";
 
 export type Viewer = Person & { isFounder: boolean };
 
@@ -239,6 +240,8 @@ export type BriefingPayload = {
   unassignedCount: number;
   tasksReady: boolean;
   failedSources: string[];
+  /** "Sur le terrain": today's field visit sheets and their latest time button (in-app notice). */
+  fieldNotices: FieldNotice[];
 };
 
 function composerPeople(viewer: Viewer, people: Person[], items: BriefingItem[], now: Date): ComposerPerson[] {
@@ -284,11 +287,16 @@ function demandesFor(viewer: Viewer, rows: StaffTaskRow[], names: PersonNames, n
 }
 
 export async function getBriefingPayload(viewer: Viewer, now = new Date()): Promise<BriefingPayload> {
-  return briefingFromSnapshot(viewer, await snapshot(viewer, now));
+  const snap = await snapshot(viewer, now);
+  const notices = await fieldNoticesToday(viewer.id, snap.people, now).catch((error) => {
+    console.error("[team-tasks] field notices failed", { code: error?.code, message: error?.message });
+    return [];
+  });
+  return briefingFromSnapshot(viewer, snap, notices);
 }
 
 /** Pure assembly of the briefing from loaded data (also used with mocked data in development). */
-export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot): BriefingPayload {
+export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot, fieldNotices: FieldNotice[] = []): BriefingPayload {
   const now = snap.now;
   const mine = snap.items.filter((item) => item.ownerId === viewer.id);
   const parts = buildBriefing(mine, now);
@@ -324,6 +332,7 @@ export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot): BriefingPa
     unassignedCount: canSeeTeam ? snap.items.filter((item) => !item.ownerId && isOpen(item)).length : 0,
     tasksReady: snap.tasksReady,
     failedSources: snap.failedSources,
+    fieldNotices,
   };
 }
 
