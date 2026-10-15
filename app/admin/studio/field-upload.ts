@@ -9,7 +9,7 @@ import { chunkAt, fieldMediaKind, nextOffsetFromRange } from "@/lib/studio/field
 
 export type FieldMedia = {
   id: string;
-  kind: "photo" | "video";
+  kind: "photo" | "video" | "file";
   fileName: string;
   mimeType: string;
   sizeBytes: number;
@@ -107,12 +107,14 @@ export async function uploadFieldFile(
   propertyId: string,
   onProgress: (sentBytes: number) => void,
   signal?: AbortSignal,
+  /** From the field visit sheet: the sheet and the deliverable (its own Drive subfolder). */
+  sheet?: { fieldVisitId: string; deliverable: string },
 ): Promise<FieldMedia> {
   const durationSeconds = await readVideoDuration(file);
   const start = await apiJson<StartAnswer>("/api/admin/studio/media", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ propertyId, fileName: file.name, mimeType: file.type, sizeBytes: file.size, durationSeconds }),
+    body: JSON.stringify({ propertyId, fileName: file.name, mimeType: file.type, sizeBytes: file.size, durationSeconds, ...(sheet ?? {}) }),
     signal,
   });
   if (start.status !== 200) throw new UploadError(start.body.error ?? `Envoi refusé (${start.status}).`);

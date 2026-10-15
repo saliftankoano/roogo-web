@@ -14,6 +14,8 @@ import {
 } from "@/lib/studio/field-media";
 import { DIRECT_CHUNK_BYTES, PROXY_CHUNK_BYTES, checkUploadRequest, driveFolderUrl } from "@/lib/studio/field-media-rules";
 import { DriveError, createResumableSession, ensureVisitFolder, isDriveConfigured, querySession } from "@/lib/studio/google-drive";
+import { DELIVERABLES, isDeliverableKey } from "@/lib/field-visits/core";
+import { ensureFicheFolder } from "@/lib/field-visits/server";
 
 export const maxDuration = 30;
 
@@ -39,6 +41,8 @@ export async function GET(req: Request) {
     .from("studio_field_media")
     .select(FIELD_MEDIA_COLUMNS)
     .eq("property_id", propertyId)
+    // Scan 3D and Insta360 files from the field visit sheet (kind "file") are not Studio material.
+    .in("kind", ["photo", "video"])
     .order("created_at", { ascending: false })
     .limit(500);
   if (error) {
@@ -70,12 +74,18 @@ export async function POST(req: Request) {
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const propertyId = typeof body?.propertyId === "string" ? body.propertyId : "";
   if (!UUID.test(propertyId)) return errorResponse("Bien manquant.", 400, req);
-  const input = checkUploadRequest(body ?? {});
+  // From the field visit sheet (step 5): which sheet and which deliverable. The
+  // file then goes to "Vente|Location / <CODE> <titre> / <type>" (migration 090).
+  const fieldVisitId = typeof body?.fieldVisitId === "string" && UUID.test(body.fieldVisitId) ? body.fieldVisitId : null;
+  const deliverable = fieldVisitId ? body?.deliverable : null;
+  if (fieldVisitId && !isDeliverableKey(deliverable)) return errorResponse("Type de fichier inconnu.", 400, req);
+  const deliverableDef = fieldVisitId ? DELIVERABLES.find((d) => d.key === deliverable)! : null;
+  const input = checkUploadRequest(body ?? {}, deliverableDef ? { allowedKinds: deliverableDef.kinds } : {});
   if (!input.ok) return errorResponse(input.reason, 400, req);
 
   try {
     // Same person, same property, same file name and size, unfinished: resume it.
-    const { data: previous } = await supabaseAdmin
+    let previousQuery = supabaseAdmin
       .from("studio_field_media")
       .select(FIELD_MEDIA_COLUMNS)
       .eq("property_id", propertyId)
@@ -83,9 +93,9 @@ export async function POST(req: Request) {
       .eq("file_name", input.fileName)
       .eq("size_bytes", input.sizeBytes)
       .eq("status", "uploading")
-      .gte("created_at", new Date(Date.now() - RESUME_WINDOW_MS).toISOString())
-      .order("created_at", { ascending: false })
-      .limit(1);
+      .gte("created_at", new Date(Date.now() - RESUME_WINDOW_MS).toISOString());
+    if (fieldVisitId) previousQuery = previousQuery.eq("field_visit_id", fieldVisitId).eq("deliverable", deliverable as string);
+    const { data: previous } = await previousQuery.order("created_at", { ascending: false }).limit(1);
     const old = (previous?.[0] as FieldMediaRow | undefined) ?? null;
     if (old?.upload_session_url) {
       const session = await querySession(old.upload_session_url, input.sizeBytes);
@@ -112,9 +122,20 @@ export async function POST(req: Request) {
       }
     }
 
-    const folder = await visitFolderFor(propertyId);
-    if (!folder) return errorResponse("Bien introuvable.", 404, req);
-    const folderId = await ensureVisitFolder(folder.top, folder.name);
+    let folderId: string;
+    let folderPath: string;
+    if (fieldVisitId) {
+      const target = await ensureFicheFolder(fieldVisitId, deliverable as Parameters<typeof ensureFicheFolder>[1]);
+      if (!target.ok) return errorResponse(target.error, target.status, req);
+      if (target.value.propertyId !== propertyId) return errorResponse("Cette fiche concerne un autre bien.", 400, req);
+      folderId = target.value.folderId;
+      folderPath = target.value.path;
+    } else {
+      const folder = await visitFolderFor(propertyId);
+      if (!folder) return errorResponse("Bien introuvable.", 404, req);
+      folderId = await ensureVisitFolder(folder.top, folder.name);
+      folderPath = folder.path;
+    }
     const uploadUrl = await createResumableSession({
       name: input.fileName,
       mimeType: input.mimeType,
@@ -133,10 +154,11 @@ export async function POST(req: Request) {
         size_bytes: input.sizeBytes,
         duration_seconds: input.durationSeconds,
         drive_folder_id: folderId,
-        drive_folder_path: folder.path,
+        drive_folder_path: folderPath,
         upload_session_url: uploadUrl,
         status: "uploading",
         uploaded_by: staff.id,
+        ...(fieldVisitId ? { field_visit_id: fieldVisitId, deliverable } : {}),
       })
       .select(FIELD_MEDIA_COLUMNS)
       .single();

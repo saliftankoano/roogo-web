@@ -632,7 +632,7 @@ export function parseFiche(body: unknown): { error: string } | { value: FicheDat
       person2Id,
       step: step as StepIndex,
       visitDate: b.visitDate,
-      checks: cleanTimes(b.checks, ALL_CHECK_IDS),
+      checks: cleanTimes(b.checks, ALL_CHECK_IDS) as Record<string, string>,
       times: cleanTimes(b.times, TIME_KEYS),
       shots: cleanTimes(b.shots, SHOT_KEYS),
       location,

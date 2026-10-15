@@ -3,6 +3,17 @@ import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
 import { finalizeFieldMedia, loadFieldMedia, toFieldMediaDto } from "@/lib/studio/field-media";
 import { DriveError } from "@/lib/studio/google-drive";
+import { supabaseAdmin } from "@/lib/supabase-admin";
+import { refreshUploadSummary } from "@/lib/field-visits/server";
+
+/** Keeps the field visit sheet's upload summary in step (column from migration 090; absent before it). */
+async function refreshSheet(mediaId: string) {
+  const { data, error } = await supabaseAdmin.from("studio_field_media").select("field_visit_id").eq("id", mediaId).maybeSingle();
+  if (error || !data?.field_visit_id) return;
+  await refreshUploadSummary(data.field_visit_id as string).catch((e) =>
+    console.error("Studio: field visit summary refresh failed", e instanceof Error ? e.message : e),
+  );
+}
 
 export const maxDuration = 30;
 
@@ -34,6 +45,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
         req,
       );
     }
+    await refreshSheet(row.id);
     return cors(NextResponse.json({ media: toFieldMediaDto(result.row) }, { status: result.state === "ready" ? 200 : 422 }), req);
   } catch (error) {
     if (error instanceof DriveError) return errorResponse(error.message, error.status, req);

@@ -133,6 +133,11 @@ async function loadPeople(viewer: Viewer): Promise<PeopleResult> {
   return { people: orderPeople([...others, viewer]), titlesReady };
 }
 
+/** Staff and founders, ordered as in the briefing (used by the field visit sheet's team picker). */
+export async function getTeamPeople(viewer: Viewer): Promise<Person[]> {
+  return (await loadPeople(viewer)).people;
+}
+
 type TasksResult = { rows: StaffTaskRow[]; ready: boolean };
 
 async function loadTaskRows(now: Date): Promise<TasksResult> {

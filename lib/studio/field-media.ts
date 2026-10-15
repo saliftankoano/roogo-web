@@ -119,6 +119,24 @@ export async function signedFieldMediaUrl(mediaId: string, ttlSeconds?: number):
 export type VisitFolder = { top: "Vente" | "Location"; name: string; path: string };
 
 /**
+ * The owner's name for staff screens and Drive folders: the seller recorded
+ * at a direct sale intake, else the account that listed the property. Never
+ * shown publicly.
+ */
+export async function propertyOwnerName(propertyId: string, agentId: string | null | undefined): Promise<string | null> {
+  const { data: intake } = await supabaseAdmin
+    .from("sale_intakes")
+    .select("owner_first_name, owner_last_name")
+    .eq("property_id", propertyId)
+    .maybeSingle();
+  const fromIntake = intake ? [intake.owner_first_name, intake.owner_last_name].filter(Boolean).join(" ") : "";
+  if (fromIntake) return fromIntake;
+  if (!agentId) return null;
+  const { data: agent } = await supabaseAdmin.from("users").select("full_name").eq("id", agentId).maybeSingle();
+  return agent?.full_name ?? null;
+}
+
+/**
  * Where a property's visit files go, by the field sheet rule. Owner name: the
  * seller recorded at a direct sale intake, else the account that listed the
  * property. Only used to name the Drive folder; never shown publicly.
@@ -131,18 +149,7 @@ export async function visitFolderFor(propertyId: string): Promise<VisitFolder | 
     .maybeSingle();
   if (!property) return null;
 
-  let ownerName: string | null = null;
-  const { data: intake } = await supabaseAdmin
-    .from("sale_intakes")
-    .select("owner_first_name, owner_last_name")
-    .eq("property_id", propertyId)
-    .maybeSingle();
-  if (intake) ownerName = [intake.owner_first_name, intake.owner_last_name].filter(Boolean).join(" ");
-  if (!ownerName && property.agent_id) {
-    const { data: agent } = await supabaseAdmin.from("users").select("full_name").eq("id", property.agent_id).maybeSingle();
-    ownerName = agent?.full_name ?? null;
-  }
-
+  const ownerName = await propertyOwnerName(propertyId, property.agent_id);
   const top = driveTopFolder(property.listing_type);
   const name = propertyFolderName(property.quartier, ownerName);
   return { top, name, path: `${top}/${name}` };

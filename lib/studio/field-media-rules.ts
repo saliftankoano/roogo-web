@@ -4,7 +4,8 @@
 // before a file is marked ready. Safe in the browser (no Node imports); the
 // stream-link tokens live in field-media-token.ts.
 
-export type FieldMediaKind = "photo" | "video";
+/** "file": neither photo nor video (Insta360 .insv/.insp), only from the field visit sheet (migration 090). */
+export type FieldMediaKind = "photo" | "video" | "file";
 export type FieldMediaStatus = "uploading" | "ready" | "failed";
 
 /** Phone footage is often 100 MB to 1 GB. Drive accepts far more; we stop at 5 GB. */
@@ -21,7 +22,7 @@ const PHOTO_EXT = /\.(jpe?g|png|heic|heif|webp|gif|tiff?|dng)$/i;
 const VIDEO_EXT = /\.(mp4|mov|m4v|3gp|webm|mkv|avi|mts)$/i;
 
 /** Photo or video, from the MIME type, or the extension when iOS leaves it empty. */
-export function fieldMediaKind(mimeType: string | null | undefined, fileName: string): FieldMediaKind | null {
+export function fieldMediaKind(mimeType: string | null | undefined, fileName: string): "photo" | "video" | null {
   const mime = (mimeType ?? "").toLowerCase().trim();
   if (mime.startsWith("image/")) return "photo";
   if (mime.startsWith("video/")) return "video";
@@ -160,20 +161,27 @@ export function checkFinalizedFile(
 }
 
 /** Validates what the browser sends to start an upload. */
-export function checkUploadRequest(input: {
-  fileName?: unknown;
-  mimeType?: unknown;
-  sizeBytes?: unknown;
-  durationSeconds?: unknown;
-}):
+export function checkUploadRequest(
+  input: {
+    fileName?: unknown;
+    mimeType?: unknown;
+    sizeBytes?: unknown;
+    durationSeconds?: unknown;
+  },
+  options: { allowedKinds?: FieldMediaKind[] } = {},
+):
   | { ok: true; fileName: string; mimeType: string; kind: FieldMediaKind; sizeBytes: number; durationSeconds: number | null }
   | { ok: false; reason: string } {
   const rawName = typeof input.fileName === "string" ? input.fileName : "";
   if (!rawName.trim()) return { ok: false, reason: "Nom de fichier manquant." };
   const fileName = cleanFileName(rawName);
   const mimeType = fieldMediaMimeType(typeof input.mimeType === "string" ? input.mimeType : "", fileName);
-  const kind = fieldMediaKind(mimeType, fileName);
-  if (!kind) return { ok: false, reason: `${fileName} : seules les photos et les vidéos sont acceptées.` };
+  const allowed = options.allowedKinds ?? ["photo", "video"];
+  const kind = fieldMediaKind(mimeType, fileName) ?? (allowed.includes("file") ? "file" : null);
+  if (!kind || !allowed.includes(kind)) {
+    const only = allowed.length === 1 ? (allowed[0] === "photo" ? "les photos" : "les vidéos") : "les photos et les vidéos";
+    return { ok: false, reason: `${fileName} : seules ${only} sont acceptées ici.` };
+  }
   const sizeBytes = Number(input.sizeBytes);
   if (!Number.isSafeInteger(sizeBytes) || sizeBytes <= 0) return { ok: false, reason: `${fileName} : fichier vide.` };
   if (sizeBytes > FIELD_MEDIA_MAX_BYTES) return { ok: false, reason: `${fileName} : plus de 5 Go, trop lourd.` };
