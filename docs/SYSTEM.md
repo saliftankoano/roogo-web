@@ -834,6 +834,7 @@ sequenceDiagram
 6. **Vercel environment variables** (Production, and Preview if you test there):
    - `GOOGLE_SERVICE_ACCOUNT_EMAIL` = `client_email` from the JSON.
    - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` = `private_key` from the JSON, pasted whole, including `-----BEGIN PRIVATE KEY-----`. Both real line breaks and `\n` work.
+   - Or instead of those two: `GOOGLE_SERVICE_ACCOUNT_JSON` = the whole key file (this is what production has).
    - `ROOGO_SHARED_DRIVE_ID` = `0AMeNoBD5FUIfUk9PVA`.
    - `STUDIO_MEDIA_URL_SECRET` (recommended) = a long random value, for example from `openssl rand -base64 48`.
    - Optional: `STUDIO_PUBLIC_BASE_URL` if stream links must point somewhere other than `https://www.roogobf.com`.

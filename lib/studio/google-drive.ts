@@ -6,6 +6,7 @@
 // Env:
 //   GOOGLE_SERVICE_ACCOUNT_EMAIL        the service account address
 //   GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY  its PEM private key (\n escapes accepted)
+//   or GOOGLE_SERVICE_ACCOUNT_JSON      the whole key file instead of the two above
 //   ROOGO_SHARED_DRIVE_ID               the shared drive "Roogo"
 
 import { createSign } from "node:crypto";
@@ -29,9 +30,20 @@ export class DriveError extends Error {
 
 type DriveConfig = { email: string; privateKey: string; driveId: string };
 
+function serviceAccountJson(): { client_email?: string; private_key?: string } | null {
+  const raw = process.env.GOOGLE_SERVICE_ACCOUNT_JSON?.trim();
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
 export function driveConfig(): DriveConfig | null {
-  const email = process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL?.trim();
-  const privateKey = process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY?.replace(/\\n/g, "\n").trim();
+  const json = serviceAccountJson();
+  const email = (process.env.GOOGLE_SERVICE_ACCOUNT_EMAIL ?? json?.client_email)?.trim();
+  const privateKey = (process.env.GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY ?? json?.private_key)?.replace(/\\n/g, "\n").trim();
   const driveId = process.env.ROOGO_SHARED_DRIVE_ID?.trim();
   if (!email || !privateKey || !driveId) return null;
   return { email, privateKey, driveId };
