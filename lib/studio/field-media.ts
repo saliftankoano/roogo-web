@@ -152,7 +152,7 @@ export async function visitFolderFor(propertyId: string): Promise<VisitFolder | 
   const ownerName = await propertyOwnerName(propertyId, property.agent_id);
   const top = driveTopFolder(property.listing_type);
   const name = propertyFolderName(property.quartier, ownerName);
-  return { top, name, path: `${top}/${name}` };
+  return { top, name, path: `Biens/${top}/${name}` };
 }
 
 // ---------------------------------------------------------------------------

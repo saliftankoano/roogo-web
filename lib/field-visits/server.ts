@@ -300,7 +300,7 @@ export async function ensureFicheFolder(
   const name = visitFolderName(property.reference, property.title);
   const parentId = row.drive_folder_id ?? (await ensureVisitFolder(top, name));
   const folderId = await findOrCreateFolder(parentId, def.folder);
-  const path = `${top}/${name}`;
+  const path = `Biens/${top}/${name}`;
   // Re-read the cache so two uploads starting together keep each other's subfolder.
   const { row: fresh } = await loadRow(visitId);
   await supabaseAdmin
@@ -365,7 +365,7 @@ async function payloadFor(row: FieldVisitRow): Promise<FichePayload | null> {
     property,
     uploads: summarize(files),
     files,
-    folderPath: row.drive_folder_path ?? `${topFolderFor(row.kind)}/${visitFolderName(property.reference, property.title)}`,
+    folderPath: row.drive_folder_path ?? `Biens/${topFolderFor(row.kind)}/${visitFolderName(property.reference, property.title)}`,
     folderUrl: row.drive_folder_id ? driveFolderUrl(row.drive_folder_id) : null,
     tasks,
   };

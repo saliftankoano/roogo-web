@@ -150,7 +150,9 @@ export async function findOrCreateFolder(parentId: string, name: string): Promis
 /** `Vente|Location / Quartier - Propriétaire` under the shared drive. */
 export async function ensureVisitFolder(top: "Vente" | "Location", visitFolder: string): Promise<string> {
   const { driveId } = requireConfig();
-  const topId = await findOrCreateFolder(driveId, top);
+  // The team keeps properties under "Biens / Vente" and "Biens / Location".
+  const biensId = await findOrCreateFolder(driveId, "Biens");
+  const topId = await findOrCreateFolder(biensId, top);
   return findOrCreateFolder(topId, visitFolder);
 }
 
