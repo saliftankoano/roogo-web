@@ -6,7 +6,7 @@ export async function POST(
   req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const auth = await requireStaffSupabaseUser();
+  const auth = await requireStaffSupabaseUser("identity.review");
   if ("error" in auth) return auth.error;
   const { id } = await params;
   const body = await req.json().catch(() => ({}));

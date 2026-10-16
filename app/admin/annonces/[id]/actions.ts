@@ -1,5 +1,7 @@
 "use server";
 
+import { staffLevelCan } from "@/lib/staff-access";
+import { staffLevelFromMetadata } from "@/lib/staff-access-server";
 import { auth, clerkClient } from "@clerk/nextjs/server";
 import { resolvePawaPayConfig } from "@/lib/pawapay-config";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -69,9 +71,8 @@ export async function getSecureTransactions(propertyId: string, paymentId?: stri
 
   const client = await clerkClient();
   const user = await client.users.getUser(userId);
-  const userType = user.publicMetadata.userType;
-
-  if (userType !== "staff" && userType !== "founder") {
+  // Payment records of a listing are financial data: founder and director.
+  if (!staffLevelCan(staffLevelFromMetadata(user.publicMetadata), "finances.view")) {
     throw new Error("Forbidden: Admin access only");
   }
 

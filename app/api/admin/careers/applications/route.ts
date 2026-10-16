@@ -1,3 +1,5 @@
+import { staffLevelCan } from "@/lib/staff-access";
+import { staffLevelFromMetadata } from "@/lib/staff-access-server";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
@@ -10,11 +12,8 @@ export async function GET() {
     }
 
     const user = await currentUser();
-    const userType =
-      (user?.publicMetadata?.userType as string | undefined) ||
-      (user?.publicMetadata?.user_type as string | undefined);
-
-    if (!["staff", "founder", "admin"].includes((userType || "").toLowerCase())) {
+    const level = staffLevelFromMetadata(user?.publicMetadata);
+    if (!staffLevelCan(level, "talent.manage")) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }
 

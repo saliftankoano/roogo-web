@@ -1,44 +1,56 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useUser, SignIn, useAuth } from "@clerk/nextjs";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import {
-  KeyIcon,
   ArrowRightIcon,
   CheckCircleIcon,
+  EnvelopeSimpleIcon,
   ShieldCheckIcon,
 } from "@phosphor-icons/react";
 
 export default function StaffJoinPage() {
+  return (
+    <Suspense fallback={null}>
+      <StaffJoin />
+    </Suspense>
+  );
+}
+
+function StaffJoin() {
   const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useAuth();
   const router = useRouter();
+  // Access is given by invitation (founder or director, from /admin/equipe).
+  const invitationToken = useSearchParams().get("invitation") ?? "";
 
-  const [code, setCode] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState(false);
 
-  const handleVerifyCode = async (e: React.FormEvent) => {
+  const handleAccept = async (e: React.FormEvent) => {
     e.preventDefault();
     setError("");
     setIsSubmitting(true);
 
     try {
-      const response = await fetch("/api/auth/verify-staff-code", {
+      const response = await fetch("/api/personnel/invitation/accept", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ code }),
+        body: JSON.stringify({ token: invitationToken }),
       });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "Verification failed");
+        throw new Error(data.error || "L'invitation n'a pas pu être acceptée.");
       }
 
       setSuccess(true);
+      // The session carries the old metadata for a moment: reload it so the
+      // admin pages see the new level.
+      await user?.reload();
       setTimeout(() => {
         router.push("/admin");
       }, 2000);
@@ -106,7 +118,11 @@ export default function StaffJoinPage() {
                   },
                 }}
                 routing="hash"
-                forceRedirectUrl="/personnel/rejoindre"
+                forceRedirectUrl={
+                  invitationToken
+                    ? `/personnel/rejoindre?invitation=${encodeURIComponent(invitationToken)}`
+                    : "/personnel/rejoindre"
+                }
               />
             </div>
           </div>
@@ -131,7 +147,7 @@ export default function StaffJoinPage() {
             </div>
           </div>
         ) : (
-          /* Step 2: Enter Staff Code */
+          /* Step 2: accept the invitation */
           <div className="bg-white rounded-[32px] border border-neutral-100 shadow-xl shadow-neutral-200/40 overflow-hidden">
             <div className="p-6 border-b border-neutral-100 bg-neutral-50/50">
               <div className="flex items-center justify-between">
@@ -140,7 +156,7 @@ export default function StaffJoinPage() {
                     2
                   </div>
                   <span className="text-sm font-bold text-neutral-900">
-                    Entrez votre code d&apos;accès staff
+                    Acceptez votre invitation
                   </span>
                 </div>
                 <button
@@ -160,54 +176,57 @@ export default function StaffJoinPage() {
                 </p>
               </div>
 
-              <form onSubmit={handleVerifyCode} className="space-y-6">
-                <div className="space-y-2">
-                  <label className="text-xs font-bold text-neutral-500 uppercase tracking-widest ml-4">
-                    Code Secret
-                  </label>
-                  <div className="relative">
-                    <input
-                      type="password"
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                      placeholder="Entrez le code fourni"
-                      className="w-full pl-14 pr-6 py-4 bg-neutral-50 rounded-full border border-neutral-100 focus:bg-white focus:ring-4 focus:ring-primary/5 focus:border-primary/20 transition-all text-sm font-bold placeholder:text-neutral-300"
-                      required
-                    />
-                    <div className="absolute left-5 top-1/2 -translate-y-1/2 text-neutral-300">
-                      <KeyIcon size={22} weight="bold" />
+              {invitationToken ? (
+                <form onSubmit={handleAccept} className="space-y-6">
+                  <p className="text-sm text-neutral-600">
+                    Vous avez été invité à rejoindre l&apos;équipe Roogo. Votre
+                    niveau d&apos;accès dépend de votre poste. Utilisez
+                    l&apos;adresse e-mail à laquelle l&apos;invitation a été
+                    envoyée.
+                  </p>
+
+                  {error && (
+                    <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
+                      <p className="text-sm text-red-600 font-medium">{error}</p>
                     </div>
-                  </div>
-                </div>
-
-                {error && (
-                  <div className="p-4 bg-red-50 border border-red-100 rounded-2xl">
-                    <p className="text-sm text-red-600 font-medium">{error}</p>
-                  </div>
-                )}
-
-                <button
-                  type="submit"
-                  disabled={isSubmitting || !code}
-                  className="w-full py-4 bg-primary text-white rounded-full font-bold text-sm uppercase tracking-widest shadow-xl shadow-primary/20 active:scale-[0.985] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
-                >
-                  {isSubmitting ? (
-                    "Vérification..."
-                  ) : (
-                    <>
-                      Activer mon compte Staff
-                      <ArrowRightIcon size={18} weight="bold" />
-                    </>
                   )}
-                </button>
-              </form>
+
+                  <button
+                    type="submit"
+                    disabled={isSubmitting}
+                    className="w-full py-4 bg-primary text-white rounded-full font-bold text-sm uppercase tracking-widest shadow-xl shadow-primary/20 active:scale-[0.985] transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-3"
+                  >
+                    {isSubmitting ? (
+                      "Vérification..."
+                    ) : (
+                      <>
+                        Accepter l&apos;invitation
+                        <ArrowRightIcon size={18} weight="bold" />
+                      </>
+                    )}
+                  </button>
+                </form>
+              ) : (
+                <div className="flex items-start gap-3 rounded-2xl bg-neutral-50 p-4">
+                  <EnvelopeSimpleIcon
+                    size={22}
+                    weight="bold"
+                    className="mt-0.5 shrink-0 text-neutral-400"
+                  />
+                  <p className="text-sm text-neutral-600">
+                    Pour rejoindre l&apos;équipe, il faut un lien d&apos;invitation.
+                    Demandez-le à un directeur ou au fondateur, puis ouvrez le
+                    lien qu&apos;il vous envoie.
+                  </p>
+                </div>
+              )}
             </div>
           </div>
         )}
 
         {/* Footer */}
         <p className="text-center text-xs text-neutral-400 mt-8">
-          Vous n&apos;avez pas de code ? Contactez l&apos;administrateur.
+          Pas d&apos;invitation ? Contactez un directeur ou le fondateur.
         </p>
       </div>
     </div>
