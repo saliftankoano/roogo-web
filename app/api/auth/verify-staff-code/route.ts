@@ -74,8 +74,13 @@ export async function POST(request: NextRequest) {
         message: "This account is already the founder account",
       });
     }
-    const currentLevel = String(user.publicMetadata?.staffLevel ?? "");
-    const staffLevel = isAssignableStaffLevel(currentLevel) ? currentLevel : "intern";
+    if (currentType === "staff") {
+      return NextResponse.json({
+        success: true,
+        message: "This account is already staff",
+      });
+    }
+    const staffLevel: "intern" = "intern";
 
     // Update Clerk metadata
     const client = await clerkClient();

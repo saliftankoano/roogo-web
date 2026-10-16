@@ -185,19 +185,22 @@ export async function listTeam(actor: TeamActor) {
     };
   });
 
-  const invitations = (invitationsRes.data ?? []).map((row) => ({
-    id: row.id as string,
-    email: row.email as string,
-    level: row.level as AssignableStaffLevel,
-    reason: (row.reason as string | null) ?? null,
-    createdAt: row.created_at as string,
-    expiresAt: row.expires_at as string,
-    state: invitationState(row),
-    // A director sees and revokes only the invitations they sent.
-    canRevoke:
-      invitationState(row) === "open" &&
-      (actor.level === "founder" || row.invited_by === actor.userId),
-  }));
+  const invitations = (invitationsRes.data ?? []).map((row) => {
+    const state = invitationState(row);
+    return {
+      id: row.id as string,
+      email: row.email as string,
+      level: row.level as AssignableStaffLevel,
+      reason: (row.reason as string | null) ?? null,
+      createdAt: row.created_at as string,
+      expiresAt: row.expires_at as string,
+      state,
+      // A director sees and revokes only the invitations they sent.
+      canRevoke:
+        (state === "open" || state === "expired") &&
+        (actor.level === "founder" || row.invited_by === actor.userId),
+    };
+  });
 
   const assignableLevels = ASSIGNABLE_STAFF_LEVELS.filter((level) =>
     canGrantStaffLevel({
@@ -303,7 +306,8 @@ export async function revokeInvitation(actor: TeamActor, invitationId: string) {
     .eq("id", invitationId)
     .maybeSingle();
   if (!invitation) throw new TeamError("Invitation introuvable.", 404);
-  if (invitationState(invitation) !== "open") {
+  const state = invitationState(invitation);
+  if (state !== "open" && state !== "expired") {
     throw new TeamError("Cette invitation n'est plus ouverte.", 409);
   }
   if (actor.level !== "founder" && invitation.invited_by !== actor.userId) {
@@ -508,6 +512,15 @@ export async function acceptInvitation(clerkUserId: string, token: unknown) {
     reason: `Invité par ${inviterRow.full_name ?? "un responsable"}${invitation.reason ? `. ${invitation.reason}` : ""}`.slice(0, 300),
   });
 
+  const { error: markError } = await supabaseAdmin
+    .from("staff_invitations")
+    .update({ accepted_at: new Date().toISOString(), accepted_by: me.id })
+    .eq("id", invitation.id);
+  if (markError) {
+    console.error("Could not mark invitation accepted:", markError);
+    throw new TeamError("Impossible de marquer l'invitation comme acceptée.", 500);
+  }
+
   await setClerkAccess(clerkUserId, { userType: "staff", staffLevel: level });
   try {
     await setRowAccess(me.id, { userType: "staff", staffLevel: level });
@@ -519,12 +532,6 @@ export async function acceptInvitation(clerkUserId: string, token: unknown) {
     throw error;
   }
   await applyStudioCaps(me.id, level);
-
-  const { error: markError } = await supabaseAdmin
-    .from("staff_invitations")
-    .update({ accepted_at: new Date().toISOString(), accepted_by: me.id })
-    .eq("id", invitation.id);
-  if (markError) console.error("Could not mark invitation accepted:", markError);
 
   return { level };
 }
