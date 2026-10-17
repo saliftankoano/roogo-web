@@ -131,7 +131,7 @@ export function weekLabel(key: string): string {
 // Code had only two staff levels (Clerk userType "staff" and "founder"). The
 // vault-approved titles (2026-10-11) add Directeur, Assistant, Conseillère and
 // Stagiaire. Fondateur stays the Clerk userType; the other titles live in the
-// staff_titles table (migration 089). No row means Conseillère.
+// staff_titles table (migration 089). No row means Conseiller(ère).
 
 export const STAFF_TITLES = ["directeur", "assistant", "conseillere", "stagiaire"] as const;
 export type StaffTitle = (typeof STAFF_TITLES)[number];
@@ -141,8 +141,8 @@ export const DEFAULT_STAFF_TITLE: StaffTitle = "conseillere";
 export const LEVEL_LABELS: Record<StaffLevel, string> = {
   fondateur: "Fondateur",
   directeur: "Directeur",
-  assistant: "Assistant commercial",
-  conseillere: "Conseillère",
+  assistant: "Assistant(e) commercial(e)",
+  conseillere: "Conseiller(ère)",
   stagiaire: "Stagiaire",
 };
 
