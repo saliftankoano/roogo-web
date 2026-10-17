@@ -191,6 +191,7 @@ export function ProjectPanel({
       {action("glossary", "Prononciation", TranslateIcon, () => onView(view === "glossary" ? "chat" : "glossary"), { active: view === "glossary" })}
       {cloningEnabled &&
         action("clone", "Cloner une voix", MicrophoneStageIcon, () => onView(view === "clone" ? "chat" : "clone"), { active: view === "clone" })}
+
     </div>
   );
 }

@@ -427,3 +427,23 @@ and review state independently govern what the user may submit or edit.
 **Origin:** 2026-10-16 (Salif).
 
 **Why it matters for building:** A call task cannot be marked done before its note exists; notes are seen by the caller, the Directeur and the founder only.
+
+### Publication (calendrier du Studio) / Validation
+
+**Meaning:** One planned social post: a Studio video or visual (or listing photos, or text), a caption, one or more networks, a date and a time slot, a responsible person. Its status moves **À faire → À valider → Validé → Publié** (or **Échec**). **Validé** is the founder's written OK; only a founder can give it, and only a validated post is ever sent to Facebook or Instagram.
+
+**Origin:** 2026-10-12, from the field visit sheet rule "nothing is published without Salif's written OK".
+
+**Why it matters for building:** Any edit to what goes out (caption, media, networks, time) sends a validated post back to À valider. Publié and Échec are set only by the publishing cron.
+
+**Evidence:** [How the calendar publishes](./SYSTEM.md#how-does-the-studio-publishing-calendar-post-to-facebook-and-instagram).
+
+### Cadence de visite / Créneau
+
+**Meaning:** The cadence is the five posts that follow a filmed property visit, counted in business days (Monday to Friday): J+1 presentation video, J+2 walkthrough with the team's voice-over, J+4 photo carousel and the 3D tour link under it, J+5 3D ambiance video. A créneau is a posting time of the day, 12:00 and 19:00 Ouagadougou time (UTC) by default.
+
+**Origin:** Field visit sheet; built into "Planifier une visite" on 2026-10-12.
+
+**Why it matters for building:** Public holidays are not skipped yet. Slots come from `STUDIO_PUBLISH_SLOTS`.
+
+**Evidence:** [Decision](./DECISIONS.md#studio-publishing-calendar-founder-approval-and-direct-meta-posting--2026-10-12).

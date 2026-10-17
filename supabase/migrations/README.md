@@ -22,6 +22,11 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 
 - [x] [089_staff_tasks_executed.sql](./089_staff_tasks_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `staff_tasks` and `staff_titles` exist, `staff_tasks` has rows).** Staff tasks and demandes for Mon espace and L'équipe. It shares the number 089 with `089_staff_levels_executed.sql` (next entry): two different files, both applied independently, so neither is renumbered and neither may be replayed by number (same situation as 075 and 076). Its `staff_titles` table is no longer read: board titles come from `users.staff_level` (089_staff_levels). Dropping `staff_titles` would need a new, uniquely numbered migration.
 
+## Studio publishing calendar — 2026-10-17 record
+
+- [x] [085_studio_publications_executed.sql](./085_studio_publications_executed.sql) — **executed on Roogo (confirmed by Salif; run on 2026-10-14, the "85" run noted under 088 below).** `studio_publications` (one planned post, founder approval before anything is posted), the cron claim column and per-network results. RLS on, no policies; service role only. The header still says "084 and 086 are reserved by other branches"; bytes kept as applied.
+- [x] [087_studio_publication_review_executed.sql](./087_studio_publication_review_executed.sql) — **executed on Roogo (confirmed by Salif, recorded 2026-10-17; not independently verified).** Run after 085. Hashtags kept apart from the description, which model wrote the first draft, who edited, submitted and sent back a post, with the review comment and tags. The header still says "Not applied anywhere yet"; bytes kept as applied.
+
 ## Staff access levels — 2026-10-16
 
 - [x] [089_staff_levels_executed.sql](./089_staff_levels_executed.sql) — **executed 2026-10-16 (confirmed by Salif, "mig ran"; not independently verified).** `users.staff_level`, `staff_invitations` (replaces the shared staff code) and `staff_access_log` (who gave which access). Tested beforehand on a throwaway Supabase Postgres 17.4.

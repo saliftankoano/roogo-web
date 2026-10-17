@@ -8,6 +8,7 @@ import {
   isStaffLikeUserType,
 } from "@/lib/user-types";
 import { DashboardMotionFrame } from "@/components/motion/DashboardMotionFrame";
+import { AdminContent } from "@/components/admin/AdminContent";
 import { StaffAccessProvider } from "@/components/admin/StaffAccessProvider";
 import { staffLevelFromMetadata } from "@/lib/staff-access-server";
 
@@ -43,9 +44,9 @@ export default async function AdminLayout({
     <StaffAccessProvider level={level}>
       <div className="min-h-screen flex flex-col bg-neutral-50/50">
         <AdminNavbar />
-        <div className="grow container mx-auto px-6 pt-40 pb-12">
+        <AdminContent>
           <DashboardMotionFrame>{children}</DashboardMotionFrame>
-        </div>
+        </AdminContent>
         <Footer />
       </div>
     </StaffAccessProvider>
