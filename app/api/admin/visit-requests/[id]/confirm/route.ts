@@ -9,7 +9,7 @@ export async function POST(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const authResult = await requireStaffSupabaseUser();
+    const authResult = await requireStaffSupabaseUser("applications.manage");
     if ("error" in authResult) return authResult.error;
 
     const { id } = await params;

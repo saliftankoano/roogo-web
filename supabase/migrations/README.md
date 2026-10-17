@@ -8,6 +8,19 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 - [x] [092_call_notes_and_demande_replies_executed.sql](./092_call_notes_and_demande_replies_executed.sql) — **executed 2026-10-16 (confirmed by Salif); run after 091.** Call notes (`staff_call_notes`) and demande answers (new `staff_tasks` columns and `staff_task_messages`).
 - [x] [093_property_sold_state_executed.sql](./093_property_sold_state_executed.sql) — **executed 2026-10-17 (confirmed by Salif).** `property_status` gains `vendu`; `properties.sold_at`, `sold_price`, `sold_by`; `team_goal_sales` dropped (empty); `team_goal_readings.source` (`manuel` / `automatique`) with one automatic reading per metric and day; seed of « 500 abonnés Instagram » with the reading of 2026-10-16. The file header still says "NOT EXECUTED": it is kept byte for byte as applied.
 
+## Field media and the field visit sheet — 2026-10-17 record
+
+- [x] [086_studio_field_media_executed.sql](./086_studio_field_media_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `studio_field_media` exists and has rows).** Studio index of field photos and videos uploaded to the shared Drive.
+- [x] [090_field_visits_executed.sql](./090_field_visits_executed.sql) — **executed on Roogo after 086 and 089_staff_tasks (confirmed by Salif; verified read-only on 2026-10-17: `field_visits` exists with rows, `studio_field_media.field_visit_id` and `staff_tasks.field_visit_id` exist).** The in-app Fiche de visite. Its header still says 086 is not applied: that comment is historical and the bytes stay as run.
+
+## Staff briefing and team board — 2026-10-17 record
+
+- [x] [089_staff_tasks_executed.sql](./089_staff_tasks_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `staff_tasks` and `staff_titles` exist, `staff_tasks` has rows).** Staff tasks and demandes for Mon espace and L'équipe. It shares the number 089 with `089_staff_levels_executed.sql` above: two different files, both applied independently, so neither is renumbered and neither may be replayed by number (same situation as 075 and 076). Its `staff_titles` table is no longer read: board titles come from `users.staff_level` (089_staff_levels). Dropping `staff_titles` would need a new, uniquely numbered migration.
+
+## Staff access levels — 2026-10-16
+
+- [x] [089_staff_levels_executed.sql](./089_staff_levels_executed.sql) — **executed 2026-10-16 (confirmed by Salif, "mig ran"; not independently verified).** `users.staff_level`, `staff_invitations` (replaces the shared staff code) and `staff_access_log` (who gave which access). Tested beforehand on a throwaway Supabase Postgres 17.4.
+
 ## Property reference codes — 2026-10-14
 
 - [x] [088_property_references_executed.sql](./088_property_references_executed.sql) — **executed 2026-10-14 (confirmed by Salif, then verified read-only through the Roogo API).** Short public codes for listings (`VEN-NNN` for sales, `LOC-NNN` for rentals): `properties.reference`, assigned once at insert by a trigger and refused on update, numbered in creation order for existing rows (49 rows: VEN-001 to VEN-023, LOC-001 to LOC-026), exposed through `property_details` and `public_property_details`. Numbered 088 because 085 to 087 belong to the publishing and field-media branches. Before this run, the column did not exist (checked by the API and in the SQL editor); the "85" run earlier that day was the publishing branch's `085_studio_publications.sql`.

@@ -1,5 +1,7 @@
 "use client";
 
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
+import type { StaffCapability } from "@/lib/staff-access";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -14,8 +16,11 @@ function isLinkActive(pathname: string, href: string) {
   return pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 }
 
-function navigationFor(isSignedIn: boolean | undefined, userType?: string): AdminNavEntry[] {
-  if (isSignedIn && (userType === "staff" || userType === "founder")) return getAdminNavItems(userType === "founder");
+type CanAny = (capabilities: readonly StaffCapability[]) => boolean;
+const allowAll: CanAny = () => true;
+
+function navigationFor(isSignedIn: boolean | undefined, userType?: string, canAny: CanAny = allowAll): AdminNavEntry[] {
+  if (isSignedIn && (userType === "staff" || userType === "founder")) return getAdminNavItems(canAny);
   const owner = isSignedIn && (userType === "owner" || userType === "agent");
   return [
     { type: "link", label: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
@@ -32,7 +37,8 @@ function navigationFor(isSignedIn: boolean | undefined, userType?: string): Admi
 
 export function Navbar() {
   const { isSignedIn, isLoaded, user } = useUser();
-  return <NavbarView isSignedIn={isSignedIn} isLoaded={isLoaded}
+  const { canAny } = useStaffAccess();
+  return <NavbarView isSignedIn={isSignedIn} isLoaded={isLoaded} canAny={canAny}
     userType={(user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined}
     fullName={user?.fullName} accountButton={<UserButton afterSignOutUrl="/" appearance={{ elements: {
       userButtonAvatarBox: "w-10 h-10 border-2 border-primary/20",
@@ -40,8 +46,8 @@ export function Navbar() {
 }
 
 // Authentication remains Clerk-controlled; the view can be exercised independently.
-export function NavbarView({ isSignedIn, isLoaded, userType, fullName, accountButton }: {
-  isSignedIn: boolean | undefined; isLoaded: boolean; userType?: string;
+export function NavbarView({ isSignedIn, isLoaded, userType, fullName, accountButton, canAny }: {
+  isSignedIn: boolean | undefined; isLoaded: boolean; userType?: string; canAny?: CanAny;
   fullName?: string | null; accountButton: ReactNode;
 }) {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -49,7 +55,7 @@ export function NavbarView({ isSignedIn, isLoaded, userType, fullName, accountBu
   const mobileMenuRef = useRef<HTMLElement>(null);
   const headerRef = useRef<HTMLElement>(null);
   const pathname = usePathname();
-  const items = navigationFor(isSignedIn, userType);
+  const items = navigationFor(isSignedIn, userType, canAny);
   const closeGroups = () => {
     headerRef.current?.querySelectorAll("details[open]").forEach(detail => detail.removeAttribute("open"));
   };

@@ -1,5 +1,6 @@
 "use client";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
 import { useState, useEffect, useRef } from "react";
 import { PropertyDetailSkeleton } from "@/components/admin/skeletons";
@@ -189,6 +190,8 @@ export default function AdminListingDetail({
   const [editError, setEditError] = useState<string | null>(null);
 
   const isStaffOrFounder = isStaffLikeMetadata(clerkUser?.publicMetadata);
+  const staffAccess = useStaffAccess();
+  const canViewFinances = staffAccess.can("finances.view");
 
   const startEditing = () => {
     if (!listing) return;
@@ -393,13 +396,16 @@ export default function AdminListingDetail({
           setAdminPendingEdit(pendingJson.pendingEdit ?? null);
         }
 
-        // Fetch transactions SECURELY via Server Action
-        const transactionsData = await getSecureTransactions(
-          id,
-          propertyData?.payment_id,
-          propertyData?.transaction_id,
-        );
-        setTransactions(transactionsData);
+        // Payment records are financial data (founder and director). Fetch
+        // them SECURELY via Server Action, and not at all for other levels.
+        if (canViewFinances) {
+          const transactionsData = await getSecureTransactions(
+            id,
+            propertyData?.payment_id,
+            propertyData?.transaction_id,
+          );
+          setTransactions(transactionsData);
+        }
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -421,7 +427,7 @@ export default function AdminListingDetail({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [id]);
+  }, [id, canViewFinances]);
 
   useEffect(() => {
     if (!saleIntake || saleIntake.status !== "unlinked" || !ownerSearch.trim()) {
@@ -1033,13 +1039,15 @@ export default function AdminListingDetail({
               )}
             </>
           )}
-          <Button
-            variant="ghost"
-            className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
-            onClick={() => setDeleteModalOpen(true)}
-          >
-            Supprimer
-          </Button>
+          {staffAccess.can("listings.delete") && (
+            <Button
+              variant="ghost"
+              className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
+              onClick={() => setDeleteModalOpen(true)}
+            >
+              Supprimer
+            </Button>
+          )}
           <div className="relative" ref={dropdownRef}>
             <Button
               onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
@@ -1097,7 +1105,13 @@ export default function AdminListingDetail({
                           },
                         ]
                       : []),
-                  ].map((status) => (
+                  ]
+                    .filter(
+                      (status) =>
+                        status.id !== "en_ligne" ||
+                        staffAccess.can("listings.publish"),
+                    )
+                    .map((status) => (
                     <button
                       key={status.id}
                       onClick={() => initiateStatusChange(status.id)}

@@ -1,6 +1,12 @@
 import { currentUser, auth, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
+import type { StaffCapability } from "@/lib/staff-access";
+import { staffLevelCan } from "@/lib/staff-access";
+import {
+  insufficientLevelResponse,
+  staffLevelFromMetadata,
+} from "@/lib/staff-access-server";
 
 export const IDENTITY_DOCUMENTS_BUCKET = "identity-documents";
 export const IDENTITY_SIGNED_URL_TTL_SECONDS = 60 * 30;
@@ -49,7 +55,7 @@ export async function syncClerkIdentityVerificationMetadata({
   }
 }
 
-export async function requireStaffSupabaseUser() {
+export async function requireStaffSupabaseUser(capability?: StaffCapability) {
   const { userId } = await auth();
   if (!userId) {
     return {
@@ -58,15 +64,15 @@ export async function requireStaffSupabaseUser() {
   }
 
   const clerkUser = await currentUser();
-  const userType = (
-    clerkUser?.publicMetadata?.userType ||
-    clerkUser?.publicMetadata?.user_type
-  ) as string | undefined;
+  const level = staffLevelFromMetadata(clerkUser?.publicMetadata);
 
-  if (!isStaffUserType(userType)) {
+  if (!level) {
     return {
       error: NextResponse.json({ error: "Forbidden" }, { status: 403 }),
     };
+  }
+  if (capability && !staffLevelCan(level, capability)) {
+    return { error: insufficientLevelResponse() };
   }
 
   const supabaseUser = await getOrSyncUserByClerkId(userId);

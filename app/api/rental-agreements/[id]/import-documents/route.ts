@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
-import { getAuthenticatedUser, isStaffOrFounder } from "@/lib/api-auth";
+import { getAuthenticatedUser, isStaffOrFounder, userCan } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 const BUCKET = "rental-agreement-imports";
@@ -19,7 +19,7 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
     .eq("id", id)
     .maybeSingle();
   if (!agreement) return errorResponse("Agreement not found", 404, req);
-  const isStaff = isStaffOrFounder(user);
+  const isStaff = isStaffOrFounder(user) && userCan(user, "rentalImports.manage");
   if (!isStaff && agreement.owner_id !== user.id && agreement.renter_id !== user.id) {
     return errorResponse("Forbidden", 403, req);
   }

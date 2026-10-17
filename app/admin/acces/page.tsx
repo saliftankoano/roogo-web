@@ -3,6 +3,7 @@ import { getViewer } from "@/lib/team-tasks/server";
 import { isDirectorOrFounder } from "@/lib/team-tasks/core";
 import { AccessGuide } from "@/components/admin/access/AccessGuide";
 import { urbanist } from "@/components/admin/team/font";
+import { staffLevelsEnforced } from "@/lib/staff-access";
 
 export const dynamic = "force-dynamic";
 
@@ -15,7 +16,11 @@ export default async function AccessPage() {
   if (!viewer) redirect("/");
   return (
     <div className={urbanist.className}>
-      <AccessGuide viewerLevel={viewer.level} canSeeTeam={isDirectorOrFounder(viewer.level)} />
+      <AccessGuide
+        viewerLevel={viewer.level}
+        canSeeTeam={isDirectorOrFounder(viewer.level)}
+        levelsEnforced={staffLevelsEnforced()}
+      />
     </div>
   );
 }

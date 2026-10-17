@@ -3,24 +3,14 @@ import { captureServerEvent } from "@/lib/posthog-server";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getStaffOrFounder } from "@/lib/api-auth";
+import { getStaffOrFounder, userCan } from "@/lib/api-auth";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { soldTransition } from "@/lib/property-status";
-import { isDirectorOrFounder, levelFor } from "@/lib/team-tasks/core";
+import { isDirectorOrFounder, levelFor, titleFromStaffLevel } from "@/lib/team-tasks/core";
 
-/** Directeur or Fondateur: the account type for the founder, the staff title otherwise. */
-async function canDecideSale(user: { id: string; user_type: string | null }) {
-  if (user.user_type === "founder") return isDirectorOrFounder(levelFor(user.user_type, null));
-  const { data, error } = await supabaseAdmin
-    .from("staff_titles")
-    .select("title")
-    .eq("user_id", user.id)
-    .maybeSingle();
-  if (error) {
-    console.error("Staff title lookup for sold status failed:", { code: error.code });
-    return false;
-  }
-  return isDirectorOrFounder(levelFor(user.user_type, (data?.title as string | undefined) ?? null));
+/** Directeur or Fondateur: the account type for the founder, the staff level otherwise. */
+function canDecideSale(user: { user_type: string | null; staff_level?: string | null }) {
+  return isDirectorOrFounder(levelFor(user.user_type, titleFromStaffLevel(user.staff_level)));
 }
 
 export async function PATCH(
@@ -46,6 +36,14 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
+      );
+    }
+
+    // Putting a listing online is for founder, director and assistant.
+    if (status === "en_ligne" && !userCan(user, "listings.publish")) {
+      return NextResponse.json(
+        { error: "Forbidden", code: "insufficient_staff_level" },
+        { status: 403 },
       );
     }
 
@@ -76,7 +74,7 @@ export async function PATCH(
         current: existingProperty.status,
         listingType: existingProperty.listing_type,
         isTest: existingProperty.is_test,
-        canDecideSale: await canDecideSale(user),
+        canDecideSale: canDecideSale(user),
         soldAt,
         soldPrice,
         todayKey: new Date().toISOString().slice(0, 10),

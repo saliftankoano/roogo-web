@@ -8,7 +8,7 @@ export async function PATCH(
   context: { params: Promise<{ id: string }> },
 ) {
   try {
-    const reviewer = await getStaffOrFounder(req);
+    const reviewer = await getStaffOrFounder(req, "talent.manage");
     if (!reviewer) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }

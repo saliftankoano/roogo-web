@@ -27,6 +27,7 @@ import {
   PLANNED,
   PLANNED_SOURCE,
   STAFF_JOIN,
+  UNLEVELED,
   type Access,
   type Enforcement,
   type Level,
@@ -201,7 +202,15 @@ function RuleTable({ rules, viewerLevel }: { rules: Rule[]; viewerLevel: Level }
   );
 }
 
-export function AccessGuide({ viewerLevel, canSeeTeam }: { viewerLevel: Level; canSeeTeam: boolean }) {
+export function AccessGuide({
+  viewerLevel,
+  canSeeTeam,
+  levelsEnforced,
+}: {
+  viewerLevel: Level;
+  canSeeTeam: boolean;
+  levelsEnforced: boolean;
+}) {
   const rootRef = useRef<HTMLDivElement>(null);
   useEntrance(rootRef, "[data-enter]", []);
 
@@ -222,6 +231,15 @@ export function AccessGuide({ viewerLevel, canSeeTeam }: { viewerLevel: Level; c
             >
               <UsersThreeIcon size={16} aria-hidden="true" />
               L’équipe
+            </Link>
+          )}
+          {canSeeTeam && (
+            <Link
+              href="/admin/equipe/niveaux"
+              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#EDE4D8] bg-white px-3 text-sm font-bold text-[#8A4924] hover:text-[#C96A2E]"
+            >
+              <KeyIcon size={16} aria-hidden="true" />
+              Niveaux d’accès
             </Link>
           )}
         </div>
@@ -273,9 +291,16 @@ export function AccessGuide({ viewerLevel, canSeeTeam }: { viewerLevel: Level; c
         <div className="rounded-2xl border border-[#EDE4D8] bg-white/70 p-4 text-sm leading-relaxed text-[#4A4540]">
           <p className="m-0 font-extrabold text-[#1F1A16]">Comment un niveau est donné</p>
           <p className="m-0 mt-1">
-            Le Fondateur change les titres dans L’équipe (Directeur, Assistant(e) commercial(e), Conseiller(ère), Stagiaire). Un
-            compte staff sans titre est Conseiller(ère). Le niveau Fondateur vient du type de compte et ne se donne pas dans l’appli.
-            Personne d’autre ne peut changer un titre, ni le sien.
+            Le titre de chacun est son niveau d’accès. Le Fondateur donne tous les niveaux, dans Niveaux d’accès ou dans L’équipe. Un
+            Directeur donne Assistant(e) commercial(e), Conseiller(ère) et Stagiaire, dans Niveaux d’accès, jamais Directeur. Personne
+            ne change son propre niveau. Le niveau Fondateur vient du type de compte et ne se donne pas dans l’appli.
+          </p>
+        </div>
+        <div role="note" className="flex gap-3 rounded-2xl bg-[#FCEFD4] p-4 text-sm leading-relaxed text-[#6E4300]">
+          <WarningIcon size={20} weight="fill" aria-hidden="true" className="mt-0.5 shrink-0" />
+          <p className="m-0">
+            <span className="font-extrabold">{UNLEVELED.title}. </span>
+            {levelsEnforced ? UNLEVELED.whenOn : UNLEVELED.whileOff}
           </p>
         </div>
       </section>
