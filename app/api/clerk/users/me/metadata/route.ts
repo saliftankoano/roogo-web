@@ -8,6 +8,7 @@ import {
 import { captureServerEvent, identifyServerUser } from "@/lib/posthog-server";
 import { isValidStoredPhone } from "@/lib/phone";
 import { hasRequiredAcquisitionSourceDetail } from "@/lib/acquisition-source";
+import { selfServiceUserTypeError } from "@/lib/user-types";
 
 const clerk = createClerkClient({ secretKey: process.env.CLERK_SECRET_KEY! });
 
@@ -240,6 +241,15 @@ export async function POST(req: Request) {
     ) {
       return addCorsHeaders(
         NextResponse.json({ error: "Invalid userType" }, { status: 400 }),
+      );
+    }
+
+    // Staff and founder are never self-assigned (staff code, invitation or
+    // Clerk console only), and a staff account cannot leave its type here.
+    const userTypeError = selfServiceUserTypeError(previousUserType, typeof userType === "string" ? userType : null);
+    if (userTypeError) {
+      return addCorsHeaders(
+        NextResponse.json({ error: userTypeError }, { status: 403 }),
       );
     }
 
