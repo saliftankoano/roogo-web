@@ -4,7 +4,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 
 ## Staff access levels — 2026-10-16
 
-- [ ] [089_staff_levels.sql](./089_staff_levels.sql) — **not executed yet (written 2026-10-16, tested on a throwaway Supabase Postgres 17.4).** `users.staff_level`, `staff_invitations` (replaces the shared staff code) and `staff_access_log` (who gave which access). Run it **before** the code that uses it is deployed: the invitation, team and shared-code routes write these tables. Rename to `089_staff_levels_executed.sql` only after Salif confirms it ran.
+- [x] [089_staff_levels_executed.sql](./089_staff_levels_executed.sql) — **executed 2026-10-16 (confirmed by Salif, "mig ran"; not independently verified).** `users.staff_level`, `staff_invitations` (replaces the shared staff code) and `staff_access_log` (who gave which access). Tested beforehand on a throwaway Supabase Postgres 17.4.
 
 ## Property reference codes — 2026-10-14
 

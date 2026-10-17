@@ -18,7 +18,7 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 ## Now
 
 - [ ] **Roll out staff access levels** — a person's level decides what they can do in the back office; the founder and directors invite people and the founder reads the journal. Built 2026-10-16 (see [system behavior](./SYSTEM.md#how-do-staff-access-levels-work) and [decision](./DECISIONS.md#staff-access-by-job-title-with-invitations-instead-of-a-shared-code--2026-10-11)); pull request pending merge, not deployed.
-  - [ ] **Run migration 089** on Roogo before the deploy ([ledger](../supabase/migrations/README.md)).
+  - [x] **Migration 089 executed 2026-10-16** (confirmed by Salif; [ledger](../supabase/migrations/README.md)).
   - [ ] **Assign levels** on `/admin/equipe` to every real staff member (Ablassé: director), invite Rokiatou (advisor) and Moubarak (assistant), then set `STAFF_LEVELS_ENFORCED=true` and delete `STAFF_REGISTRATION_SECRET`.
   - [ ] **Remaining work:** 30-day temporary extra access; per-route checks on the staff routes listed as not built in SYSTEM.
 
