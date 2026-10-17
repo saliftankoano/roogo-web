@@ -5,7 +5,7 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ArrowRightIcon, CaretRightIcon, PlusIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CaretRightIcon, ClipboardTextIcon, PlusIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import type { DemandeView } from "@/lib/team-tasks/core";
 import type { BriefingPayload, ViewItem } from "@/lib/team-tasks/server";
@@ -165,6 +165,7 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
 
       <div className="flex flex-wrap items-start gap-5">
         <main className="flex min-w-0 flex-[999_1_640px] flex-col gap-3">
+          {data.fieldNotices.length > 0 && <FieldNotices notices={data.fieldNotices} canSeeTeam={data.canSeeTeam} />}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
             {openLate.map((item) => (
               <LateCard key={item.key} item={item} busy={!!busy[item.key]} onDone={() => toggle(item)} />
@@ -227,6 +228,13 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
             <PlusIcon size={18} weight="bold" aria-hidden="true" />
             {data.canSeeTeam ? "Donner une tâche" : "Ajouter une tâche"}
           </button>
+          <Link
+            href="/admin/fiche-visite"
+            className="inline-flex h-12 items-center justify-center gap-2 self-stretch rounded-full border border-[#E2D8CC] bg-white px-5 text-[15px] font-extrabold text-[#1F1A16] no-underline transition-colors hover:border-[#C96A2E]"
+          >
+            <ClipboardTextIcon size={18} weight="bold" aria-hidden="true" />
+            Commencer une fiche de visite
+          </Link>
           {data.canSeeTeam && data.unassignedCount > 0 && (
             <Link
               href="/admin/equipe"
@@ -481,6 +489,44 @@ function WeekPanel({ week }: { week: BriefingPayload["week"] }) {
           </div>
         );
       })}
+    </section>
+  );
+}
+
+/** "Sur le terrain": the in-app notice of the field visit sheet's four time buttons. */
+function FieldNotices({ notices, canSeeTeam }: { notices: BriefingPayload["fieldNotices"]; canSeeTeam: boolean }) {
+  return (
+    <section data-anim aria-labelledby="sur-le-terrain" className="flex flex-col gap-2 rounded-[20px] border border-[#EAE1D5] bg-white p-3.5 lg:p-4">
+      <div className="flex items-center gap-2">
+        <SectionLabel className="flex-1">
+          <span id="sur-le-terrain">Sur le terrain aujourd’hui</span>
+        </SectionLabel>
+        {canSeeTeam && (
+          <Link href="/admin/studio/visites" className="inline-flex min-h-11 items-center text-[13px] font-extrabold text-[#8A4924] lg:min-h-0">
+            Suivi des visites
+          </Link>
+        )}
+      </div>
+      {notices.map((n) => (
+        <div key={n.id} className="flex flex-wrap items-center gap-x-3 gap-y-1.5 border-t border-[#F0E8DD] pt-2">
+          <span className={cn("size-2.5 shrink-0 rounded-full", n.done ? "bg-[#2F7A48]" : "bg-[#C96A2E]")} aria-hidden="true" />
+          <span className="flex min-w-0 flex-1 flex-col">
+            <span className="text-[15px] font-extrabold leading-snug">{n.last}</span>
+            <span className="text-xs text-[#6B625B]">
+              {n.team} · {n.label}
+            </span>
+          </span>
+          {n.mine && !n.done ? (
+            <Link href={`/admin/fiche-visite/${n.id}`} className="inline-flex h-11 items-center rounded-full bg-[#C96A2E] px-4 text-[13px] font-extrabold text-white no-underline lg:h-9">
+              Reprendre la fiche
+            </Link>
+          ) : canSeeTeam ? (
+            <Link href={`/admin/studio/visites?fiche=${n.id}`} className="inline-flex h-11 items-center rounded-full border border-[#E2D8CC] px-4 text-[13px] font-extrabold text-[#1F1A16] no-underline lg:h-9">
+              Voir
+            </Link>
+          ) : null}
+        </div>
+      ))}
     </section>
   );
 }

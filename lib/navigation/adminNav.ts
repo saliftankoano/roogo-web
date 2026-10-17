@@ -10,10 +10,10 @@ import {
   HandshakeIcon,
   HouseLineIcon,
   IdentificationCardIcon,
-  ListChecksIcon,
+  SquaresFourIcon,
   MicrophoneIcon,
   PencilSimpleLineIcon,
-  UsersThreeIcon,
+  ShieldCheckIcon,
 } from "@phosphor-icons/react";
 
 // Top-level (not inside a group) and pinned in the mobile header too, so the
@@ -27,14 +27,14 @@ export const studioNavItem: AdminNavItemLink = {
   needs: ["studio.use"],
 };
 
-// "Mon briefing": first item of the admin navbar only (the public Navbar keeps
+// "Mon espace": first item of the admin navbar only (the public Navbar keeps
 // its own list). It is active on /admin itself and on /admin/equipe.
 export const todayNavItem: AdminNavItemLink = {
   type: "link",
-  label: "Aujourd’hui",
+  label: "Mon espace",
   href: "/admin",
   id: "admin-nav-today",
-  icon: ListChecksIcon,
+  icon: SquaresFourIcon,
 };
 
 export type AdminNavItem = {
@@ -172,6 +172,15 @@ const pilotageNavItems: AdminNavItem[] = [
     icon: ChartLineUpIcon,
     needs: ["users.listAll", "users.listOwnersAgents"],
   },
+  // « Accès »: who can do what (every staff member), plus the levels and
+  // invitations tab for team.manage (app/admin/acces/layout.tsx).
+  {
+    type: "link",
+    label: "Accès",
+    href: "/admin/acces",
+    id: "admin-nav-access",
+    icon: ShieldCheckIcon,
+  },
 ];
 
 const founderPilotageNavItems: AdminNavItem[] = [
@@ -190,14 +199,6 @@ const founderPilotageNavItems: AdminNavItem[] = [
     id: "admin-nav-parametres",
     icon: GearIcon,
     needs: ["settings.manage"],
-  },
-  {
-    type: "link",
-    label: "Accès",
-    href: "/admin/acces",
-    id: "admin-nav-access",
-    icon: UsersThreeIcon,
-    needs: ["team.manage"],
   },
 ];
 

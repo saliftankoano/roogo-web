@@ -49,6 +49,7 @@ import {
   type StaffTitle,
 } from "./core";
 import { loadAutoItems, propertyLabel } from "./sources";
+import { fieldNoticesToday, type FieldNotice } from "@/lib/field-visits/server";
 import { TeamError, setMemberLevel } from "@/lib/staff-team-server";
 
 export type Viewer = Person & { isFounder: boolean };
@@ -67,8 +68,11 @@ function isMissingTable(error: { code?: string; message?: string } | null | unde
 }
 
 function firstNameOf(fullName: string | null | undefined, email: string | null | undefined) {
-  const name = (fullName ?? "").trim();
-  if (name) return name.split(/\s+/)[0];
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  // "Abdoul Moubarak Zongo" goes by Moubarak: with three names or more, the
+  // usual first name is the middle one.
+  if (parts.length >= 3) return parts[1];
+  if (parts.length) return parts[0];
   const local = (email ?? "").split("@")[0];
   return local ? capitalize(local) : "Membre";
 }
@@ -79,7 +83,8 @@ function toPerson(row: { id: string; full_name: string | null; email: string | n
     id: row.id,
     fullName,
     firstName: firstNameOf(row.full_name, row.email),
-    initials: initialsOf(fullName),
+    // Initials follow the name people use: Moubarak Zongo is MZ, not AZ.
+    initials: initialsOf(`${firstNameOf(row.full_name, row.email)} ${fullName.split(/\s+/).slice(-1)[0] ?? ""}`.trim()),
     level,
     levelLabel: LEVEL_LABELS[level],
   };
@@ -116,12 +121,19 @@ async function loadPeople(viewer: Viewer): Promise<PeopleResult> {
   if (users.error) throw users.error;
   // Titles are the staff levels (users.staff_level), always available since 089_staff_levels.
   const titlesReady = true;
-  const people = (users.data ?? []).map((row) =>
+  // Test accounts (Clerk test users, example.com) are not people on the team.
+  const isTestAccount = (email: string | null) => /\+clerk_test|@example\.(com|org)$/i.test(email ?? "");
+  const people = (users.data ?? []).filter((row) => !isTestAccount(row.email as string | null)).map((row) =>
     toPerson(row, levelFor(row.user_type, titleFromStaffLevel(row.staff_level))),
   );
   // The viewer's own level comes from Clerk, the source of truth for founders.
   const others = people.filter((p) => p.id !== viewer.id);
   return { people: orderPeople([...others, viewer]), titlesReady };
+}
+
+/** Staff and founders, ordered as in the briefing (used by the field visit sheet's team picker). */
+export async function getTeamPeople(viewer: Viewer): Promise<Person[]> {
+  return (await loadPeople(viewer)).people;
 }
 
 type TasksResult = { rows: StaffTaskRow[]; ready: boolean };
@@ -225,6 +237,8 @@ export type BriefingPayload = {
   unassignedCount: number;
   tasksReady: boolean;
   failedSources: string[];
+  /** "Sur le terrain": today's field visit sheets and their latest time button (in-app notice). */
+  fieldNotices: FieldNotice[];
 };
 
 function composerPeople(viewer: Viewer, people: Person[], items: BriefingItem[], now: Date): ComposerPerson[] {
@@ -270,11 +284,16 @@ function demandesFor(viewer: Viewer, rows: StaffTaskRow[], names: PersonNames, n
 }
 
 export async function getBriefingPayload(viewer: Viewer, now = new Date()): Promise<BriefingPayload> {
-  return briefingFromSnapshot(viewer, await snapshot(viewer, now));
+  const snap = await snapshot(viewer, now);
+  const notices = await fieldNoticesToday(viewer.id, snap.people, now).catch((error) => {
+    console.error("[team-tasks] field notices failed", { code: error?.code, message: error?.message });
+    return [];
+  });
+  return briefingFromSnapshot(viewer, snap, notices);
 }
 
 /** Pure assembly of the briefing from loaded data (also used with mocked data in development). */
-export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot): BriefingPayload {
+export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot, fieldNotices: FieldNotice[] = []): BriefingPayload {
   const now = snap.now;
   const mine = snap.items.filter((item) => item.ownerId === viewer.id);
   const parts = buildBriefing(mine, now);
@@ -310,10 +329,11 @@ export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot): BriefingPa
     unassignedCount: canSeeTeam ? snap.items.filter((item) => !item.ownerId && isOpen(item)).length : 0,
     tasksReady: snap.tasksReady,
     failedSources: snap.failedSources,
+    fieldNotices,
   };
 }
 
-/** Open items for the viewer today (late included): the number on "Aujourd’hui". */
+/** Open items for the viewer today (late included): the number on "Mon espace". */
 export async function getOpenCount(viewer: Viewer, now = new Date()): Promise<number> {
   const snap = await snapshot(viewer, now);
   return buildBriefing(snap.items.filter((item) => item.ownerId === viewer.id), now).open;

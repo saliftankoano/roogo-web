@@ -34,6 +34,7 @@ import {
   CarIcon,
   WhatsappLogoIcon,
   MagnifyingGlassIcon,
+  ClipboardTextIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
@@ -921,9 +922,16 @@ export default function AdminListingDetail({
             </div>
           </div>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-wrap gap-3 items-center">
           {isStaffOrFounder && (
             <>
+              <Link
+                href={`/admin/fiche-visite?bien=${listing.id}`}
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#8A4924]"
+              >
+                <ClipboardTextIcon size={16} weight="bold" aria-hidden="true" />
+                Fiche de visite
+              </Link>
               {listing.listingType === "louer" && !isDailyRental(listing) && (
                 <Button
                   variant="ghost"

@@ -7,6 +7,11 @@
 
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
+## Field media and the field visit sheet — 2026-10-17 record
+
+- [x] [086_studio_field_media_executed.sql](./086_studio_field_media_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `studio_field_media` exists and has rows).** Studio index of field photos and videos uploaded to the shared Drive.
+- [x] [090_field_visits_executed.sql](./090_field_visits_executed.sql) — **executed on Roogo after 086 and 089_staff_tasks (confirmed by Salif; verified read-only on 2026-10-17: `field_visits` exists with rows, `studio_field_media.field_visit_id` and `staff_tasks.field_visit_id` exist).** The in-app Fiche de visite. Its header still says 086 is not applied: that comment is historical and the bytes stay as run.
+
 ## Staff briefing and team board — 2026-10-17 record
 
 - [x] [089_staff_tasks_executed.sql](./089_staff_tasks_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `staff_tasks` and `staff_titles` exist, `staff_tasks` has rows).** Staff tasks and demandes for Mon espace and L'équipe. It shares the number 089 with `089_staff_levels_executed.sql` (next entry): two different files, both applied independently, so neither is renumbered and neither may be replayed by number (same situation as 075 and 076). Its `staff_titles` table is no longer read: board titles come from `users.staff_level` (089_staff_levels). Dropping `staff_titles` would need a new, uniquely numbered migration.

@@ -13,7 +13,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** `/admin/equipe/niveaux` with « Niveaux d’accès » (rejected by Salif on 2026-10-17).
 
-**Status:** Branch `feat/team-dashboard`, not merged. The page keeps the `team.manage` guard; the API routes enforce the same rule.
+**Status:** Branch `feat/team-dashboard`, not merged. The page keeps the `team.manage` guard; the API routes enforce the same rule. On `feat/fiche-visite` the page becomes one page « Accès » with two tabs: « Qui peut faire quoi » (`/admin/acces`, every staff member, default) and « Niveaux et invitations » (`/admin/acces/niveaux`, `team.manage` only, guarded on the server as before). Sub-routes rather than `?vue=` so the existing route guard protects the levels tab unchanged.
 
 ---
 
@@ -30,6 +30,26 @@ out. Newest first. For what shipped and when, see
 ---
 
 ---
+
+### The access page is generated from one matrix file — 2026-10-16
+
+**Decision:** "Qui peut faire quoi" (`/admin/acces`) describes the access levels exactly as the code enforces them on this branch, from a single typed file, `lib/access/matrix.ts`. A test (`lib/access/matrix.test.mjs`) ties the file to the real helpers and fails when a staff API route is added without being described. What the vault proposal of 2026-10-11 approves but the code does not enforce is listed separately as "Prévu mais pas encore appliqué", never as current behaviour. The page is linked from the Pilotage menu (every staff member) and from L'équipe, not from a new top-level navbar item. Since 2026-10-17 it is the default tab of « Accès », next to « Niveaux et invitations » ([decision](#the-access-page-is-adminacces--2026-10-17)).
+
+**Why:** The team needs one place to know what each title can do, and the founder needs to see where the app still allows more than the approved matrix. A hand-written page would drift from the code; a matrix checked by a test cannot drift silently.
+
+**Ruled out / alternatives:** Deriving the page automatically from the route files (checks are written in too many styles to parse reliably). Showing the vault matrix as if it were live. A new top-level navbar item (too noisy for a reference page).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Rewritten on 2026-10-17 when main brought the staff levels (PR 67): the rules now follow `STAFF_CAPABILITY_MATRIX` and the test checks them against it. See [how it works](./SYSTEM.md#how-does-staff-access-work-and-where-is-it-written-down).
+
+### The field visit sheet moves into the app — 2026-10-15
+
+**Decision:** The "Fiche de visite de bien" (paper sheet of 2 October 2026) is filled in Roogo, from the listing page or the briefing, following the approved canvas (phone and computer). Tick times are the device's own clock; the four time buttons notify the team inside Roogo (briefing "Sur le terrain aujourd’hui"), WhatsApp is optional. Files are uploaded only at "Retour au bureau", one button per deliverable, into `Biens / Vente|Location / <CODE> <titre> / <type>` in the shared Drive. "Photos et vidéos supprimées des appareils" can be ticked only once every deliverable has a file confirmed by Drive. Sending the sheet creates six manual tasks (source key `field-visit:<id>:<task>`, so finishing twice creates nothing new) due on business days (Monday to Friday), and stores the planned publication dates (J+1, J+2, J+4, J+5).
+
+**Why:** The paper sheet relied on memory and WhatsApp; the tick times show the Directeur and the founder when each thing was really done, and nothing is lost when the phone has no network (autosave on the phone and on the server).
+
+**Ruled out / alternatives:** A "Règles de publication" screen in the flow (rejected by Salif). Uploads on site at step 3 (step 3 stays a checklist; files go up on the office Wi-Fi). Sending WhatsApp messages through an API (only a share link). Creating publications in the Studio calendar now (that branch is not merged; `lib/field-visits/publications.ts` is the hook).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Open points: Burkina public holidays are not skipped yet; the Drive folder name follows the canvas (`<CODE> <titre>`) while the paper sheet and the Studio's Médias du terrain panel use `Quartier - Nom du propriétaire`, so the same property can get two folders until one rule is chosen. Migrations 086 and 090 have run on Roogo (recorded 2026-10-17); needs the Google service account env vars. See [how it works](./SYSTEM.md#how-does-the-field-visit-sheet-fiche-de-visite-work).
 
 ### Staff access by job title, with invitations instead of a shared code — 2026-10-11
 
@@ -50,6 +70,16 @@ out. Newest first. For what shipped and when, see
 **Ruled out / alternatives:** Lifting the one-voice limit for staff (anyone's voice from any account, no consent). The council's property limit, expiry and per-voice founder approval (not adopted by Salif). Imported real recordings instead of clones (council's first step, not chosen).
 
 **Status:** Settled. Open risk: Burkina Faso's personal-data law (loi 001-2021) may allow withdrawal whatever the text says, so withdrawal stays available; counsel review of the guest text is pending (vault `08 Decisions/Studio voice cloning and consent.md`).
+
+### Studio field media go straight to the shared Drive — 2026-10-12
+
+**Decision:** Visit photos and videos dropped in the Studio are stored in the shared Google Drive "Roogo" (`Vente|Location / Quartier - Nom du propriétaire`, the field sheet rule), uploaded by the browser directly to Google through a resumable session the server opens as a service account. The Studio keeps an index (`studio_field_media`) and a signed stream route so video templates (HeyGen) can use the clips. A file is marked ready only after Drive confirms it in the right folder at the right size.
+
+**Why:** Staff already file visits in that Drive by hand, so Drive stays the one place to look. Footage is 100 MB to 1 GB, and Supabase refuses anything over 50 MB while Vercel bodies stop near 4.5 MB, so the bytes must skip both. Opening the session with the browser's Origin is what lets Google answer the browser's chunks with CORS headers. No new dependency: the service-account token is a JWT signed with node:crypto.
+
+**Ruled out / alternatives:** Supabase storage, including resumable TUS (50 MB project cap). Sending media through our API (body limits, cost). The `googleapis` SDK (large, not needed for four calls). Per-person OAuth (each staff member would need Drive consent; the service account works for everyone). Converting HEIC or re-encoding videos before upload (Drive is the archive of originals).
+
+**Status:** Built on branch `feat/studio-field-media`, not deployed. Not tested against Google: the direct browser upload (CORS) and the relay fallback are unverified until the service account exists. Migration 086 has run on Roogo (recorded 2026-10-17). See [how it works](./SYSTEM.md#how-do-field-photos-and-videos-reach-the-shared-drive).
 
 ### Studio videos can be made with music only — 2026-10-11
 

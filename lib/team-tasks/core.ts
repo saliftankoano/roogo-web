@@ -134,7 +134,7 @@ export function weekLabel(key: string): string {
 // reached main (migration 089_staff_levels, 2026-10-16) the title IS the staff
 // level (users.staff_level, mirrored in Clerk publicMetadata.staffLevel), so
 // there is one place that says who is Directeur. The staff_titles table of
-// 089_staff_tasks is no longer read. No level means Conseillère here.
+// 089_staff_tasks is no longer read. No level means Conseiller(ère) here.
 
 export const STAFF_TITLES = ["directeur", "assistant", "conseillere", "stagiaire"] as const;
 export type StaffTitle = (typeof STAFF_TITLES)[number];
@@ -144,8 +144,8 @@ export const DEFAULT_STAFF_TITLE: StaffTitle = "conseillere";
 export const LEVEL_LABELS: Record<StaffLevel, string> = {
   fondateur: "Fondateur",
   directeur: "Directeur",
-  assistant: "Assistant commercial",
-  conseillere: "Conseillère",
+  assistant: "Assistant(e) commercial(e)",
+  conseillere: "Conseiller(ère)",
   stagiaire: "Stagiaire",
 };
 

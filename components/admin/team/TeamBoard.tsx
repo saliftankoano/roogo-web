@@ -3,8 +3,9 @@
 // "L’équipe" (Equipe.dc.html on desktop, EquipeMobile.dc.html on phone).
 // Directeur and Fondateur only; the page and the API both check it.
 
+import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { CaretDownIcon, PlusIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, PlusIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { LEVEL_LABELS, STAFF_TITLES, type DemandeView, type StaffTitle } from "@/lib/team-tasks/core";
 import type { BoardPayload, BoardViewColumn } from "@/lib/team-tasks/server";
@@ -107,6 +108,13 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
           </span>
         </div>
         <span className="hidden flex-1 lg:block" />
+        <Link
+          href="/admin/acces"
+          className="inline-flex h-11 items-center gap-1.5 rounded-full border border-[#EDE4D8] bg-white px-3.5 text-sm font-bold text-[#8A4924] hover:text-[#C96A2E] sm:h-9"
+        >
+          <ShieldCheckIcon size={16} aria-hidden="true" />
+          Qui peut faire quoi
+        </Link>
         <button
           type="button"
           onClick={() => setComposerOpen(true)}

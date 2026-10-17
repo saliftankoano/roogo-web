@@ -60,7 +60,7 @@ const nextConfig: NextConfig = {
       { source: "/admin/support", destination: "/admin/assistance", permanent: true },
       { source: "/admin/support/:path+", destination: "/admin/assistance/:path+", permanent: true },
       // Access levels moved to /admin/acces (Salif, 2026-10-17).
-      { source: "/admin/equipe/niveaux", destination: "/admin/acces", permanent: false },
+      { source: "/admin/equipe/niveaux", destination: "/admin/acces/niveaux", permanent: false },
 
       {
         source: "/tutoriels",
