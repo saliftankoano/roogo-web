@@ -6,6 +6,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 
 - [x] [091_team_goals_executed.sql](./091_team_goals_executed.sql) — **executed 2026-10-16 (confirmed by Salif).** Team goals (« Nos objectifs »): `team_goals`, `team_goal_readings`, `team_goal_sales`, `team_goal_levers`, `team_goal_lever_ticks`, `staff_tasks.goal_id` / `lever_id`, the private `team-goal-proofs` bucket, and the seed of the five 2026 goals with the TikTok and Facebook readings of that day. The file header still says "NOT EXECUTED": it is kept byte for byte as applied. `team_goal_sales` is dropped by 093.
 - [x] [092_call_notes_and_demande_replies_executed.sql](./092_call_notes_and_demande_replies_executed.sql) — **executed 2026-10-16 (confirmed by Salif); run after 091.** Call notes (`staff_call_notes`) and demande answers (new `staff_tasks` columns and `staff_task_messages`).
+- [x] [093_property_sold_state_executed.sql](./093_property_sold_state_executed.sql) — **executed 2026-10-17 (confirmed by Salif).** `property_status` gains `vendu`; `properties.sold_at`, `sold_price`, `sold_by`; `team_goal_sales` dropped (empty); `team_goal_readings.source` (`manuel` / `automatique`) with one automatic reading per metric and day; seed of « 500 abonnés Instagram » with the reading of 2026-10-16. The file header still says "NOT EXECUTED": it is kept byte for byte as applied.
 
 ## Property reference codes — 2026-10-14
 
