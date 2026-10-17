@@ -3,9 +3,12 @@ import { isUuid } from "@/lib/team-tasks/core";
 import { deleteTask, updateTask, type TaskAction } from "@/lib/team-tasks/server";
 import { readJson, requireViewer, respond, serverError } from "../_shared";
 
-const ACTIONS = new Set(["done", "undo", "postpone", "accept", "reply"]);
+const ACTIONS = new Set(["done", "undo", "postpone", "accept", "approve", "snooze", "message", "settle", "seen"]);
 
-// PATCH { action: done | undo | postpone | accept | reply, text? }
+// PATCH { action: done | undo | postpone | accept | approve | snooze | message | settle | seen, text?, until? }
+// done on a call task is refused until a call note exists (rule of 2026-10-16).
+// accept, approve and snooze: the founder addressed only; message and settle:
+// the sender and that founder only (lib/team-tasks/core.ts demandeActionError).
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;

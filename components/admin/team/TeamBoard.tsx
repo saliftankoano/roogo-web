@@ -5,11 +5,11 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { CaretDownIcon, PlusIcon, ShieldCheckIcon } from "@phosphor-icons/react";
+import { CaretDownIcon, PhoneIcon, PlusIcon, ShieldCheckIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { LEVEL_LABELS, STAFF_TITLES, type DemandeView, type StaffTitle } from "@/lib/team-tasks/core";
 import type { BoardPayload, BoardViewColumn } from "@/lib/team-tasks/server";
-import { AsksBlock } from "./AsksBlock";
+import { AsksBlock, type AskAction } from "./AsksBlock";
 import { SetupNotice } from "./BriefingView";
 import { TaskComposer } from "./TaskComposer";
 import {
@@ -84,10 +84,9 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
     titleOf: (userId) => data.titles.find((t) => t.userId === userId)?.title ?? null,
     onAssign: (key, ownerId) =>
       run(key, () => callApi("/api/admin/team-tasks/auto", { method: "POST", body: JSON.stringify({ action: "assign", key, ownerId }) })),
-    onAccept: (ask) =>
-      run(`ask:${ask.id}`, () => callApi(`/api/admin/team-tasks/${ask.id}`, { method: "PATCH", body: JSON.stringify({ action: "accept" }) })),
-    onReply: (ask, text) =>
-      run(`ask:${ask.id}`, () => callApi(`/api/admin/team-tasks/${ask.id}`, { method: "PATCH", body: JSON.stringify({ action: "reply", text }) })),
+    todayKey,
+    onAsk: (ask, body) =>
+      run(`ask:${ask.id}`, () => callApi(`/api/admin/team-tasks/${ask.id}`, { method: "PATCH", body: JSON.stringify(body) })),
     onTitle: (userId, title) =>
       run(`title:${userId}`, () => callApi("/api/admin/team-tasks/titles", { method: "PUT", body: JSON.stringify({ userId, title }) })),
   };
@@ -108,6 +107,13 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
           </span>
         </div>
         <span className="hidden flex-1 lg:block" />
+        <Link
+          href="/admin/notes-appels"
+          className="inline-flex h-11 items-center gap-1.5 rounded-full border border-[#EDE4D8] bg-white px-3.5 text-sm font-bold text-[#8A4924] hover:text-[#C96A2E] sm:h-9"
+        >
+          <PhoneIcon size={16} aria-hidden="true" />
+          Notes d’appels
+        </Link>
         <Link
           href="/admin/acces"
           className="inline-flex h-11 items-center gap-1.5 rounded-full border border-[#EDE4D8] bg-white px-3.5 text-sm font-bold text-[#8A4924] hover:text-[#C96A2E] sm:h-9"
@@ -227,8 +233,8 @@ type ColumnActions = {
   titlesReady: boolean;
   titleOf: (userId: string) => StaffTitle | null;
   onAssign: (key: string, ownerId: string) => void;
-  onAccept: (ask: DemandeView) => void;
-  onReply: (ask: DemandeView, text: string) => void;
+  todayKey: string;
+  onAsk: (ask: DemandeView, body: AskAction) => void;
   onTitle: (userId: string, title: StaffTitle) => void;
 };
 
@@ -297,8 +303,8 @@ function Column({ column, actions, variant }: { column: BoardViewColumn; actions
           busy={actions.busy}
           compact={desktop}
           readOnly={person?.id !== actions.viewerId}
-          onAccept={actions.onAccept}
-          onReply={actions.onReply}
+          todayKey={actions.todayKey}
+          onAction={actions.onAsk}
         />
       )}
 

@@ -53,6 +53,7 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { isStaffLikeMetadata } from "@/lib/user-types";
+import { propertyStatusLabel } from "@/lib/property-status";
 import {
   formatXofAmount,
   getDailyConditionRows,
@@ -158,8 +159,11 @@ const getPropertyTypeLabel = (type?: string) => {
 // this render is gated server-side in the page and client-side below.
 export default function AdminListingDetail({
   propertyId,
+  canMarkSold = false,
 }: {
   propertyId: string;
+  /** Directeur or Fondateur: may set or undo « Vendu » (checked again by the status route). */
+  canMarkSold?: boolean;
 }) {
   const id = propertyId;
   const router = useRouter();
@@ -350,6 +354,9 @@ export default function AdminListingDetail({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  // « Vendu »: notary signature date (default today) and sale price.
+  const [soldDate, setSoldDate] = useState("");
+  const [soldPrice, setSoldPrice] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Pending edit state (admin banner)
@@ -497,14 +504,35 @@ export default function AdminListingDetail({
     setIsUpdatingStatus(true);
     setStatusError(null);
     try {
-      const result = await updatePropertyStatus(listing.id, newStatus);
+      let sold: { soldAt: string; soldPrice: number | null } | undefined;
+      if (newStatus === "vendu") {
+        const digits = soldPrice.replace(/\s/g, "");
+        const price = digits ? Number(digits) : null;
+        if (!soldDate) {
+          setStatusError({ message: "Donnez la date de signature chez le notaire." });
+          return false;
+        }
+        if (price != null && (!Number.isFinite(price) || price < 0)) {
+          setStatusError({ message: "Le prix de vente doit être un nombre en FCFA." });
+          return false;
+        }
+        sold = { soldAt: soldDate, soldPrice: price };
+      }
+      const result = await updatePropertyStatus(listing.id, newStatus, sold);
       if (!result.success) {
         setStatusError({ message: result.error, code: result.code });
         return false;
       }
 
       setListing((current) =>
-        current ? { ...current, status: newStatus } : current,
+        current
+          ? {
+              ...current,
+              status: newStatus,
+              soldAt: sold ? `${sold.soldAt}T00:00:00.000Z` : null,
+              soldPrice: sold ? sold.soldPrice : null,
+            }
+          : current,
       );
       return true;
     } finally {
@@ -514,6 +542,12 @@ export default function AdminListingDetail({
 
   const initiateStatusChange = (newStatus: string) => {
     if (newStatus === listing?.status) return;
+    if (newStatus === "vendu") {
+      setSoldDate(new Date().toISOString().slice(0, 10));
+      setSoldPrice(
+        listing?.price ? String(Math.round(Number(listing.price)) || "") : "",
+      );
+    }
     setPendingStatus(newStatus);
     setStatusError(null);
     setIsStatusDropdownOpen(false);
@@ -543,25 +577,12 @@ export default function AdminListingDetail({
         return "En attente (Photo Pro)";
       case "en_ligne":
         return "En ligne (Publiée)";
-      case "expired":
-        return "Expirée (Louée/Vendue)";
       default:
-        return status;
+        return propertyStatusLabel(status);
     }
   };
 
-  const getCleanStatusLabel = (status: string) => {
-    switch (status) {
-      case "en_attente":
-        return "En attente";
-      case "en_ligne":
-        return "En ligne";
-      case "expired":
-        return "Expirée";
-      default:
-        return status;
-    }
-  };
+  const getCleanStatusLabel = (status: string) => propertyStatusLabel(status);
   const getStatusColor = (status: string) => {
     switch (status) {
       case "en_ligne":
@@ -570,6 +591,8 @@ export default function AdminListingDetail({
         return "bg-yellow-100 text-yellow-900 border-yellow-300";
       case "expired":
         return "bg-neutral-50 text-neutral-600 border-neutral-200";
+      case "vendu":
+        return "bg-[#E4F1F8] text-[#155A78] border-[#B9DCEC]";
       default:
         return "bg-neutral-50 text-neutral-600 border-neutral-200";
     }
@@ -634,6 +657,41 @@ export default function AdminListingDetail({
                     </span>{" "}
                     ?
                   </p>
+
+                  {pendingStatus === "vendu" && (
+                    <div className="w-full space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left">
+                      <p className="text-xs text-neutral-600">
+                        Le bien compte comme vendu dans Nos objectifs à la date de signature.
+                      </p>
+                      <label className="flex flex-col gap-1 text-xs font-bold text-neutral-700">
+                        Date de signature chez le notaire
+                        <input
+                          type="date"
+                          required
+                          max={new Date().toISOString().slice(0, 10)}
+                          value={soldDate}
+                          onChange={(event) => setSoldDate(event.target.value)}
+                          className="h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-bold text-neutral-700">
+                        Prix de vente (FCFA)
+                        <input
+                          inputMode="numeric"
+                          value={soldPrice}
+                          onChange={(event) =>
+                            setSoldPrice(event.target.value.replace(/[^\d\s]/g, ""))
+                          }
+                          className="h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {listing.status === "vendu" && pendingStatus !== "vendu" && (
+                    <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900">
+                      La date et le prix de vente seront effacés, et le bien ne comptera plus comme vendu.
+                    </p>
+                  )}
 
                   {statusError && (
                     <div
@@ -920,6 +978,19 @@ export default function AdminListingDetail({
                 </>
               )}
             </div>
+            {listing.status === "vendu" && listing.soldAt && (
+              <p className="mt-1 text-xs font-bold text-[#155A78]">
+                Vendu, signé chez le notaire le{" "}
+                {new Date(listing.soldAt).toLocaleDateString("fr-FR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                  timeZone: "UTC",
+                })}
+                {listing.soldPrice != null &&
+                  ` pour ${formatXofAmount(listing.soldPrice)} FCFA`}
+              </p>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-3 items-center">
@@ -980,6 +1051,12 @@ export default function AdminListingDetail({
           <div className="relative" ref={dropdownRef}>
             <Button
               onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              disabled={listing.status === "vendu" && !canMarkSold}
+              title={
+                listing.status === "vendu" && !canMarkSold
+                  ? "Seuls le Directeur et le Fondateur retirent le statut Vendu."
+                  : undefined
+              }
               className={cn(
                 "min-w-[180px] justify-between gap-2 border shadow-sm h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider transition-all",
                 getStatusColor(listing.status),
@@ -1016,9 +1093,18 @@ export default function AdminListingDetail({
                     },
                     {
                       id: "expired",
-                      label: "Expirée (Louée/Vendue)",
+                      label: "Expirée",
                       color: "text-neutral-500",
                     },
+                    ...(isSaleListing && canMarkSold && !listing.is_test
+                      ? [
+                          {
+                            id: "vendu",
+                            label: "Vendu",
+                            color: "text-[#155A78]",
+                          },
+                        ]
+                      : []),
                   ]
                     .filter(
                       (status) =>

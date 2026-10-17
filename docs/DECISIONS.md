@@ -31,6 +31,30 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### Sales come from a « Vendu » listing status; follower counts are read from Meta every night — 2026-10-16
+
+**Decision:** A sale listing is marked « Vendu » (`properties.status = 'vendu'`, migration 093) with the notary signing date (`sold_at`), the sale price (`sold_price`) and who marked it (`sold_by`). Only the Directeur or the Fondateur can set or undo it, only on a non-test sale listing, and the date cannot be in the future (`lib/property-status.ts`, enforced in `PATCH /api/properties/[id]/status`). The sales goal counts `vendu` listings whose `sold_at` falls in the goal window, any property type including land. The founder-confirmed `team_goal_sales` table and its route are removed. « Expirée » no longer means "rented or sold". Facebook and Instagram followers are read every night at 02:00 UTC from the Meta Graph API (`/api/cron/social-followers`, readings with `source = 'automatique'`); typing a reading by hand stays as the fallback and remains the only way for TikTok. The goal « 500 abonnés Instagram » for 2026 is seeded in 093 (1 follower on 2026-10-16).
+
+**Why:** Salif (2026-10-16): "add a sold state in db so we can know for certain without manual checks", and follower goals should update without anyone typing numbers. A status on the listing is where staff already work, and it also takes a sold property off the market.
+
+**Ruled out:** keeping founder-confirmed sales next to the status (two sources of truth that can disagree); inferring a sale from a completed notary meeting (nothing in the app marks a meeting completed today); reading followers on every page view (Meta rate limits and a slow page).
+
+### Team goals: every number from a record, founder-only changes, sales confirmed by hand — 2026-10-16
+
+**Decision:** « Nos objectifs » (Mon espace and `/admin/objectifs`) shows goals the founder sets, each with a metric, a target and a period (`month`, `recurring_month`, `quarter`, `year`). Numbers are computed at read time from their own records: users (users rows minus staff, founder and test accounts), properties under an active rental agreement, properties put online in the period, and sales. Roogo has no "sold" status, so a sale counts only once the founder confirms it in `team_goal_sales` (property and notary signature date). Follower counts (TikTok, Facebook, Instagram) are manual readings with an optional screenshot in a private bucket, keyed by metric (the count belongs to the account, not to a goal); no server-side Meta Graph token exists, so Facebook is manual too. Status words come from the real pace against the required pace (En bonne voie at 100% or more, À suivre from 60%, Il faut agir below, Atteint, Pas atteint once the period is over); a pace is judged only after a week of measurement. Only the founder creates, archives, retargets goals, edits levers and confirms sales; founder and Directeur enter readings; a lever is ticked by its owner, the Directeur or the founder. All of it is enforced in `lib/team-goals/server.ts`.
+
+**Why:** Approved on the design canvas with Salif (2026-10-16): "nothing on this dash is static; every number has its proof". The evidence drawer shows that proof, with counts only for users (no names, emails or phones).
+
+**Ruled out:** a nightly counter table (the numbers are cheap to compute live and cannot drift); inferring a sale from a notary meeting or a locked listing (neither proves a signed deed).
+
+### Call tasks need a result before they are done; demandes get three answers — 2026-10-16
+
+**Decision:** A task can be a call (`is_call`). « Appeler et noter » records the result, notes and the next step in `staff_call_notes`; saving creates the next task (rappel, visite à confirmer, a task for the Directeur, or a demande to the founder when the Directeur is the caller) and closes the call task. The server refuses to tick a call task without a note (rule approved by Salif). Notes are visible to their author, the Directeur and the founder only. « Répondre » on a demande is replaced by « Oui, vas-y » (closed as approved), « Pas maintenant » (hidden until a date, then pending again) and « Écrire une réponse » (a thread in `staff_task_messages` that either side closes with « Réglé »); « Je m’en occupe » is unchanged. The sender sees new answers in Mon espace (« Réponse de Salif » card, count on the navbar item) until opened; no push or email.
+
+**Why:** Designed with Salif on 2026-10-16: calls were ticked without a trace, and a single text answer could not say "go ahead" or "later".
+
+**Ruled out:** auto-flagging automatic briefing items as calls; none of today's sources says a callback is due.
+
 ### The access page is generated from one matrix file — 2026-10-16
 
 **Decision:** "Qui peut faire quoi" (`/admin/acces`) describes the access levels exactly as the code enforces them on this branch, from a single typed file, `lib/access/matrix.ts`. A test (`lib/access/matrix.test.mjs`) ties the file to the real helpers and fails when a staff API route is added without being described. What the vault proposal of 2026-10-11 approves but the code does not enforce is listed separately as "Prévu mais pas encore appliqué", never as current behaviour. The page is linked from the Pilotage menu (every staff member) and from L'équipe, not from a new top-level navbar item. Since 2026-10-17 it is the default tab of « Accès », next to « Niveaux et invitations » ([decision](#the-access-page-is-adminacces--2026-10-17)).

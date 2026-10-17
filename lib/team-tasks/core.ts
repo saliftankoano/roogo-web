@@ -232,6 +232,15 @@ export type BriefingItem = {
   propertyId: string | null;
   visitRequestId: string | null;
   studioProjectId: string | null;
+  /** A call task: « Appel » tag, « Appeler et noter », done only once a result is noted. */
+  isCall?: boolean;
+  callPhone?: string | null;
+  callSubject?: CallSubject | null;
+  propertyRequestId?: string | null;
+  /** « Pour : <objectif> ». */
+  goalId?: string | null;
+  goalTitle?: string | null;
+  leverId?: string | null;
 };
 
 export type StaffTaskRow = {
@@ -257,6 +266,22 @@ export type StaffTaskRow = {
   accepted_at: string | null;
   created_at: string;
   updated_at: string;
+  // 091 (goals) and 092 (calls, demande answers). Optional: absent until the migrations run.
+  goal_id?: string | null;
+  lever_id?: string | null;
+  is_call?: boolean | null;
+  call_phone?: string | null;
+  call_subject?: CallSubject | null;
+  property_request_id?: string | null;
+  decision?: "approved" | null;
+  decided_at?: string | null;
+  snoozed_until?: string | null;
+  snoozed_at?: string | null;
+  thread_started_at?: string | null;
+  settled_at?: string | null;
+  settled_by?: string | null;
+  sender_seen_at?: string | null;
+  owner_seen_at?: string | null;
 };
 
 export function isOpen(item: Pick<BriefingItem, "status">) {
@@ -336,15 +361,17 @@ export function askDueLabel(dueDate: string, now: Date): string {
 }
 
 /** Where the work linked to a manual task is done. */
-export function linkHref(row: Pick<StaffTaskRow, "source_href" | "visit_request_id" | "property_id" | "studio_project_id">): string | null {
+export function linkHref(row: Pick<StaffTaskRow, "source_href" | "visit_request_id" | "property_id" | "studio_project_id" | "property_request_id">): string | null {
   if (row.source_href && row.source_href.startsWith("/admin")) return row.source_href;
+  if (row.property_request_id) return `/admin/demandes-de-biens/${row.property_request_id}`;
   if (row.visit_request_id) return "/admin/demandes-de-visite";
   if (row.property_id) return `/admin/annonces/${row.property_id}`;
   if (row.studio_project_id) return "/admin/studio";
   return null;
 }
 
-function linkActionLabel(row: Pick<StaffTaskRow, "visit_request_id" | "property_id" | "studio_project_id" | "source_href">) {
+function linkActionLabel(row: Pick<StaffTaskRow, "visit_request_id" | "property_id" | "studio_project_id" | "source_href" | "property_request_id">) {
+  if (row.property_request_id) return "Ouvrir la demande";
   if (row.visit_request_id) return "Ouvrir la visite";
   if (row.property_id) return "Ouvrir l’annonce";
   if (row.studio_project_id) return "Ouvrir le Studio";
@@ -354,8 +381,9 @@ function linkActionLabel(row: Pick<StaffTaskRow, "visit_request_id" | "property_
 export type PersonNames = Map<string, { firstName: string }>;
 
 /** A stored task as a briefing item. Pending or answered demandes are not tasks yet and return null. */
-export function rowToItem(row: StaffTaskRow, names: PersonNames): BriefingItem | null {
+export function rowToItem(row: StaffTaskRow, names: PersonNames, goalTitles?: Map<string, string>): BriefingItem | null {
   if (row.kind === "demande" && !row.accepted_at) return null;
+  const isCall = !!row.is_call;
   const time = normalizeTime(row.due_time);
   const fromId = row.created_by && row.created_by !== row.owner_id ? row.created_by : null;
   const href = linkHref(row);
@@ -364,8 +392,8 @@ export function rowToItem(row: StaffTaskRow, names: PersonNames): BriefingItem |
     origin: row.kind,
     taskId: row.id,
     sourceKey: row.source_key,
-    kindLabel: row.kind === "demande" ? "Demande" : row.kind === "auto" ? "Fait" : "Tâche",
-    tone: row.kind === "demande" ? "dark" : "grey",
+    kindLabel: isCall ? "Appel" : row.kind === "demande" ? "Demande" : row.kind === "auto" ? "Fait" : "Tâche",
+    tone: isCall ? "orange" : row.kind === "demande" ? "dark" : "grey",
     title: row.title,
     sub: row.kind === "demande" ? (row.reason ?? "") : (row.note ?? ""),
     ownerId: row.owner_id,
@@ -383,6 +411,13 @@ export function rowToItem(row: StaffTaskRow, names: PersonNames): BriefingItem |
     propertyId: row.property_id,
     visitRequestId: row.visit_request_id,
     studioProjectId: row.studio_project_id,
+    isCall,
+    callPhone: row.call_phone ?? null,
+    callSubject: row.call_subject ?? null,
+    propertyRequestId: row.property_request_id ?? null,
+    goalId: row.goal_id ?? null,
+    goalTitle: row.goal_id ? (goalTitles?.get(row.goal_id) ?? null) : null,
+    leverId: row.lever_id ?? null,
   };
 }
 
@@ -630,7 +665,88 @@ export function bundlePastWeeks(
 // Demandes (asks from a Directeur to the founder)
 // ---------------------------------------------------------------------------
 
-export type DemandeState = "pending" | "accepted" | "replied" | "done";
+// Since 092 the founder answers a pending ask in four ways:
+//   « Je m’en occupe »      accepted: the ask becomes the founder's task (unchanged).
+//   « Oui, vas-y »          approved: the sender is told to go ahead; closed.
+//   « Pas maintenant »      snoozed until a date, then pending again that day.
+//   « Écrire une réponse »  thread: a short exchange on the ask; the sender or
+//                           the founder closes it with « Réglé » (settled).
+// "replied" is the one-text answer of 089, kept readable for old asks.
+
+export type DemandeState = "pending" | "snoozed" | "accepted" | "approved" | "thread" | "settled" | "replied" | "done";
+
+export type DemandeAction = "accept" | "approve" | "snooze" | "message" | "settle" | "seen";
+/** owner = the founder the ask was sent to; sender = the Directeur who sent it. */
+export type DemandeRole = "owner" | "sender" | "other";
+
+export type DemandeRow = Pick<StaffTaskRow, "status" | "accepted_at" | "replied_at"> &
+  Partial<Pick<StaffTaskRow, "decision" | "snoozed_until" | "thread_started_at" | "settled_at">>;
+
+/** The state of an ask on a given day. A snooze is over on its date: the ask is pending (or back in its thread) again. */
+export function demandeState(row: DemandeRow, todayKey?: string): DemandeState {
+  // Approving or settling also closes the row (status "fait"), so it leaves
+  // the open lists; read those two first.
+  if (row.decision === "approved") return "approved";
+  if (row.settled_at) return "settled";
+  if (row.status === "fait") return "done";
+  if (row.accepted_at) return "accepted";
+  if (row.snoozed_until && (!todayKey || row.snoozed_until > todayKey)) return "snoozed";
+  if (row.thread_started_at) return "thread";
+  if (row.replied_at) return "replied";
+  return "pending";
+}
+
+/** Closed for good: nothing more to answer. */
+export function isDemandeClosed(state: DemandeState) {
+  return state === "approved" || state === "settled" || state === "replied" || state === "done";
+}
+
+const DEMANDE_RULES: Record<Exclude<DemandeAction, "seen">, { roles: DemandeRole[]; from: DemandeState[] }> = {
+  accept: { roles: ["owner"], from: ["pending", "thread"] },
+  approve: { roles: ["owner"], from: ["pending", "thread"] },
+  snooze: { roles: ["owner"], from: ["pending", "thread"] },
+  // The founder starts the thread; after that both sides write.
+  message: { roles: ["owner", "sender"], from: ["pending", "thread"] },
+  settle: { roles: ["owner", "sender"], from: ["thread"] },
+};
+
+/** Null when allowed, else the French reason. The server calls this before every change. */
+export function demandeActionError(state: DemandeState, action: DemandeAction, role: DemandeRole): string | null {
+  if (action === "seen") return role === "other" ? "Cette demande ne vous concerne pas." : null;
+  const rule = DEMANDE_RULES[action];
+  if (!rule) return "Action inconnue.";
+  if (!rule.roles.includes(role)) {
+    return role === "sender"
+      ? "Seul le Fondateur concerné peut répondre ainsi à cette demande."
+      : role === "owner"
+        ? "Action impossible."
+        : "Seuls la personne qui a envoyé la demande et le Fondateur concerné peuvent agir ici.";
+  }
+  if (action === "message" && role === "sender" && state !== "thread") return "Attendez la réponse du Fondateur pour écrire ici.";
+  if (!rule.from.includes(state)) {
+    if (state === "snoozed") return "Cette demande est mise de côté jusqu’à sa date de retour.";
+    if (isDemandeClosed(state) || state === "accepted") return "Cette demande est déjà traitée.";
+    return "Action impossible sur cette demande.";
+  }
+  return null;
+}
+
+/** « Lundi prochain »: the next Monday after today (a week later when today is Monday). */
+export function nextMondayKey(todayKey: string): string {
+  const weekday = dayStart(todayKey).getUTCDay();
+  return addDays(todayKey, weekday === 1 ? 7 : (8 - weekday) % 7 || 7);
+}
+
+export function parseSnoozeDate(value: unknown, todayKey: string): { error: string } | { value: string } {
+  if (!isDayKey(value)) return { error: "Choisissez le jour où la demande revient." };
+  if (value <= todayKey) return { error: "La date de retour doit être après aujourd’hui." };
+  if (value > addDays(todayKey, 120)) return { error: "Quatre mois au plus." };
+  return { value };
+}
+
+export type DemandeMessageRow = { id: string; task_id: string; author_id: string | null; body: string; created_at: string };
+
+export type DemandeMessageView = { id: string; authorId: string | null; authorName: string; body: string; when: string; createdAt: string };
 
 export type DemandeView = {
   id: string;
@@ -639,20 +755,75 @@ export type DemandeView = {
   when: string;
   fromId: string | null;
   fromName: string | null;
+  toId: string;
   toName: string | null;
   state: DemandeState;
   replyText: string | null;
   createdAt: string;
+  /** « Revient le lundi 19 octobre » while snoozed. */
+  snoozedUntil: string | null;
+  messages: DemandeMessageView[];
+  /** Something new from the other side since the viewer last opened it. */
+  unread: boolean;
+  /** Who closed a settled thread. */
+  settledByName: string | null;
 };
 
-export function demandeState(row: Pick<StaffTaskRow, "status" | "accepted_at" | "replied_at">): DemandeState {
-  if (row.status === "fait") return "done";
-  if (row.accepted_at) return "accepted";
-  if (row.replied_at) return "replied";
-  return "pending";
+function latest(times: (string | null | undefined)[]): string | null {
+  return times.filter((t): t is string => !!t).sort().pop() ?? null;
 }
 
-export function toDemandeView(row: StaffTaskRow, names: PersonNames, now: Date): DemandeView {
+/** Last thing the founder did on the ask, and the last thing the sender did, for the unread signal. */
+export function demandeActivity(row: StaffTaskRow, messages: DemandeMessageRow[]) {
+  const mine = (author: string | null) => messages.filter((m) => m.author_id === author).map((m) => m.created_at);
+  const owner = latest([
+    row.accepted_at,
+    row.decided_at,
+    row.snoozed_at,
+    row.replied_at,
+    row.settled_by && row.settled_by === row.owner_id ? row.settled_at : null,
+    ...mine(row.owner_id),
+  ]);
+  const sender = latest([
+    row.settled_by && row.settled_by === row.created_by ? row.settled_at : null,
+    ...mine(row.created_by),
+  ]);
+  return { owner, sender };
+}
+
+export function demandeUnread(row: StaffTaskRow, messages: DemandeMessageRow[], role: DemandeRole): boolean {
+  const activity = demandeActivity(row, messages);
+  if (role === "sender") return !!activity.owner && (!row.sender_seen_at || activity.owner > row.sender_seen_at);
+  if (role === "owner") return !!activity.sender && (!row.owner_seen_at || activity.sender > row.owner_seen_at);
+  return false;
+}
+
+export function demandeRole(row: Pick<StaffTaskRow, "owner_id" | "created_by">, viewerId: string): DemandeRole {
+  if (row.owner_id === viewerId) return "owner";
+  if (row.created_by === viewerId) return "sender";
+  return "other";
+}
+
+function messageWhen(iso: string, now: Date) {
+  const date = new Date(iso);
+  const key = dayKey(date);
+  const today = dayKey(now);
+  const time = timeOf(date);
+  if (key === today) return `aujourd’hui ${time}`;
+  if (key === addDays(today, -1)) return `hier ${time}`;
+  return `${shortDayLabel(key)} ${time}`;
+}
+
+export function toDemandeView(
+  row: StaffTaskRow,
+  names: PersonNames,
+  now: Date,
+  messages: DemandeMessageRow[] = [],
+  viewerId?: string,
+): DemandeView {
+  const todayKey = dayKey(now);
+  const state = demandeState(row, todayKey);
+  const own = messages.filter((m) => m.task_id === row.id).sort((a, b) => (a.created_at < b.created_at ? -1 : 1));
   return {
     id: row.id,
     title: row.title,
@@ -660,10 +831,196 @@ export function toDemandeView(row: StaffTaskRow, names: PersonNames, now: Date):
     when: askDueLabel(row.due_date, now),
     fromId: row.created_by,
     fromName: row.created_by ? (names.get(row.created_by)?.firstName ?? null) : null,
+    toId: row.owner_id,
     toName: names.get(row.owner_id)?.firstName ?? null,
-    state: demandeState(row),
+    state,
     replyText: row.reply_text,
     createdAt: row.created_at,
+    snoozedUntil: state === "snoozed" && row.snoozed_until ? `Revient le ${longDayLabel(row.snoozed_until)}` : null,
+    messages: own.map((m) => ({
+      id: m.id,
+      authorId: m.author_id,
+      authorName: (m.author_id && names.get(m.author_id)?.firstName) || "Ancien membre",
+      body: m.body,
+      when: messageWhen(m.created_at, now),
+      createdAt: m.created_at,
+    })),
+    unread: viewerId ? demandeUnread(row, own, demandeRole(row, viewerId)) : false,
+    settledByName: row.settled_by ? (names.get(row.settled_by)?.firstName ?? null) : null,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Call tasks and call notes (092)
+// ---------------------------------------------------------------------------
+
+export type CallSubject = "demande" | "proprietaire" | "vente" | "autre";
+export const CALL_SUBJECTS: CallSubject[] = ["demande", "proprietaire", "vente", "autre"];
+export const CALL_SUBJECT_LABELS: Record<CallSubject, string> = {
+  demande: "Client d’une demande",
+  proprietaire: "Propriétaire",
+  vente: "Acheteur ou vendeur",
+  autre: "Autre",
+};
+
+export type CallOutcome = "joint" | "pas_de_reponse" | "messagerie" | "mauvais_numero";
+export const CALL_OUTCOMES: CallOutcome[] = ["joint", "pas_de_reponse", "messagerie", "mauvais_numero"];
+export const CALL_OUTCOME_LABELS: Record<CallOutcome, string> = {
+  joint: "Joint",
+  pas_de_reponse: "Pas de réponse",
+  messagerie: "Messagerie",
+  mauvais_numero: "Mauvais numéro",
+};
+
+export type CallNextStep = "visite" | "rappel" | "passer_au_directeur" | "rien";
+export const CALL_NEXT_STEPS: CallNextStep[] = ["visite", "rappel", "passer_au_directeur", "rien"];
+
+export function isCallSubject(value: unknown): value is CallSubject {
+  return typeof value === "string" && (CALL_SUBJECTS as string[]).includes(value);
+}
+
+/**
+ * The rule approved by Salif (2026-10-16): a call task can only be marked
+ * done once a result is chosen, that is once a call note exists for it.
+ * Returns the French refusal, or null when ticking is allowed.
+ */
+export function callDoneError(row: Pick<StaffTaskRow, "is_call">, hasCallNote: boolean): string | null {
+  if (!row.is_call) return null;
+  return hasCallNote ? null : "Notez d’abord le résultat de l’appel (« Appeler et noter »).";
+}
+
+/** Call notes are seen by their author, the Directeur and the founder. */
+export function canSeeCallNote(viewer: Actor, note: { author_id: string }): boolean {
+  return note.author_id === viewer.id || isDirectorOrFounder(viewer.level);
+}
+
+/** Which filter of « Notes d’appels » a call belongs to, from what it is linked to. */
+export function callSubjectKind(input: {
+  callSubject?: CallSubject | null;
+  propertyRequestId?: string | null;
+  visitRequestId?: string | null;
+  propertyListingType?: string | null;
+}): CallSubject {
+  if (input.callSubject) return input.callSubject;
+  if (input.propertyRequestId) return "demande";
+  if (input.visitRequestId || input.propertyListingType === "vendre") return "vente";
+  if (input.propertyListingType) return "proprietaire";
+  return "autre";
+}
+
+export type CallNoteInput = {
+  taskId: string;
+  outcome: CallOutcome;
+  notes: string | null;
+  nextStep: CallNextStep;
+  /** ISO time of the callback for "rappel". */
+  nextAt: string | null;
+};
+
+/** Validates the body of a call note. The callback time is a Ouagadougou date and HH:MM, in the future. */
+export function parseCallNote(body: unknown, now: Date): { error: string } | { value: CallNoteInput } {
+  const b = (body ?? {}) as Record<string, unknown>;
+  if (!isUuid(b.taskId)) return { error: "Cette tâche d’appel est introuvable." };
+  if (typeof b.outcome !== "string" || !(CALL_OUTCOMES as string[]).includes(b.outcome)) return { error: "Choisissez le résultat de l’appel." };
+  if (typeof b.nextStep !== "string" || !(CALL_NEXT_STEPS as string[]).includes(b.nextStep)) return { error: "Dites ce qui se passe ensuite." };
+  const notes = optionalText(b.notes, 2000);
+  if (notes === undefined) return { error: "Les notes sont trop longues (2000 caractères au plus)." };
+  let nextAt: string | null = null;
+  if (b.nextStep === "rappel") {
+    const time = normalizeTime(typeof b.nextTime === "string" ? b.nextTime : null);
+    if (!isDayKey(b.nextDate) || !time) return { error: "Choisissez le jour et l’heure du rappel." };
+    const at = new Date(`${b.nextDate}T${time}:00.000Z`);
+    if (at.getTime() <= now.getTime()) return { error: "Le rappel doit être dans le futur." };
+    if (b.nextDate > addDays(dayKey(now), 90)) return { error: "Le rappel doit être dans les trois mois." };
+    nextAt = at.toISOString();
+  }
+  return { value: { taskId: b.taskId, outcome: b.outcome as CallOutcome, notes, nextStep: b.nextStep as CallNextStep, nextAt } };
+}
+
+export type FollowUpPlan = {
+  ownerId: string;
+  kind: "manuel" | "demande";
+  title: string;
+  note: string | null;
+  reason: string | null;
+  dueDate: string;
+  dueTime: string | null;
+  isCall: boolean;
+};
+
+/**
+ * What saving a call note creates, given the next step:
+ * rappel: a new call task for the author at the chosen time;
+ * visite: « Visite à confirmer » for the author, today;
+ * passer_au_directeur: a task for the Directeur with the notes (a demande to
+ * the founder when the author is the Directeur, nothing for the founder);
+ * rien: nothing. In every case the call task itself is closed.
+ */
+export function followUpPlan(input: {
+  step: CallNextStep;
+  author: Actor;
+  directorId: string | null;
+  founderId: string | null;
+  subject: string;
+  notes: string | null;
+  outcome: CallOutcome;
+  nextAt: string | null;
+  now: Date;
+}): FollowUpPlan | null {
+  const today = dayKey(input.now);
+  const outcome = CALL_OUTCOME_LABELS[input.outcome].toLowerCase();
+  const summary = [`Dernier appel : ${outcome}.`, input.notes].filter(Boolean).join(" ");
+  if (input.step === "rien") return null;
+  if (input.step === "rappel") {
+    if (!input.nextAt) return null;
+    const at = new Date(input.nextAt);
+    return {
+      ownerId: input.author.id,
+      kind: "manuel",
+      title: `Rappeler : ${input.subject}`.slice(0, 200),
+      note: summary.slice(0, 2000) || null,
+      reason: null,
+      dueDate: dayKey(at),
+      dueTime: timeOf(at),
+      isCall: true,
+    };
+  }
+  if (input.step === "visite") {
+    return {
+      ownerId: input.author.id,
+      kind: "manuel",
+      title: `Visite à confirmer : ${input.subject}`.slice(0, 200),
+      note: summary.slice(0, 2000) || null,
+      reason: null,
+      dueDate: today,
+      dueTime: null,
+      isCall: false,
+    };
+  }
+  // passer_au_directeur
+  if (input.author.level === "directeur") {
+    if (!input.founderId) return null;
+    return {
+      ownerId: input.founderId,
+      kind: "demande",
+      title: `Suite d’un appel : ${input.subject}`.slice(0, 200),
+      note: null,
+      reason: summary.slice(0, 2000) || "Suite d’un appel.",
+      dueDate: today,
+      dueTime: null,
+      isCall: false,
+    };
+  }
+  if (input.author.level === "fondateur" || !input.directorId) return null;
+  return {
+    ownerId: input.directorId,
+    kind: "manuel",
+    title: `Suite d’un appel : ${input.subject}`.slice(0, 200),
+    note: summary.slice(0, 2000) || null,
+    reason: null,
+    dueDate: today,
+    dueTime: null,
+    isCall: false,
   };
 }
 
@@ -681,6 +1038,14 @@ export type NewTaskInput = {
   propertyId: string | null;
   visitRequestId: string | null;
   studioProjectId: string | null;
+  /** 092: « C’est un appel ». */
+  isCall: boolean;
+  callPhone: string | null;
+  callSubject: CallSubject | null;
+  propertyRequestId: string | null;
+  /** 091: « Pour : <objectif> ». */
+  goalId: string | null;
+  leverId: string | null;
 };
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -720,9 +1085,21 @@ export function parseNewTask(body: unknown, today: string): { error: string } | 
   const propertyId = optionalUuid(b.propertyId);
   const visitRequestId = optionalUuid(b.visitRequestId);
   const studioProjectId = optionalUuid(b.studioProjectId);
-  if (propertyId === undefined || visitRequestId === undefined || studioProjectId === undefined) {
+  const propertyRequestId = optionalUuid(b.propertyRequestId);
+  if (propertyId === undefined || visitRequestId === undefined || studioProjectId === undefined || propertyRequestId === undefined) {
     return { error: "Le lien choisi n’est pas valide." };
   }
+  const goalId = optionalUuid(b.goalId);
+  const leverId = optionalUuid(b.leverId);
+  if (goalId === undefined || leverId === undefined) return { error: "L’objectif choisi n’est pas valide." };
+  if (leverId && !goalId) return { error: "Choisissez l’objectif du levier." };
+  const isCall = b.isCall === true;
+  const callPhone = optionalText(b.callPhone, 40);
+  if (callPhone === undefined || (callPhone && !/^[+\d][\d\s.-]{5,}$/.test(callPhone))) {
+    return { error: "Le numéro à appeler n’est pas valide." };
+  }
+  const callSubject = b.callSubject == null || b.callSubject === "" ? null : isCallSubject(b.callSubject) ? b.callSubject : undefined;
+  if (callSubject === undefined) return { error: "Dites avec qui est l’appel." };
   return {
     value: {
       ownerId: b.ownerId,
@@ -734,6 +1111,12 @@ export function parseNewTask(body: unknown, today: string): { error: string } | 
       propertyId,
       visitRequestId,
       studioProjectId,
+      isCall,
+      callPhone: isCall ? callPhone : null,
+      callSubject: isCall ? callSubject : null,
+      propertyRequestId,
+      goalId,
+      leverId,
     },
   };
 }

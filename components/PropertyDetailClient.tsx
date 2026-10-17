@@ -76,6 +76,7 @@ const getStatusLabel = (status: string) => {
     case "locked": return "Reserve";
     case "finalized": return "Loue";
     case "expired": return "Indisponible";
+    case "vendu": return "Vendu";
     default: return status;
   }
 };

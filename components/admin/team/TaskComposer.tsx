@@ -9,16 +9,20 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import gsap from "gsap";
 import { cn } from "@/lib/utils";
-import { addDays } from "@/lib/team-tasks/core";
+import { CALL_SUBJECT_LABELS, CALL_SUBJECTS, addDays, type CallSubject } from "@/lib/team-tasks/core";
 import type { ComposerPerson, LinkOption } from "@/lib/team-tasks/server";
 import { Avatar, announceTasksChanged, callApi, prefersReducedMotion } from "./ui";
 
-type LinkType = "property" | "visit" | "studio";
-const LINK_TYPES: { type: LinkType; label: string; field: "propertyId" | "visitRequestId" | "studioProjectId" }[] = [
-  { type: "property", label: "Une annonce", field: "propertyId" },
-  { type: "visit", label: "Une visite", field: "visitRequestId" },
-  { type: "studio", label: "Un projet Studio", field: "studioProjectId" },
+type LinkType = "property" | "visit" | "request" | "studio";
+const LINK_TYPES: { type: LinkType; label: string }[] = [
+  { type: "property", label: "Une annonce" },
+  { type: "visit", label: "Une visite" },
+  { type: "request", label: "Une demande de bien" },
+  { type: "studio", label: "Un projet Studio" },
 ];
+
+/** Goals offered under « Pour un objectif », with their levers. */
+export type ComposerGoal = { id: string; title: string; levers: { id: string; title: string; ownerId: string }[] };
 
 type When = "today" | "tomorrow" | "other";
 
@@ -36,6 +40,7 @@ export function TaskComposer({
   viewerName,
   viewerLevelLabel,
   presetOwnerId,
+  goals = [],
 }: {
   open: boolean;
   onClose: () => void;
@@ -45,6 +50,7 @@ export function TaskComposer({
   viewerName: string;
   viewerLevelLabel: string;
   presetOwnerId?: string | null;
+  goals?: ComposerGoal[];
 }) {
   const titleId = useId();
   const dialogRef = useRef<HTMLDivElement>(null);
@@ -62,6 +68,11 @@ export function TaskComposer({
   const [sending, setSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [sent, setSent] = useState<string | null>(null);
+  const [isCall, setIsCall] = useState(false);
+  const [callPhone, setCallPhone] = useState("");
+  const [callSubject, setCallSubject] = useState<CallSubject | null>(null);
+  const [goalId, setGoalId] = useState<string | null>(null);
+  const [leverId, setLeverId] = useState<string | null>(null);
 
   const owner = people.find((p) => p.id === ownerId) ?? me;
   const isAsk = owner?.mode === "demande";
@@ -121,6 +132,11 @@ export function TaskComposer({
     setTime("");
     setLinks({});
     setWhen("today");
+    setIsCall(false);
+    setCallPhone("");
+    setCallSubject(null);
+    setGoalId(null);
+    setLeverId(null);
     setSent(null);
     requestAnimationFrame(() => firstFieldRef.current?.focus());
   }
@@ -163,7 +179,13 @@ export function TaskComposer({
           reason: isAsk ? note.trim() : null,
           propertyId: links.property?.id ?? null,
           visitRequestId: links.visit?.id ?? null,
+          propertyRequestId: links.request?.id ?? null,
           studioProjectId: links.studio?.id ?? null,
+          isCall: !isAsk && isCall,
+          callPhone: !isAsk && isCall ? callPhone.trim() || null : null,
+          callSubject: !isAsk && isCall ? callSubject : null,
+          goalId,
+          leverId,
         }),
       });
       setSent(
@@ -355,6 +377,111 @@ export function TaskComposer({
               )}
             </div>
 
+            {!isAsk && (
+              <div className="flex flex-col gap-2 rounded-2xl border border-[#EAE1D5] bg-white p-3">
+                <label className="flex min-h-11 cursor-pointer items-center gap-3">
+                  <span className="flex flex-1 flex-col">
+                    <span className="text-[13px] font-extrabold">C’est un appel</span>
+                    <span className="text-xs text-[#6B625B]">Tag « Appel » et « Appeler et noter ». La tâche se coche une fois le résultat noté.</span>
+                  </span>
+                  <input
+                    type="checkbox"
+                    role="switch"
+                    checked={isCall}
+                    onChange={(event) => setIsCall(event.target.checked)}
+                    className="peer sr-only"
+                  />
+                  <span
+                    aria-hidden="true"
+                    className="relative h-7 w-12 shrink-0 rounded-full bg-[#D6CBBE] transition-colors peer-checked:bg-[#C96A2E] peer-focus-visible:ring-2 peer-focus-visible:ring-[#C96A2E] peer-focus-visible:ring-offset-2 after:absolute after:left-1 after:top-1 after:size-5 after:rounded-full after:bg-white after:transition-transform peer-checked:after:translate-x-5"
+                  />
+                </label>
+                {isCall && (
+                  <>
+                    <div className="flex flex-col gap-1">
+                      <label htmlFor={`${titleId}-tel`} className="text-xs font-extrabold text-[#6B625B]">Numéro à appeler (facultatif)</label>
+                      <input
+                        id={`${titleId}-tel`}
+                        type="tel"
+                        inputMode="tel"
+                        maxLength={40}
+                        value={callPhone}
+                        onChange={(event) => setCallPhone(event.target.value)}
+                        placeholder="+226 70 00 00 00"
+                        className="h-11 rounded-xl border border-[#E2D8CC] bg-[#FBF7F1] px-3 text-[15px]"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1" role="group" aria-label="Avec qui">
+                      <span className="text-xs font-extrabold text-[#6B625B]">Avec qui</span>
+                      <div className="flex flex-wrap gap-1.5">
+                        {CALL_SUBJECTS.map((value) => (
+                          <button
+                            key={value}
+                            type="button"
+                            aria-pressed={callSubject === value}
+                            onClick={() => setCallSubject(callSubject === value ? null : value)}
+                            className={cn(
+                              "h-10 cursor-pointer rounded-full px-3 text-[13px] font-bold",
+                              callSubject === value ? "bg-[#1F1A16] text-white" : "border border-[#E2D8CC] bg-white",
+                            )}
+                          >
+                            {CALL_SUBJECT_LABELS[value]}
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+
+            {goals.length > 0 && (
+              <div className="flex flex-col gap-1.5">
+                <span className="text-[13px] font-extrabold" id={`${titleId}-goal`}>Pour un objectif (facultatif)</span>
+                <div className="flex flex-wrap gap-1.5" role="group" aria-labelledby={`${titleId}-goal`}>
+                  {goals.map((goal) => (
+                    <button
+                      key={goal.id}
+                      type="button"
+                      aria-pressed={goalId === goal.id}
+                      onClick={() => {
+                        setGoalId(goalId === goal.id ? null : goal.id);
+                        setLeverId(null);
+                      }}
+                      className={cn(
+                        "h-10 max-w-full cursor-pointer truncate rounded-full px-3 text-[13px] font-bold",
+                        goalId === goal.id ? "bg-[#F7E4D3] text-[#8A4924] shadow-[inset_0_0_0_2px_#C96A2E]" : "border border-dashed border-[#D6CBBE] bg-transparent",
+                      )}
+                    >
+                      {goal.title}
+                    </button>
+                  ))}
+                </div>
+                {goalId && (goals.find((g) => g.id === goalId)?.levers.length ?? 0) > 0 && (
+                  <div className="flex flex-wrap gap-1.5" role="group" aria-label="Levier">
+                    {goals
+                      .find((g) => g.id === goalId)!
+                      .levers.slice()
+                      .sort((a, b) => Number(b.ownerId === owner?.id) - Number(a.ownerId === owner?.id))
+                      .map((lever) => (
+                        <button
+                          key={lever.id}
+                          type="button"
+                          aria-pressed={leverId === lever.id}
+                          onClick={() => setLeverId(leverId === lever.id ? null : lever.id)}
+                          className={cn(
+                            "min-h-10 max-w-full cursor-pointer rounded-full px-3 text-left text-xs font-bold",
+                            leverId === lever.id ? "bg-[#1F1A16] text-white" : "border border-[#E2D8CC] bg-white",
+                          )}
+                        >
+                          Levier : {lever.title}
+                        </button>
+                      ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             <div className="flex flex-col gap-1.5">
               <label htmlFor={`${titleId}-note`} className="text-[13px] font-extrabold">
                 {isAsk ? "Pourquoi (obligatoire)" : "Note"}
@@ -415,7 +542,7 @@ function LinkPicker({ type, onPick }: { type: LinkType; onPick: (option: LinkOpt
   const [error, setError] = useState<string | null>(null);
   const listId = useId();
   const placeholder = useMemo(
-    () => ({ property: "Référence ou quartier", visit: "Filtrer les visites", studio: "Nom du projet" })[type],
+    () => ({ property: "Référence ou quartier", visit: "Filtrer les visites", request: "Titre ou quartier", studio: "Nom du projet" })[type],
     [type],
   );
 
