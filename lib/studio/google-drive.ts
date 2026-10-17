@@ -137,14 +137,53 @@ async function createFolder(parentId: string, name: string): Promise<string> {
 }
 
 /** Finds a folder by name (accents, case and dash style ignored) or creates it. */
-export async function findOrCreateFolder(parentId: string, name: string): Promise<string> {
-  const existing = findFolderMatch(await listChildFolders(parentId), name);
+export async function findOrCreateFolder(
+  parentId: string,
+  name: string,
+  match: (folders: DriveFolderRef[]) => DriveFolderRef | null = (folders) => findFolderMatch(folders, name),
+): Promise<string> {
+  const existing = match(await listChildFolders(parentId));
   if (existing) return existing.id;
-  await createFolder(parentId, name);
-  // Re-read so two uploads racing to create the same folder settle on the oldest one.
-  const settled = findFolderMatch(await listChildFolders(parentId), name);
-  if (!settled) throw new DriveError("Dossier Drive introuvable après sa création.", 502);
-  return settled.id;
+  const createdId = await createFolder(parentId, name);
+  // Two uploads can race to create the same folder, and Drive's search lags a
+  // few seconds behind a create. Re-read a few times, keep the oldest match and
+  // put our own (still empty) folder in the bin if another one won.
+  for (let attempt = 0; attempt < 4; attempt += 1) {
+    if (attempt > 0) await new Promise((resolve) => setTimeout(resolve, 800));
+    const settled = match(await listChildFolders(parentId));
+    if (settled) {
+      if (settled.id !== createdId) await trashEmptyFolder(createdId).catch(() => undefined);
+      return settled.id;
+    }
+  }
+  return createdId;
+}
+
+export async function folderName(folderId: string): Promise<string | null> {
+  const meta = await driveJson<{ name?: string }>(
+    `${DRIVE_API}/files/${encodeURIComponent(folderId)}?supportsAllDrives=true&fields=name`,
+  ).catch(() => null);
+  return meta?.name ?? null;
+}
+
+async function trashEmptyFolder(folderId: string): Promise<void> {
+  const { driveId } = requireConfig();
+  const params = new URLSearchParams({
+    q: `'${driveQueryValue(folderId)}' in parents and trashed = false`,
+    corpora: "drive",
+    driveId,
+    includeItemsFromAllDrives: "true",
+    supportsAllDrives: "true",
+    fields: "files(id)",
+    pageSize: "1",
+  });
+  const inside = await driveJson<{ files?: { id: string }[] }>(`${DRIVE_API}/files?${params}`);
+  if ((inside.files ?? []).length > 0) return;
+  await driveJson(`${DRIVE_API}/files/${encodeURIComponent(folderId)}?supportsAllDrives=true`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify({ trashed: true }),
+  });
 }
 
 /** `Vente|Location / Quartier - Propriétaire` under the shared drive. */
@@ -153,7 +192,16 @@ export async function ensureVisitFolder(top: "Vente" | "Location", visitFolder: 
   // The team keeps properties under "Biens / Vente" and "Biens / Location".
   const biensId = await findOrCreateFolder(driveId, "Biens");
   const topId = await findOrCreateFolder(biensId, top);
-  return findOrCreateFolder(topId, visitFolder);
+  // A property folder starts with its code (LOC-023, VEN-005). Reuse the team's
+  // folder for that code even when the rest of the name differs.
+  const code = /^(LOC|VEN)-\d+\b/i.exec(visitFolder.trim())?.[0]?.toUpperCase();
+  const byCode = code
+    ? (folders: DriveFolderRef[]) =>
+        folders
+          .filter((f) => f.name.trim().toUpperCase().startsWith(`${code} `) || f.name.trim().toUpperCase() === code)
+          .sort((x, y) => (x.createdTime ?? "").localeCompare(y.createdTime ?? ""))[0] ?? null
+    : undefined;
+  return findOrCreateFolder(topId, visitFolder, byCode);
 }
 
 /**

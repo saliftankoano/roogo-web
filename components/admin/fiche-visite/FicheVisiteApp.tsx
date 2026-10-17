@@ -843,8 +843,23 @@ function SurPlaceStep({
     }
     setLocating(true);
     setGeoError(null);
+    // The browser's own timeout only starts once access is granted, so an
+    // unanswered permission prompt would wait forever. Give up after 25 s.
+    let settled = false;
+    const watchdog = window.setTimeout(() => {
+      if (settled) return;
+      settled = true;
+      setLocating(false);
+      setGeoError({
+        text: "Pas de réponse pour la position. Autorisez la localisation dans le navigateur et réessayez, ou continuez sans position.",
+        reason: "Position sans réponse (autorisation en attente)",
+      });
+    }, 25000);
     navigator.geolocation.getCurrentPosition(
       (pos) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(watchdog);
         setLocating(false);
         onLocation({
           lat: Math.round(pos.coords.latitude * 1e6) / 1e6,
@@ -854,6 +869,9 @@ function SurPlaceStep({
         });
       },
       (error) => {
+        if (settled) return;
+        settled = true;
+        window.clearTimeout(watchdog);
         setLocating(false);
         if (error.code === error.PERMISSION_DENIED) {
           setGeoError({
@@ -1072,11 +1090,11 @@ function UploadRow({
   const color = progress.active ? "text-[#6E4300]" : count > 0 ? "text-[#245C33]" : "text-[#8E2A1E]";
   const inputId = `fiche-upload-${def.key}`;
   return (
-    <div className="flex flex-col gap-1.5 border-t border-[#F0E8DD] pt-2 lg:gap-2 lg:rounded-[14px] lg:border-0 lg:bg-white lg:p-3">
+    <div className="flex flex-col gap-1.5 border-t border-[#F0E8DD] pt-2 lg:h-full lg:gap-2 lg:rounded-[14px] lg:border-0 lg:bg-white lg:p-3">
       <div className="flex items-center gap-2 lg:flex-col lg:items-start">
         <span className="flex min-w-0 flex-1 flex-col">
-          <span className="text-[13px] font-extrabold">{def.label}</span>
-          <span className={cn("text-xs font-bold", color)} aria-live="polite">
+          <span className="text-[13px] font-extrabold leading-tight lg:min-h-[2lh]">{def.label}</span>
+          <span className={cn("truncate text-xs font-bold", color)} title={state} aria-live="polite">
             {state}
           </span>
         </span>
@@ -1108,8 +1126,8 @@ function UploadRow({
         <div ref={barRef} className={cn("h-full rounded-full transition-colors duration-300", !progress.active && count > 0 ? "bg-[#2F7A48]" : "bg-[#C96A2E]")} style={{ width: 0 }} />
       </div>
       {progress.failed.length > 0 && (
-        <div role="alert" className="flex flex-wrap items-center gap-2 text-xs font-bold text-[#8E2A1E]">
-          <span className="min-w-0 flex-1">
+        <div role="alert" className="flex flex-col items-start gap-1.5 text-xs font-bold text-[#8E2A1E]">
+          <span className="w-full break-words">
             {progress.failed.length > 1 ? `${progress.failed.length} envois ont échoué` : "1 envoi a échoué"} : {progress.failed[progress.failed.length - 1].error}
           </span>
           <button type="button" onClick={() => onRetry(def.key)} className="h-9 cursor-pointer rounded-full border border-[#E3A79C] bg-white px-3 text-xs font-extrabold text-[#8E2A1E]">

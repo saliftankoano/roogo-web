@@ -65,8 +65,11 @@ function isMissingTable(error: { code?: string; message?: string } | null | unde
 }
 
 function firstNameOf(fullName: string | null | undefined, email: string | null | undefined) {
-  const name = (fullName ?? "").trim();
-  if (name) return name.split(/\s+/)[0];
+  const parts = (fullName ?? "").trim().split(/\s+/).filter(Boolean);
+  // "Abdoul Moubarak Zongo" goes by Moubarak: with three names or more, the
+  // usual first name is the middle one.
+  if (parts.length >= 3) return parts[1];
+  if (parts.length) return parts[0];
   const local = (email ?? "").split("@")[0];
   return local ? capitalize(local) : "Membre";
 }
@@ -77,7 +80,8 @@ function toPerson(row: { id: string; full_name: string | null; email: string | n
     id: row.id,
     fullName,
     firstName: firstNameOf(row.full_name, row.email),
-    initials: initialsOf(fullName),
+    // Initials follow the name people use: Moubarak Zongo is MZ, not AZ.
+    initials: initialsOf(`${firstNameOf(row.full_name, row.email)} ${fullName.split(/\s+/).slice(-1)[0] ?? ""}`.trim()),
     level,
     levelLabel: LEVEL_LABELS[level],
   };
@@ -126,7 +130,9 @@ async function loadPeople(viewer: Viewer): Promise<PeopleResult> {
   const titlesReady = !titles.error;
   if (titles.error && !isMissingTable(titles.error)) throw titles.error;
   const titleBy = new Map((titles.data ?? []).map((row) => [row.user_id as string, row.title as string]));
-  const people = (users.data ?? []).map((row) =>
+  // Test accounts (Clerk test users, example.com) are not people on the team.
+  const isTestAccount = (email: string | null) => /\+clerk_test|@example\.(com|org)$/i.test(email ?? "");
+  const people = (users.data ?? []).filter((row) => !isTestAccount(row.email as string | null)).map((row) =>
     toPerson(row, levelFor(row.user_type, titleBy.get(row.id))),
   );
   // The viewer's own level comes from Clerk, the source of truth for founders.

@@ -6,7 +6,7 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { propertyOwnerName } from "@/lib/studio/field-media";
 import { driveFolderUrl } from "@/lib/studio/field-media-rules";
-import { ensureVisitFolder, findOrCreateFolder } from "@/lib/studio/google-drive";
+import { ensureVisitFolder, findOrCreateFolder, folderName } from "@/lib/studio/google-drive";
 import type { Person } from "@/lib/team-tasks/core";
 import type { Viewer } from "@/lib/team-tasks/server";
 import {
@@ -199,14 +199,30 @@ const TYPE_LABELS: Record<string, string> = {
 export async function loadFicheProperty(propertyId: string): Promise<FicheProperty | null> {
   const { data, error } = await supabaseAdmin
     .from("properties")
-    .select("id, reference, property_type, quartier, city, bedrooms, bathrooms, area, price, period, listing_type, amenities, primary_image, images, agent_id")
+    .select("id, reference, property_type, quartier, city, bedrooms, bathrooms, area, price, period, listing_type, agent_id")
     .eq("id", propertyId)
     .maybeSingle();
   if (error) throw error;
   if (!data) return null;
   const ownerName = await propertyOwnerName(propertyId, data.agent_id as string | null).catch(() => null);
   const type = (data.property_type as string | null) ?? "";
-  const images = Array.isArray(data.images) ? (data.images as string[]) : [];
+  // Amenities and photos live in their own tables.
+  const [{ data: amenityRows }, { data: imageRows }] = await Promise.all([
+    supabaseAdmin.from("property_amenities").select("amenities(name)").eq("property_id", propertyId),
+    supabaseAdmin
+      .from("property_images")
+      .select("url, is_primary, sort_order")
+      .eq("property_id", propertyId)
+      .order("is_primary", { ascending: false })
+      .order("sort_order", { ascending: true })
+      .limit(1),
+  ]);
+  const amenities = (amenityRows ?? [])
+    .flatMap((row: { amenities: { name: string } | { name: string }[] | null }) =>
+      Array.isArray(row.amenities) ? row.amenities.map((a) => a.name) : row.amenities ? [row.amenities.name] : [],
+    )
+    .filter(Boolean);
+  const image = (imageRows?.[0]?.url as string | undefined) ?? null;
   return {
     id: data.id as string,
     reference: (data.reference as string | null) ?? null,
@@ -216,8 +232,8 @@ export async function loadFicheProperty(propertyId: string): Promise<FicheProper
     typeLabel: `${TYPE_LABELS[type] ?? (type || "Bien")}${data.bedrooms && type !== "terrain" ? ` ${data.bedrooms} ch` : ""}`,
     ownerName,
     listingKind: data.listing_type === "vendre" ? "vente" : "location",
-    image: (data.primary_image as string | null) || images[0] || null,
-    factsPrefill: prefillFacts(data as Parameters<typeof prefillFacts>[0]),
+    image,
+    factsPrefill: prefillFacts({ ...data, amenities } as Parameters<typeof prefillFacts>[0]),
   };
 }
 
@@ -300,7 +316,8 @@ export async function ensureFicheFolder(
   const name = visitFolderName(property.reference, property.title);
   const parentId = row.drive_folder_id ?? (await ensureVisitFolder(top, name));
   const folderId = await findOrCreateFolder(parentId, def.folder);
-  const path = `Biens/${top}/${name}`;
+  // The team's folder for this code may carry a different name: show the real one.
+  const path = `Biens/${top}/${(await folderName(parentId)) ?? name}`;
   // Re-read the cache so two uploads starting together keep each other's subfolder.
   const { row: fresh } = await loadRow(visitId);
   await supabaseAdmin
