@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### The users table is private; public owner fields come only from the listing view (security) — 2026-10-17
+
+**Decision:** No client role (anon key, Clerk-authenticated) writes `users`. Signed-in users read only their own row (`clerk_id = auth.jwt() ->> 'sub'`); the anon key reads no row. What a listing card shows about its owner (name, avatar, phone, badges) is decided by `public_property_details` alone, which now runs with its owner's rights and never returns a renter. The change ships in two migrations: 094 (writes, `staff_users`, renter fields) is safe for every app in the field; 095 (read lock) runs only after the mobile update that reads the own row with the Clerk token.
+
+**Why:** On 2026-10-16 the public anon key, shipped in the website bundle and the app, could read all 695 users rows (695 emails, 570 phones, 116 WhatsApp numbers, 691 signup IPs, budgets, staff levels) and the staff list, and held the UPDATE privilege on `users`, so a client could likely rewrite `user_type` and pass every policy that trusts it.
+
+**Ruled out / alternatives:** Column revokes alone (old apps `select *` on `users` and would break the same way, while every row stayed listable). A policy that shows only owners of live listings (still exposes those rows' WhatsApp, IP and preferences to anyone). A single migration (it would cut old apps off profile, favourites and "Mes propriétés" the day it runs). Moving the reads to new API routes (the authenticated Supabase client already exists and support chat already relies on it).
+
+**Status:** Branch `fix/users-table-exposure` (web and mobile), not merged, not run. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
+
+---
+
 ---
 
 ### Staff access by job title, with invitations instead of a shared code — 2026-10-11

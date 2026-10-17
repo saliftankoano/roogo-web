@@ -614,6 +614,16 @@ zero rows through it — any consumer of that view must use the service-role
 client (the view exposes only date+slot, no PII). This also means availability
 was silently broken on the old Kazedra site.
 
+## Who can read the users table? (security, 2026-10-17)
+
+**Bottom line:** once migrations 094 and 095 have run, only the service role (our API routes) writes `users`. A signed-in Clerk user reads only their own row through `supabaseAuth`; the anon key reads none. Public owner fields (name, avatar, phone, badges on rentals, nothing on sales) come from `public_property_details`, a view that runs with its owner's rights and always returns NULL renter fields. `staff_users` is service-role only.
+
+- **New client code** that needs the caller's own profile uses `supabaseAuth` (mobile) or an API route; never the anon `supabase` client.
+- **Never add an anon policy on `users`.** Anon keeps SELECT on a few card columns only so old app embeds (`users:agent_id(...)`) return an empty owner instead of an error; with no policy that is zero rows.
+- **Policies that look up "my users row"** (support chat, sale chat, listing config, advertiser profiles) keep working because the own row stays visible to `authenticated`.
+- **Order:** 094 is safe at any time. 095 waits for the mobile OTA; app binaries on an older runtime lose profile load, adding favourites, "Mes propriétés" and the listing edit screen until they update. Check with `node scripts/check-users-exposure.mjs` (GET only, prints counts and column names).
+- [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
+
 ## How do app updates reach users? (OTA vs store builds, and runtimeVersion)
 
 **Bottom line:** the app updates through two pipes. OTA (expo-updates) pushes

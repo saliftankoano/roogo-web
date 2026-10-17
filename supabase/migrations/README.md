@@ -1,5 +1,10 @@
 # Database migration execution ledger
 
+## Users table exposure (security) — 2026-10-17
+
+- [ ] [094_users_table_exposure.sql](./094_users_table_exposure.sql) — **not run.** Removes client writes on `users` (table and column grants), closes `staff_users`, and rebuilds `public_property_details` with NULL renter fields and `security_invoker = false`. Safe for all app versions. Preflight and check queries are in the file header.
+- [ ] [095_users_table_read_lock.sql](./095_users_table_read_lock.sql) — **not run; only after 094 and the mobile OTA.** Enables RLS on `users`, drops every existing policy on it, gives `authenticated` its own row and anon no row. Stops by itself if 094 is missing or the view owner cannot bypass RLS. Renumber if 095 is already taken by another branch.
+
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
 ## Staff access levels — 2026-10-16
