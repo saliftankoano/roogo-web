@@ -2,6 +2,11 @@
 
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
+## Studio publishing calendar — 2026-10-17 record
+
+- [x] [085_studio_publications_executed.sql](./085_studio_publications_executed.sql) — **executed on Roogo (confirmed by Salif; run on 2026-10-14, the "85" run noted under 088 below).** `studio_publications` (one planned post, founder approval before anything is posted), the cron claim column and per-network results. RLS on, no policies; service role only. The header still says "084 and 086 are reserved by other branches"; bytes kept as applied.
+- [x] [087_studio_publication_review_executed.sql](./087_studio_publication_review_executed.sql) — **executed on Roogo (confirmed by Salif, recorded 2026-10-17; not independently verified).** Run after 085. Hashtags kept apart from the description, which model wrote the first draft, who edited, submitted and sent back a post, with the review comment and tags. The header still says "Not applied anywhere yet"; bytes kept as applied.
+
 ## Content Studio — 2026-10-06
 
 - [x] [075_content_studio_executed.sql](./075_content_studio_executed.sql) — operator-confirmed by Salif on 2026-10-06 ("mig ran"). Staff voice-over ledger, per-person caps, the spend-reserve function and the private `content-studio` bucket. The number 075 is also used by the unrelated principal-photo repair above: the two are different files applied independently, so do not replay either by number.
