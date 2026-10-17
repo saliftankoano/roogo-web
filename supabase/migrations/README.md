@@ -2,6 +2,11 @@
 
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
 
+## Team goals and call notes — 2026-10-16
+
+- [x] [091_team_goals_executed.sql](./091_team_goals_executed.sql) — **executed 2026-10-16 (confirmed by Salif).** Team goals (« Nos objectifs »): `team_goals`, `team_goal_readings`, `team_goal_sales`, `team_goal_levers`, `team_goal_lever_ticks`, `staff_tasks.goal_id` / `lever_id`, the private `team-goal-proofs` bucket, and the seed of the five 2026 goals with the TikTok and Facebook readings of that day. The file header still says "NOT EXECUTED": it is kept byte for byte as applied. `team_goal_sales` is dropped by 093.
+- [x] [092_call_notes_and_demande_replies_executed.sql](./092_call_notes_and_demande_replies_executed.sql) — **executed 2026-10-16 (confirmed by Salif); run after 091.** Call notes (`staff_call_notes`) and demande answers (new `staff_tasks` columns and `staff_task_messages`).
+
 ## Property reference codes — 2026-10-14
 
 - [x] [088_property_references_executed.sql](./088_property_references_executed.sql) — **executed 2026-10-14 (confirmed by Salif, then verified read-only through the Roogo API).** Short public codes for listings (`VEN-NNN` for sales, `LOC-NNN` for rentals): `properties.reference`, assigned once at insert by a trigger and refused on update, numbered in creation order for existing rows (49 rows: VEN-001 to VEN-023, LOC-001 to LOC-026), exposed through `property_details` and `public_property_details`. Numbered 088 because 085 to 087 belong to the publishing and field-media branches. Before this run, the column did not exist (checked by the API and in the SQL editor); the "85" run earlier that day was the publishing branch's `085_studio_publications.sql`.
