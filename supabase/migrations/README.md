@@ -1,6 +1,24 @@
 # Database migration execution ledger
 
+## Users table exposure (security) — 2026-10-17
+
+- [ ] [094_users_table_exposure.sql](./094_users_table_exposure.sql) — **not run.** Removes client writes on `users` (table and column grants), closes `staff_users`, and rebuilds `public_property_details` with NULL renter fields and `security_invoker = false`. Safe for all app versions. Preflight and check queries are in the file header.
+- [ ] [095_users_table_read_lock.sql](./095_users_table_read_lock.sql) — **not run; only after 094 and the mobile OTA.** Enables RLS on `users`, drops every existing policy on it, gives `authenticated` its own row and anon no row. Stops by itself if 094 is missing or the view owner cannot bypass RLS. Renumber if 095 is already taken by another branch.
+
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
+
+## Staff access levels — 2026-10-16
+
+- [x] [089_staff_levels_executed.sql](./089_staff_levels_executed.sql) — **executed 2026-10-16 (confirmed by Salif, "mig ran"; not independently verified).** `users.staff_level`, `staff_invitations` (replaces the shared staff code) and `staff_access_log` (who gave which access). Tested beforehand on a throwaway Supabase Postgres 17.4.
+
+## Property reference codes — 2026-10-14
+
+- [x] [088_property_references_executed.sql](./088_property_references_executed.sql) — **executed 2026-10-14 (confirmed by Salif, then verified read-only through the Roogo API).** Short public codes for listings (`VEN-NNN` for sales, `LOC-NNN` for rentals): `properties.reference`, assigned once at insert by a trigger and refused on update, numbered in creation order for existing rows (49 rows: VEN-001 to VEN-023, LOC-001 to LOC-026), exposed through `property_details` and `public_property_details`. Numbered 088 because 085 to 087 belong to the publishing and field-media branches. Before this run, the column did not exist (checked by the API and in the SQL editor); the "85" run earlier that day was the publishing branch's `085_studio_publications.sql`.
+
+## Sale listing ladder — 2026-10-17 record
+
+- [ ] [096_private_seller_asking_price.sql](./096_private_seller_asking_price.sql) — **NOT EXECUTED (renumbered from 084 on 2026-10-17; 084 is `084_studio_guest_voices_executed.sql`).** Moves the owner's sale price out of `properties.seller_asking_price` (readable by anon) into the service-role table `sale_asking_prices`. Required before deploying the sale listing ladder (public price = owner price + 30%, decision of 2026-10-11): run it first, then deploy.
+- [x] [075_sale_guaranteed_price_executed.sql](./075_sale_guaranteed_price_executed.sql) — run by Salif in production on 2026-09-27 from branch `feat/sale-v3-guaranteed-price` (verified the same day: ladder 0.30/0.20/0.15/0.10, mandates on v2). File added to main on 2026-10-11 so the repository matches the database. The guaranteed-net economics it prepared were dropped on 2026-10-11; the sale listing ladder reuses `sale_economics_config` and the mandate ladder columns on v2 mandates. Third file numbered 075; do not replay by number. Re-verified read-only on 2026-10-17: `sale_economics_config` has its default row (0.30/0.20/0.15/0.10, created 2026-09-27 23:11 UTC), `listing_config.sale_bypass_*`, the `property_mandates` v3 columns (every mandate still `v2`) and an empty `sale_closings` exist.
 
 ## Content Studio — 2026-10-06
 
@@ -13,8 +31,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 - [x] [081_studio_ai_tools_executed.sql](./081_studio_ai_tools_executed.sql) — **executed 2026-10-06 (confirmed by Salif).** Studio fal tools: ledger kinds `image` and `transcription`, the `finalizing` status, `provider_request_id`, artifact kinds `image` and `captions` with `meta`, the updated `reserve_studio_spend`, and image types in the `content-studio` bucket.
 - [x] [082_studio_video_renders_executed.sql](./082_studio_video_renders_executed.sql) — **executed 2026-10-10 (confirmed by Salif).** Studio video renders through HeyGen: ledger and artifact kind `video`, the separate monthly video budget (`studio_user_limits.monthly_video_cap_usd`, counted apart from voices and images in `reserve_studio_spend`), and MP4 up to 100 MB in the `content-studio` bucket.
 - [x] [083_studio_music_executed.sql](./083_studio_music_executed.sql) — **executed 2026-10-11 (confirmed by Salif).** Studio music: the team library `studio_music_tracks` (Roogo tracks and tracks generated with fal Lyria 3 Pro), ledger kind `music`, paid from the voices-and-images pot in `reserve_studio_spend`.
-- [ ] [096_private_seller_asking_price.sql](./096_private_seller_asking_price.sql) — **NOT EXECUTED (renumbered from 084 on 2026-10-17; 084 is `084_studio_guest_voices_executed.sql`).** Moves the owner's sale price out of `properties.seller_asking_price` (readable by anon) into the service-role table `sale_asking_prices`. Required before deploying the sale listing ladder (public price = owner price + 30%, decision of 2026-10-11): run it first, then deploy.
-- [x] [075_sale_guaranteed_price_executed.sql](./075_sale_guaranteed_price_executed.sql) — run by Salif in production on 2026-09-27 from branch `feat/sale-v3-guaranteed-price` (verified the same day: ladder 0.30/0.20/0.15/0.10, mandates on v2). File added to main on 2026-10-11 so the repository matches the database. The guaranteed-net economics it prepared were dropped on 2026-10-11; the sale listing ladder reuses `sale_economics_config` and the mandate ladder columns on v2 mandates. Third file numbered 075; do not replay by number. Re-verified read-only on 2026-10-17: `sale_economics_config` has its default row (0.30/0.20/0.15/0.10, created 2026-09-27 23:11 UTC), `listing_config.sale_bypass_*`, the `property_mandates` v3 columns (every mandate still `v2`) and an empty `sale_closings` exist.
+- [x] [084_studio_guest_voices_executed.sql](./084_studio_guest_voices_executed.sql) — **executed 2026-10-14 (confirmed by Salif).** Studio guest voices: kind `guest` with `guest_name` and `added_by`, `subject` / `subject_name` on challenges and consents, and `revoke_studio_voice` allowing the staff member who added a guest voice.
 
 ## Ordered photo galleries — 2026-10-05
 

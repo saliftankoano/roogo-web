@@ -10,6 +10,7 @@ const FIELDS: { key: keyof OutroText; label: string; placeholder?: string }[] = 
   { key: "note", label: "Ligne de détail (facultatif)", placeholder: "300 m², une chambre, jardin" },
   { key: "contactLabel", label: "Phrase au-dessus du numéro" },
   { key: "phone", label: "Numéro" },
+  { key: "phone2", label: "Deuxième numéro (facultatif)", placeholder: "+226 ..." },
   { key: "footer", label: "Pied de page" },
 ];
 

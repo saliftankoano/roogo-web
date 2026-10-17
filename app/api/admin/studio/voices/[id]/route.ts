@@ -32,8 +32,9 @@ export async function DELETE(
 
   const voice = await loadVoiceById(id);
   if (!voice) return errorResponse("Voix introuvable", 404, req);
-  if (voice.ownerUserId === null) {
-    return errorResponse("Cette voix n'a pas de propriétaire.", 400, req);
+  // Prevent revoking the house voice (system voice with no owner)
+  if (voice.ownerUserId === null && voice.kind === "system") {
+    return errorResponse("La voix système ne peut pas être retirée.", 403, req);
   }
   if (!canRevokeVoice(staff, voice)) {
     return errorResponse(
@@ -60,7 +61,7 @@ export async function DELETE(
 
   // The voice is already unusable. Now remove a Studio-made clone at Cartesia.
   let providerDeleted: boolean | null = null;
-  if (revoked.kind === "cloned") {
+  if (revoked.kind === "cloned" || revoked.kind === "guest") {
     providerDeleted = await deleteCartesiaVoice(revoked.cartesia_voice_id);
     if (providerDeleted) {
       await supabaseAdmin

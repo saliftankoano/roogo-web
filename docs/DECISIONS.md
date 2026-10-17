@@ -5,7 +5,49 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### The users table is private; public owner fields come only from the listing view (security) — 2026-10-17
+
+**Decision:** No client role (anon key, Clerk-authenticated) writes `users`. Signed-in users read only their own row (`clerk_id = auth.jwt() ->> 'sub'`); the anon key reads no row. What a listing card shows about its owner (name, avatar, phone, badges) is decided by `public_property_details` alone, which now runs with its owner's rights and never returns a renter. The change ships in two migrations: 094 (writes, `staff_users`, renter fields) is safe for every app in the field; 095 (read lock) runs only after the mobile update that reads the own row with the Clerk token.
+
+**Why:** On 2026-10-16 the public anon key, shipped in the website bundle and the app, could read all 695 users rows (695 emails, 570 phones, 116 WhatsApp numbers, 691 signup IPs, budgets, staff levels) and the staff list, and held the UPDATE privilege on `users`, so a client could likely rewrite `user_type` and pass every policy that trusts it.
+
+**Ruled out / alternatives:** Column revokes alone (old apps `select *` on `users` and would break the same way, while every row stayed listable). A policy that shows only owners of live listings (still exposes those rows' WhatsApp, IP and preferences to anyone). A single migration (it would cut old apps off profile, favourites and "Mes propriétés" the day it runs). Moving the reads to new API routes (the authenticated Supabase client already exists and support chat already relies on it).
+
+**Status:** Branch `fix/users-table-exposure` (web and mobile), not merged, not run. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
+
 ---
+
+---
+
+### Staff access by job title, with invitations instead of a shared code — 2026-10-11
+
+**Decision:** Staff access follows the job title (founder, director, assistant, advisor, intern), not individual tool permissions. Only the founder and directors give access; a director cannot name another director; nobody changes their own level. The shared `STAFF_REGISTRATION_SECRET` is replaced by invitation links, and every grant is journaled for the founder. Salif approved the matrix on 2026-10-11, with the director allowed to see the users list, validate and pay referral commissions, and read finances (read only).
+
+**Why:** Ablassé raised the risk that someone with full access can copy the system or leave with the data. The old model gave every staff member the same rights, including deleting listings and reading identity papers, and anyone who knew the shared code could make themselves staff.
+
+**Ruled out / alternatives:** Per-task permissions (too many settings for a team of four; the title stays the key and its tasks justify the access). A matrix with an approval for every action (it would stall a team whose founder is often asleep in another time zone). Enforcing levels on day one: unleveled staff would lose access at deploy, so `STAFF_LEVELS_ENFORCED` stays off until levels are assigned.
+
+---
+
+### Studio guest voices: consent for Roogo marketing without time limit — 2026-10-13
+
+**Decision:** Staff can add the voice of a guest (an owner, a client) who is present. The guest reads the guest terms and a consent sentence that states the voice will be used for Roogo marketing without time limit. Guest voices never use the staff member's single voice slot; a founder or the staff member who recorded the guest can withdraw one.
+
+**Why:** A staff member tried to clone an owner's voice and was told to remove their own voice first. Salif chose long-term marketing rights over limits ("helps us more in the long run").
+
+**Ruled out / alternatives:** Lifting the one-voice limit for staff (anyone's voice from any account, no consent). The council's property limit, expiry and per-voice founder approval (not adopted by Salif). Imported real recordings instead of clones (council's first step, not chosen).
+
+**Status:** Settled. Open risk: Burkina Faso's personal-data law (loi 001-2021) may allow withdrawal whatever the text says, so withdrawal stays available; counsel review of the guest text is pending (vault `08 Decisions/Studio voice cloning and consent.md`).
+
+### Studio videos can be made with music only — 2026-10-11
+
+**Decision:** A full Studio video no longer requires a voice-over: the team picks a music (for example a Roogo song) and the photos set the pace. There is no separate "music only" mode; the voice-over is simply optional and can be unticked. The team sets the music and voice levels with two sliders, kept in each browser, not in the database. With nothing to hear, the create button opens the music drawer; an empty voice lane opens the Voix off tool. The outro accepts an optional second phone number.
+
+**Why:** Salif wants a viral variant of the walkthrough video with a Roogo song and on-screen property facts instead of a voice-over. He preferred letting the team drop the voice-over to adding a mode, and preferred volume controls to a warning when a sung song meets a voice-over. Levels are set each time, as in any editing app, so storing them was not worth a migration.
+
+**Ruled out / alternatives:** A third "Musique seule" mode (one more concept to learn). Blocking or warning on song plus voice-over. Saving levels per project in the database. A silent video with neither voice nor music (still refused).
+
+**Status:** Built and shown to Salif locally on 2026-10-11; PR pending.
 
 ### Sales: keep 10% + 50/50, publish at the top of the price ladder — 2026-10-11
 

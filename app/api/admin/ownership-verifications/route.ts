@@ -86,7 +86,7 @@ async function listAssistedSubmissionCandidates(req: Request) {
 // covers staff + founder.
 export async function GET(req: Request) {
   try {
-    const authResult = await requireStaffSupabaseUser();
+    const authResult = await requireStaffSupabaseUser("ownership.status");
     if ("error" in authResult) return authResult.error;
 
     const { searchParams } = new URL(req.url);
@@ -159,7 +159,7 @@ export async function GET(req: Request) {
 // staff-only private-bucket routes, which record source=staff + uploaded_by.
 export async function POST(req: Request) {
   try {
-    const authResult = await requireStaffSupabaseUser();
+    const authResult = await requireStaffSupabaseUser("ownership.review");
     if ("error" in authResult) return authResult.error;
 
     const body = (await req.json().catch(() => null)) as {

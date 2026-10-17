@@ -17,7 +17,9 @@ import { STUDIO_BUCKET, getVideoCapUsd } from "@/lib/studio/server";
 import {
   buildOutroOnly,
   buildVisitePov,
+  clampMusicLevel,
   clampVoiceDelay,
+  clampVoiceLevel,
   defaultOutro,
   estimateVideoCostUsd,
   type OutroText,
@@ -37,6 +39,7 @@ const OUTRO_FIELDS: (keyof OutroText)[] = [
   "note",
   "contactLabel",
   "phone",
+  "phone2",
   "footer",
 ];
 
@@ -78,10 +81,14 @@ async function prepare(
     musicUrl = signedMusic.signedUrl;
   }
 
+  // Levels set in the editor (Salif, 2026-10-11). Missing means the template's default.
+  const musicLevel = typeof body.music_level === "number" ? clampMusicLevel(body.music_level) : undefined;
+  const voiceLevel = typeof body.voice_level === "number" ? clampVoiceLevel(body.voice_level) : undefined;
+
   const mode = body.mode === "outro" ? "outro" : "full";
   const shortTitle = property.title.split(",").slice(0, 2).join(",");
   if (mode === "outro") {
-    const built = buildOutroOnly({ outro, logoUrl: LOGO_URL, musicUrl });
+    const built = buildOutroOnly({ outro, logoUrl: LOGO_URL, musicUrl, musicLevel });
     return { ok: true, job: { ...built, mode, title: `Fin seule · ${shortTitle}` } };
   }
 
@@ -96,23 +103,31 @@ async function prepare(
     .eq("conversation_id", conversation.id)
     .in("kind", ["voiceover", "script"])
     .order("created_at", { ascending: false });
-  const voice = (artifacts ?? []).find((a) => a.kind === "voiceover" && a.output_path);
-  if (!voice) return { ok: false, status: 400, error: "Générez d'abord la voix off." };
+  // The voice-over is optional (Salif, 2026-10-11): without it, the music carries the video.
+  const voice = body.use_voice === false ? undefined : (artifacts ?? []).find((a) => a.kind === "voiceover" && a.output_path);
+  if (!voice && !musicUrl) return { ok: false, status: 400, error: "Ajoutez une voix off ou une musique." };
   const scripts = (artifacts ?? []).filter((a) => a.kind === "script");
   const script = scripts.find((a) => a.pinned) ?? scripts[0];
-  const voiceSeconds = Number((voice.meta as { duration_seconds?: number } | null)?.duration_seconds);
-  if (!Number.isFinite(voiceSeconds) || voiceSeconds <= 0) {
-    return { ok: false, status: 400, error: "La durée de la voix off est inconnue. Régénérez-la." };
+  let voiceUrl = "";
+  let voiceSeconds = 0;
+  if (voice) {
+    voiceSeconds = Number((voice.meta as { duration_seconds?: number } | null)?.duration_seconds);
+    if (!Number.isFinite(voiceSeconds) || voiceSeconds <= 0) {
+      return { ok: false, status: 400, error: "La durée de la voix off est inconnue. Régénérez-la." };
+    }
+    // The render reads the audio once, early; three hours leaves room for HeyGen's queue.
+    const { data: signed } = await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrl(voice.output_path!, 3 * 3600);
+    if (!signed?.signedUrl) return { ok: false, status: 500, error: "La voix off n'est pas accessible." };
+    voiceUrl = signed.signedUrl;
   }
-  // The render reads the audio once, early; three hours leaves room for HeyGen's queue.
-  const { data: signed } = await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrl(voice.output_path!, 3 * 3600);
-  if (!signed?.signedUrl) return { ok: false, status: 500, error: "La voix off n'est pas accessible." };
 
   const built = buildVisitePov({
     photos,
-    voiceUrl: signed.signedUrl,
+    voiceUrl,
     voiceSeconds,
     voiceDelay: clampVoiceDelay(Number(body.voice_delay)),
+    voiceLevel,
+    musicLevel,
     script: script?.text ?? undefined,
     logoUrl: LOGO_URL,
     musicUrl,

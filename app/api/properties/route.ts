@@ -1,3 +1,4 @@
+import { userRowCan } from "@/lib/staff-access-server";
 import { getSaleLadderConfig } from "@/lib/sale-mandate";
 import { publishedListingPrice } from "@/lib/sale-economics";
 import { verifyToken } from "@clerk/backend";
@@ -743,8 +744,11 @@ export async function POST(req: Request) {
     // Hotels always start en_attente regardless of author: room types are created
     // AFTER the property, and a hotel cannot go live with zero bookable rooms
     // (the status route enforces >= 1 active room type at publication).
+    // A staff member whose level cannot publish (an advisor) writes the listing
+    // and an assistant or director puts it online.
+    const staffMayPublish = isStaffOrFounder && userRowCan(user, "listings.publish");
     const propertyStatus =
-      isStaffOrFounder && !isSaleListing && parsedListingData.type !== "hotel"
+      staffMayPublish && !isSaleListing && parsedListingData.type !== "hotel"
         ? "en_ligne"
         : "en_attente";
     const isTestListing = isStaffOrFounder

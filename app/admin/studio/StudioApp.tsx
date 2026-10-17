@@ -163,6 +163,7 @@ export function StudioApp() {
   const [voice, setVoice] = useState("sandrine");
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [terms, setTerms] = useState<TermsInfo | null>(null);
+  const [guestTerms, setGuestTerms] = useState<TermsInfo | null>(null);
   const [cloningEnabled, setCloningEnabled] = useState(false);
 
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -191,10 +192,11 @@ export function StudioApp() {
     try {
       const res = await fetch("/api/admin/studio/voices");
       if (!res.ok) return;
-      const data = (await res.json()) as { voices: VoiceInfo[]; terms: TermsInfo; cloningEnabled?: boolean };
+      const data = (await res.json()) as { voices: VoiceInfo[]; terms: TermsInfo; guestTerms?: TermsInfo; cloningEnabled?: boolean };
       setCloningEnabled(data.cloningEnabled === true);
       setVoices(data.voices);
       setTerms(data.terms);
+      setGuestTerms(data.guestTerms ?? null);
       setVoice((current) =>
         data.voices.some((v) => v.key === current && v.status === "active") ? current : "sandrine",
       );
@@ -689,6 +691,7 @@ export function StudioApp() {
               void loadBudget();
             }}
             onOpenArtifact={jumpTo}
+            onAddVoice={() => setView("voiceover")}
           />
         )}
         {view === "visuals" && (
@@ -743,7 +746,7 @@ export function StudioApp() {
         )}
         {view === "clone" && cloningEnabled && (
           <div className="mx-auto w-full max-w-2xl p-4 md:p-6">
-            <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
+            <CloneVoice voices={voices} terms={terms} guestTerms={guestTerms} onChanged={loadVoices} />
           </div>
         )}
       </div>

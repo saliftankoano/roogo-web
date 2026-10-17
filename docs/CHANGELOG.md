@@ -6,7 +6,19 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-17
+
+- **Security: users table no longer readable or writable with the public key** (web and mobile branch `fix/users-table-exposure`, not merged, migrations 094 and 095 not run): 094 removes every client write on `users`, closes `staff_users`, and makes `public_property_details` return no renter and run with its owner's rights; 095, after the mobile OTA, turns on row security so a signed-in user reads only their own row and the anon key none. Mobile reads the own row with the Clerk token. Read-only check: `node scripts/check-users-exposure.mjs`. [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
+
+## 2026-10-14
+
+- **Studio guest voices** (web #64, migration 084 applied by Salif): staff can add the voice of an outside person who is present; the guest reads terms and a consent sentence stating Roogo marketing use without time limit. Guest voices are labelled "(invité)", do not use the staff member's own voice slot, and can be withdrawn by a founder or the staff member who recorded them. [Decision](./DECISIONS.md#studio-guest-voices-consent-for-roogo-marketing-without-time-limit--2026-10-13).
+
 ## 2026-10-11
+
+- **Studio videos without a voice-over, volume sliders, second phone number** (web, branch `feat/studio-music-without-voice`, not merged): "Vidéo complète" no longer needs a voice-over. Without one, the music carries the video (about 3.5 s per photo, then a 6 s outro, music at 90 % with no ducking). An existing voice-over can be unticked. Two sliders set the music (0 to 100 %, still ducked a quarter under a voice) and the voice (0 to 200 %); they are kept per browser. With neither a voice nor a music, the header button becomes "Choisir une musique"; the empty voice lane opens the Voix off tool. The outro takes an optional second number, stacked and slightly smaller. [Decision](./DECISIONS.md#studio-videos-can-be-made-with-music-only--2026-10-11).
+
+- **Roogo's own Suno tracks in the Studio library** (production data, 2026-10-11): 35 tracks uploaded with `scripts/upload-studio-music.mjs` at Salif's request (20 songs and instrumentals made on 2026-10-11, 15 older instrumentals), all made on Salif's Suno Pro plan, so cleared for commercial use. Other artists' songs still stay out.
 
 - **Studio loading skeleton** (web, merged #56, deployed 2026-10-11 15:38 UTC): while a project loads, the Studio shows the shimmer in the shape of the project page (header, script, three tiles) instead of an empty box; the music drawer's loading rows have the shape of a track row.
 

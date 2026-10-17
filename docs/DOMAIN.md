@@ -34,6 +34,16 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
 - **Content Studio (staff):** staff turn a live annonce into marketing content in one **projet**: script, voice-over, visuals and a video, each paid from a monthly budget with the price shown before every click.
 - **Payment evidence:** collection, reservation fulfillment and notification receipt are distinct. The payment-safety PRs remain pending release; see [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover).
 
+## Staff access
+
+### Niveau d'accès (staff level)
+
+The job title that decides what a staff member can do in the back office: Fondateur, Directeur, Assistant (commercial et administratif), Conseiller (clientèle et réseaux sociaux) or Stagiaire. It is not a user type: a Directeur is a `staff` user whose level is `director`. Do not call a level a "role"; `userType` is the role. Matrix and rules: [SYSTEM](./SYSTEM.md#how-do-staff-access-levels-work).
+
+### Invitation
+
+The only way to become staff: a signed link from the founder or a director, tied to one email address and one level, valid 7 days. It replaces the shared staff code.
+
 ## Customer payments
 
 ### PawaPay deposit

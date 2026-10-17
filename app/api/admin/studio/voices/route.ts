@@ -3,6 +3,9 @@ import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
 import { isVoiceCloningEnabled } from "@/lib/studio/flags";
 import {
+  GUEST_TERMS_CHECKBOX_LABEL,
+  GUEST_TERMS_PARAGRAPHS,
+  GUEST_TERMS_TITLE,
   TERMS_CHECKBOX_LABEL,
   TERMS_PARAGRAPHS,
   TERMS_TITLE,
@@ -13,6 +16,7 @@ import {
   visibleVoices,
 } from "@/lib/studio/voices";
 import {
+  CURRENT_GUEST_TERMS_VERSION,
   CURRENT_TERMS_VERSION,
   loadVoices,
 } from "@/lib/studio/voices-server";
@@ -37,8 +41,9 @@ export async function GET(req: Request) {
     status: voice.status,
     isMine: voice.ownerUserId === staff.id,
     canAccept: canAcceptVoiceTerms(staff, voice),
-    // Ownerless voices (the house voice) are never withdrawn from the UI.
-    canRevoke: voice.ownerUserId !== null && canRevokeVoice(staff, voice),
+    // The house voice is never withdrawn from the UI; staff and guest voices can be.
+    canRevoke: !(voice.ownerUserId === null && voice.kind === "system") && canRevokeVoice(staff, voice),
+    guestName: voice.guestName ?? null,
   }));
 
   return cors(
@@ -50,6 +55,12 @@ export async function GET(req: Request) {
         title: TERMS_TITLE,
         paragraphs: TERMS_PARAGRAPHS,
         checkboxLabel: TERMS_CHECKBOX_LABEL,
+      },
+      guestTerms: {
+        version: CURRENT_GUEST_TERMS_VERSION,
+        title: GUEST_TERMS_TITLE,
+        paragraphs: GUEST_TERMS_PARAGRAPHS,
+        checkboxLabel: GUEST_TERMS_CHECKBOX_LABEL,
       },
     }),
     req,
