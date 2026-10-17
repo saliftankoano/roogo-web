@@ -356,3 +356,29 @@ and review state independently govern what the user may submit or edit.
 
 **Evidence:** [Decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
 
+
+## Team goals and calls
+
+### Objectif
+
+**Meaning:** A goal the founder sets for the whole team: what we measure, a target and a period (ce mois, chaque mois, ce trimestre, cette année). Everyone sees it on Mon espace.
+
+**Origin:** 2026-10-16 (Salif, design canvas).
+
+**Why it matters for building:** Every number comes from a record or a dated reading with its proof; nothing is typed into the goal itself.
+
+### Levier
+
+**Meaning:** What one person does every week so a goal becomes inevitable (« Qu’est-ce qui doit se passer pour que ce soit inévitable ? »): owner, rhythm, weekly target.
+
+**Origin:** 2026-10-16 (Salif).
+
+**Why it matters for building:** « Ma part cette semaine » is the sum of the viewer's levers, each counted at most its weekly target.
+
+### Tâche d’appel and note d’appel
+
+**Meaning:** A task that is a phone call, and the record of its result (joint, pas de réponse, messagerie, mauvais numéro), notes and next step.
+
+**Origin:** 2026-10-16 (Salif).
+
+**Why it matters for building:** A call task cannot be marked done before its note exists; notes are seen by the caller, the Directeur and the founder only.

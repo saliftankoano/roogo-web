@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-16
+
+- **Nos objectifs, call notes and demande answers** (web, branch `feat/objectifs-equipe`, not merged, migrations 091 and 092 not run): goals strip on Mon espace (phone and desktop) with period tabs, countdowns, status from pace, an evidence drawer and « Ma part cette semaine »; `/admin/objectifs` with the levers of each goal; founder adds, retargets and removes goals, edits levers and confirms sales; founder and Directeur enter follower readings with a screenshot. Call tasks (« C’est un appel », « Appeler et noter », done only after a result), « Notes d’appels » for Directeur and Fondateur (`/admin/notes-appels`). Demandes: « Oui, vas-y », « Pas maintenant », « Écrire une réponse » with « Réglé ». [Decision](./DECISIONS.md#team-goals-every-number-from-a-record-founder-only-changes-sales-confirmed-by-hand--2026-10-16).
+
 ## 2026-10-15
 
 - **Fiche de visite in the app** (web, branch `feat/fiche-visite`, not merged, migrations 086 and 090 not run): the paper field visit sheet becomes seven screens on the phone (and the same sheet on a computer). Every tick records its time; the four time buttons tell the team in the briefing ("Sur le terrain aujourd’hui") with an optional WhatsApp share; step 3 is ticks only (position, facts for captions, the four shots in order, red notice when 3 boxes are ticked within 20 s); step 5 is the only upload step, one button per deliverable straight into the property's Drive folder; finishing creates six tasks in the assignees' briefings (business days) and stores the planned publication dates. Directeur and Fondateur follow every sheet in Studio > Visites terrain (`/admin/studio/visites`). [Decision](./DECISIONS.md#the-field-visit-sheet-moves-into-the-app--2026-10-15).
