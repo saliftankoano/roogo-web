@@ -10,6 +10,7 @@ import {
   HandshakeIcon,
   HouseLineIcon,
   IdentificationCardIcon,
+  ListChecksIcon,
   MicrophoneIcon,
   PencilSimpleLineIcon,
   UsersThreeIcon,
@@ -24,6 +25,16 @@ export const studioNavItem: AdminNavItemLink = {
   id: "admin-nav-studio",
   icon: MicrophoneIcon,
   needs: ["studio.use"],
+};
+
+// "Mon briefing": first item of the admin navbar only (the public Navbar keeps
+// its own list). It is active on /admin itself and on /admin/equipe.
+export const todayNavItem: AdminNavItemLink = {
+  type: "link",
+  label: "Aujourd’hui",
+  href: "/admin",
+  id: "admin-nav-today",
+  icon: ListChecksIcon,
 };
 
 export type AdminNavItem = {
@@ -182,9 +193,9 @@ const founderPilotageNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
-    label: "Équipe",
-    href: "/admin/equipe",
-    id: "admin-nav-equipe",
+    label: "Accès",
+    href: "/admin/acces",
+    id: "admin-nav-access",
     icon: UsersThreeIcon,
     needs: ["team.manage"],
   },

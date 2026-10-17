@@ -8,6 +8,8 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-17
 
+- **Access levels page moved to `/admin/acces`** (web, branch `feat/team-dashboard`, not merged): invitations, the access journal and setting levels now live on « Accès » (`/admin/acces`, same `team.manage` guard as before), because `/admin/equipe` is now the L'équipe board. `/admin/equipe/niveaux`, used only on this branch, redirects there. [Decision](./DECISIONS.md#the-access-page-is-adminacces--2026-10-17).
+
 - **Security: users table no longer readable or writable with the public key** (web and mobile branch `fix/users-table-exposure`, not merged, migrations 094 and 095 not run): 094 removes every client write on `users`, closes `staff_users`, and makes `public_property_details` return no renter and run with its owner's rights; 095, after the mobile OTA, turns on row security so a signed-in user reads only their own row and the anon key none. Mobile reads the own row with the Clerk token. Read-only check: `node scripts/check-users-exposure.mjs`. [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
 
 ## 2026-10-14
