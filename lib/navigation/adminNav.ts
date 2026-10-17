@@ -26,7 +26,8 @@ export const studioNavItem: AdminNavItemLink = {
 };
 
 // "Mon espace": first item of the admin navbar only (the public Navbar keeps
-// its own list). It is active on /admin itself and on /admin/equipe.
+// its own list). It is active on /admin itself and on /admin/equipe,
+// /admin/objectifs and /admin/notes-appels (opened from it).
 export const todayNavItem: AdminNavItemLink = {
   type: "link",
   label: "Mon espace",

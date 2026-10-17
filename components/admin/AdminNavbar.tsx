@@ -22,14 +22,17 @@ import { roogoMotion } from "@/lib/motion";
 import { TEAM_TASKS_CHANGED } from "./team/events";
 
 function isLinkActive(pathname: string, href: string) {
-  // "/admin" is the briefing: exact, plus the team board next to it.
+  // "/admin" is the briefing: exact, plus the pages opened from it (team
+  // board, goals and their levers, call notes).
   if (href === todayNavItem.href) {
-    return pathname === href || pathname === "/admin/equipe" || pathname.startsWith("/admin/equipe/");
+    return pathname === href || ["/admin/equipe", "/admin/objectifs", "/admin/notes-appels"].some(
+      (page) => pathname === page || pathname.startsWith(`${page}/`),
+    );
   }
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Open tasks for today on the "Mon espace" item; refreshed when tasks change. */
+/** Open tasks for today plus unread answers on demandes, on the "Mon espace" item; refreshed when tasks change. */
 function useTodayCount(enabled: boolean) {
   const [count, setCount] = useState<number | null>(null);
   useEffect(() => {
@@ -39,8 +42,8 @@ function useTodayCount(enabled: boolean) {
       try {
         const response = await fetch("/api/admin/team-tasks?view=count");
         if (!response.ok) return;
-        const body = (await response.json()) as { open?: number };
-        if (alive && typeof body.open === "number") setCount(body.open);
+        const body = (await response.json()) as { open?: number; unread?: number };
+        if (alive && typeof body.open === "number") setCount(body.open + (typeof body.unread === "number" ? body.unread : 0));
       } catch {
         // The badge is a convenience; the briefing page shows the real list.
       }
@@ -59,7 +62,7 @@ function CountBadge({ count, active }: { count: number | null; active: boolean }
   if (!count) return null;
   return (
     <span
-      aria-label={`${count} ${count > 1 ? "tâches ouvertes" : "tâche ouverte"} aujourd’hui`}
+      aria-label={`${count} ${count > 1 ? "éléments" : "élément"} à voir aujourd’hui (tâches et réponses)`}
       className={cn(
         "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-extrabold",
         active ? "bg-primary text-white" : "bg-primary/90 text-white",
