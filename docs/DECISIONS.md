@@ -15,7 +15,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** Deriving the page automatically from the route files (checks are written in too many styles to parse reliably). Showing the vault matrix as if it were live. A new top-level navbar item (too noisy for a reference page).
 
-**Status:** Built on branch `feat/fiche-visite`, not deployed. The separate branch `feat/staff-levels` (PR 67, a different access model with its own migration 089) is not part of this branch; if it is merged, the matrix and the page must be rewritten in the same change. See [how it works](./SYSTEM.md#how-does-staff-access-work-and-where-is-it-written-down).
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Rewritten on 2026-10-17 when main brought the staff levels (PR 67): the rules now follow `STAFF_CAPABILITY_MATRIX` and the test checks them against it. See [how it works](./SYSTEM.md#how-does-staff-access-work-and-where-is-it-written-down).
 
 ### The field visit sheet moves into the app — 2026-10-15
 
@@ -25,7 +25,17 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** A "Règles de publication" screen in the flow (rejected by Salif). Uploads on site at step 3 (step 3 stays a checklist; files go up on the office Wi-Fi). Sending WhatsApp messages through an API (only a share link). Creating publications in the Studio calendar now (that branch is not merged; `lib/field-visits/publications.ts` is the hook).
 
-**Status:** Built on branch `feat/fiche-visite`, not deployed. Open points: Burkina public holidays are not skipped yet; the Drive folder name follows the canvas (`<CODE> <titre>`) while the paper sheet and the Studio's Médias du terrain panel use `Quartier - Nom du propriétaire`, so the same property can get two folders until one rule is chosen. Needs migrations 086 then 090 and the Google service account. See [how it works](./SYSTEM.md#how-does-the-field-visit-sheet-fiche-de-visite-work).
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Open points: Burkina public holidays are not skipped yet; the Drive folder name follows the canvas (`<CODE> <titre>`) while the paper sheet and the Studio's Médias du terrain panel use `Quartier - Nom du propriétaire`, so the same property can get two folders until one rule is chosen. Migrations 086 and 090 have run on Roogo (recorded 2026-10-17); needs the Google service account env vars. See [how it works](./SYSTEM.md#how-does-the-field-visit-sheet-fiche-de-visite-work).
+
+### Staff access by job title, with invitations instead of a shared code — 2026-10-11
+
+**Decision:** Staff access follows the job title (founder, director, assistant, advisor, intern), not individual tool permissions. Only the founder and directors give access; a director cannot name another director; nobody changes their own level. The shared `STAFF_REGISTRATION_SECRET` is replaced by invitation links, and every grant is journaled for the founder. Salif approved the matrix on 2026-10-11, with the director allowed to see the users list, validate and pay referral commissions, and read finances (read only).
+
+**Why:** Ablassé raised the risk that someone with full access can copy the system or leave with the data. The old model gave every staff member the same rights, including deleting listings and reading identity papers, and anyone who knew the shared code could make themselves staff.
+
+**Ruled out / alternatives:** Per-task permissions (too many settings for a team of four; the title stays the key and its tasks justify the access). A matrix with an approval for every action (it would stall a team whose founder is often asleep in another time zone). Enforcing levels on day one: unleveled staff would lose access at deploy, so `STAFF_LEVELS_ENFORCED` stays off until levels are assigned.
+
+---
 
 ### Studio guest voices: consent for Roogo marketing without time limit — 2026-10-13
 
@@ -45,7 +55,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** Supabase storage, including resumable TUS (50 MB project cap). Sending media through our API (body limits, cost). The `googleapis` SDK (large, not needed for four calls). Per-person OAuth (each staff member would need Drive consent; the service account works for everyone). Converting HEIC or re-encoding videos before upload (Drive is the archive of originals).
 
-**Status:** Built on branch `feat/studio-field-media`, not deployed. Not tested against Google: the direct browser upload (CORS) and the relay fallback are unverified until the service account exists. Migration 086 not run. See [how it works](./SYSTEM.md#how-do-field-photos-and-videos-reach-the-shared-drive).
+**Status:** Built on branch `feat/studio-field-media`, not deployed. Not tested against Google: the direct browser upload (CORS) and the relay fallback are unverified until the service account exists. Migration 086 has run on Roogo (recorded 2026-10-17). See [how it works](./SYSTEM.md#how-do-field-photos-and-videos-reach-the-shared-drive).
 
 ### Studio videos can be made with music only — 2026-10-11
 

@@ -3,7 +3,7 @@ import { captureServerEvent } from "@/lib/posthog-server";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getStaffOrFounder } from "@/lib/api-auth";
+import { getStaffOrFounder, userCan } from "@/lib/api-auth";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 
 export async function PATCH(
@@ -25,6 +25,14 @@ export async function PATCH(
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
+      );
+    }
+
+    // Putting a listing online is for founder, director and assistant.
+    if (status === "en_ligne" && !userCan(user, "listings.publish")) {
+      return NextResponse.json(
+        { error: "Forbidden", code: "insufficient_staff_level" },
+        { status: 403 },
       );
     }
 

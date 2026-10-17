@@ -55,7 +55,7 @@ export async function OPTIONS(req: Request) {
 // person present with the staff member, who reads the guest sentence and
 // accepts the guest terms; it never uses the staff member's own voice slot.
 export async function POST(req: Request) {
-  const staff = await getStaffOrFounder(req);
+  const staff = await getStaffOrFounder(req, "studio.cloneVoice");
   if (!staff) return errorResponse("Forbidden", 403, req);
   if (!isVoiceCloningEnabled()) {
     return errorResponse("La création de voix n'est pas encore ouverte.", 404, req);

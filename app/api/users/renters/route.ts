@@ -8,7 +8,7 @@ export async function OPTIONS(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const staff = await getStaffOrFounder(req);
+  const staff = await getStaffOrFounder(req, "listings.write");
   if (!staff) return errorResponse("Forbidden", 403, req);
 
   const q = new URL(req.url).searchParams.get("q")?.trim() ?? "";

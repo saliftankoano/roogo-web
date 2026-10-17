@@ -30,6 +30,8 @@ function render(auth, mobileOpen = false, hooks = {}) {
       if (name === 'next/image') return { default: (props) => React.createElement('img', props) };
       if (name === '@phosphor-icons/react') return icons;
       if (name === '../lib/navigation/adminNav') return load('../lib/navigation/adminNav.ts');
+      if (name === '@/lib/staff-access') return load('../lib/staff-access.ts');
+      if (name === '@/components/admin/StaffAccessProvider') return load('./admin/StaffAccessProvider.tsx');
       if (name === '../lib/utils') return { cn: (...values) => values.filter(Boolean).join(' ') };
       return require(name);
     };

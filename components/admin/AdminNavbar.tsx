@@ -20,10 +20,15 @@ import {
 } from "../../lib/navigation/adminNav";
 import { roogoMotion } from "@/lib/motion";
 import { TEAM_TASKS_CHANGED } from "./team/events";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
+
+const teamLevelsHref = "/admin/equipe/niveaux";
 
 function isLinkActive(pathname: string, href: string) {
   // "/admin" is the briefing: exact, plus the team board next to it.
   if (href === todayNavItem.href) {
+    // The access levels page under it belongs to its own nav item.
+    if (pathname === teamLevelsHref || pathname.startsWith(`${teamLevelsHref}/`)) return false;
     return pathname === href || pathname === "/admin/equipe" || pathname.startsWith("/admin/equipe/");
   }
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -146,13 +151,11 @@ export function AdminNavbar() {
   const pathname = usePathname();
   const { isLoaded, user } = useUser();
 
-  const userType = (user?.publicMetadata?.userType ||
-    user?.publicMetadata?.user_type) as string | undefined;
-  const isFounder = userType === "founder";
+  const { canAny } = useStaffAccess();
 
   const navItems = useMemo(
-    () => [todayNavItem, ...getAdminNavItems(isFounder)],
-    [isFounder],
+    () => [todayNavItem, ...getAdminNavItems(canAny)],
+    [canAny],
   );
   const todayCount = useTodayCount(isLoaded && !!user);
   const activeEntryId = useMemo(

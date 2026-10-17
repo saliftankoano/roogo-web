@@ -8,6 +8,8 @@ import {
   isStaffLikeUserType,
 } from "@/lib/user-types";
 import { DashboardMotionFrame } from "@/components/motion/DashboardMotionFrame";
+import { StaffAccessProvider } from "@/components/admin/StaffAccessProvider";
+import { staffLevelFromMetadata } from "@/lib/staff-access-server";
 
 export const metadata: Metadata = {
   title: "Administration | Roogo",
@@ -35,13 +37,17 @@ export default async function AdminLayout({
     redirect("/");
   }
 
+  const level = staffLevelFromMetadata(user?.publicMetadata);
+
   return (
-    <div className="min-h-screen flex flex-col bg-neutral-50/50">
-      <AdminNavbar />
-      <div className="grow container mx-auto px-6 pt-40 pb-12">
-        <DashboardMotionFrame>{children}</DashboardMotionFrame>
+    <StaffAccessProvider level={level}>
+      <div className="min-h-screen flex flex-col bg-neutral-50/50">
+        <AdminNavbar />
+        <div className="grow container mx-auto px-6 pt-40 pb-12">
+          <DashboardMotionFrame>{children}</DashboardMotionFrame>
+        </div>
+        <Footer />
       </div>
-      <Footer />
-    </div>
+    </StaffAccessProvider>
   );
 }

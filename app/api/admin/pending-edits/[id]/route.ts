@@ -15,7 +15,7 @@ type RouteContext = { params: Promise<{ id: string }> };
 // Body: { action: "approve" | "reject", reviewNote?: string }
 // ---------------------------------------------------------------------------
 export async function PATCH(req: NextRequest, { params }: RouteContext) {
-  const user = await getStaffOrFounder(req);
+  const user = await getStaffOrFounder(req, "pendingEdits.act");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
