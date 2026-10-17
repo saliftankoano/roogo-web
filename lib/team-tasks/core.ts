@@ -130,8 +130,11 @@ export function weekLabel(key: string): string {
 // ---------------------------------------------------------------------------
 // Code had only two staff levels (Clerk userType "staff" and "founder"). The
 // vault-approved titles (2026-10-11) add Directeur, Assistant, Conseillère and
-// Stagiaire. Fondateur stays the Clerk userType; the other titles live in the
-// staff_titles table (migration 089). No row means Conseillère.
+// Stagiaire. Fondateur stays the Clerk userType. Since the staff access levels
+// reached main (migration 089_staff_levels, 2026-10-16) the title IS the staff
+// level (users.staff_level, mirrored in Clerk publicMetadata.staffLevel), so
+// there is one place that says who is Directeur. The staff_titles table of
+// 089_staff_tasks is no longer read. No level means Conseillère here.
 
 export const STAFF_TITLES = ["directeur", "assistant", "conseillere", "stagiaire"] as const;
 export type StaffTitle = (typeof STAFF_TITLES)[number];
@@ -148,6 +151,22 @@ export const LEVEL_LABELS: Record<StaffLevel, string> = {
 
 export function isStaffTitle(value: unknown): value is StaffTitle {
   return typeof value === "string" && (STAFF_TITLES as readonly string[]).includes(value);
+}
+
+/** Staff access level (lib/staff-access.ts) for each title, and back. */
+export const STAFF_LEVEL_BY_TITLE = {
+  directeur: "director",
+  assistant: "assistant",
+  conseillere: "advisor",
+  stagiaire: "intern",
+} as const satisfies Record<StaffTitle, string>;
+
+export type AssignableLevelForTitle = (typeof STAFF_LEVEL_BY_TITLE)[StaffTitle];
+
+export function titleFromStaffLevel(level: string | null | undefined): StaffTitle | null {
+  const key = (level ?? "").toLowerCase();
+  const found = STAFF_TITLES.find((title) => STAFF_LEVEL_BY_TITLE[title] === key);
+  return found ?? null;
 }
 
 export function levelFor(userType: string | null | undefined, title: string | null | undefined): StaffLevel {

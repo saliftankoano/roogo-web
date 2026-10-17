@@ -30,6 +30,8 @@ import {
   orderPeople,
   rangeLabel,
   rowToItem,
+  STAFF_LEVEL_BY_TITLE,
+  titleFromStaffLevel,
   toDemandeView,
   weekBounds,
   weekdayAndDate,
@@ -47,6 +49,7 @@ import {
   type StaffTitle,
 } from "./core";
 import { loadAutoItems, propertyLabel } from "./sources";
+import { TeamError, setMemberLevel } from "@/lib/staff-team-server";
 
 export type Viewer = Person & { isFounder: boolean };
 
@@ -92,16 +95,8 @@ export async function getViewer(): Promise<Viewer | null> {
     | { id: string; full_name: string | null; email: string | null }
     | null;
   if (!user) return null;
-  let title: string | null = null;
-  if (userType !== "founder") {
-    const { data, error } = await supabaseAdmin
-      .from("staff_titles")
-      .select("title")
-      .eq("user_id", user.id)
-      .maybeSingle();
-    if (error && !isMissingTable(error)) console.error("[team-tasks] title lookup failed", { code: error.code });
-    title = data?.title ?? null;
-  }
+  // The title is the staff level from Clerk, like every other admin guard.
+  const title = userType === "founder" ? null : titleFromStaffLevel(String(clerkUser.publicMetadata?.staffLevel ?? ""));
   const level = levelFor(userType, title);
   const fullName = user.full_name || clerkUser.fullName || null;
   return {
@@ -113,20 +108,16 @@ export async function getViewer(): Promise<Viewer | null> {
 type PeopleResult = { people: Person[]; titlesReady: boolean };
 
 async function loadPeople(viewer: Viewer): Promise<PeopleResult> {
-  const [users, titles] = await Promise.all([
-    supabaseAdmin
-      .from("users")
-      .select("id, full_name, email, user_type")
-      .in("user_type", STAFF_TYPES)
-      .limit(200),
-    supabaseAdmin.from("staff_titles").select("user_id, title"),
-  ]);
+  const users = await supabaseAdmin
+    .from("users")
+    .select("id, full_name, email, user_type, staff_level")
+    .in("user_type", STAFF_TYPES)
+    .limit(200);
   if (users.error) throw users.error;
-  const titlesReady = !titles.error;
-  if (titles.error && !isMissingTable(titles.error)) throw titles.error;
-  const titleBy = new Map((titles.data ?? []).map((row) => [row.user_id as string, row.title as string]));
+  // Titles are the staff levels (users.staff_level), always available since 089_staff_levels.
+  const titlesReady = true;
   const people = (users.data ?? []).map((row) =>
-    toPerson(row, levelFor(row.user_type, titleBy.get(row.id))),
+    toPerson(row, levelFor(row.user_type, titleFromStaffLevel(row.staff_level))),
   );
   // The viewer's own level comes from Clerk, the source of truth for founders.
   const others = people.filter((p) => p.id !== viewer.id);
@@ -606,10 +597,19 @@ export async function setStaffTitle(viewer: Viewer, userId: string, title: Staff
   const target = await findPerson(viewer, userId);
   if (!target) return fail(404, "Cette personne ne fait pas partie de l’équipe.");
   if (target.level === "fondateur") return fail(400, "Le titre de Fondateur vient du compte, pas d’ici.");
-  const { error } = await supabaseAdmin
-    .from("staff_titles")
-    .upsert({ user_id: userId, title, updated_by: viewer.id }, { onConflict: "user_id" });
-  if (error) return writeError(error, "title");
+  // A title change is a staff level change: same rules, Clerk and users row
+  // kept in step, and a line in the access journal (lib/staff-team-server.ts).
+  try {
+    await setMemberLevel(
+      { userId: viewer.id, fullName: viewer.fullName, level: "founder" },
+      userId,
+      STAFF_LEVEL_BY_TITLE[title],
+      "Titre changé depuis L’équipe",
+    );
+  } catch (error) {
+    if (error instanceof TeamError) return fail(error.status, error.message);
+    throw error;
+  }
   return { ok: true, value: { userId } };
 }
 

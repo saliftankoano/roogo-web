@@ -6,6 +6,22 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How do staff access levels work?
+
+Every staff member has a **level** that matches their job title: `director`, `assistant`, `advisor` or `intern`. The founder (`userType: "founder"`) is always the founder level and never has a stored level. The matrix of what each level can do is code in [`lib/staff-access.ts`](../lib/staff-access.ts) (`STAFF_CAPABILITY_MATRIX`); it is the approved matrix from the vault note "Permissions de l'equipe par titre" (2026-10-11). Change the note first, then the code.
+
+- **Where the level lives.** Clerk `publicMetadata.staffLevel` (read by the browser and by routes that read the Clerk session) mirrored in `users.staff_level` (read by routes that load the Supabase user). The team page writes both. `lib/user-sync.ts` mirrors it when Clerk sends a user update.
+- **How routes check it.** Pass a capability: `getStaffOrFounder(req, "talent.manage")`, `requireStaffSupabaseUser("identity.review")`, `requireClerkStaffCapability(...)`, `userRowCan(user, ...)`. Routes without a capability still accept any staff member, so a new admin route must name one. Sensitive routes done: listing delete and publish, identity and ownership documents, users list, disputes, referrals, talent, rental imports, pending edits, support, sale-chat replies, finances, voice cloning, glossary moderation.
+- **Pages.** `app/admin/<section>/layout.tsx` wraps each section in `StaffRouteGuard` (server side). The navigation and buttons use `useStaffAccess()`, fed by the admin layout so they agree with the API.
+- **Rollout switch.** `STAFF_LEVELS_ENFORCED=true` makes a staff member without a level act as `advisor`. While it is not set they act as `legacy`: exactly the access staff had before levels. Staff who have a level are bound by the matrix either way. Turn the switch on only after every real staff member has a level on `/admin/equipe/niveaux`.
+- **Giving access.** `/admin/equipe/niveaux` (founder and directors). The founder gives or removes any level; a director gives assistant, advisor and intern, never director; nobody changes their own level. A person joins with an invitation link (valid 7 days, tied to an email address, only its hash stored) on `/personnel/rejoindre`; the inviter's right is checked again when the link is accepted. Every invitation, acceptance, level change and removal is written to `staff_access_log`; the founder reads all of it, a director reads their own.
+- **Titles on the team board are the levels.** The briefing and the L'équipe board (`/admin`, `/admin/equipe`) read the same level (`director` is Directeur, `assistant` Assistant(e) commercial(e), `advisor` Conseiller(ère), `intern` Stagiaire; no level counts as Conseiller(ère) there). Changing a title on the board calls the same `setMemberLevel` as `/admin/equipe/niveaux`, so it is logged and synced to Clerk. The `staff_titles` table from `089_staff_tasks_executed.sql` exists on Roogo but is not read.
+- **Studio caps.** Setting a level also sets the person's monthly Studio caps (`studio_user_limits`) to the approved amounts (`STUDIO_CAPS_BY_LEVEL`).
+- **The shared staff code** (`STAFF_REGISTRATION_SECRET`) still works until the variable is deleted in Vercel, but it can now only create the `intern` level and never touches a founder. Delete the variable once invitations are in use.
+- **Not built yet.** The 30-day temporary extra access, the monthly access review (a working rule), advisor listings needing approval beyond going online, and per-route checks on the remaining staff routes (open-house slots, hotel events, property requests, Studio routes other than cloning).
+
+---
+
 ## How do public listing photos load and recover?
 
 Public discovery uses a photo variant that matches its layout, an immutable source URL for each new photo, and a homepage shell that can render while featured annonces load. [Annonce](./DOMAIN.md#annonce) is a public listing, not private ownership evidence.

@@ -7,6 +7,7 @@ import {
   getAuthenticatedUser,
   isOwnerAgentStaffOrFounder,
   isStaffOrFounder,
+  userCan,
 } from "@/lib/api-auth";
 import {
   buildStalePropertyTranslationUpdate,
@@ -57,14 +58,16 @@ export async function DELETE(
 
     const { id: propertyId } = await params;
 
-    const isAdmin = isStaffOrFounder(user);
-
     if (!isOwnerAgentStaffOrFounder(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // For owners/agents, verify they own this property before doing anything
-    if (!isAdmin) {
+    // Only a founder or director deletes any listing. A staff member with
+    // another level, like an owner, can delete only a listing they own.
+    const canDeleteAny = isStaffOrFounder(user) && userCan(user, "listings.delete");
+
+    // For everyone else, verify they own this property before doing anything
+    if (!canDeleteAny) {
       const { data: prop } = await supabaseAdmin
         .from("properties")
         .select("id")

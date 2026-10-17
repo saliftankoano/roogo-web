@@ -1,3 +1,4 @@
+import { userRowCan } from "@/lib/staff-access-server";
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { resolveClerkId } from "@/lib/request-auth";
@@ -36,6 +37,11 @@ export async function GET(req: Request) {
       .from("sale_conversations")
       .select(select)
       .order("last_message_at", { ascending: false, nullsFirst: false });
+
+    // A staff level without access to sale threads (an intern) gets none.
+    if (isStaffType(user.user_type) && !userRowCan(user, "saleChat.view")) {
+      return errorResponse("Forbidden", 403, req);
+    }
 
     // Staff/founder see everything; everyone else sees their own threads.
     if (!isStaffType(user.user_type)) {
