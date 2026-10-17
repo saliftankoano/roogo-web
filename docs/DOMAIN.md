@@ -150,6 +150,18 @@ the agreed commercial terms.
 **Why it matters for building:** Ownership approval and mandate signature are
 separate sale-publication gates. Passing one never implies the other.
 
+### Échelle de prix (sale price ladder)
+
+**Meaning:** The prices above the owner's own price `D` at which Roogo sells:
+prix affiché `D` + 30% (published by default), objectif + 20% (owner receives
+exactly `D`), repère + 15% (display only) and minimum équipe + 10%.
+
+**Origin:** Salif, 2026-10-11; permissions revised 2026-10-17.
+
+**Why it matters for building:** From + 10% (inclusive) up, "l'équipe décide".
+Below + 10% a price needs "l'accord de Salif" (a founder); it is no longer a hard
+stop. Applies only to sales; rentals keep their price as set.
+
 ## Property requests
 
 ### Appel à biens

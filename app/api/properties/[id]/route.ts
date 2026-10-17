@@ -4,6 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { requireListingFieldsByType } from "@/lib/validations";
 import { checkPublicSalePriceChange } from "@/lib/sale-mandate";
+import { captureServerEvent } from "@/lib/posthog-server";
 import {
   getAuthenticatedUser,
   isOwnerAgentStaffOrFounder,
@@ -179,8 +180,9 @@ export async function PATCH(
       dbUpdates.description = updates.description;
     if (updates.price !== undefined) {
       const newPrice = Number(updates.price);
-      // Sale listings: the public price must stay on the ladder above the
-      // owner's price (staff above +10%, founders at +10%, nobody below).
+      // Sale listings only (rentals keep their price as set): the team decides
+      // from +10% above the owner's price; below +10% only a founder (Salif,
+      // 2026-10-17). The founder's own change is the approval and is recorded.
       const decision = await checkPublicSalePriceChange({
         propertyId,
         newPrice,
@@ -190,6 +192,23 @@ export async function PATCH(
         return NextResponse.json(
           { error: decision.error },
           { status: decision.status },
+        );
+      }
+      if (decision.founderApproved) {
+        // No approval table exists yet (no migration in this change): record
+        // who approved what and when in the server log and PostHog. Never the
+        // owner's private price.
+        console.info("Sale price below +10% approved by founder:", {
+          propertyId,
+          founderId: user.id,
+          newPrice,
+          at: new Date().toISOString(),
+        });
+        await captureServerEvent(user.id, "sale_price_founder_approved_below_team_floor", {
+          property_id: propertyId,
+          new_price: newPrice,
+        }).catch((error) =>
+          console.error("Could not record the founder price approval:", error),
         );
       }
       dbUpdates.price = newPrice;

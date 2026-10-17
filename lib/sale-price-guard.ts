@@ -1,15 +1,26 @@
 // Guard for changes to the PUBLIC price of a sale listing (properties.price).
 //
-// The public price must stay on the approved ladder above the owner's price:
-// staff may set any price above the hard floor (+10%) on their own; a price AT
-// the floor (up to its display value, rounded up to 50,000 FCFA) needs a
-// founder (Salif, 2026-10-12); below the floor is refused for everyone. The owner's price is the signed mandate's
-// desired_price, or the private asking price before a mandate exists.
+// Rule (Salif, 2026-10-17, replaces the 2026-10-12 hard stop): the team decides
+// any price from the +10% team floor (inclusive, exact whole FCFA) up to the
+// +30% listing price. A price below +10% is allowed only for a founder: staff
+// get 403 ("accord de Salif"), the founder's own change is the approval and the
+// caller records it (founderApproved: true). The owner's price is the signed
+// mandate's desired_price, or the private asking price before a mandate exists.
 
-import { priceLadder, type SaleLadderPcts } from "@/lib/sale-economics";
+import {
+  priceLadder,
+  salePriceApproval,
+  type SaleLadderPcts,
+} from "@/lib/sale-economics";
 
 export type SalePriceDecision =
-  | { ok: true }
+  | {
+      ok: true;
+      /** True when the price is below the +10% team floor and the acting user
+       * is a founder: the change is the founder's approval and must be
+       * recorded by the caller. */
+      founderApproved?: boolean;
+    }
   | { ok: false; status: 403 | 422; error: string };
 
 function fcfa(value: number) {
@@ -27,20 +38,16 @@ export function evaluateSalePriceChange(params: {
   if (!Number.isFinite(newPrice) || newPrice <= 0) {
     return { ok: false, status: 422, error: "Prix invalide." };
   }
-  const { exact, display } = priceLadder(ownerPrice, pcts);
-  if (newPrice < exact.hardFloor) {
-    return {
-      ok: false,
-      status: 422,
-      error: `Prix refusé : le minimum absolu pour ce bien est ${fcfa(exact.hardFloor)}.`,
-    };
+  if (salePriceApproval(newPrice, ownerPrice, pcts) === "team") {
+    return { ok: true };
   }
-  if (newPrice <= display.hardFloor && !isFounder) {
+  if (!isFounder) {
+    const { display } = priceLadder(ownerPrice, pcts);
     return {
       ok: false,
       status: 403,
-      error: `Le prix plancher (${fcfa(display.hardFloor)}) demande l'accord de Salif.`,
+      error: `L'équipe décide à partir de ${fcfa(display.teamFloor)}. En dessous, le prix demande l'accord de Salif.`,
     };
   }
-  return { ok: true };
+  return { ok: true, founderApproved: true };
 }

@@ -12,13 +12,13 @@ import { cn } from "@/lib/utils";
 const RUNGS: Record<SaleLadderLevel, { label: string; rule: string }> = {
   listing: { label: "Prix affiché", rule: "Prix de départ, publié par défaut." },
   target: { label: "Objectif", rule: "Le propriétaire reçoit exactement son prix." },
-  teamFloor: {
-    label: "Négociation",
-    rule: "Repère. L'équipe peut accepter seule tout prix au-dessus du plancher.",
+  reference: {
+    label: "Repère",
+    rule: "Simple repère pour la négociation. L'équipe décide.",
   },
-  hardFloor: {
-    label: "Plancher absolu",
-    rule: "À ce prix, accord de Salif obligatoire. Jamais en dessous.",
+  teamFloor: {
+    label: "Minimum équipe",
+    rule: "L'équipe décide jusqu'à ce prix. En dessous, accord de Salif.",
   },
 };
 
@@ -90,20 +90,24 @@ export default function StaffSaleLadder({ propertyId }: { propertyId: string }) 
             </p>
           </div>
 
-          {ladder.currentLevel === "belowFloor" && (
+          <p className="text-xs text-neutral-600">
+            De +10 % à +30 % : l&apos;équipe décide. Sous +10 % : accord de Salif.
+          </p>
+
+          {ladder.currentLevel === "belowTeamFloor" && (
             <p
-              role="alert"
-              className="rounded-2xl border border-red-200 bg-red-50 px-3 py-2 text-xs font-bold text-red-700"
+              role="status"
+              className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-bold text-amber-800"
             >
-              Le prix affiché ({fcfa(ladder.currentPrice)}) est sous le plancher.
-              Corrigez-le.
+              Le prix affiché ({fcfa(ladder.currentPrice)}) est sous +10 %. Ce
+              prix demande l&apos;accord de Salif.
             </p>
           )}
 
           <ol className="space-y-2">
             {ladder.rows.map((row) => {
               const current = row.level === ladder.currentLevel;
-              const isFloor = row.level === "hardFloor";
+              const isFloor = row.level === "teamFloor";
               return (
                 <li
                   key={row.level}
@@ -112,7 +116,7 @@ export default function StaffSaleLadder({ propertyId }: { propertyId: string }) 
                     current
                       ? "border-primary bg-primary/5"
                       : isFloor
-                        ? "border-red-100 bg-red-50/50"
+                        ? "border-amber-100 bg-amber-50/50"
                         : "border-neutral-100",
                   )}
                 >

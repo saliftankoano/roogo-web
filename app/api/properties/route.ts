@@ -1,6 +1,9 @@
 import { userRowCan } from "@/lib/staff-access-server";
 import { getSaleLadderConfig } from "@/lib/sale-mandate";
-import { publishedListingPrice } from "@/lib/sale-economics";
+import {
+  DEFAULT_SALE_ECONOMICS,
+  publicPriceForNewListing,
+} from "@/lib/sale-economics";
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import {
@@ -825,12 +828,13 @@ export async function POST(req: Request) {
     // Salif 2026-10-11), never at the owner's own number. The owner's price is
     // kept privately in sale_asking_prices (migration 096). Signing the mandate
     // re-derives the public price from the mandate's desired_price.
-    const publicPrice = isSaleListing
-      ? publishedListingPrice(
-          parsedListingData.prixMensuel,
-          await getSaleLadderConfig(),
-        )
-      : parsedListingData.prixMensuel;
+    // Rentals (daily or monthly) keep the entered price exactly as set: no
+    // markup, no approval rule (Salif, 2026-10-17).
+    const publicPrice = publicPriceForNewListing(
+      listingType,
+      parsedListingData.prixMensuel,
+      isSaleListing ? await getSaleLadderConfig() : DEFAULT_SALE_ECONOMICS,
+    );
 
     const propertyData = {
       agent_id: directOwner ? null : parsedListingData.owner_id || user.id,

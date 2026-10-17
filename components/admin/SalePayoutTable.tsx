@@ -8,9 +8,9 @@ import {
 
 const LEVEL_LABELS: Record<SaleLadderLevel, string> = {
   listing: "Prix affiché",
-  target: "Cible",
-  teamFloor: "Négociation",
-  hardFloor: "Plancher absolu",
+  target: "Objectif",
+  reference: "Repère",
+  teamFloor: "Minimum équipe",
 };
 
 function fmt(n: number) {

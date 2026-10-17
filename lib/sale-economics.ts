@@ -8,10 +8,12 @@
 // - Commission (migration 050): Roogo earns base% of the owner's price D plus
 //   split% of any surplus above D. Owner receives the final price minus that.
 // - The public price defaults to the top of the ladder: D + 30%, never D itself.
-// - Ladder of markups over D: listing +30%, target +20%, +15% as a negotiation
-//   reference point. The team may accept any price above +10% on its own; a
-//   price AT the +10% floor needs the founder's approval; below +10% refused
-//   (hard stop). (Founder, 2026-10-12: approval only at the floor.)
+// - Ladder of markups over D: listing +30% (published by default), target +20%,
+//   +15% as a display reference only, and the team floor at +10%.
+// - Permissions (Founder, 2026-10-17, replaces the 2026-10-12 hard stop): the
+//   team may agree any price from +10% (inclusive) up to +30% on its own. A
+//   price below +10% is allowed only with the founder's approval; it is no
+//   longer refused outright. See `salePriceApproval`.
 // - Notary 2%, buyer referrer 2% and seller referrer 1% of the final price are
 //   paid out of Roogo's commission, never out of the owner's share.
 // - Bypass: if sold within 12 months to a buyer Roogo introduced, Roogo is owed
@@ -22,8 +24,10 @@
 export type SaleLadderPcts = {
   listingMarkupPct: number;
   targetMarkupPct: number;
+  /** Display reference only (+15%), never a permission boundary. */
+  referenceMarkupPct: number;
+  /** Lowest markup the team may agree without the founder (+10%, inclusive). */
   teamFloorMarkupPct: number;
-  hardFloorMarkupPct: number;
 };
 
 export type SaleCommissionPcts = {
@@ -47,8 +51,8 @@ export type SaleEconomicsSnapshot = SaleLadderPcts &
 export const DEFAULT_SALE_ECONOMICS: SaleEconomicsSnapshot = {
   listingMarkupPct: 0.3,
   targetMarkupPct: 0.2,
-  teamFloorMarkupPct: 0.15,
-  hardFloorMarkupPct: 0.1,
+  referenceMarkupPct: 0.15,
+  teamFloorMarkupPct: 0.1,
   baseCommissionPct: 0.1,
   surplusSplitPct: 0.5,
   notaryFeePct: 0.02,
@@ -92,13 +96,14 @@ export function ceilToStep(value: number, step = SALE_PRICE_DISPLAY_STEP) {
   return Math.ceil(snap(value) / step) * step;
 }
 
-export type SaleLadderLevel = "listing" | "target" | "teamFloor" | "hardFloor";
+export type SaleLadderLevel = "listing" | "target" | "reference" | "teamFloor";
 
 export type SalePriceLadder = {
   /** Exact whole-FCFA values (what the server checks against). */
   exact: Record<SaleLadderLevel, number>;
-  /** Display values: listing and target to the nearest 50,000 FCFA; floors
-   * rounded UP to the next 50,000 FCFA so staff never quote below a floor. */
+  /** Display values: listing, target and reference to the nearest 50,000
+   * FCFA; the team floor rounded UP to the next 50,000 FCFA so staff never
+   * quote below the real +10%. */
   display: Record<SaleLadderLevel, number>;
 };
 
@@ -110,24 +115,56 @@ export function priceLadder(
   assertAmount("ownerPrice", ownerPrice);
   const listing = roundFcfa(ownerPrice * (1 + pcts.listingMarkupPct));
   const target = roundFcfa(ownerPrice * (1 + pcts.targetMarkupPct));
-  // Floors are minimums: never round them down.
+  const reference = roundFcfa(ownerPrice * (1 + pcts.referenceMarkupPct));
+  // The team floor is a minimum: never round it down.
   const teamFloor = ceilFcfa(ownerPrice * (1 + pcts.teamFloorMarkupPct));
-  const hardFloor = ceilFcfa(ownerPrice * (1 + pcts.hardFloorMarkupPct));
   return {
-    exact: { listing, target, teamFloor, hardFloor },
+    exact: { listing, target, reference, teamFloor },
     display: {
       listing: roundToStep(listing),
       target: roundToStep(target),
+      reference: roundToStep(reference),
       teamFloor: ceilToStep(teamFloor),
-      hardFloor: ceilToStep(hardFloor),
     },
   };
+}
+
+/** Who may agree a sale price (Founder, 2026-10-17): "team" from the +10% team
+ * floor (inclusive, exact whole FCFA) upwards, "founder" below it. */
+export type SalePriceApproval = "team" | "founder";
+
+export function salePriceApproval(
+  price: number,
+  ownerPrice: number,
+  pcts: SaleLadderPcts,
+): SalePriceApproval {
+  assertAmount("price", price);
+  return price >= priceLadder(ownerPrice, pcts).exact.teamFloor ? "team" : "founder";
 }
 
 /** The public price Roogo publishes for an owner's price: the top rung of the
  * ladder, rounded to the nearest 50,000 FCFA. */
 export function publishedListingPrice(ownerPrice: number, pcts: SaleLadderPcts) {
   return priceLadder(ownerPrice, pcts).display.listing;
+}
+
+/** The ladder (+30% public price, +10% team floor, founder approval below)
+ * applies ONLY to properties for sale (listing_type "vendre"). Rentals, daily
+ * or monthly, keep their price exactly as set (Salif, 2026-10-17). */
+export function saleLadderApplies(listingType: string | null | undefined) {
+  return listingType === "vendre";
+}
+
+/** The public price to store for a new listing: owner price + 30% for a sale,
+ * the entered price unchanged for any rental. */
+export function publicPriceForNewListing(
+  listingType: string | null | undefined,
+  enteredPrice: number,
+  pcts: SaleLadderPcts,
+) {
+  return saleLadderApplies(listingType)
+    ? publishedListingPrice(enteredPrice, pcts)
+    : enteredPrice;
 }
 
 export type SaleCommission = {
@@ -215,8 +252,8 @@ export function payoutTable(
   const levels: [SaleLadderLevel, number][] = [
     ["listing", pcts.listingMarkupPct],
     ["target", pcts.targetMarkupPct],
+    ["reference", pcts.referenceMarkupPct],
     ["teamFloor", pcts.teamFloorMarkupPct],
-    ["hardFloor", pcts.hardFloorMarkupPct],
   ];
   return levels.map(([level, markupPct]) => {
     const c = commissionAt(display[level], ownerPrice, pcts);
@@ -246,16 +283,17 @@ export function formatSalePct(pct: number) {
 }
 
 /** Validate a config/snapshot: every percentage in [0, 1], ladder ordered
- * hard <= team <= target <= listing, bypass months >= 1, and Roogo's commission
- * at the hard floor always covering the notary and both referrers. Returns a
+ * team floor <= reference <= target <= listing, bypass months >= 1, and Roogo's
+ * commission covering the notary and both referrers at the team floor and at
+ * the owner's own price (the founder may approve a price below +10%). Returns a
  * list of problems (empty = ok). */
 export function validateSaleEconomics(config: SaleEconomicsSnapshot) {
   const problems: string[] = [];
   const pcts: (keyof SaleEconomicsSnapshot)[] = [
     "listingMarkupPct",
     "targetMarkupPct",
+    "referenceMarkupPct",
     "teamFloorMarkupPct",
-    "hardFloorMarkupPct",
     "baseCommissionPct",
     "surplusSplitPct",
     "notaryFeePct",
@@ -271,25 +309,29 @@ export function validateSaleEconomics(config: SaleEconomicsSnapshot) {
   }
   if (
     !(
-      config.hardFloorMarkupPct <= config.teamFloorMarkupPct &&
-      config.teamFloorMarkupPct <= config.targetMarkupPct &&
+      config.teamFloorMarkupPct <= config.referenceMarkupPct &&
+      config.referenceMarkupPct <= config.targetMarkupPct &&
       config.targetMarkupPct <= config.listingMarkupPct
     )
   ) {
-    problems.push("markups must satisfy hard floor <= team floor <= target <= listing");
+    problems.push("markups must satisfy team floor <= reference <= target <= listing");
   }
   if (!Number.isInteger(config.bypassMonths) || config.bypassMonths < 1) {
     problems.push("bypassMonths must be a whole number >= 1");
   }
-  // Per unit of owner price, at the hard floor:
-  // commission = base + split * hf; fees = (1 + hf) * (notary + both referrers).
+  // Per unit of owner price, at the team floor tf:
+  // commission = base + split * tf; fees = (1 + tf) * (notary + both referrers).
+  const feePct =
+    config.notaryFeePct + config.buyerReferralPct + config.sellerReferralPct;
   const commissionAtFloor =
-    config.baseCommissionPct + config.surplusSplitPct * config.hardFloorMarkupPct;
-  const maxFees =
-    (1 + config.hardFloorMarkupPct) *
-    (config.notaryFeePct + config.buyerReferralPct + config.sellerReferralPct);
-  if (snap(maxFees) > snap(commissionAtFloor)) {
-    problems.push("fees at the hard floor would exceed Roogo's commission");
+    config.baseCommissionPct + config.surplusSplitPct * config.teamFloorMarkupPct;
+  if (snap((1 + config.teamFloorMarkupPct) * feePct) > snap(commissionAtFloor)) {
+    problems.push("fees at the team floor would exceed Roogo's commission");
+  }
+  // At the owner's own price (no surplus): commission = base, fees = feePct.
+  // Below it the fees shrink with the price while the base commission does not.
+  if (snap(feePct) > snap(config.baseCommissionPct)) {
+    problems.push("fees at the owner's price would exceed Roogo's commission");
   }
   return problems;
 }

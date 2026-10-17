@@ -716,10 +716,26 @@ fees are paid by Roogo. See
    the ownership docs.
 3. Roogo sends a **mandate** (desired price + commission percentages + an
    exclusivity period). The owner **signs it in-app** (tap-to-confirm + typed name).
-   Signing publishes the listing at the desired price.
-4. Only then is the listing publishable and photographed by Roogo. Staff may then
-   adjust the public price (`properties.price`) freely to experiment; the seller is
-   deliberately NOT shown or notified of Roogo's listing price.
+   Signing publishes the listing at the desired price + 30% (since 2026-10-11).
+4. Only then is the listing publishable and photographed by Roogo. Staff then move
+   the public price (`properties.price`) within the ladder below. Since 2026-10-11
+   the owner sees the listing price and the payout table on the mandate.
+
+**Price ladder and who decides (sales only, 2026-10-17):** a `vendre` listing is
+published at owner price `D` + 30% (`publishedListingPrice`, on creation and again
+when the mandate is signed); `D` stays private (`sale_asking_prices`, then the
+mandate's `desired_price`). Rungs: +30% listing, +20% target (owner receives exactly
+`D`), +15% reference (display only), +10% team floor. `PATCH /api/properties/[id]`
+runs `checkPublicSalePriceChange`: from the exact `ceil(D × 1.10)` upwards anyone
+on staff may set the price; below it only a founder (staff get 403 "accord de
+Salif"), and the founder's change is logged and sent to PostHog as
+`sale_price_founder_approved_below_team_floor`. Displayed team floors are rounded
+UP to 50,000 FCFA so nobody quotes below the real +10%. Rentals (`louer`, daily or
+monthly) skip all of this: their price is stored and changed exactly as entered
+(`saleLadderApplies`). The ladder percentages live in `sale_economics_config`
+(075) and are snapshotted on each mandate; the 075 column `team_floor_markup_pct`
+holds the +15% reference and `hard_floor_markup_pct` the +10% team floor. Staff see
+the ladder on the admin listing and in the app (`GET /api/properties/[id]/sale-ladder`).
 
 **Buyer flow:**
 

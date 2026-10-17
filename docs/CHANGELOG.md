@@ -8,6 +8,7 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-17
 
+- **Roogo Sell price approval** (web PR #74 and mobile branch `feat/sale-listing-ladder`, not merged, not deployed, migration 096 not run): sales still publish at owner price + 30%. The team decides any price from +10% up; below +10% the server refuses staff (403, "accord de Salif") and accepts the founder, recording his approval in the server log and PostHog. +15% is shown only as a reference. Rentals keep their price exactly as set. Admin and mobile ladder labels: Prix affiché, Objectif, Repère, Minimum équipe. [Decision](./DECISIONS.md#sales-the-team-decides-from-10-below-10-needs-salif--2026-10-17).
 - **Security: users table no longer readable or writable with the public key** (web and mobile branch `fix/users-table-exposure`, not merged, migrations 094 and 095 not run): 094 removes every client write on `users`, closes `staff_users`, and makes `public_property_details` return no renter and run with its owner's rights; 095, after the mobile OTA, turns on row security so a signed-in user reads only their own row and the anon key none. Mobile reads the own row with the Clerk token. Read-only check: `node scripts/check-users-exposure.mjs`. [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
 
 ## 2026-10-14

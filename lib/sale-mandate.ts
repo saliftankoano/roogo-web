@@ -10,6 +10,7 @@ import {
   payoutTable,
   publishedListingPrice,
   roogoNetAfterFees,
+  saleLadderApplies,
   type SaleFeePcts,
   type SaleLadderLevel,
   type SaleLadderPcts,
@@ -31,7 +32,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 // number. Sending a mandate snapshots the ladder (sale_economics_config, migration
 // 075) onto it; signing publishes properties.price = desired_price + listing
 // markup (+30%). Staff move the public price within the ladder afterwards
-// (checkPublicSalePriceChange). The owner sees the listing price and the payout
+// (checkPublicSalePriceChange: team from +10%, below +10% founder only). The owner sees the listing price and the payout
 // table on the offer card. The offer and signature are mirrored into the
 // seller↔Roogo thread.
 
@@ -126,8 +127,11 @@ export async function getSaleLadderConfig(): Promise<SaleLadderConfig> {
   const config: SaleLadderConfig = {
     listingMarkupPct: num(data?.listing_markup_pct),
     targetMarkupPct: num(data?.target_markup_pct),
-    teamFloorMarkupPct: num(data?.team_floor_markup_pct),
-    hardFloorMarkupPct: num(data?.hard_floor_markup_pct),
+    // Column names are from migration 075 (2026-09-27). Since 2026-10-17,
+    // team_floor_markup_pct (+15%) is only a display reference and
+    // hard_floor_markup_pct (+10%) is the team floor: below it, founder only.
+    referenceMarkupPct: num(data?.team_floor_markup_pct),
+    teamFloorMarkupPct: num(data?.hard_floor_markup_pct),
     notaryFeePct: num(data?.notary_fee_pct),
     buyerReferralPct: num(data?.buyer_referral_pct),
     sellerReferralPct: num(data?.seller_referral_pct),
@@ -135,8 +139,8 @@ export async function getSaleLadderConfig(): Promise<SaleLadderConfig> {
   const valid =
     !error &&
     Object.values(config).every((v) => Number.isFinite(v) && v >= 0 && v <= 1) &&
-    config.hardFloorMarkupPct <= config.teamFloorMarkupPct &&
-    config.teamFloorMarkupPct <= config.targetMarkupPct &&
+    config.teamFloorMarkupPct <= config.referenceMarkupPct &&
+    config.referenceMarkupPct <= config.targetMarkupPct &&
     config.targetMarkupPct <= config.listingMarkupPct;
   if (!valid) {
     console.warn("Sale ladder config unavailable, using defaults:", {
@@ -146,8 +150,8 @@ export async function getSaleLadderConfig(): Promise<SaleLadderConfig> {
     return {
       listingMarkupPct: d.listingMarkupPct,
       targetMarkupPct: d.targetMarkupPct,
+      referenceMarkupPct: d.referenceMarkupPct,
       teamFloorMarkupPct: d.teamFloorMarkupPct,
-      hardFloorMarkupPct: d.hardFloorMarkupPct,
       notaryFeePct: d.notaryFeePct,
       buyerReferralPct: d.buyerReferralPct,
       sellerReferralPct: d.sellerReferralPct,
@@ -161,8 +165,9 @@ function mandateLadder(mandate: MandateRow): SaleLadderPcts | null {
   const pcts = {
     listingMarkupPct: num(mandate.listing_markup_pct),
     targetMarkupPct: num(mandate.target_markup_pct),
-    teamFloorMarkupPct: num(mandate.team_floor_markup_pct),
-    hardFloorMarkupPct: num(mandate.hard_floor_markup_pct),
+    // 075 column names: see getSaleLadderConfig.
+    referenceMarkupPct: num(mandate.team_floor_markup_pct),
+    teamFloorMarkupPct: num(mandate.hard_floor_markup_pct),
   };
   return Object.values(pcts).every(Number.isFinite) ? pcts : null;
 }
@@ -235,8 +240,9 @@ export async function sendMandate(params: {
       surplus_split_pct: commission.surplusSplitPct,
       listing_markup_pct: ladder.listingMarkupPct,
       target_markup_pct: ladder.targetMarkupPct,
-      team_floor_markup_pct: ladder.teamFloorMarkupPct,
-      hard_floor_markup_pct: ladder.hardFloorMarkupPct,
+      // 075 column names: see getSaleLadderConfig.
+      team_floor_markup_pct: ladder.referenceMarkupPct,
+      hard_floor_markup_pct: ladder.teamFloorMarkupPct,
       notary_fee_pct: ladder.notaryFeePct,
       buyer_referral_pct: ladder.buyerReferralPct,
       seller_referral_pct: ladder.sellerReferralPct,
@@ -408,7 +414,8 @@ export async function getLatestMandateForProperty(propertyId: string) {
  * Guard for a change to the PUBLIC price (properties.price) of a sale listing.
  * The owner's price is the latest signed mandate's desired_price, or before any
  * mandate, the private asking price from the listing wizard. The new price must
- * stay on the ladder: staff above +10%, founders at +10%, never below.
+ * respect the rule of 2026-10-17: the team decides from +10% (inclusive) up;
+ * below +10% only a founder, whose change is the approval (founderApproved). 
  * Non-sale listings and sales with no known owner price are not constrained.
  */
 export async function checkPublicSalePriceChange(params: {
@@ -422,7 +429,8 @@ export async function checkPublicSalePriceChange(params: {
     .eq("id", params.propertyId)
     .maybeSingle();
   if (error) throw error;
-  if (!property || property.listing_type !== "vendre") return { ok: true };
+  // Rentals keep their price as set: the ladder rule is for sales only.
+  if (!property || !saleLadderApplies(property.listing_type)) return { ok: true };
 
   const { data: mandate, error: mandateError } = await supabaseAdmin
     .from("property_mandates")
@@ -475,8 +483,9 @@ export type StaffSaleLadder = {
   currentPrice: number;
   baseCommissionPct: number;
   surplusSplitPct: number;
-  /** Highest rung at or below the current public price, or "belowFloor". */
-  currentLevel: SaleLadderLevel | "belowFloor";
+  /** Highest rung at or below the current public price, or "belowTeamFloor"
+   * (below +10%: a founder-approved price). */
+  currentLevel: SaleLadderLevel | "belowTeamFloor";
   rows: (SalePayoutRow & {
     roogoAfterNotary: number;
     roogoAfterAllFees: number;
@@ -544,7 +553,7 @@ export async function getStaffSaleLadder(
     currentPrice,
     baseCommissionPct: base,
     surplusSplitPct: split,
-    currentLevel: reached ? reached.level : "belowFloor",
+    currentLevel: reached ? reached.level : "belowTeamFloor",
     rows,
   };
 }
