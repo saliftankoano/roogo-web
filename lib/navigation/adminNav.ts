@@ -12,6 +12,7 @@ import {
   ListChecksIcon,
   MicrophoneIcon,
   PencilSimpleLineIcon,
+  ShieldCheckIcon,
 } from "@phosphor-icons/react";
 
 // Top-level (not inside a group) and pinned in the mobile header too, so the
@@ -153,6 +154,14 @@ const pilotageNavItems: AdminNavItem[] = [
     href: "/admin/utilisateurs",
     id: "admin-nav-analyses",
     icon: ChartLineUpIcon,
+  },
+  // Documentation of the access levels, readable by every staff member.
+  {
+    type: "link",
+    label: "Qui peut faire quoi",
+    href: "/admin/acces",
+    id: "admin-nav-access",
+    icon: ShieldCheckIcon,
   },
 ];
 
