@@ -22,7 +22,7 @@ function StaffJoin() {
   const { isSignedIn, isLoaded, user } = useUser();
   const { signOut } = useAuth();
   const router = useRouter();
-  // Access is given by invitation (founder or director, from /admin/equipe/niveaux).
+  // Access is given by invitation (founder or director, from /admin/acces/niveaux).
   const invitationToken = useSearchParams().get("invitation") ?? "";
 
   const [isSubmitting, setIsSubmitting] = useState(false);

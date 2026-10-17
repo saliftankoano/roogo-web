@@ -7,10 +7,11 @@ import { staffLevelsEnforced } from "@/lib/staff-access";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Qui peut faire quoi" };
+export const metadata = { title: "Accès" };
 
-// Documentation for every staff member and the founder: the access levels as
-// the code enforces them, rendered from lib/access/matrix.ts.
+// Tab « Qui peut faire quoi » of « Accès », for every staff member and the
+// founder: the access levels as the code enforces them, rendered from
+// lib/access/matrix.ts. The other tab is ./niveaux (team.manage only).
 export default async function AccessPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/");

@@ -6,6 +6,12 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-17
+
+- **Access levels page moved to `/admin/acces`** (web, branch `feat/team-dashboard`, not merged): invitations, the access journal and setting levels now live on « Accès » (`/admin/acces`, same `team.manage` guard as before), because `/admin/equipe` is now the L'équipe board. `/admin/equipe/niveaux`, used only on this branch, redirects there. On `feat/fiche-visite` « Accès » has two tabs: « Qui peut faire quoi » (`/admin/acces`, every staff member, default) and « Niveaux et invitations » (`/admin/acces/niveaux`, `team.manage` only). [Decision](./DECISIONS.md#the-access-page-is-adminacces--2026-10-17).
+
+- **Security: users table no longer readable or writable with the public key** (web and mobile branch `fix/users-table-exposure`, not merged, migrations 094 and 095 not run): 094 removes every client write on `users`, closes `staff_users`, and makes `public_property_details` return no renter and run with its owner's rights; 095, after the mobile OTA, turns on row security so a signed-in user reads only their own row and the anon key none. Mobile reads the own row with the Clerk token. Read-only check: `node scripts/check-users-exposure.mjs`. [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
+
 ## 2026-10-15
 
 - **Fiche de visite in the app** (web, branch `feat/fiche-visite`, not merged, migrations 086 and 090 executed on Roogo): the paper field visit sheet becomes seven screens on the phone (and the same sheet on a computer). Every tick records its time; the four time buttons tell the team in the briefing ("Sur le terrain aujourd’hui") with an optional WhatsApp share; step 3 is ticks only (position, facts for captions, the four shots in order, red notice when 3 boxes are ticked within 20 s); step 5 is the only upload step, one button per deliverable straight into the property's Drive folder; finishing creates six tasks in the assignees' briefings (business days) and stores the planned publication dates. Directeur and Fondateur follow every sheet in Studio > Visites terrain (`/admin/studio/visites`). [Decision](./DECISIONS.md#the-field-visit-sheet-moves-into-the-app--2026-10-15).

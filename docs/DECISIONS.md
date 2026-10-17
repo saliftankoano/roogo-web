@@ -5,11 +5,35 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### The access page is /admin/acces — 2026-10-17
+
+**Decision:** The staff levels page (invitations, access journal, setting levels) lives at `/admin/acces`, named « Accès » in the navigation. Salif chose the French word for access over `/admin/equipe/niveaux`.
+
+**Why:** `/admin/equipe` became the L'équipe board, and a page under it would read as a part of the board rather than the place where access is given.
+
+**Ruled out / alternatives:** `/admin/equipe/niveaux` with « Niveaux d’accès » (rejected by Salif on 2026-10-17).
+
+**Status:** Branch `feat/team-dashboard`, not merged. The page keeps the `team.manage` guard; the API routes enforce the same rule. On `feat/fiche-visite` the page becomes one page « Accès » with two tabs: « Qui peut faire quoi » (`/admin/acces`, every staff member, default) and « Niveaux et invitations » (`/admin/acces/niveaux`, `team.manage` only, guarded on the server as before). Sub-routes rather than `?vue=` so the existing route guard protects the levels tab unchanged.
+
+---
+
+### The users table is private; public owner fields come only from the listing view (security) — 2026-10-17
+
+**Decision:** No client role (anon key, Clerk-authenticated) writes `users`. Signed-in users read only their own row (`clerk_id = auth.jwt() ->> 'sub'`); the anon key reads no row. What a listing card shows about its owner (name, avatar, phone, badges) is decided by `public_property_details` alone, which now runs with its owner's rights and never returns a renter. The change ships in two migrations: 094 (writes, `staff_users`, renter fields) is safe for every app in the field; 095 (read lock) runs only after the mobile update that reads the own row with the Clerk token.
+
+**Why:** On 2026-10-16 the public anon key, shipped in the website bundle and the app, could read all 695 users rows (695 emails, 570 phones, 116 WhatsApp numbers, 691 signup IPs, budgets, staff levels) and the staff list, and held the UPDATE privilege on `users`, so a client could likely rewrite `user_type` and pass every policy that trusts it.
+
+**Ruled out / alternatives:** Column revokes alone (old apps `select *` on `users` and would break the same way, while every row stayed listable). A policy that shows only owners of live listings (still exposes those rows' WhatsApp, IP and preferences to anyone). A single migration (it would cut old apps off profile, favourites and "Mes propriétés" the day it runs). Moving the reads to new API routes (the authenticated Supabase client already exists and support chat already relies on it).
+
+**Status:** Branch `fix/users-table-exposure` (web and mobile), not merged, not run. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
+
+---
+
 ---
 
 ### The access page is generated from one matrix file — 2026-10-16
 
-**Decision:** "Qui peut faire quoi" (`/admin/acces`) describes the access levels exactly as the code enforces them on this branch, from a single typed file, `lib/access/matrix.ts`. A test (`lib/access/matrix.test.mjs`) ties the file to the real helpers and fails when a staff API route is added without being described. What the vault proposal of 2026-10-11 approves but the code does not enforce is listed separately as "Prévu mais pas encore appliqué", never as current behaviour. The page is linked from the Pilotage menu (every staff member) and from L'équipe, not from a new top-level navbar item.
+**Decision:** "Qui peut faire quoi" (`/admin/acces`) describes the access levels exactly as the code enforces them on this branch, from a single typed file, `lib/access/matrix.ts`. A test (`lib/access/matrix.test.mjs`) ties the file to the real helpers and fails when a staff API route is added without being described. What the vault proposal of 2026-10-11 approves but the code does not enforce is listed separately as "Prévu mais pas encore appliqué", never as current behaviour. The page is linked from the Pilotage menu (every staff member) and from L'équipe, not from a new top-level navbar item. Since 2026-10-17 it is the default tab of « Accès », next to « Niveaux et invitations » ([decision](#the-access-page-is-adminacces--2026-10-17)).
 
 **Why:** The team needs one place to know what each title can do, and the founder needs to see where the app still allows more than the approved matrix. A hand-written page would drift from the code; a matrix checked by a test cannot drift silently.
 

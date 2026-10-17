@@ -1,5 +1,5 @@
 // Who can do what in the Roogo admin, written EXACTLY as the code enforces it
-// on this branch. The page /admin/acces renders from this file, and
+// on this branch. The page /admin/acces (tab « Qui peut faire quoi ») renders from this file, and
 // lib/access/matrix.test.mjs checks it against the real helpers
 // (lib/team-tasks/core.ts and the capability matrix of lib/staff-access.ts)
 // and against the files it cites, so the page cannot silently drift from the
@@ -55,7 +55,7 @@ export const LEVEL_CARDS: LevelCard[] = [
     level: "directeur",
     summary:
       "Le tableau L’équipe, des tâches pour tout le monde, des demandes au Fondateur, le suivi des visites terrain, les Finances en lecture, la suppression d’annonces, les litiges, le recrutement, le parrainage. Donne les niveaux Assistant(e), Conseiller(ère) et Stagiaire.",
-    source: "Niveau donné par le Fondateur (Niveaux d’accès ou L’équipe).",
+    source: "Niveau donné par le Fondateur (Accès, onglet Niveaux et invitations, ou L’équipe).",
   },
   {
     level: "assistant",
@@ -88,7 +88,7 @@ export const LEGACY_MISSING = ["finances.view", "settings.manage", "studio.moder
 export const UNLEVELED = {
   title: "Compte staff sans niveau",
   whileOff:
-    "Tant que l’interrupteur des niveaux (STAFF_LEVELS_ENFORCED) n’est pas activé sur le serveur, un compte staff sans niveau garde l’accès d’avant les niveaux : tout sauf Finances, Paramètres et Niveaux d’accès. Les colonnes ci-dessous s’appliquent dès qu’une personne a un niveau.",
+    "Tant que l’interrupteur des niveaux (STAFF_LEVELS_ENFORCED) n’est pas activé sur le serveur, un compte staff sans niveau garde l’accès d’avant les niveaux : tout sauf Finances, Paramètres et l’onglet Niveaux et invitations. Les colonnes ci-dessous s’appliquent dès qu’une personne a un niveau.",
   whenOn:
     "L’interrupteur des niveaux est activé : un compte staff sans niveau a les droits d’un(e) Conseiller(ère).",
 };
@@ -677,7 +677,7 @@ export const AREAS: Area[] = [
   {
     id: "acces",
     title: "Accès de l’équipe",
-    intro: "Qui entre dans l’équipe, avec quel niveau, et qui en sort. Page Niveaux d’accès.",
+    intro: "Qui entre dans l’équipe, avec quel niveau, et qui en sort. Page Accès, onglet « Niveaux et invitations ».",
     rules: [
       {
         id: "join",
@@ -686,14 +686,15 @@ export const AREAS: Area[] = [
         access: DIRECTOR_AND_FOUNDER,
         notes: { directeur: "sauf Directeur" },
         capability: "team.manage",
-        enforcedBy: ["serveur", "page", "menu"],
+        enforcedBy: ["serveur", "page"],
         files: [
           "app/api/admin/team/route.ts",
           "app/api/admin/team/invitations/route.ts",
           "app/api/admin/team/invitations/[id]/route.ts",
           "lib/staff-team-server.ts",
-          "app/admin/equipe/niveaux/page.tsx",
-          "lib/navigation/adminNav.ts",
+          "app/admin/acces/niveaux/page.tsx",
+          "app/admin/acces/niveaux/layout.tsx",
+          "components/admin/access/AccessTabs.tsx",
         ],
         titleMatters: true,
       },
@@ -722,7 +723,7 @@ export const APP_USERS: { name: string; text: string }[] = [
 /** How someone becomes staff today, written for the page. */
 export const STAFF_JOIN = {
   steps: [
-    "Le Fondateur ou un Directeur invite l’adresse e-mail de la personne avec un niveau, dans Niveaux d’accès.",
+    "Le Fondateur ou un Directeur invite l’adresse e-mail de la personne avec un niveau, dans Accès, onglet Niveaux et invitations.",
     "La personne crée un compte Roogo avec cette adresse et ouvre le lien d’invitation (valable 7 jours) sur /personnel/rejoindre.",
     "Le serveur vérifie à nouveau le droit de celui qui a invité, puis donne le niveau. L’invitation, l’acceptation et chaque changement de niveau vont au journal des accès.",
     "Le code staff partagé marche encore, mais il ne donne plus que le niveau Stagiaire, et ne baisse jamais le niveau de quelqu’un qui en a déjà un.",

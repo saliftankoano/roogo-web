@@ -233,17 +233,8 @@ export function AccessGuide({
               L’équipe
             </Link>
           )}
-          {canSeeTeam && (
-            <Link
-              href="/admin/equipe/niveaux"
-              className="inline-flex h-8 items-center gap-1.5 rounded-full border border-[#EDE4D8] bg-white px-3 text-sm font-bold text-[#8A4924] hover:text-[#C96A2E]"
-            >
-              <KeyIcon size={16} aria-hidden="true" />
-              Niveaux d’accès
-            </Link>
-          )}
         </div>
-        <h1 className="m-0 text-[28px] font-extrabold leading-tight lg:text-[34px]">Qui peut faire quoi</h1>
+        <h2 className="m-0 text-[22px] font-extrabold leading-tight lg:text-[26px]">Qui peut faire quoi</h2>
         <p className="m-0 max-w-[68ch] text-[15px] leading-relaxed text-[#4A4540]">
           Les droits de chaque niveau dans l’administration Roogo, tels que l’appli les applique aujourd’hui. Ce qui est prévu mais
           pas encore en place est rangé à part, en bas de la page.
@@ -291,8 +282,8 @@ export function AccessGuide({
         <div className="rounded-2xl border border-[#EDE4D8] bg-white/70 p-4 text-sm leading-relaxed text-[#4A4540]">
           <p className="m-0 font-extrabold text-[#1F1A16]">Comment un niveau est donné</p>
           <p className="m-0 mt-1">
-            Le titre de chacun est son niveau d’accès. Le Fondateur donne tous les niveaux, dans Niveaux d’accès ou dans L’équipe. Un
-            Directeur donne Assistant(e) commercial(e), Conseiller(ère) et Stagiaire, dans Niveaux d’accès, jamais Directeur. Personne
+            Le titre de chacun est son niveau d’accès. Le Fondateur donne tous les niveaux, dans l’onglet Niveaux et invitations ou dans L’équipe. Un
+            Directeur donne Assistant(e) commercial(e), Conseiller(ère) et Stagiaire, dans Niveaux et invitations, jamais Directeur. Personne
             ne change son propre niveau. Le niveau Fondateur vient du type de compte et ne se donne pas dans l’appli.
           </p>
         </div>
