@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
       [user.firstName, user.lastName].filter(Boolean).join(" ") ||
       "Staff Member";
 
-    // The shared code is being replaced by invitations (see /admin/equipe).
+    // The shared code is being replaced by invitations (see /admin/acces/niveaux).
     // Until it is switched off, it can only ever create the lowest level, and
     // it must never touch a founder or lower someone who already has a level.
     const currentType = String(user.publicMetadata?.userType ?? "");

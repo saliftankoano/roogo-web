@@ -53,6 +53,9 @@ export type Property = {
   longitude?: number | null;
   listingType?: "louer" | "vendre";
   ownershipVerified?: boolean;
+  /** Status vendu (migration 093): notary signature date and sale price. Admin view only. */
+  soldAt?: string | null;
+  soldPrice?: number | null;
   agent?: {
     full_name: string;
     phone: string;
@@ -512,6 +515,7 @@ const PROPERTY_STATUS_UPDATE_FALLBACK_ERROR =
 export async function updatePropertyStatus(
   id: string,
   status: string,
+  sold?: { soldAt: string; soldPrice: number | null },
 ): Promise<PropertyStatusUpdateResult> {
   try {
     const response = await fetch(`/api/properties/${id}/status`, {
@@ -519,7 +523,7 @@ export async function updatePropertyStatus(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(sold ? { status, ...sold } : { status }),
     });
 
     if (!response.ok) {
