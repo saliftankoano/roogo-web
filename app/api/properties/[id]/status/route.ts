@@ -5,6 +5,23 @@ import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getStaffOrFounder } from "@/lib/api-auth";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
+import { soldTransition } from "@/lib/property-status";
+import { isDirectorOrFounder, levelFor } from "@/lib/team-tasks/core";
+
+/** Directeur or Fondateur: the account type for the founder, the staff title otherwise. */
+async function canDecideSale(user: { id: string; user_type: string | null }) {
+  if (user.user_type === "founder") return isDirectorOrFounder(levelFor(user.user_type, null));
+  const { data, error } = await supabaseAdmin
+    .from("staff_titles")
+    .select("title")
+    .eq("user_id", user.id)
+    .maybeSingle();
+  if (error) {
+    console.error("Staff title lookup for sold status failed:", { code: error.code });
+    return false;
+  }
+  return isDirectorOrFounder(levelFor(user.user_type, (data?.title as string | undefined) ?? null));
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -19,16 +36,20 @@ export async function PATCH(
     const { id: propertyId } = await params;
 
     const body = await request.json();
-    const { status } = body;
+    const { status, soldAt, soldPrice } = body as {
+      status?: unknown;
+      soldAt?: unknown;
+      soldPrice?: unknown;
+    };
 
-    if (!status) {
+    if (!status || typeof status !== "string") {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    const updateData: Record<string, string | boolean | null> = { status };
+    const updateData: Record<string, string | number | boolean | null> = { status };
 
     const { data: existingProperty, error: propertyError } = await supabaseAdmin
       .from("properties")
@@ -45,6 +66,29 @@ export async function PATCH(
 
     if (!existingProperty) {
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
+    }
+
+    // « Vendu »: Directeur or Fondateur only, sale listings only, with the
+    // notary signature date. Leaving vendu clears the sold fields.
+    if (status === "vendu" || existingProperty.status === "vendu") {
+      const sold = soldTransition({
+        next: status,
+        current: existingProperty.status,
+        listingType: existingProperty.listing_type,
+        isTest: existingProperty.is_test,
+        canDecideSale: await canDecideSale(user),
+        soldAt,
+        soldPrice,
+        todayKey: new Date().toISOString().slice(0, 10),
+        actorId: user.id,
+      });
+      if (!sold.ok) {
+        return NextResponse.json(
+          { code: sold.code, error: sold.error },
+          { status: sold.status },
+        );
+      }
+      Object.assign(updateData, sold.fields);
     }
 
     const isGoingLive = status === "en_ligne";

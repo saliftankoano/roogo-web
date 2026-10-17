@@ -138,8 +138,8 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
     unit: ["abonné", "abonnés"],
     kind: "stock",
     manual: true,
-    source: "Saisi à la main",
-    measure: "Abonnés de la page Facebook de Roogo, saisis à la main avec la capture d’écran en preuve. La lecture automatique n’est pas encore branchée.",
+    source: "Lu chaque nuit",
+    measure: "Abonnés de la page Facebook Roogo Burkina, lus automatiquement chaque nuit chez Facebook. Si la lecture ne passe pas, le chiffre se saisit à la main avec la capture d’écran en preuve.",
   },
   instagram_followers: {
     family: "Instagram",
@@ -149,8 +149,8 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
     unit: ["abonné", "abonnés"],
     kind: "stock",
     manual: true,
-    source: "Saisi à la main",
-    measure: "Abonnés du compte Instagram de Roogo, saisis à la main avec la capture d’écran en preuve.",
+    source: "Lu chaque nuit",
+    measure: "Abonnés du compte Instagram @roogo.burkina, lus automatiquement chaque nuit chez Instagram. Si la lecture ne passe pas, le chiffre se saisit à la main avec la capture d’écran en preuve.",
   },
   properties_sold: {
     family: "Ventes",
@@ -160,8 +160,8 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
     unit: ["vente", "ventes"],
     kind: "flow",
     manual: false,
-    source: "Vente confirmée",
-    measure: "Toute vente compte : maison, villa, appartement ou terrain. Une vente compte quand l’acte est signé chez le notaire et que le Fondateur la confirme ici.",
+    source: "Statut Vendu",
+    measure: "Toute vente compte : maison, villa, appartement ou terrain. Une vente compte quand l’annonce passe en « Vendu » avec la date de signature chez le notaire, sur la page de l’annonce (Directeur ou Fondateur).",
   },
   properties_under_contract: {
     family: "Locations",
@@ -583,10 +583,37 @@ export function activeContracts<T extends AgreementRow>(rows: T[]): T[] {
     });
 }
 
-export function salesInWindow<T extends { signed_on: string }>(rows: T[], window: { startKey: string; endKey: string }): T[] {
+export type SoldRow = { status: string | null; is_test: boolean | null; sold_at: string | null };
+
+/**
+ * Properties sold inside the window: status vendu, a signature date inside
+ * the window, test listings excluded. Any property type counts (land too).
+ * Newest sale first.
+ */
+export function soldInWindow<T extends SoldRow>(rows: T[], window: { startKey: string; endKey: string }): T[] {
   return rows
-    .filter((row) => row.signed_on >= window.startKey && row.signed_on <= window.endKey)
-    .sort((a, b) => (a.signed_on < b.signed_on ? 1 : -1));
+    .filter((row) => {
+      if (row.status !== "vendu" || row.is_test || !row.sold_at) return false;
+      const key = dayKeyOf(new Date(row.sold_at));
+      return key >= window.startKey && key <= window.endKey;
+    })
+    .sort((a, b) => ((a.sold_at ?? "") < (b.sold_at ?? "") ? 1 : -1));
+}
+
+export type ReadingSource = "manuel" | "automatique";
+
+const AUTO_PLATFORM: Partial<Record<GoalMetric, string>> = {
+  facebook_followers: "Facebook",
+  instagram_followers: "Instagram",
+};
+
+/** Under a reading in the drawer: « Lu automatiquement sur Facebook » or « Saisi par Salif ». */
+export function readingSourceLabel(metric: GoalMetric, source: string | null | undefined, enteredBy: string | null): string {
+  if (source === "automatique") {
+    const platform = AUTO_PLATFORM[metric];
+    return platform ? `Lu automatiquement sur ${platform}` : "Lu automatiquement";
+  }
+  return enteredBy ? `Saisi par ${enteredBy}` : "Saisi à la main";
 }
 
 /** "50 000 FCFA par mois". */
@@ -638,7 +665,7 @@ export function shareTotals(levers: { done: number; weeklyTarget: number }[]): {
 
 export type GoalActorLevel = "fondateur" | "directeur" | "assistant" | "conseillere" | "stagiaire";
 
-/** Create, archive, change the target, add or edit levers, confirm a sale: the founder only. */
+/** Create, archive, change the target, add or edit levers: the founder only. */
 export function canManageGoals(level: GoalActorLevel | null | undefined): boolean {
   return level === "fondateur";
 }
@@ -738,16 +765,6 @@ export function parseReading(body: unknown, todayKey: string): { error: string }
   const note = cleanText(b.note, 300);
   if (note === undefined) return { error: "La note est trop longue (300 caractères au plus)." };
   return { value: { metric: b.metric, value, measuredOn, note } };
-}
-
-export function parseSale(body: unknown, todayKey: string): { error: string } | { value: { propertyId: string; signedOn: string; note: string | null } } {
-  const b = (body ?? {}) as Record<string, unknown>;
-  if (!isUuidValue(b.propertyId)) return { error: "Choisissez le bien vendu." };
-  if (!isDayKeyValue(b.signedOn)) return { error: "Donnez la date de signature chez le notaire." };
-  if (b.signedOn > todayKey) return { error: "La date de signature ne peut pas être dans le futur." };
-  const note = cleanText(b.note, 300);
-  if (note === undefined) return { error: "La note est trop longue (300 caractères au plus)." };
-  return { value: { propertyId: b.propertyId, signedOn: b.signedOn, note } };
 }
 
 export function parseTarget(value: unknown): number | null {

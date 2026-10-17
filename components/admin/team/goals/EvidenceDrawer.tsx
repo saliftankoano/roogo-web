@@ -2,9 +2,10 @@
 
 // « Preuves »: what a goal's number is made of (Bureau.dc.html drawer). A
 // side panel on desktop, full screen on the phone. The founder changes the
-// target or removes the goal here, confirms a sale, and the founder or the
-// Directeur enter a manual reading with its screenshot. The server checks
-// each of these again.
+// target or removes the goal here, and the founder or the Directeur enter a
+// manual reading with its screenshot (the fallback when the nightly Facebook
+// or Instagram reading fails). Sales come from the « Vendu » status of the
+// listing. The server checks each of these again.
 
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
@@ -143,9 +144,6 @@ export function EvidenceDrawer({
           </p>
         )}
         {goal.manual && data.canEnterReading && <ReadingForm goal={goal} api={api} busy={!!busy[`reading:${goal.metric}`]} todayKey={data.todayKey} />}
-        {goal.metric === "properties_sold" && canManage && goal.forSale.length > 0 && (
-          <SaleForm goal={goal} api={api} busy={!!busy.sale} todayKey={data.todayKey} />
-        )}
 
         {goal.history.length > 0 && (
           <>
@@ -197,16 +195,6 @@ export function EvidenceDrawer({
               >
                 {row.link}
               </Link>
-            )}
-            {row.saleId && canManage && (
-              <button
-                type="button"
-                disabled={busy[`sale:${row.saleId}`]}
-                onClick={() => api.removeSale(row.saleId!)}
-                className="inline-flex h-11 shrink-0 items-center rounded-full px-2 text-xs font-bold text-[#8E2A1E] lg:h-9"
-              >
-                Retirer
-              </button>
             )}
           </div>
         ))}
@@ -326,62 +314,6 @@ function ReadingForm({ goal, api, busy, todayKey }: { goal: GoalView; api: Goals
       <div className="flex gap-2">
         <button type="submit" disabled={busy} className="h-11 flex-1 rounded-full bg-[#C96A2E] px-4 text-sm font-extrabold text-white disabled:opacity-60">
           {busy ? "Envoi…" : "Enregistrer le relevé"}
-        </button>
-        <button type="button" onClick={() => setOpen(false)} className="h-11 rounded-full border border-[#E2D8CC] bg-white px-4 text-sm font-bold">
-          Annuler
-        </button>
-      </div>
-    </form>
-  );
-}
-
-function SaleForm({ goal, api, busy, todayKey }: { goal: GoalView; api: GoalsApi; busy: boolean; todayKey: string }) {
-  const [open, setOpen] = useState(false);
-  const [propertyId, setPropertyId] = useState("");
-  const [date, setDate] = useState(todayKey);
-  const id = useId();
-  if (!open) {
-    return (
-      <div className="px-4 pb-1 pt-2 lg:px-5">
-        <button type="button" onClick={() => setOpen(true)} className="h-11 w-full cursor-pointer rounded-full bg-[#1F1A16] px-4 text-sm font-extrabold text-white">
-          Confirmer une vente signée
-        </button>
-      </div>
-    );
-  }
-  return (
-    <form
-      className="mx-4 my-2 flex flex-col gap-2.5 rounded-2xl border border-[#EFE6DA] bg-[#FBF7F1] p-3 lg:mx-5"
-      onSubmit={async (event) => {
-        event.preventDefault();
-        if (!propertyId) return;
-        const ok = await api.confirmSale({ propertyId, signedOn: date });
-        if (ok) setOpen(false);
-      }}
-    >
-      <span className="text-sm font-extrabold">Une vente compte quand l’acte est signé chez le notaire.</span>
-      <label htmlFor={`${id}-p`} className="flex flex-col gap-1 text-xs font-extrabold text-[#6B625B]">
-        Bien vendu
-        <select
-          id={`${id}-p`}
-          required
-          value={propertyId}
-          onChange={(event) => setPropertyId(event.target.value)}
-          className="h-11 min-w-0 rounded-xl border border-[#E2D8CC] bg-white px-2 text-sm font-bold text-[#1F1A16]"
-        >
-          <option value="">Choisir…</option>
-          {goal.forSale.map((p) => (
-            <option key={p.id} value={p.id}>{p.label}</option>
-          ))}
-        </select>
-      </label>
-      <label htmlFor={`${id}-d`} className="flex flex-col gap-1 text-xs font-extrabold text-[#6B625B]">
-        Signé chez le notaire le
-        <input id={`${id}-d`} type="date" max={todayKey} value={date} onChange={(event) => setDate(event.target.value)} className="h-11 rounded-xl border border-[#E2D8CC] bg-white px-3 text-[15px] text-[#1F1A16]" />
-      </label>
-      <div className="flex gap-2">
-        <button type="submit" disabled={busy || !propertyId} className="h-11 flex-1 rounded-full bg-[#C96A2E] px-4 text-sm font-extrabold text-white disabled:opacity-60">
-          Confirmer la vente
         </button>
         <button type="button" onClick={() => setOpen(false)} className="h-11 rounded-full border border-[#E2D8CC] bg-white px-4 text-sm font-bold">
           Annuler

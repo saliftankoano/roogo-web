@@ -57,9 +57,6 @@ export function useGoals(initial: GoalsPayload) {
       run(`lever:${leverId}`, () => callApi(`/api/admin/goals/levers/${leverId}`, { method: "PATCH", body: JSON.stringify({ action: "archive" }) })),
     addReading: (body: { metric: string; value: number; measuredOn: string; note: string; proof: { data: string; ext: string } | null }) =>
       run(`reading:${body.metric}`, () => callApi("/api/admin/goals/readings", { method: "POST", body: JSON.stringify(body) })),
-    confirmSale: (body: { propertyId: string; signedOn: string }) =>
-      run("sale", () => callApi("/api/admin/goals/sales", { method: "POST", body: JSON.stringify(body) })),
-    removeSale: (id: string) => run(`sale:${id}`, () => callApi(`/api/admin/goals/sales?id=${id}`, { method: "DELETE" })),
     create: (body: unknown) => run("create", () => callApi<{ id: string }>("/api/admin/goals", { method: "POST", body: JSON.stringify(body) })),
   };
 

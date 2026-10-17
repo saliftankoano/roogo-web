@@ -33,8 +33,9 @@ import {
   periodChoices,
   readingAt,
   readingPace,
+  readingSourceLabel,
   recentPerDay,
-  salesInWindow,
+  soldInWindow,
   shareTotals,
   shortDayLabel,
   teamWeek,
@@ -110,6 +111,8 @@ export type ReadingRow = {
   entered_by: string | null;
   proof_path: string | null;
   note: string | null;
+  /** manuel or automatique (migration 093); manuel before it runs. */
+  source?: string | null;
   created_at: string;
 };
 
@@ -151,8 +154,6 @@ export type EvidenceRow = {
   link: string | null;
   /** Signed link to the screenshot of a reading. */
   proofUrl: string | null;
-  /** For a confirmed sale: its id (the founder can remove it). */
-  saleId?: string;
   muted?: boolean;
 };
 
@@ -203,8 +204,6 @@ export type GoalView = {
   evidence: EvidenceRow[];
   history: HistoryRow[];
   manual: boolean;
-  /** For the sold metric (founder): the properties for sale, to confirm one. */
-  forSale: { id: string; label: string }[];
   levers: LeverView[];
 };
 
@@ -233,7 +232,6 @@ type MetricResult = {
   listTitle: string;
   evidence: EvidenceRow[];
   history: HistoryRow[];
-  forSale: { id: string; label: string }[];
 };
 
 type Ctx = {
@@ -249,7 +247,7 @@ type Loaded = {
   readings?: Map<string, ReadingRow[]>;
   proofUrls?: Map<string, string>;
   contracts?: { rows: { property_id: string; start_date: string | null; monthly_rent: number | null; property: PropertyBits | null }[] };
-  sales?: { rows: { id: string; property_id: string; signed_on: string; confirmed_by: string | null; property: PropertyBits | null }[]; forSale: PropertyBits[] };
+  sales?: { rows: SoldProperty[]; forSale: PropertyBits[] };
   listings?: PropertyBits[];
 };
 
@@ -271,21 +269,29 @@ async function loadUsers(): Promise<{ createdAts: string[] }> {
   return { createdAts };
 }
 
-async function loadReadings(metrics: string[]): Promise<{ readings: Map<string, ReadingRow[]>; proofUrls: Map<string, string> }> {
-  const { data, error } = await supabaseAdmin
+const READING_COLUMNS = "id, metric, value, measured_on, entered_by, proof_path, note, created_at";
+
+async function selectReadings(metrics: string[], withSource: boolean) {
+  return supabaseAdmin
     .from("team_goal_readings")
-    .select("id, metric, value, measured_on, entered_by, proof_path, note, created_at")
+    .select(withSource ? `${READING_COLUMNS}, source` : READING_COLUMNS)
     .in("metric", metrics)
     .order("measured_on", { ascending: false })
     .order("created_at", { ascending: false })
     .limit(300);
+}
+
+async function loadReadings(metrics: string[]): Promise<{ readings: Map<string, ReadingRow[]>; proofUrls: Map<string, string> }> {
+  let { data, error } = await selectReadings(metrics, true);
+  // Before migration 093 there is no source column: every reading is manual.
+  if (error?.code === "42703") ({ data, error } = await selectReadings(metrics, false));
   if (error) throw error;
   const readings = new Map<string, ReadingRow[]>();
-  for (const row of (data ?? []) as ReadingRow[]) {
+  for (const row of (data ?? []) as unknown as ReadingRow[]) {
     if (!readings.has(row.metric)) readings.set(row.metric, []);
     readings.get(row.metric)!.push(row);
   }
-  const paths = [...new Set((data ?? []).map((r) => r.proof_path as string | null).filter((p): p is string => !!p))].slice(0, 60);
+  const paths = [...new Set(((data ?? []) as unknown as ReadingRow[]).map((r) => r.proof_path).filter((p): p is string => !!p))].slice(0, 60);
   const proofUrls = new Map<string, string>();
   if (paths.length) {
     const signed = await supabaseAdmin.storage.from(PROOF_BUCKET).createSignedUrls(paths, PROOF_TTL_SECONDS);
@@ -316,13 +322,18 @@ async function loadContracts() {
   return { rows };
 }
 
+type SoldProperty = PropertyBits & { status: string | null; is_test: boolean | null; sold_at: string | null; sold_price: number | null; sold_by: string | null };
+
+/** Sold listings (status vendu, migration 093) and the listings for sale now. */
 async function loadSales() {
   const [sales, forSale] = await Promise.all([
     supabaseAdmin
-      .from("team_goal_sales")
-      .select("id, property_id, signed_on, confirmed_by, property:property_id ( id, reference, property_type, quartier, city, price, is_test )")
-      .order("signed_on", { ascending: false })
-      .limit(200),
+      .from("properties")
+      .select("id, reference, property_type, quartier, city, price, listing_type, status, is_test, sold_at, sold_price, sold_by")
+      .eq("status", "vendu")
+      .eq("is_test", false)
+      .order("sold_at", { ascending: false })
+      .limit(500),
     supabaseAdmin
       .from("properties")
       .select("id, reference, property_type, quartier, city, price, listing_type, status, is_test")
@@ -332,19 +343,14 @@ async function loadSales() {
       .order("created_at", { ascending: false })
       .limit(200),
   ]);
-  // Before migration 091 the sales table is missing: no confirmed sale yet, the list for sale still shows.
-  if (sales.error && !isMissingTable(sales.error)) throw sales.error;
+  // Before migration 093, 'vendu' is not a status yet (22P02) and the sold
+  // columns are missing (42703): nothing sold yet, the list for sale still shows.
+  const notYet = sales.error && (sales.error.code === "22P02" || isMissingTable(sales.error));
+  if (sales.error && !notYet) throw sales.error;
   if (forSale.error) throw forSale.error;
-  const soldIds = new Set((sales.data ?? []).map((row) => row.property_id as string));
   return {
-    rows: (sales.data ?? []).map((row) => ({
-      id: row.id as string,
-      property_id: row.property_id as string,
-      signed_on: row.signed_on as string,
-      confirmed_by: row.confirmed_by as string | null,
-      property: one(row.property as PropertyBits | PropertyBits[] | null),
-    })),
-    forSale: ((forSale.data ?? []) as PropertyBits[]).filter((p) => !soldIds.has(p.id)),
+    rows: notYet ? [] : ((sales.data ?? []) as SoldProperty[]),
+    forSale: (forSale.data ?? []) as PropertyBits[],
   };
 }
 
@@ -382,7 +388,7 @@ function propertyRow(p: PropertyBits | null, sub: string, key: string, extra: Pa
 function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded): MetricResult {
   const today = ctx.todayKey;
   const at = window.ended ? window.endKey : today;
-  const empty: MetricResult = { current: null, actualPerDay: null, paceText: "", listTitle: "", evidence: [], history: [], forSale: [] };
+  const empty: MetricResult = { current: null, actualPerDay: null, paceText: "", listTitle: "", evidence: [], history: [] };
   const months = pastMonthWindows(goal, today);
   const target = goal.target;
   const reachedLabel = (n: number | null) => (n == null ? "?" : formatCount(n));
@@ -427,7 +433,7 @@ function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded):
           tag: shortDayLabel(r.measured_on),
           tagTone: "light",
           title: `${formatCount(r.value)} ${r.value > 1 ? "abonnés" : "abonné"}`,
-          sub: [nameOf(ctx.people, r.entered_by) ? `Saisi par ${nameOf(ctx.people, r.entered_by)}` : "Saisi à la main", r.note].filter(Boolean).join(" · "),
+          sub: [readingSourceLabel(goal.metric, r.source, nameOf(ctx.people, r.entered_by)), r.note].filter(Boolean).join(" · "),
           href: null,
           link: r.proof_path && loaded.proofUrls?.get(r.proof_path) ? "Voir la capture" : null,
           proofUrl: r.proof_path ? (loaded.proofUrls?.get(r.proof_path) ?? null) : null,
@@ -466,15 +472,18 @@ function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded):
     case "properties_sold": {
       const sales = loaded.sales?.rows ?? [];
       const forSale = loaded.sales?.forSale ?? [];
-      const counted = salesInWindow(sales, window);
+      const counted = soldInWindow(sales, window);
       const shown = forSale.slice(0, 12);
       const evidence: EvidenceRow[] = [
         ...counted.map((s) =>
           propertyRow(
-            s.property,
-            [`Signé le ${dayLabel(s.signed_on, today)}`, nameOf(ctx.people, s.confirmed_by) ? `confirmé par ${nameOf(ctx.people, s.confirmed_by)}` : null].filter(Boolean).join(" · "),
-            `sale:${s.id}`,
-            { saleId: s.id },
+            s,
+            [
+              `Vendu, signé le ${dayLabel(dayKeyOf(new Date(s.sold_at!)), today)}`,
+              fcfa(s.sold_price),
+              nameOf(ctx.people, s.sold_by) ? `par ${nameOf(ctx.people, s.sold_by)}` : null,
+            ].filter(Boolean).join(" · "),
+            `sold:${s.id}`,
           ),
         ),
         ...shown.map((p) => propertyRow(p, [fcfa(p.price), "en vente"].filter(Boolean).join(" · "), `for-sale:${p.id}`, { muted: true })),
@@ -489,14 +498,13 @@ function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded):
       return {
         ...empty,
         current: n,
-        paceText: n ? `${n} ${n > 1 ? "ventes confirmées" : "vente confirmée"} sur la période.` : "Aucune vente confirmée pour l’instant.",
-        listTitle: `${forSale.length} ${forSale.length > 1 ? "biens en vente" : "bien en vente"}, ${n ? `${n} ${n > 1 ? "signés" : "signé"}` : "aucun signé"}`,
+        paceText: n ? `${n} ${n > 1 ? "biens vendus" : "bien vendu"} sur la période.` : "Aucun bien vendu pour l’instant.",
+        listTitle: `${n ? `${n} ${n > 1 ? "vendus" : "vendu"}` : "Aucun vendu"}, ${forSale.length} ${forSale.length > 1 ? "biens en vente" : "bien en vente"}`,
         evidence,
         history: months.map((m) => {
-          const v = salesInWindow(sales, m).length;
+          const v = soldInWindow(sales, m).length;
           return { key: m.startKey, label: m.label, value: reachedLabel(v), reached: v >= target };
         }),
-        forSale: forSale.map((p) => ({ id: p.id, label: propertyLabel(p) })),
       };
     }
     case "properties_listed_in_period": {
@@ -695,7 +703,7 @@ export async function goalsFromRows(
     const def = METRICS[goal.metric];
     const window = windows.get(goal.id)!;
     const metric = failed.includes(goal.metric)
-      ? { current: null, actualPerDay: null, paceText: "Le chiffre n’a pas pu se charger. Rechargez la page.", listTitle: "", evidence: [], history: [], forSale: [] }
+      ? { current: null, actualPerDay: null, paceText: "Le chiffre n’a pas pu se charger. Rechargez la page.", listTitle: "", evidence: [], history: [] }
       : metricFor(goal, window, ctx, loaded);
     const progress = goalProgress({
       current: metric.current,
@@ -736,7 +744,6 @@ export async function goalsFromRows(
       evidence: metric.evidence,
       history: metric.history,
       manual: def.manual,
-      forSale: canManageGoals(viewer.level) ? metric.forSale : [],
       levers: leverViews.filter((l) => l.goalId === goal.id),
     };
   });
@@ -943,33 +950,4 @@ export async function addReading(
     return writeError(error ?? {}, "add reading");
   }
   return { ok: true, value: { id: data.id as string } };
-}
-
-export async function confirmSale(viewer: Viewer, input: { propertyId: string; signedOn: string; note: string | null }): Promise<ServiceResult<{ id: string }>> {
-  const denied = founderOnly(viewer);
-  if (denied) return fail(403, "Seul le Fondateur confirme une vente.");
-  const { data: property, error: propertyError } = await supabaseAdmin
-    .from("properties")
-    .select("id, listing_type, is_test")
-    .eq("id", input.propertyId)
-    .maybeSingle();
-  if (propertyError) return writeError(propertyError, "sale property");
-  if (!property) return fail(404, "Ce bien n’existe plus.");
-  if (property.listing_type !== "vendre") return fail(400, "Ce bien n’est pas à vendre.");
-  if (property.is_test) return fail(400, "Une annonce de test ne compte pas.");
-  const { data, error } = await supabaseAdmin
-    .from("team_goal_sales")
-    .insert({ property_id: input.propertyId, signed_on: input.signedOn, note: input.note, confirmed_by: viewer.id })
-    .select("id")
-    .single();
-  if (error || !data) return error?.code === "23505" ? fail(409, "Cette vente est déjà confirmée.") : writeError(error ?? {}, "confirm sale");
-  return { ok: true, value: { id: data.id as string } };
-}
-
-export async function removeSale(viewer: Viewer, id: string): Promise<ServiceResult<{ id: string }>> {
-  if (founderOnly(viewer)) return fail(403, "Seul le Fondateur confirme une vente.");
-  const { data, error } = await supabaseAdmin.from("team_goal_sales").delete().eq("id", id).select("id");
-  if (error) return writeError(error, "remove sale");
-  if (!data?.length) return fail(404, "Cette vente n’existe plus.");
-  return { ok: true, value: { id } };
 }

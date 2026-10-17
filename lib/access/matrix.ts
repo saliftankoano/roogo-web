@@ -44,13 +44,13 @@ export const LEVEL_CARDS: LevelCard[] = [
   {
     level: "fondateur",
     summary:
-      "Tout ce que fait le personnel, plus Finances, Paramètres, les titres de l’équipe, le paiement des commissions de parrainage, les réponses aux demandes et les objectifs de l’équipe (objectifs, leviers, ventes confirmées).",
+      "Tout ce que fait le personnel, plus Finances, Paramètres, les titres de l’équipe, le paiement des commissions de parrainage, les réponses aux demandes et les objectifs de l’équipe (objectifs et leviers).",
     source: "Type de compte « founder » dans Clerk. Il ne se donne pas dans l’appli.",
   },
   {
     level: "directeur",
     summary:
-      "Comme le personnel, plus le tableau L’équipe, donner des tâches à tout le monde, envoyer des demandes au Fondateur, suivre les visites terrain, lire toutes les notes d’appels et saisir les chiffres des objectifs.",
+      "Comme le personnel, plus le tableau L’équipe, donner des tâches à tout le monde, envoyer des demandes au Fondateur, suivre les visites terrain, lire toutes les notes d’appels, saisir les chiffres des objectifs et marquer un bien comme vendu.",
     source: "Titre donné par le Fondateur dans L’équipe.",
   },
   {
@@ -295,8 +295,8 @@ export const AREAS: Area[] = [
       },
       {
         id: "goals-manage",
-        action: "Créer, modifier ou retirer un objectif, ses leviers et les ventes confirmées",
-        detail: "Ajouter un objectif, changer la cible, le retirer (avec « Annuler »), ajouter ou modifier un levier, confirmer une vente signée chez le notaire.",
+        action: "Créer, modifier ou retirer un objectif et ses leviers",
+        detail: "Ajouter un objectif, changer la cible, le retirer (avec « Annuler »), ajouter ou modifier un levier. Les ventes se comptent avec le statut « Vendu » de l’annonce.",
         access: FOUNDER_ONLY,
         enforcedBy: ["serveur"],
         files: [
@@ -304,7 +304,6 @@ export const AREAS: Area[] = [
           "app/api/admin/goals/route.ts",
           "app/api/admin/goals/[id]/route.ts",
           "app/api/admin/goals/levers/route.ts",
-          "app/api/admin/goals/sales/route.ts",
         ],
         titleMatters: true,
       },
@@ -460,7 +459,7 @@ export const AREAS: Area[] = [
   {
     id: "annonces",
     title: "Annonces",
-    intro: "Tout le personnel a les mêmes droits sur toutes les annonces.",
+    intro: "Tout le personnel a les mêmes droits sur toutes les annonces, sauf le statut « Vendu ».",
     rules: [
       {
         id: "listing-edit",
@@ -473,11 +472,20 @@ export const AREAS: Area[] = [
       {
         id: "listing-status",
         action: "Mettre une annonce en ligne ou changer son statut",
-        detail: "Une annonce ne passe en ligne qu’une fois ses documents de propriété validés.",
+        detail: "Une annonce ne passe en ligne qu’une fois ses documents de propriété validés. « Vendu » à part, voir la ligne suivante.",
         access: ALL,
         enforcedBy: ["serveur"],
         files: ["app/api/properties/[id]/status/route.ts"],
         titleMatters: false,
+      },
+      {
+        id: "listing-sold",
+        action: "Marquer une annonce de vente comme vendue, ou retirer « Vendu »",
+        detail: "Avec la date de signature chez le notaire et le prix de vente. Seulement une annonce de vente, jamais une annonce de test. C’est ce statut qui compte les ventes dans Nos objectifs.",
+        access: DIRECTOR_AND_FOUNDER,
+        enforcedBy: ["serveur"],
+        files: ["app/api/properties/[id]/status/route.ts", "lib/property-status.ts"],
+        titleMatters: true,
       },
       {
         id: "listing-delete",
