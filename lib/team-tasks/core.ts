@@ -665,10 +665,12 @@ export type DemandeRow = Pick<StaffTaskRow, "status" | "accepted_at" | "replied_
 
 /** The state of an ask on a given day. A snooze is over on its date: the ask is pending (or back in its thread) again. */
 export function demandeState(row: DemandeRow, todayKey?: string): DemandeState {
-  if (row.status === "fait") return "done";
-  if (row.accepted_at) return "accepted";
+  // Approving or settling also closes the row (status "fait"), so it leaves
+  // the open lists; read those two first.
   if (row.decision === "approved") return "approved";
   if (row.settled_at) return "settled";
+  if (row.status === "fait") return "done";
+  if (row.accepted_at) return "accepted";
   if (row.snoozed_until && (!todayKey || row.snoozed_until > todayKey)) return "snoozed";
   if (row.thread_started_at) return "thread";
   if (row.replied_at) return "replied";

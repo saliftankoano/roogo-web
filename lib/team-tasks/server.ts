@@ -17,7 +17,10 @@ import {
   buildColumn,
   capitalize,
   dayKey,
+  demandeActionError,
+  demandeRole,
   demandeState,
+  callDoneError,
   initialsOf,
   isDirectorOrFounder,
   isLate,
@@ -28,6 +31,7 @@ import {
   longDayLabel,
   mergeItems,
   orderPeople,
+  parseSnoozeDate,
   rangeLabel,
   rowToItem,
   toDemandeView,
@@ -37,6 +41,7 @@ import {
   type BoardColumn,
   type BriefingItem,
   type DaySummary,
+  type DemandeMessageRow,
   type DemandeView,
   type NewTaskInput,
   type PastWeek,
@@ -48,6 +53,7 @@ import {
 } from "./core";
 import { loadAutoItems, propertyLabel } from "./sources";
 import { fieldNoticesToday, type FieldNotice } from "@/lib/field-visits/server";
+import { getGoalTitles, getGoalsPayload, type GoalsPayload } from "@/lib/team-goals/server";
 
 export type Viewer = Person & { isFounder: boolean };
 
@@ -172,13 +178,36 @@ export type Snapshot = {
   titlesReady: boolean;
   tasksReady: boolean;
   rows: StaffTaskRow[];
+  /** Thread messages of the demandes in `rows` (092). */
+  messages: DemandeMessageRow[];
   auto: BriefingItem[];
   items: BriefingItem[];
   failedSources: string[];
 };
 
+async function loadMessages(rows: StaffTaskRow[]): Promise<DemandeMessageRow[]> {
+  const ids = rows.filter((row) => row.kind === "demande").map((row) => row.id);
+  if (!ids.length) return [];
+  const { data, error } = await supabaseAdmin
+    .from("staff_task_messages")
+    .select("id, task_id, author_id, body, created_at")
+    .in("task_id", ids.slice(0, 300))
+    .order("created_at", { ascending: true })
+    .limit(2000);
+  if (error) {
+    if (!isMissingTable(error)) console.error("[team-tasks] demande messages failed", { code: error.code });
+    return [];
+  }
+  return (data ?? []) as DemandeMessageRow[];
+}
+
 async function snapshot(viewer: Viewer, now = new Date()): Promise<Snapshot> {
-  const [{ people, titlesReady }, { rows, ready }] = await Promise.all([loadPeople(viewer), loadTaskRows(now)]);
+  const [{ people, titlesReady }, { rows, ready }, goalTitles] = await Promise.all([
+    loadPeople(viewer),
+    loadTaskRows(now),
+    getGoalTitles(),
+  ]);
+  const messages = await loadMessages(rows);
   const todayKey = dayKey(now);
   const { items: auto, failed } = await loadAutoItems({
     now,
@@ -187,13 +216,14 @@ async function snapshot(viewer: Viewer, now = new Date()): Promise<Snapshot> {
     staffIds: new Set(people.map((p) => p.id)),
   });
   const names = namesOf(people);
-  const stored = rows.map((row) => rowToItem(row, names)).filter((item): item is BriefingItem => !!item);
+  const stored = rows.map((row) => rowToItem(row, names, goalTitles)).filter((item): item is BriefingItem => !!item);
   return {
     now,
     people,
     titlesReady,
     tasksReady: ready,
     rows,
+    messages,
     auto,
     items: mergeItems(stored, auto),
     failedSources: failed,
@@ -237,10 +267,14 @@ export type BriefingPayload = {
   tomorrowLabel: string;
   tomorrow: ViewItem[];
   week: DaySummary[];
-  /** Founder only: asks waiting for an answer, plus those handled today. */
+  /** Founder only: asks waiting for an answer, open threads, plus those handled today. */
   asks: DemandeView[];
   /** Directeur only: the asks they sent recently. */
   myAsks: DemandeView[];
+  /** Asks with something new from the other side (« Réponse de Salif »), for the badge. */
+  unreadAsks: number;
+  /** Team goals (091). ready is false until the migration runs. */
+  goals: GoalsPayload | null;
   people: ComposerPerson[];
   canSeeTeam: boolean;
   unassignedCount: number;
@@ -272,42 +306,60 @@ function composerPeople(viewer: Viewer, people: Person[], items: BriefingItem[],
     .sort((a, b) => Number(a.isMe) - Number(b.isMe));
 }
 
-function demandesFor(viewer: Viewer, rows: StaffTaskRow[], names: PersonNames, now: Date) {
+/** Open for the founder: waiting for an answer (a snooze that ended included) or in a thread. */
+function askIsOpen(row: StaffTaskRow, todayKey: string) {
+  const state = demandeState(row, todayKey);
+  return state === "pending" || state === "thread";
+}
+
+export function demandesFor(viewer: Viewer, rows: StaffTaskRow[], names: PersonNames, now: Date, messages: DemandeMessageRow[] = []) {
   const todayKey = dayKey(now);
   const recent = addDays(todayKey, -14);
   const demandes = rows.filter((row) => row.kind === "demande");
   const asks = viewer.isFounder
     ? demandes
         .filter((row) => row.owner_id === viewer.id)
-        .filter((row) => demandeState(row) === "pending" || dayKey(new Date(row.updated_at)) === todayKey)
+        .filter((row) => askIsOpen(row, todayKey) || dayKey(new Date(row.updated_at)) === todayKey)
         .sort((a, b) => (a.created_at < b.created_at ? -1 : 1))
-        .map((row) => toDemandeView(row, names, now))
+        .map((row) => toDemandeView(row, names, now, messages, viewer.id))
     : [];
   const myAsks = demandes
     .filter((row) => row.created_by === viewer.id && row.owner_id !== viewer.id)
-    .filter((row) => demandeState(row) !== "done" || dayKey(new Date(row.updated_at)) >= recent)
-    .sort((a, b) => (a.created_at < b.created_at ? 1 : -1))
-    .slice(0, 10)
-    .map((row) => toDemandeView(row, names, now));
-  return { asks, myAsks };
+    .map((row) => toDemandeView(row, names, now, messages, viewer.id))
+    .filter((ask) => ask.unread || !["done", "approved", "settled"].includes(ask.state) || dayKey(new Date(rows.find((r) => r.id === ask.id)!.updated_at)) >= recent)
+    .sort((a, b) => Number(b.unread) - Number(a.unread) || (a.createdAt < b.createdAt ? 1 : -1))
+    .slice(0, 10);
+  const unread = [...asks, ...myAsks].filter((ask) => ask.unread).length;
+  return { asks, myAsks, unread };
 }
 
 export async function getBriefingPayload(viewer: Viewer, now = new Date()): Promise<BriefingPayload> {
   const snap = await snapshot(viewer, now);
-  const notices = await fieldNoticesToday(viewer.id, snap.people, now).catch((error) => {
-    console.error("[team-tasks] field notices failed", { code: error?.code, message: error?.message });
-    return [];
-  });
-  return briefingFromSnapshot(viewer, snap, notices);
+  const [notices, goals] = await Promise.all([
+    fieldNoticesToday(viewer.id, snap.people, now).catch((error) => {
+      console.error("[team-tasks] field notices failed", { code: error?.code, message: error?.message });
+      return [];
+    }),
+    getGoalsPayload(viewer, snap.people, now).catch((error) => {
+      console.error("[team-tasks] goals failed", { code: error?.code, message: error?.message });
+      return null;
+    }),
+  ]);
+  return briefingFromSnapshot(viewer, snap, notices, goals);
 }
 
 /** Pure assembly of the briefing from loaded data (also used with mocked data in development). */
-export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot, fieldNotices: FieldNotice[] = []): BriefingPayload {
+export function briefingFromSnapshot(
+  viewer: Viewer,
+  snap: Snapshot,
+  fieldNotices: FieldNotice[] = [],
+  goals: GoalsPayload | null = null,
+): BriefingPayload {
   const now = snap.now;
   const mine = snap.items.filter((item) => item.ownerId === viewer.id);
   const parts = buildBriefing(mine, now);
   const names = namesOf(snap.people);
-  const { asks, myAsks } = demandesFor(viewer, snap.rows, names, now);
+  const { asks, myAsks, unread } = demandesFor(viewer, snap.rows, names, now, snap.messages ?? []);
   const canSeeTeam = isDirectorOrFounder(viewer.level);
   return {
     viewer: {
@@ -333,6 +385,8 @@ export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot, fieldNotice
     week: parts.week,
     asks,
     myAsks,
+    unreadAsks: unread,
+    goals,
     people: composerPeople(viewer, snap.people, snap.items, now),
     canSeeTeam,
     unassignedCount: canSeeTeam ? snap.items.filter((item) => !item.ownerId && isOpen(item)).length : 0,
@@ -342,10 +396,11 @@ export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot, fieldNotice
   };
 }
 
-/** Open items for the viewer today (late included): the number on "Mon espace". */
-export async function getOpenCount(viewer: Viewer, now = new Date()): Promise<number> {
+/** Open items for the viewer today (late included) and unread answers on demandes: the numbers on "Mon espace". */
+export async function getOpenCount(viewer: Viewer, now = new Date()): Promise<{ open: number; unread: number }> {
   const snap = await snapshot(viewer, now);
-  return buildBriefing(snap.items.filter((item) => item.ownerId === viewer.id), now).open;
+  const { unread } = demandesFor(viewer, snap.rows, namesOf(snap.people), now, snap.messages ?? []);
+  return { open: buildBriefing(snap.items.filter((item) => item.ownerId === viewer.id), now).open, unread };
 }
 
 export type BoardPerson = Person & { isMe: boolean; isFounder: boolean };
@@ -398,14 +453,14 @@ export function boardFromSnapshot(viewer: Viewer, snap: Snapshot): BoardPayload 
     const asks = isFounder
       ? demandes
           .filter((row) => row.owner_id === person.id)
-          .filter((row) => demandeState(row) === "pending" || dayKey(new Date(row.updated_at)) === todayKey)
-          .map((row) => toDemandeView(row, names, now))
+          .filter((row) => askIsOpen(row, todayKey) || dayKey(new Date(row.updated_at)) === todayKey)
+          .map((row) => toDemandeView(row, names, now, snap.messages ?? [], viewer.id))
       : [];
     const column = buildColumn(
       person,
       snap.items.filter((item) => item.ownerId === person.id),
       now,
-      asks.filter((ask) => ask.state === "pending").length,
+      asks.filter((ask) => ask.state === "pending" || ask.state === "thread").length,
     );
     return {
       ...column,
@@ -472,6 +527,30 @@ export async function createTask(viewer: Viewer, input: NewTaskInput): Promise<S
       : "Vous pouvez seulement vous ajouter une tâche à vous-même.");
   }
   if (kind === "demande" && !input.reason) return fail(400, "Dites pourquoi : c’est obligatoire pour une demande.");
+  if (input.leverId) {
+    const { data: lever, error: leverError } = await supabaseAdmin
+      .from("team_goal_levers")
+      .select("id, goal_id")
+      .eq("id", input.leverId)
+      .maybeSingle();
+    if (leverError) return writeError(leverError, "lever lookup");
+    if (!lever || lever.goal_id !== input.goalId) return fail(400, "Ce levier ne fait pas partie de cet objectif.");
+  } else if (input.goalId) {
+    const { data: goal, error: goalError } = await supabaseAdmin.from("team_goals").select("id").eq("id", input.goalId).maybeSingle();
+    if (goalError) return writeError(goalError, "goal lookup");
+    if (!goal) return fail(400, "Cet objectif n’existe plus.");
+  }
+  // Columns of 091/092 are only sent when used, so plain tasks keep working
+  // before those migrations run.
+  const extra: Record<string, unknown> = {};
+  if (input.goalId) extra.goal_id = input.goalId;
+  if (input.leverId) extra.lever_id = input.leverId;
+  if (input.isCall && kind !== "demande") {
+    extra.is_call = true;
+    if (input.callPhone) extra.call_phone = input.callPhone;
+    if (input.callSubject) extra.call_subject = input.callSubject;
+  }
+  if (input.propertyRequestId) extra.property_request_id = input.propertyRequestId;
   const { data, error } = await supabaseAdmin
     .from("staff_tasks")
     .insert({
@@ -486,6 +565,7 @@ export async function createTask(viewer: Viewer, input: NewTaskInput): Promise<S
       property_id: input.propertyId,
       visit_request_id: input.visitRequestId,
       studio_project_id: input.studioProjectId,
+      ...extra,
     })
     .select("id")
     .single();
@@ -498,7 +578,21 @@ export type TaskAction =
   | { action: "undo" }
   | { action: "postpone" }
   | { action: "accept" }
-  | { action: "reply"; text: string };
+  | { action: "approve" }
+  | { action: "snooze"; until: string }
+  | { action: "message"; text: string }
+  | { action: "settle" }
+  | { action: "seen" };
+
+/** True when a call note exists for the task (092). */
+export async function hasCallNote(taskId: string): Promise<boolean> {
+  const { data, error } = await supabaseAdmin.from("staff_call_notes").select("id").eq("task_id", taskId).limit(1);
+  if (error) {
+    if (isMissingTable(error)) return false;
+    throw error;
+  }
+  return (data ?? []).length > 0;
+}
 
 function nextWorkingDay(key: string) {
   const next = addDays(key, 1);
@@ -519,7 +613,12 @@ export async function updateTask(viewer: Viewer, id: string, body: TaskAction, n
     case "postpone": {
       if (!involved) return fail(403, "Cette tâche n’est pas la vôtre.");
       if (row.kind === "demande" && !row.accepted_at) return fail(409, "Cette demande n’a pas encore été prise en charge.");
-      if (body.action === "done") patch = { status: "fait", completed_at: nowIso, completed_by: viewer.id };
+      if (body.action === "done") {
+        // Rule approved by Salif (2026-10-16): no ticking a call task before its result is noted.
+        const refusal = callDoneError(row, row.is_call ? await hasCallNote(row.id) : false);
+        if (refusal) return fail(409, refusal);
+        patch = { status: "fait", completed_at: nowIso, completed_by: viewer.id };
+      }
       else if (body.action === "undo") {
         if (row.kind === "auto") {
           const { error: deleteError } = await supabaseAdmin.from("staff_tasks").delete().eq("id", id).eq("kind", "auto");
@@ -534,18 +633,42 @@ export async function updateTask(viewer: Viewer, id: string, body: TaskAction, n
       break;
     }
     case "accept":
-    case "reply": {
+    case "approve":
+    case "snooze":
+    case "message":
+    case "settle":
+    case "seen": {
       if (row.kind !== "demande") return fail(400, "Ce n’est pas une demande.");
-      if (!viewer.isFounder || row.owner_id !== viewer.id) return fail(403, "Seul le Fondateur concerné peut répondre à cette demande.");
+      const today = dayKey(now);
+      const role = demandeRole(row, viewer.id);
+      // The founder addressed must really be the founder (a title change cannot make anyone else answer).
+      const effectiveRole = role === "owner" && !viewer.isFounder ? "other" : role;
+      if (body.action === "accept" && row.accepted_at && effectiveRole === "owner") return { ok: true, value: { id } };
+      const refusal = demandeActionError(demandeState(row, today), body.action, effectiveRole);
+      if (refusal) return fail(effectiveRole === "other" || (effectiveRole === "sender" && body.action !== "message" && body.action !== "settle") ? 403 : 409, refusal);
+      const seenField = effectiveRole === "owner" ? "owner_seen_at" : "sender_seen_at";
       if (body.action === "accept") {
-        if (row.accepted_at) return { ok: true, value: { id } };
-        const today = dayKey(now);
-        patch = { accepted_at: nowIso, due_date: row.due_date < today ? today : row.due_date };
+        patch = { accepted_at: nowIso, due_date: row.due_date < today ? today : row.due_date, snoozed_until: null };
+      } else if (body.action === "approve") {
+        patch = { decision: "approved", decided_at: nowIso, status: "fait", completed_at: nowIso, completed_by: viewer.id, snoozed_until: null };
+      } else if (body.action === "snooze") {
+        const until = parseSnoozeDate((body as { until?: unknown }).until, today);
+        if ("error" in until) return fail(400, until.error);
+        patch = { snoozed_until: until.value, snoozed_at: nowIso };
+      } else if (body.action === "settle") {
+        patch = { settled_at: nowIso, settled_by: viewer.id, status: "fait", completed_at: nowIso, completed_by: viewer.id, [seenField]: nowIso };
+      } else if (body.action === "seen") {
+        patch = { [seenField]: nowIso };
       } else {
-        const text = typeof body.text === "string" ? body.text.trim() : "";
-        if (!text) return fail(400, "Écrivez votre réponse.");
-        if (text.length > 500) return fail(400, "La réponse est trop longue (500 caractères au plus).");
-        patch = { reply_text: text, replied_at: nowIso };
+        const text = typeof (body as { text?: unknown }).text === "string" ? (body as { text: string }).text.trim() : "";
+        if (!text) return fail(400, "Écrivez votre message.");
+        if (text.length > 1000) return fail(400, "Le message est trop long (1000 caractères au plus).");
+        const { error: messageError } = await supabaseAdmin.from("staff_task_messages").insert({ task_id: id, author_id: viewer.id, body: text });
+        if (messageError) {
+          if (isMissingTable(messageError)) return fail(503, "Les réponses écrites ne sont pas encore installées (migration 092 à lancer).");
+          return writeError(messageError, "demande message");
+        }
+        patch = { [seenField]: nowIso, ...(row.thread_started_at ? {} : { thread_started_at: nowIso, snoozed_until: null }) };
       }
       break;
     }
@@ -554,7 +677,12 @@ export async function updateTask(viewer: Viewer, id: string, body: TaskAction, n
   }
 
   const { error: updateError } = await supabaseAdmin.from("staff_tasks").update(patch).eq("id", id);
-  if (updateError) return writeError(updateError, body.action);
+  if (updateError) {
+    if (updateError.code === "42703" || updateError.code === "PGRST204") {
+      return fail(503, "Cette réponse n’est pas encore installée (migration 092 à lancer).");
+    }
+    return writeError(updateError, body.action);
+  }
   return { ok: true, value: { id } };
 }
 
@@ -682,6 +810,24 @@ export async function searchLinks(viewer: Viewer, type: string, q: string): Prom
           ].filter(Boolean).join(" · "),
         };
       }),
+    };
+  }
+  if (type === "request") {
+    let query = supabaseAdmin
+      .from("property_requests")
+      .select("id, title, neighborhood, city, listing_type, status")
+      .order("created_at", { ascending: false })
+      .limit(15);
+    if (term) query = query.or(`title.ilike.%${term}%,neighborhood.ilike.%${term}%,city.ilike.%${term}%`);
+    const { data, error } = await query;
+    if (error) return writeError(error, "links request");
+    return {
+      ok: true,
+      value: (data ?? []).map((row) => ({
+        id: row.id as string,
+        label: row.title as string,
+        sub: [row.listing_type === "vendre" ? "Achat" : "Location", row.neighborhood, row.city].filter(Boolean).join(" · "),
+      })),
     };
   }
   if (type === "studio") {
