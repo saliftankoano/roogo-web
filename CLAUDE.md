@@ -155,6 +155,9 @@ PAWAPAY_API_TOKEN
 PAWAPAY_URL
 NEXT_PUBLIC_POSTHOG_KEY
 NEXT_PUBLIC_POSTHOG_HOST
+META_GRAPH_TOKEN        # server only: Meta Graph token for the nightly follower readings (never log it)
+META_PAGE_ID            # Roogo Burkina Facebook page id (1046356035218080)
+META_IG_ACCOUNT_ID      # @roogo.burkina Instagram business account id (17841436630471998)
 ```
 
 ### Design System
