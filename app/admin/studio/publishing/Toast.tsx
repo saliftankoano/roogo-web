@@ -18,9 +18,9 @@ export function Toast({ toast, onDone }: { toast: ToastMessage | null; onDone: (
     if (!toast) return;
     const el = ref.current;
     const animate = motionOn();
-    if (el && animate) gsap.fromTo(el, { y: -24, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" });
+    if (el && animate) gsap.fromTo(el, { y: -12, opacity: 0 }, { y: 0, opacity: 1, duration: 0.4, ease: "power3.out" });
     const id = window.setTimeout(() => {
-      if (el && animate) gsap.to(el, { y: -16, opacity: 0, duration: 0.25, ease: "power2.in", onComplete: onDone });
+      if (el && animate) gsap.to(el, { y: -8, opacity: 0, duration: 0.25, ease: "power2.in", onComplete: onDone });
       else onDone();
     }, 4000);
     return () => window.clearTimeout(id);

@@ -90,7 +90,7 @@ export function ApprovalPreview({
     else
       gsap.fromTo(
         panel,
-        { opacity: 0, scale: 0.96, y: 12 },
+        { opacity: 0, scale: 0.98, y: 12 },
         { opacity: 1, scale: 1, y: 0, duration: 0.35, ease: "power3.out" },
       );
   }, [mounted]);
@@ -104,8 +104,8 @@ export function ApprovalPreview({
     if (view === "approved" && checkRef.current && motionOn()) {
       gsap.fromTo(
         checkRef.current,
-        { scale: 0.4, opacity: 0 },
-        { scale: 1, opacity: 1, duration: 0.5, ease: "back.out(2.4)" },
+        { scale: 0.98, opacity: 0 },
+        { scale: 1, opacity: 1, duration: 0.35, ease: "power2.out" },
       );
     }
   }, [view]);
@@ -120,7 +120,7 @@ export function ApprovalPreview({
       panel,
       isPhone()
         ? { yPercent: 100, duration: 0.3, ease: "power2.in" }
-        : { opacity: 0, scale: 0.97, duration: 0.2, ease: "power2.in" },
+        : { opacity: 0, scale: 0.98, duration: 0.2, ease: "power2.in" },
     );
     if (backdropRef.current)
       tl.to(backdropRef.current, { opacity: 0, duration: 0.2 }, "<");
