@@ -7,6 +7,16 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### The access page is generated from one matrix file — 2026-10-16
+
+**Decision:** "Qui peut faire quoi" (`/admin/acces`) describes the access levels exactly as the code enforces them on this branch, from a single typed file, `lib/access/matrix.ts`. A test (`lib/access/matrix.test.mjs`) ties the file to the real helpers and fails when a staff API route is added without being described. What the vault proposal of 2026-10-11 approves but the code does not enforce is listed separately as "Prévu mais pas encore appliqué", never as current behaviour. The page is linked from the Pilotage menu (every staff member) and from L'équipe, not from a new top-level navbar item.
+
+**Why:** The team needs one place to know what each title can do, and the founder needs to see where the app still allows more than the approved matrix. A hand-written page would drift from the code; a matrix checked by a test cannot drift silently.
+
+**Ruled out / alternatives:** Deriving the page automatically from the route files (checks are written in too many styles to parse reliably). Showing the vault matrix as if it were live. A new top-level navbar item (too noisy for a reference page).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. The separate branch `feat/staff-levels` (PR 67, a different access model with its own migration 089) is not part of this branch; if it is merged, the matrix and the page must be rewritten in the same change. See [how it works](./SYSTEM.md#how-does-staff-access-work-and-where-is-it-written-down).
+
 ### The field visit sheet moves into the app — 2026-10-15
 
 **Decision:** The "Fiche de visite de bien" (paper sheet of 2 October 2026) is filled in Roogo, from the listing page or the briefing, following the approved canvas (phone and computer). Tick times are the device's own clock; the four time buttons notify the team inside Roogo (briefing "Sur le terrain aujourd’hui"), WhatsApp is optional. Files are uploaded only at "Retour au bureau", one button per deliverable, into `Biens / Vente|Location / <CODE> <titre> / <type>` in the shared Drive. "Photos et vidéos supprimées des appareils" can be ticked only once every deliverable has a file confirmed by Drive. Sending the sheet creates six manual tasks (source key `field-visit:<id>:<task>`, so finishing twice creates nothing new) due on business days (Monday to Friday), and stores the planned publication dates (J+1, J+2, J+4, J+5).
