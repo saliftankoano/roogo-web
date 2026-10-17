@@ -115,6 +115,30 @@ out. Newest first. For what shipped and when, see
 
 **Status:** Built and shown to Salif locally on 2026-10-11; PR pending.
 
+### Sales: the team decides from +10%, below +10% needs Salif — 2026-10-17
+
+**Decision:** Every sale is still published automatically at owner price + 30%. The team agrees any price from +10% (inclusive, exact whole FCFA) up to +30% on its own ("L'équipe décide"). Below +10% a price is allowed, no longer refused, but only for the founder or the Directeur (staff level `director`): the Directeur must tick « J'en ai discuté avec Salif ». Going below the owner's own price (the owner rethinks his price after a verbal yes) is also founder or Directeur only, with the second confirmation « Le propriétaire a accepté ce prix (accord verbal) ». Other staff get 403. Every such price is recorded in `sale_price_approvals` (migration 097: property, approver, level, new and previous public price, owner price at the time, markup, confirmations, time) in the same request; if the row cannot be written the price is not changed. The PostHog event `sale_price_founder_approved_below_team_floor` stays, without the owner's price or the markup. +15% is only a display reference ("Repère"), +20% the target ("Objectif"). Payout math and helper fees are unchanged.
+
+Owners never see how Roogo approves prices: owner screens show only "Ce que vous recevez selon le prix de vente final" for +30%, +20%, +15%, +10% and their own price (`ownerPayoutScenarios`), with no Roogo commission per row; "Vous recevez au minimum" is gone. Staff panels show the rule and the approvals.
+
+The rule and the +30% markup apply only to sales (`listing_type = 'vendre'`, `saleLadderApplies`): rentals, daily or monthly, keep their price exactly as set. The 075 columns keep their names: `team_floor_markup_pct` now holds the +15% reference and `hard_floor_markup_pct` the +10% team floor. In `sale_closings`, 097 replaces the +10% hard stop with "below +10% needs `approved_by` and `approved_at` before leaving draft", tying the requirement to the actual price instead of the self-reported `below_team_floor` flag.
+
+**Why:** Salif, 2026-10-17: a hard stop at +10% could lose a real buyer, and an owner sometimes lowers his price after a verbal yes. The Directeur negotiates in the field while Salif is often in another time zone, so he can record the price once he has talked to Salif. Owners only provide their price; the internal approval rule is not their concern.
+
+**Ruled out / alternatives:** Keeping the hard stop (2026-10-12). Founder only below +10% (first 2026-10-17 draft, replaced the same day). Log-only approvals (no audit trail). Dropping the `sale_closings` floor check entirely (would allow an unapproved closing below +10%). Renaming the 075 columns (an executed migration).
+
+**Status:** Built on `feat/sale-listing-ladder` (web PR #74 and mobile PR), not merged, not deployed. Migrations 096 then 097 not run. Supersedes the 2026-10-12 rule.
+
+### Sales: keep 10% + 50/50, publish at the top of the price ladder — 2026-10-11
+
+**Decision:** Keep the v2 commission (10% of the owner's price + 50% of the surplus, migration 050) and stop publishing the owner's own price. A sale listing is published at owner price + 30% (`publishedListingPrice`, on creation and again on mandate signing). Staff may move the public price down to +15%; between +15% and +10% only a founder; below +10% nobody (`checkPublicSalePriceChange` on `PATCH /api/properties/[id]`). (Superseded: refined on 2026-10-12 to staff above +10%, founder only AT +10%, below +10% refused; replaced on 2026-10-17 by the entry above.) Owners cannot change a sale's price through a listing edit. The ladder is snapshotted onto each mandate (075 columns, on v2 mandates) and the offer card carries the listing price and the payout table. Notary and referrer fees come out of Roogo's commission. The owner's price moves to the private `sale_asking_prices` table (migration 084) and staff prefill mandates from it, never from `properties.price`.
+
+**Why:** Salif, 2026-10-11: owners responded well to 10% + 50/50, but publishing the owner's number locked every sale into the lowest profit tier. At the +20% target the owner receives exactly his price, which is the pitch. The owner's price must be private once the public price differs, or negotiation starts at the owner's number.
+
+**Ruled out / alternatives:** The guaranteed-net economics on `feat/sale-v3-guaranteed-price` (seller always nets his price, Roogo keeps the margin), approved 2026-09-27 and never shipped; its ladder, markup and guard are reused here, its closing panel and v3 mandate are not. A lower floor at the owner's price (Salif chose a hard stop at +10%, superseded on 2026-10-17).
+
+**Status:** Partly superseded by the 2026-10-17 entry (who decides the price). Built on `feat/sale-listing-ladder`, not merged, not deployed. Run 096 (renumbered from 084 on 2026-10-17) before deploying. Vault: "Roogo Sell commission with listing ladder".
+
 ### Page addresses are French; old ones redirect, except the payment return — 2026-10-11
 
 **Decision:** Rename the 9 English page addresses to French (`/bienvenue`, `/paiements/retour`, and seven admin pages such as `/admin/demandes-de-biens` and `/admin/assistance`). Every old address answers with a permanent redirect in one hop, keeping the query string. The old payment return `/payments/callback` is **not** redirected: it keeps serving the same page directly. `/api/` addresses, `/app`, `/p/[id]`, `/admin`, `/blog`, `/talent`, `/mebo` and `/confidentialite/en` keep their names.

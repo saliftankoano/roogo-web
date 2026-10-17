@@ -40,6 +40,11 @@ import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import ImportExistingLeaseWizard from "@/components/admin/ImportExistingLeaseWizard";
+import StaffSaleLadder from "@/components/admin/StaffSaleLadder";
+import {
+  SALE_PRICE_CONFIRMATION_LABELS,
+  type SalePriceConfirmationKey,
+} from "@/lib/sale-price-guard";
 import {
   updatePropertyStatus,
   updateProperty,
@@ -188,6 +193,14 @@ export default function AdminListingDetail({
   const [confirmEditModalOpen, setConfirmEditModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  // Sale price below +10% (rule of 2026-10-17): confirmations the server asked
+  // for, and the boxes ticked. The server refuses the save until they are.
+  const [requiredPriceConfirmations, setRequiredPriceConfirmations] = useState<
+    SalePriceConfirmationKey[]
+  >([]);
+  const [priceConfirmations, setPriceConfirmations] = useState<
+    Partial<Record<SalePriceConfirmationKey, boolean>>
+  >({});
 
   const isStaffOrFounder = isStaffLikeMetadata(clerkUser?.publicMetadata);
   const staffAccess = useStaffAccess();
@@ -211,6 +224,8 @@ export default function AdminListingDetail({
       virtualTourUrl: listing.virtualTourUrl,
     });
     setEditError(null);
+    setRequiredPriceConfirmations([]);
+    setPriceConfirmations({});
     setIsEditing(true);
   };
 
@@ -328,10 +343,33 @@ export default function AdminListingDetail({
 
   const confirmSave = async () => {
     if (!listing) return;
+    if (
+      requiredPriceConfirmations.some((key) => priceConfirmations[key] !== true)
+    ) {
+      setConfirmEditModalOpen(false);
+      setEditError("Cochez les confirmations sous le prix pour enregistrer.");
+      return;
+    }
     setIsSaving(true);
-    const result = await updateProperty(listing.id, editForm);
+    const result = await updateProperty(listing.id, {
+      ...editForm,
+      priceConfirmations,
+    });
     setIsSaving(false);
+    if (!result.success && result.code === "sale_price_confirmation_required") {
+      setRequiredPriceConfirmations(
+        (result.required ?? []).filter(
+          (key): key is SalePriceConfirmationKey =>
+            key === "discussed_with_salif" || key === "owner_agreed",
+        ),
+      );
+      setConfirmEditModalOpen(false);
+      setEditError(result.error ?? "Confirmations requises pour ce prix.");
+      return;
+    }
     if (result.success) {
+      setRequiredPriceConfirmations([]);
+      setPriceConfirmations({});
       setListing({
         ...listing,
         ...editForm,
@@ -1335,6 +1373,32 @@ export default function AdminListingDetail({
                 </span>
               </p>
             )}
+            {isEditing && isSaleListing && requiredPriceConfirmations.length > 0 && (
+              <fieldset className="mt-4 space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <legend className="px-1 text-xs font-bold text-amber-800">
+                  Prix sous +10 % : confirmations obligatoires
+                </legend>
+                {requiredPriceConfirmations.map((key) => (
+                  <label
+                    key={key}
+                    className="flex items-start gap-2 text-sm font-semibold text-neutral-800"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-primary"
+                      checked={priceConfirmations[key] === true}
+                      onChange={(e) =>
+                        setPriceConfirmations((prev) => ({
+                          ...prev,
+                          [key]: e.target.checked,
+                        }))
+                      }
+                    />
+                    {SALE_PRICE_CONFIRMATION_LABELS[key]}
+                  </label>
+                ))}
+              </fieldset>
+            )}
             {!isSaleListing && (
               <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4 text-xs font-bold text-neutral-500">
                 {isDailyListing ? (
@@ -1366,6 +1430,8 @@ export default function AdminListingDetail({
               </div>
             )}
           </section>
+
+          {isSaleListing && <StaffSaleLadder propertyId={listing.id} />}
 
           {saleIntake?.status === "unlinked" && (
             <section className="rounded-[32px] border border-amber-200 bg-amber-50 p-6">
