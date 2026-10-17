@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-17
+
+- **Security: users table no longer readable or writable with the public key** (web and mobile branch `fix/users-table-exposure`, not merged, migrations 094 and 095 not run): 094 removes every client write on `users`, closes `staff_users`, and makes `public_property_details` return no renter and run with its owner's rights; 095, after the mobile OTA, turns on row security so a signed-in user reads only their own row and the anon key none. Mobile reads the own row with the Clerk token. Read-only check: `node scripts/check-users-exposure.mjs`. [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
+
 ## 2026-10-14
 
 - **Studio guest voices** (web #64, migration 084 applied by Salif): staff can add the voice of an outside person who is present; the guest reads terms and a consent sentence stating Roogo marketing use without time limit. Guest voices are labelled "(invité)", do not use the staff member's own voice slot, and can be withdrawn by a founder or the staff member who recorded them. [Decision](./DECISIONS.md#studio-guest-voices-consent-for-roogo-marketing-without-time-limit--2026-10-13).
