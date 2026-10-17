@@ -1,4 +1,4 @@
--- 084: move the seller's asking price out of the public properties table.
+-- 096: move the seller's asking price out of the public properties table.
 --
 -- properties.seller_asking_price held the net amount the owner typed in the sale
 -- wizard. Every properties column is exposed to anon through
@@ -12,7 +12,8 @@
 --   2) copies existing values into it,
 --   3) clears properties.seller_asking_price and blocks new writes to it.
 --
--- NOT EXECUTED. Run before deploying the code that writes sale_asking_prices,
+-- NOT EXECUTED. Renumbered from 084 on 2026-10-17 (084 is the executed
+-- 084_studio_guest_voices on main). Run before deploying the code that writes sale_asking_prices,
 -- with the production Supabase login (migration 075 already ran 2026-09-27).
 
 BEGIN;
@@ -59,6 +60,6 @@ ALTER TABLE public.properties
   CHECK (seller_asking_price IS NULL);
 
 COMMENT ON COLUMN public.properties.seller_asking_price IS
-  'Retired by migration 084: always NULL. The seller''s asking price lives in sale_asking_prices (service role only).';
+  'Retired by migration 096: always NULL. The seller''s asking price lives in sale_asking_prices (service role only).';
 
 COMMIT;

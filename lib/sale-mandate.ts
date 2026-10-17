@@ -458,7 +458,7 @@ export async function getPrivateAskingPrice(propertyId: string) {
     .eq("property_id", propertyId)
     .maybeSingle();
   if (error) {
-    // Table missing until migration 084 runs. Never log the amount.
+    // Table missing until migration 096 runs. Never log the amount.
     console.warn("Private asking price unavailable:", { propertyId, code: error.code });
     return null;
   }

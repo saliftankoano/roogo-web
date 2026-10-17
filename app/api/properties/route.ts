@@ -819,7 +819,7 @@ export async function POST(req: Request) {
 
     // A sale is published at the top of the price ladder (owner price + 30%,
     // Salif 2026-10-11), never at the owner's own number. The owner's price is
-    // kept privately in sale_asking_prices (migration 084). Signing the mandate
+    // kept privately in sale_asking_prices (migration 096). Signing the mandate
     // re-derives the public price from the mandate's desired_price.
     const publicPrice = isSaleListing
       ? publishedListingPrice(

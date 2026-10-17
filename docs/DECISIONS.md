@@ -15,7 +15,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** The guaranteed-net economics on `feat/sale-v3-guaranteed-price` (seller always nets his price, Roogo keeps the margin), approved 2026-09-27 and never shipped; its ladder, markup and guard are reused here, its closing panel and v3 mandate are not. A lower floor at the owner's price (Salif chose a hard stop at +10%).
 
-**Status:** Built on `feat/sale-listing-ladder`, not merged, not deployed. Run 084 before deploying. Vault: "Roogo Sell commission with listing ladder".
+**Status:** Built on `feat/sale-listing-ladder`, not merged, not deployed. Run 096 (renumbered from 084 on 2026-10-17) before deploying. Vault: "Roogo Sell commission with listing ladder".
 
 ### Page addresses are French; old ones redirect, except the payment return — 2026-10-11
 
