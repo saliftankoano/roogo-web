@@ -342,7 +342,7 @@ export function briefingFromSnapshot(viewer: Viewer, snap: Snapshot, fieldNotice
   };
 }
 
-/** Open items for the viewer today (late included): the number on "Aujourd’hui". */
+/** Open items for the viewer today (late included): the number on "Mon espace". */
 export async function getOpenCount(viewer: Viewer, now = new Date()): Promise<number> {
   const snap = await snapshot(viewer, now);
   return buildBriefing(snap.items.filter((item) => item.ownerId === viewer.id), now).open;

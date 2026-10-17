@@ -126,7 +126,7 @@ export const AREAS: Area[] = [
   {
     id: "taches",
     title: "Tâches et demandes au Fondateur",
-    intro: "Aujourd’hui (mon briefing) et L’équipe. C’est la seule partie de l’appli où le titre change déjà les droits.",
+    intro: "Mon espace (le briefing) et L’équipe. C’est la seule partie de l’appli où le titre change déjà les droits.",
     rules: [
       {
         id: "briefing",

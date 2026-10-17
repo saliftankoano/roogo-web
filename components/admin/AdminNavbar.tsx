@@ -29,7 +29,7 @@ function isLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Open tasks for today on the "Aujourd’hui" item; refreshed when tasks change. */
+/** Open tasks for today on the "Mon espace" item; refreshed when tasks change. */
 function useTodayCount(enabled: boolean) {
   const [count, setCount] = useState<number | null>(null);
   useEffect(() => {
@@ -121,7 +121,7 @@ function DesktopNavLink({
       )}
       <span className="relative z-10 flex items-center gap-2">
         <Icon size={18} weight={isActive ? "fill" : "bold"} />
-        {/* Between lg and xl the bar is already full: Aujourd’hui shows its icon and count only. */}
+        {/* Between lg and xl the bar is already full: Mon espace shows its icon and count only. */}
         <span
           className={cn(
             "whitespace-nowrap",

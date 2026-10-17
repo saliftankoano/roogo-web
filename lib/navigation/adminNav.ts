@@ -9,7 +9,7 @@ import {
   HandshakeIcon,
   HouseLineIcon,
   IdentificationCardIcon,
-  ListChecksIcon,
+  SquaresFourIcon,
   MicrophoneIcon,
   PencilSimpleLineIcon,
   ShieldCheckIcon,
@@ -25,14 +25,14 @@ export const studioNavItem: AdminNavItemLink = {
   icon: MicrophoneIcon,
 };
 
-// "Mon briefing": first item of the admin navbar only (the public Navbar keeps
+// "Mon espace": first item of the admin navbar only (the public Navbar keeps
 // its own list). It is active on /admin itself and on /admin/equipe.
 export const todayNavItem: AdminNavItemLink = {
   type: "link",
-  label: "Aujourd’hui",
+  label: "Mon espace",
   href: "/admin",
   id: "admin-nav-today",
-  icon: ListChecksIcon,
+  icon: SquaresFourIcon,
 };
 
 export type AdminNavItem = {
