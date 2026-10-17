@@ -3,7 +3,6 @@ import { createClient } from "@supabase/supabase-js";
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { checkRateLimit, authLimiter } from "@/lib/rate-limit";
 import { safeError } from "@/lib/api-helpers";
-import { isAssignableStaffLevel } from "@/lib/staff-access";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -80,7 +79,7 @@ export async function POST(request: NextRequest) {
         message: "This account is already staff",
       });
     }
-    const staffLevel: "intern" = "intern";
+    const staffLevel = "intern" as const;
 
     // Update Clerk metadata
     const client = await clerkClient();

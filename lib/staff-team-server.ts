@@ -521,7 +521,23 @@ export async function acceptInvitation(clerkUserId: string, token: unknown) {
     throw new TeamError("Impossible de marquer l'invitation comme acceptée.", 500);
   }
 
-  await setClerkAccess(clerkUserId, { userType: "staff", staffLevel: level });
+  // The invitation is already marked used so a second click cannot reuse it.
+  // If granting fails, reopen it so the person can try again.
+  const reopenInvitation = async () => {
+    await supabaseAdmin
+      .from("staff_invitations")
+      .update({ accepted_at: null, accepted_by: null })
+      .eq("id", invitation.id)
+      .then(({ error: reopenError }) => {
+        if (reopenError) console.error("Could not reopen invitation:", reopenError);
+      });
+  };
+  try {
+    await setClerkAccess(clerkUserId, { userType: "staff", staffLevel: level });
+  } catch (error) {
+    await reopenInvitation();
+    throw error;
+  }
   try {
     await setRowAccess(me.id, { userType: "staff", staffLevel: level });
   } catch (error) {
@@ -529,6 +545,7 @@ export async function acceptInvitation(clerkUserId: string, token: unknown) {
       userType: me.user_type === "staff" ? "staff" : "renter",
       staffLevel: isAssignableStaffLevel(me.staff_level) ? me.staff_level : null,
     }).catch((revertError) => console.error("Clerk revert failed:", revertError));
+    await reopenInvitation();
     throw error;
   }
   await applyStudioCaps(me.id, level);
