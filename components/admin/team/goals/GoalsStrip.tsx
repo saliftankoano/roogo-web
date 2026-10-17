@@ -19,11 +19,12 @@ import { GoalIcon, STATUS_CHIP, STATUS_FILL, TAB_BADGE } from "./GoalIcon";
 import { useGoals, type GoalsApi } from "./useGoals";
 
 type Tab = "tous" | PeriodTab;
-const TABS: [Tab, string][] = [
-  ["tous", "Tous"],
-  ["mois", "Ce mois"],
-  ["trimestre", "Ce trimestre"],
-  ["annee", "Cette année"],
+// Long label on desktop, short on the phone so the four tabs fit on one line.
+const TABS: [Tab, string, string][] = [
+  ["tous", "Tous", "Tous"],
+  ["mois", "Ce mois", "Mois"],
+  ["trimestre", "Ce trimestre", "Trimestre"],
+  ["annee", "Cette année", "Année"],
 ];
 
 export function useGoalsUi(initial: GoalsPayload) {
@@ -178,8 +179,8 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
         <SectionLabel>
           <span id="nos-objectifs">Nos objectifs</span>
         </SectionLabel>
-        <div role="tablist" aria-label="Période" className="flex max-w-full gap-1 overflow-x-auto rounded-full bg-[#F4EEE6] p-[3px]">
-          {TABS.map(([value, label]) => {
+        <div role="tablist" aria-label="Période" className="order-2 flex w-full gap-0.5 overflow-x-auto rounded-full bg-[#F4EEE6] p-[3px] [scrollbar-width:none] sm:order-none sm:w-auto sm:gap-1">
+          {TABS.map(([value, label, short]) => {
             const on = tab === value;
             return (
               <button
@@ -189,11 +190,12 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
                 aria-selected={on}
                 onClick={() => setTab(value)}
                 className={cn(
-                  "inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full pl-3 pr-2.5 text-xs font-extrabold lg:h-8",
+                  "inline-flex h-9 flex-1 shrink-0 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-extrabold sm:flex-none sm:gap-1.5 sm:pl-3 sm:pr-2.5 lg:h-8",
                   on ? "bg-white text-[#C96A2E] shadow-[0_1px_3px_rgba(31,26,22,0.12)]" : "text-[#6B625B]",
                 )}
               >
-                {label}
+                <span className="sm:hidden">{short}</span>
+                <span className="hidden sm:inline">{label}</span>
                 <span className={cn("inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-[5px] text-[10px]", on ? "bg-[#C96A2E] text-white" : "bg-[#E9DFD2] text-[#6B625B]")}>
                   {counts[value]}
                 </span>
@@ -202,13 +204,13 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
           })}
         </div>
         <span className="hidden flex-[1_1_260px] text-sm font-bold text-[#4A4540] lg:block">« {PRINCIPLE} »</span>
-        <Link href="/admin/objectifs" className="ml-auto inline-flex min-h-11 items-center whitespace-nowrap text-sm font-extrabold text-[#8A4924] hover:text-[#5A321A] lg:ml-0 lg:min-h-0">
+        <Link href="/admin/objectifs" className="order-1 ml-auto inline-flex min-h-11 items-center whitespace-nowrap text-sm font-extrabold text-[#8A4924] hover:text-[#5A321A] sm:order-none lg:ml-0 lg:min-h-0">
           Voir les leviers
         </Link>
       </div>
 
       {/* Phone: a row that scrolls inside the card. Desktop: a grid. */}
-      <div role="tabpanel" className="-mx-3.5 flex snap-x gap-2 overflow-x-auto px-3.5 pb-1 lg:mx-0 lg:grid lg:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] lg:overflow-visible lg:px-0 lg:pb-0">
+      <div role="tabpanel" className="-mx-3.5 flex snap-x gap-2 overflow-x-auto px-3.5 pb-1 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] lg:overflow-visible lg:px-0 lg:pb-0">
         {shown.map((goal) => (
           <GoalCard key={goal.id} goal={goal} onOpen={() => ui.setOpenId(goal.id)} />
         ))}

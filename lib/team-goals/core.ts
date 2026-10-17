@@ -51,11 +51,12 @@ export function formatCount(n: number): string {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
-/** "16 octobre", or "16 octobre 2025" when the year differs from `yearOf`. */
+/** "16 octobre", "1er août", or "16 octobre 2025" when the year differs from `yearOf`. */
 export function dayLabel(key: string, yearOf?: string): string {
   const d = startOf(key);
   const year = yearOf && yearOf.slice(0, 4) !== key.slice(0, 4) ? ` ${d.getUTCFullYear()}` : "";
-  return `${d.getUTCDate()} ${MONTHS[d.getUTCMonth()]}${year}`;
+  const day = d.getUTCDate() === 1 ? "1er" : String(d.getUTCDate());
+  return `${day} ${MONTHS[d.getUTCMonth()]}${year}`;
 }
 
 /** "16 oct." */
@@ -294,11 +295,7 @@ function monthLabel(key: string, todayKey: string) {
   return key.slice(0, 4) === todayKey.slice(0, 4) ? name : `${name} ${key.slice(0, 4)}`;
 }
 
-function firstLabel(key: string, todayKey: string) {
-  const day = Number(key.slice(8, 10));
-  const label = dayLabel(key, todayKey);
-  return day === 1 ? label.replace(/^1 /, "1er ") : label;
-}
+
 
 /** The window a goal is measured on today. A recurring goal is measured on the current month. */
 export function goalWindow(goal: GoalDates, todayKey: string): GoalWindow {
@@ -332,7 +329,7 @@ export function goalWindow(goal: GoalDates, todayKey: string): GoalWindow {
   const daysLeft = ended ? 0 : daysBetween(upcoming ? startKey : todayKey, endKey);
   let countdown: string;
   if (ended) countdown = `terminé le ${dayLabel(endKey, todayKey)}`;
-  else if (upcoming) countdown = `commence le ${firstLabel(startKey, todayKey)}`;
+  else if (upcoming) countdown = `commence le ${dayLabel(startKey, todayKey)}`;
   else if (daysLeft === 0) countdown = "dernier jour";
   else countdown = `encore ${daysLeft} j`;
   return { startKey, endKey, tab, label, daysLeft, ended, upcoming, countdown, endPhrase: `avant le ${dayLabel(endKey, todayKey)}` };

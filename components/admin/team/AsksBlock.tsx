@@ -271,8 +271,9 @@ export function answerLine(ask: DemandeView): string {
     case "replied":
       return `« ${ask.replyText ?? ""} »`;
     default: {
-      const last = ask.messages[ask.messages.length - 1];
-      return last ? `${last.authorName} : « ${last.body} »` : "Nouvelle réponse.";
+      const fromFounder = ask.messages.filter((m) => m.authorId === ask.toId);
+      const last = fromFounder[fromFounder.length - 1];
+      return last ? `« ${last.body} »` : "Nouvelle réponse.";
     }
   }
 }

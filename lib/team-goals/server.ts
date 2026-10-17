@@ -76,7 +76,7 @@ function writeError(error: { code?: string; message?: string }, context: string)
 // Rows
 // ---------------------------------------------------------------------------
 
-type GoalRow = {
+export type GoalRow = {
   id: string;
   title: string;
   metric: GoalMetric;
@@ -90,7 +90,7 @@ type GoalRow = {
   created_at: string;
 };
 
-type LeverRow = {
+export type LeverRow = {
   id: string;
   goal_id: string;
   owner_id: string;
@@ -102,7 +102,7 @@ type LeverRow = {
   created_at: string;
 };
 
-type ReadingRow = {
+export type ReadingRow = {
   id: string;
   metric: string;
   value: number;
@@ -332,7 +332,8 @@ async function loadSales() {
       .order("created_at", { ascending: false })
       .limit(200),
   ]);
-  if (sales.error) throw sales.error;
+  // Before migration 091 the sales table is missing: no confirmed sale yet, the list for sale still shows.
+  if (sales.error && !isMissingTable(sales.error)) throw sales.error;
   if (forSale.error) throw forSale.error;
   const soldIds = new Set((sales.data ?? []).map((row) => row.property_id as string));
   return {
@@ -446,7 +447,7 @@ function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded):
         current: started.length,
         actualPerDay: recent.length / 90,
         paceText: started.length
-          ? `Contrats actifs : ${started.map((r) => `${r.property?.reference ?? "bien"} (${placeLabel(r.property).toLowerCase()})`).join(", ")}.`
+          ? `Contrats actifs : ${started.map((r) => `${r.property?.reference ?? "bien"} (${placeLabel(r.property)})`).join(", ")}.`
           : "Aucun contrat actif pour l’instant.",
         listTitle: started.length ? "Contrats actifs" : "Aucun contrat actif",
         evidence: started.map((r) =>
@@ -521,7 +522,7 @@ function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded):
   }
 }
 
-async function loadMetrics(goals: GoalRow[], ctx: Ctx): Promise<{ loaded: Loaded; failed: GoalMetric[] }> {
+async function loadMetrics(goals: GoalRow[], ctx: Ctx, readings?: ReadingRow[]): Promise<{ loaded: Loaded; failed: GoalMetric[] }> {
   const metrics = new Set(goals.map((g) => g.metric));
   const loaded: Loaded = {};
   const failed: GoalMetric[] = [];
@@ -535,7 +536,10 @@ async function loadMetrics(goals: GoalRow[], ctx: Ctx): Promise<{ loaded: Loaded
     );
   if (metrics.has("users")) guard(["users"], async () => { loaded.users = await loadUsers(); });
   const manual = [...metrics].filter(isManualMetric);
-  if (manual.length) {
+  if (manual.length && readings) {
+    loaded.readings = new Map(manual.map((m) => [m, readings.filter((r) => r.metric === m)]));
+    loaded.proofUrls = new Map();
+  } else if (manual.length) {
     guard(manual, async () => {
       const r = await loadReadings(manual);
       loaded.readings = r.readings;
@@ -623,7 +627,37 @@ export async function getGoalsPayload(viewer: Viewer, people: Person[], now = ne
     : [{ data: [], error: null }, { data: [], error: null }];
   if (ticks.error) throw ticks.error;
   if (linked.error) throw linked.error;
+  return goalsFromRows(viewer, people, {
+    goals,
+    levers,
+    ticks: (ticks.data ?? []) as { lever_id: string; ticked_on: string }[],
+    linked: (linked.data ?? []) as { lever_id: string; completed_at: string | null }[],
+  }, now);
+}
 
+export type GoalRowsInput = {
+  goals: GoalRow[];
+  levers: LeverRow[];
+  ticks: { lever_id: string; ticked_on: string }[];
+  linked: { lever_id: string; completed_at: string | null }[];
+};
+
+/**
+ * Assembly of the payload from goal rows; the metrics themselves are always
+ * read from their records. `readings` replaces the readings table (only for
+ * the development preview, before migration 091 runs).
+ */
+export async function goalsFromRows(
+  viewer: Viewer,
+  people: Person[],
+  input: GoalRowsInput,
+  now = new Date(),
+  readings?: ReadingRow[],
+): Promise<GoalsPayload> {
+  const todayKey = dayKeyOf(now);
+  const { goals, levers } = input;
+  const base = emptyPayload(viewer, people, todayKey, true);
+  if (!goals.length) return base;
   const windows = new Map(goals.map((g) => [g.id, goalWindow(g as GoalDates, todayKey)]));
   const since: Ctx["since"] = {};
   for (const g of goals) {
@@ -632,7 +666,7 @@ export async function getGoalsPayload(viewer: Viewer, people: Person[], now = ne
     if (!since[g.metric] || earliest < since[g.metric]!) since[g.metric] = earliest;
   }
   const ctx: Ctx = { todayKey, people, since };
-  const { loaded, failed } = await loadMetrics(goals, ctx);
+  const { loaded, failed } = await loadMetrics(goals, ctx, readings);
 
   const titleOf = new Map(goals.map((g) => [g.id, g.title]));
   const leverViews: LeverView[] = levers.map((lever) => {
@@ -648,8 +682,8 @@ export async function getGoalsPayload(viewer: Viewer, people: Person[], now = ne
       rhythm: lever.rhythm,
       weeklyTarget: lever.weekly_target,
       done: leverDoneThisWeek(
-        (ticks.data ?? []).filter((t) => t.lever_id === lever.id) as { ticked_on: string }[],
-        (linked.data ?? []).filter((t) => t.lever_id === lever.id) as { completed_at: string | null }[],
+        input.ticks.filter((t) => t.lever_id === lever.id),
+        input.linked.filter((t) => t.lever_id === lever.id),
         todayKey,
       ),
       mine: lever.owner_id === viewer.id,

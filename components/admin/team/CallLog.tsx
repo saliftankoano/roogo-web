@@ -44,7 +44,7 @@ export function CallLog({ log, viewerName, viewerLevelLabel }: { log: CallLogPay
         <span className="text-[13px] text-[#6B625B] lg:text-sm">Tous les appels notés par l’équipe, les plus récents d’abord. Visibles par la personne qui a appelé, le Directeur et le Fondateur.</span>
       </header>
 
-      <div role="group" aria-label="Filtrer" className="-mx-4 flex gap-1.5 overflow-x-auto px-4 lg:mx-0 lg:px-0">
+      <div role="group" aria-label="Filtrer" className="-mx-4 flex gap-1.5 overflow-x-auto px-4 [scrollbar-width:none] lg:mx-0 lg:px-0">
         {FILTERS.map(([value, label]) => (
           <button
             key={value}

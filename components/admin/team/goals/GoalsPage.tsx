@@ -24,6 +24,14 @@ export function GoalsPage({ initial, initialGoalId, founderName }: { initial: Go
   const selected = data.goals.find((g) => g.id === selectedId) ?? data.goals[0] ?? null;
   const rootRef = useRef<HTMLDivElement>(null);
   const leversRef = useRef<HTMLDivElement>(null);
+  const detailRef = useRef<HTMLDivElement>(null);
+  const pick = (id: string) => {
+    setSelectedId(id);
+    // Phone: the levers are under the cards, so bring them into view.
+    if (typeof window !== "undefined" && !window.matchMedia("(min-width: 1024px)").matches) {
+      requestAnimationFrame(() => detailRef.current?.scrollIntoView({ behavior: prefersReducedMotion() ? "auto" : "smooth", block: "start" }));
+    }
+  };
   useEntrance(rootRef, "[data-anim]", []);
 
   useEffect(() => {
@@ -97,12 +105,12 @@ export function GoalsPage({ initial, initialGoalId, founderName }: { initial: Go
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(250px,1fr))]">
         {data.goals.map((goal) => (
-          <GoalTile key={goal.id} goal={goal} selected={goal.id === selected?.id} onPick={() => setSelectedId(goal.id)} />
+          <GoalTile key={goal.id} goal={goal} selected={goal.id === selected?.id} onPick={() => pick(goal.id)} />
         ))}
       </div>
 
       {selected && (
-        <div className="flex flex-wrap items-start gap-5">
+        <div ref={detailRef} className="flex scroll-mt-24 flex-wrap items-start gap-5">
           <main className="min-w-0 flex-[999_1_640px] overflow-hidden rounded-[20px] border border-[#EAE1D5] bg-white lg:rounded-[24px]">
             <div className="flex flex-wrap items-start gap-x-5 gap-y-3 border-b border-[#F0E8DD] px-4 py-4 lg:px-6 lg:py-5">
               <div className="flex min-w-0 flex-[1_1_320px] flex-col gap-1.5">
