@@ -1,3 +1,4 @@
+import { userRowCan } from "@/lib/staff-access-server";
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import { getOrSyncUserByClerkId, getSupabaseClient } from "@/lib/user-sync";
@@ -58,8 +59,9 @@ export async function GET(req: Request) {
       return errorResponse("User not found", 404, req);
     }
 
-    const isStaffOrFounder = user.user_type === "staff" || user.user_type === "founder";
-    if (!isStaffOrFounder) {
+    // This is the owner picker used when staff create a listing for someone, so
+    // it follows the right to write listings, not the right to list every user.
+    if (!userRowCan(user, "listings.write")) {
       return errorResponse("Forbidden: staff or founder only", 403, req);
     }
 

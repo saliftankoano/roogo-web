@@ -4,7 +4,7 @@ import { requireStaffSupabaseUser } from "@/lib/identity-verifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: Request) {
-  const auth = await requireStaffSupabaseUser();
+  const auth = await requireStaffSupabaseUser("identity.status");
   if ("error" in auth) return auth.error;
   const status = new URL(req.url).searchParams.get("status") || "pending";
   let query = supabaseAdmin

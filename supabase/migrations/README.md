@@ -1,0 +1,180 @@
+# Database migration execution ledger
+
+## Users table exposure (security) — 2026-10-17
+
+- [x] [094_users_table_exposure_executed.sql](./094_users_table_exposure_executed.sql) — **executed 2026-10-17 (confirmed by Salif; read-only check the same day: `staff_users` refused to the public key, listing cards keep `agent_name`, 0 cards expose a renter).** Removes client writes on `users` (table and column grants), closes `staff_users`, and rebuilds `public_property_details` with NULL renter fields and `security_invoker = false`. Safe for all app versions. Preflight and check queries are in the file header.
+- [ ] [095_users_table_read_lock.sql](./095_users_table_read_lock.sql) — **not run; only after 094 and the mobile OTA.** Enables RLS on `users`, drops every existing policy on it, gives `authenticated` its own row and anon no row. Stops by itself if 094 is missing or the view owner cannot bypass RLS. Renumber if 095 is already taken by another branch.
+
+This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
+
+## Team goals and call notes — 2026-10-16
+
+- [x] [091_team_goals_executed.sql](./091_team_goals_executed.sql) — **executed 2026-10-16 (confirmed by Salif).** Team goals (« Nos objectifs »): `team_goals`, `team_goal_readings`, `team_goal_sales`, `team_goal_levers`, `team_goal_lever_ticks`, `staff_tasks.goal_id` / `lever_id`, the private `team-goal-proofs` bucket, and the seed of the five 2026 goals with the TikTok and Facebook readings of that day. The file header still says "NOT EXECUTED": it is kept byte for byte as applied. `team_goal_sales` is dropped by 093.
+- [x] [092_call_notes_and_demande_replies_executed.sql](./092_call_notes_and_demande_replies_executed.sql) — **executed 2026-10-16 (confirmed by Salif); run after 091.** Call notes (`staff_call_notes`) and demande answers (new `staff_tasks` columns and `staff_task_messages`).
+- [x] [093_property_sold_state_executed.sql](./093_property_sold_state_executed.sql) — **executed 2026-10-17 (confirmed by Salif).** `property_status` gains `vendu`; `properties.sold_at`, `sold_price`, `sold_by`; `team_goal_sales` dropped (empty); `team_goal_readings.source` (`manuel` / `automatique`) with one automatic reading per metric and day; seed of « 500 abonnés Instagram » with the reading of 2026-10-16. The file header still says "NOT EXECUTED": it is kept byte for byte as applied.
+
+## Field media and the field visit sheet — 2026-10-17 record
+
+- [x] [086_studio_field_media_executed.sql](./086_studio_field_media_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `studio_field_media` exists and has rows).** Studio index of field photos and videos uploaded to the shared Drive.
+- [x] [090_field_visits_executed.sql](./090_field_visits_executed.sql) — **executed on Roogo after 086 and 089_staff_tasks (confirmed by Salif; verified read-only on 2026-10-17: `field_visits` exists with rows, `studio_field_media.field_visit_id` and `staff_tasks.field_visit_id` exist).** The in-app Fiche de visite. Its header still says 086 is not applied: that comment is historical and the bytes stay as run.
+
+## Staff briefing and team board — 2026-10-17 record
+
+- [x] [089_staff_tasks_executed.sql](./089_staff_tasks_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `staff_tasks` and `staff_titles` exist, `staff_tasks` has rows).** Staff tasks and demandes for Mon espace and L'équipe. It shares the number 089 with `089_staff_levels_executed.sql` (next entry): two different files, both applied independently, so neither is renumbered and neither may be replayed by number (same situation as 075 and 076). Its `staff_titles` table is no longer read: board titles come from `users.staff_level` (089_staff_levels). Dropping `staff_titles` would need a new, uniquely numbered migration.
+
+## Staff access levels — 2026-10-16
+
+- [x] [089_staff_levels_executed.sql](./089_staff_levels_executed.sql) — **executed 2026-10-16 (confirmed by Salif, "mig ran"; not independently verified).** `users.staff_level`, `staff_invitations` (replaces the shared staff code) and `staff_access_log` (who gave which access). Tested beforehand on a throwaway Supabase Postgres 17.4.
+
+## Property reference codes — 2026-10-14
+
+- [x] [088_property_references_executed.sql](./088_property_references_executed.sql) — **executed 2026-10-14 (confirmed by Salif, then verified read-only through the Roogo API).** Short public codes for listings (`VEN-NNN` for sales, `LOC-NNN` for rentals): `properties.reference`, assigned once at insert by a trigger and refused on update, numbered in creation order for existing rows (49 rows: VEN-001 to VEN-023, LOC-001 to LOC-026), exposed through `property_details` and `public_property_details`. Numbered 088 because 085 to 087 belong to the publishing and field-media branches. Before this run, the column did not exist (checked by the API and in the SQL editor); the "85" run earlier that day was the publishing branch's `085_studio_publications.sql`.
+
+## Sale listing ladder — 2026-10-17 record
+
+- [x] [097_sale_price_approvals_executed.sql](./097_sale_price_approvals_executed.sql) — **executed 2026-10-17 (confirmed by Salif; `sale_price_approvals` exists and is refused to the public key).** Run after 096, before deploying the sale ladder. Creates the service-role table `sale_price_approvals` (one row per sale price set below owner price + 10% by the founder or the Directeur, with the confirmations ticked and the owner's price at the time) and replaces the `sale_closings` hard stop at +10% with "below +10% needs an approval before leaving draft". Until it runs, the API refuses every sale price below +10%.
+- [x] [096_private_seller_asking_price_executed.sql](./096_private_seller_asking_price_executed.sql) — **executed 2026-10-17 (confirmed by Salif; `sale_asking_prices` exists and is refused to the public key). Renumbered from 084 the same day; 084 is `084_studio_guest_voices_executed.sql`.** Moves the owner's sale price out of `properties.seller_asking_price` (readable by anon) into the service-role table `sale_asking_prices`. Required before deploying the sale listing ladder (public price = owner price + 30%, decision of 2026-10-11): run it first, then deploy.
+- [x] [075_sale_guaranteed_price_executed.sql](./075_sale_guaranteed_price_executed.sql) — run by Salif in production on 2026-09-27 from branch `feat/sale-v3-guaranteed-price` (verified the same day: ladder 0.30/0.20/0.15/0.10, mandates on v2). File added to main on 2026-10-11 so the repository matches the database. The guaranteed-net economics it prepared were dropped on 2026-10-11; the sale listing ladder reuses `sale_economics_config` and the mandate ladder columns on v2 mandates. Third file numbered 075; do not replay by number. Re-verified read-only on 2026-10-17: `sale_economics_config` has its default row (0.30/0.20/0.15/0.10, created 2026-09-27 23:11 UTC), `listing_config.sale_bypass_*`, the `property_mandates` v3 columns (every mandate still `v2`) and an empty `sale_closings` exist.
+
+## Content Studio — 2026-10-06
+
+- [x] [075_content_studio_executed.sql](./075_content_studio_executed.sql) — operator-confirmed by Salif on 2026-10-06 ("mig ran"). Staff voice-over ledger, per-person caps, the spend-reserve function and the private `content-studio` bucket. The number 075 is also used by the unrelated principal-photo repair above: the two are different files applied independently, so do not replay either by number.
+- [x] [076_studio_glossary_executed.sql](./076_studio_glossary_executed.sql) — operator-confirmed by Salif on 2026-10-06. Team pronunciation glossary. Shares the number 076 with the photo-order migration above for the same reason.
+- [x] [077_studio_voices_consent_executed.sql](./077_studio_voices_consent_executed.sql) — **executed 2026-10 (confirmed by Salif).**** Team voices (Sandrine, Salif, Ablassé), consent records, the one-voice-per-person rule and the atomic accept and revoke functions. Seeds Ablassé's voice as locked until he accepts the terms. Record execution here and add `_executed` to the filename once Salif confirms it ran.
+- [x] [078_studio_glossary_v2_executed.sql](./078_studio_glossary_v2_executed.sql) — **executed 2026-10 (confirmed by Salif); run after 077.** Glossary edit timestamp, ledger kinds `preview` and `chat`, and the kind-aware `reserve_studio_spend` function so glossary "Écouter" previews count toward the monthly cap. The Studio voice-over route needs this function, so apply 078 before deploying the code that uses it.
+- [x] [079_studio_chat_executed.sql](./079_studio_chat_executed.sql) — **executed 2026-10 (confirmed by Salif); run after 078.** Chat conversations, messages and pinned artifacts for the Studio, plus `conversation_id` and `property_id` on the generation ledger. The Studio page and the chat route need these tables, so apply 079 before deploying the chat code.
+- [x] [080_studio_voice_cloning_executed.sql](./080_studio_voice_cloning_executed.sql) — **executed 2026-10 (confirmed by Salif); run after 079.** Voice-cloning challenges (a fresh sentence and code per attempt) and the private `voice-consents` bucket for the recorded samples. Needed by the clone routes; do not enable cloning for staff before Salif has had the consent text reviewed.
+- [x] [081_studio_ai_tools_executed.sql](./081_studio_ai_tools_executed.sql) — **executed 2026-10-06 (confirmed by Salif).** Studio fal tools: ledger kinds `image` and `transcription`, the `finalizing` status, `provider_request_id`, artifact kinds `image` and `captions` with `meta`, the updated `reserve_studio_spend`, and image types in the `content-studio` bucket.
+- [x] [082_studio_video_renders_executed.sql](./082_studio_video_renders_executed.sql) — **executed 2026-10-10 (confirmed by Salif).** Studio video renders through HeyGen: ledger and artifact kind `video`, the separate monthly video budget (`studio_user_limits.monthly_video_cap_usd`, counted apart from voices and images in `reserve_studio_spend`), and MP4 up to 100 MB in the `content-studio` bucket.
+- [x] [083_studio_music_executed.sql](./083_studio_music_executed.sql) — **executed 2026-10-11 (confirmed by Salif).** Studio music: the team library `studio_music_tracks` (Roogo tracks and tracks generated with fal Lyria 3 Pro), ledger kind `music`, paid from the voices-and-images pot in `reserve_studio_spend`.
+- [x] [084_studio_guest_voices_executed.sql](./084_studio_guest_voices_executed.sql) — **executed 2026-10-14 (confirmed by Salif).** Studio guest voices: kind `guest` with `guest_name` and `added_by`, `subject` / `subject_name` on challenges and consents, and `revoke_studio_voice` allowing the staff member who added a guest voice.
+
+## Ordered photo galleries — 2026-10-05
+
+- [x] [076_property_photo_order_executed.sql](./076_property_photo_order_executed.sql) — independently applied through the Supabase Management API to Roogo (`txbxvpyftgpebgnuazaf`), HTTP 201. Backfills existing cover-first order, adds atomic reorder and legacy-selection compatibility, append/delete reconciliation, and ordered read views. Before/after view grants and security options match. Execution is independent of migration 074 and does not establish CLI history alignment.
+
+## Principal-photo repair — 2026-10-05
+
+- [x] [075_property_primary_image_executed.sql](./075_property_primary_image_executed.sql) — independently applied through the Supabase Management API to Roogo (`txbxvpyftgpebgnuazaf`), HTTP 201. Adds the server-only atomic selection function and computed principal-photo fields in both listing views. Before/after checks confirmed view grants and security options were preserved. Migration 074 belongs to separate local work and was not applied by this repair. This execution entry does not certify 074 or establish CLI migration-history alignment.
+
+## Current Roogo execution record — 2026-09-13 UTC
+
+Salif explicitly confirmed in this conversation: **all migrations 001–073 have run on Roogo**. He separately reported running 073 before merging the image PRs. All 73 files therefore end in `_executed.sql`. This is an operator-confirmed record; this documentation task did not independently query the database, execute SQL or change migration history. The verified 070–072 evidence from 2026-09-09 remains below.
+
+Renames retain numeric versions and every SQL byte, including historical header comments. Repository links/tests use the new filenames; the names/SQL recorded in database history remain unchanged. The suffix means executed on Roogo, not executed in every environment. It is not a CLI history baseline or permission to replay these files. Future schema changes require a new version, initially without the suffix; add `_executed` after recording confirmed execution.
+
+### Confirmed files
+
+- [x] [001_consolidated_schema_updates_executed.sql](./001_consolidated_schema_updates_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [002_create_listing_config_executed.sql](./002_create_listing_config_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [003_open_house_directions_executed.sql](./003_open_house_directions_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [004_spontaneous_applications_executed.sql](./004_spontaneous_applications_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [005_career_applications_rename_executed.sql](./005_career_applications_rename_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [006_rental_lifecycle_executed.sql](./006_rental_lifecycle_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [007_is_test_on_properties_executed.sql](./007_is_test_on_properties_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [008_celibatorium_property_type_executed.sql](./008_celibatorium_property_type_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [009_property_details_view_refresh_executed.sql](./009_property_details_view_refresh_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [010_property_cascade_deletes_executed.sql](./010_property_cascade_deletes_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [011_remove_property_title_executed.sql](./011_remove_property_title_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [012_daily_rental_availability_executed.sql](./012_daily_rental_availability_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [013_property_view_tracking_executed.sql](./013_property_view_tracking_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [014_user_property_cascade_cleanup_executed.sql](./014_user_property_cascade_cleanup_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [015_upfront_rent_months_executed.sql](./015_upfront_rent_months_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [016_owner_wallet_payouts_executed.sql](./016_owner_wallet_payouts_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [017_daily_deposit_escrow_executed.sql](./017_daily_deposit_escrow_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [018_add_rent_payment_transaction_type_executed.sql](./018_add_rent_payment_transaction_type_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [019_add_property_virtual_tour_executed.sql](./019_add_property_virtual_tour_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [020_rls_security_hardening_executed.sql](./020_rls_security_hardening_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [021_daily_booking_monetization_executed.sql](./021_daily_booking_monetization_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [022_daily_owner_commission_config_executed.sql](./022_daily_owner_commission_config_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [023_user_signup_location_executed.sql](./023_user_signup_location_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [024_referral_program_executed.sql](./024_referral_program_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [025_identity_verifications_executed.sql](./025_identity_verifications_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [026_notification_deliveries_executed.sql](./026_notification_deliveries_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [027_user_signup_device_snapshot_executed.sql](./027_user_signup_device_snapshot_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [028_daily_property_metadata_executed.sql](./028_daily_property_metadata_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [029_property_translations_executed.sql](./029_property_translations_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [030_talent_mvp_executed.sql](./030_talent_mvp_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [031_property_pending_edits_executed.sql](./031_property_pending_edits_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [032_unescape_html_entities_in_text_fields_executed.sql](./032_unescape_html_entities_in_text_fields_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [033_pending_edits_fixes_executed.sql](./033_pending_edits_fixes_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [034_monthly_free_listing_success_fee_executed.sql](./034_monthly_free_listing_success_fee_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [035_property_videos_executed.sql](./035_property_videos_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [036_support_chat_executed.sql](./036_support_chat_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [037_premium_photo_limit_20_executed.sql](./037_premium_photo_limit_20_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [038_daily_request_to_book_executed.sql](./038_daily_request_to_book_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [039_sale_listings_executed.sql](./039_sale_listings_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [040_sale_chat_executed.sql](./040_sale_chat_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [041_sale_visit_requests_executed.sql](./041_sale_visit_requests_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [042_property_mandates_executed.sql](./042_property_mandates_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [043_notary_meetings_executed.sql](./043_notary_meetings_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [044_reconcile_sale_broker_executed.sql](./044_reconcile_sale_broker_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [045_visites_3d_bookings_executed.sql](./045_visites_3d_bookings_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [046_sale_frequence_nullable_executed.sql](./046_sale_frequence_nullable_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [047_sale_chat_voice_executed.sql](./047_sale_chat_voice_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [048_sale_chat_documents_executed.sql](./048_sale_chat_documents_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [049_sale_chat_attachment_mimes_executed.sql](./049_sale_chat_attachment_mimes_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [050_sale_commission_model_executed.sql](./050_sale_commission_model_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [051_hotel_user_type_executed.sql](./051_hotel_user_type_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [052_hotels_and_members_executed.sql](./052_hotels_and_members_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [053_room_types_executed.sql](./053_room_types_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [054_hotel_commission_and_booking_code_executed.sql](./054_hotel_commission_and_booking_code_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [055_events_prep_executed.sql](./055_events_prep_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [056_property_slugs_executed.sql](./056_property_slugs_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [057_clean_quartiers_reslug_executed.sql](./057_clean_quartiers_reslug_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [058_direct_sale_intakes_executed.sql](./058_direct_sale_intakes_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [059_offline_rental_imports_executed.sql](./059_offline_rental_imports_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [060_ownership_document_upload_formats_executed.sql](./060_ownership_document_upload_formats_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [061_advertiser_profiles_executed.sql](./061_advertiser_profiles_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [062_remove_direct_advertising_staff_writes_executed.sql](./062_remove_direct_advertising_staff_writes_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [063_hotel_operations_executed.sql](./063_hotel_operations_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [064_hotel_chat_and_rccm_verification_executed.sql](./064_hotel_chat_and_rccm_verification_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [065_hotel_events_and_groups_executed.sql](./065_hotel_events_and_groups_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [066_waive_success_fee_for_owner_sourced_renters_executed.sql](./066_waive_success_fee_for_owner_sourced_renters_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [067_default_on_rent_collection_executed.sql](./067_default_on_rent_collection_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [068_property_requests_executed.sql](./068_property_requests_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [069_property_request_deletion_safety_executed.sql](./069_property_request_deletion_safety_executed.sql) — operator-confirmed 2026-09-13.
+- [x] [070_payment_failure_notifications_executed.sql](./070_payment_failure_notifications_executed.sql) — independently verified 2026-09-09.
+- [x] [071_atomic_property_lock_payments_executed.sql](./071_atomic_property_lock_payments_executed.sql) — independently verified 2026-09-09.
+- [x] [072_atomic_listing_payments_executed.sql](./072_atomic_listing_payments_executed.sql) — independently verified 2026-09-09.
+- [x] [073_unique_content_addressed_listing_photos_executed.sql](./073_unique_content_addressed_listing_photos_executed.sql) — operator-confirmed 2026-09-13.
+
+## Verified Roogo execution: 2026-09-09
+
+Target: **Roogo**, project `txbxvpyftgpebgnuazaf`, production-configured Supabase database in `eu-central-1`. Only the following three migrations were authorized and executed in this task, from backend commit `a0b068249a6147c90c933bdd27aa00a8a8c62fd8`.
+
+- [x] [070_payment_failure_notifications_executed.sql](./070_payment_failure_notifications_executed.sql) — committed and verified at **16:27:33 UTC**.
+- [x] [071_atomic_property_lock_payments_executed.sql](./071_atomic_property_lock_payments_executed.sql) — committed and verified at **16:27:53 UTC**.
+- [x] [072_atomic_listing_payments_executed.sql](./072_atomic_listing_payments_executed.sql) — committed and verified at **16:28:13 UTC**.
+
+### Evidence
+
+Preflight at 16:26:07 UTC found zero duplicate listing deposits, zero contradictory property/transaction links, no payment-notification records and no new payment schema. Existing tables contained 36 properties and 82 transactions.
+
+Execution used the authenticated Supabase CLI login through the [Management API SQL endpoint](https://supabase.com/docs/reference/api/v1-run-a-query), without printing credentials. Each reviewed SQL file retained its own transaction, with session-local 4-second lock and 30-second statement timeouts. A normal Supabase migration-history table was initialized because none existed. Each version/name/SQL entry was recorded alongside its DDL in the same transaction.
+
+Post-execution verification at **16:30:21 UTC** confirmed:
+
+- Versions/names 070, 071 and 072 are in `supabase_migrations.schema_migrations`.
+- Stored SQL matches the files byte-for-byte; an escaping defect in the initial history text was corrected using parameterized updates, without rerunning schema changes.
+- All 11 installed function bodies match the reviewed SQL. All use security-definer/search-path restrictions, deny anon/authenticated execution and grant the required service-role RPC access.
+- All four new indexes are valid; both listing triggers are enabled.
+- Accountless delivery is supported; the consumption ledger has RLS enabled and denies anon/authenticated reads.
+- Two consumed listing deposits were backfilled with zero missing or unexpected evidence links.
+- Property and transaction counts remained 36 and 82 at verification.
+
+| File | SHA-256 of executed file |
+| --- | --- |
+| 070 | `b7299f4f25927dcbef3be78310dcd08cdebda82868b46f3688fb1fb89781a96f` |
+| 071 | `129f35a828e8fb960d8d35fe24aeae1af09398677b35d521c6c997843bad95d3` |
+| 072 | `aab6440341de388445dd974ecfc5578ddaea2db69a9296ddbfd62b8253dc44ed` |
+
+No app deployment, PawaPay collection, push or SMS was performed. No customer records were deleted or manually reconciled. [Database changelog](../../docs/CHANGELOG.md#2026-09-09).
+
+## History and future execution rules
+
+The eight review-era payment files were consolidated **before** their first execution; this does not authorize rewriting applied history now. Keep 070–072 unchanged and introduce a new, uniquely numbered migration for future changes. The SQL header describes the historical consolidation, not current execution status; this ledger and the database history establish execution.
+
+Unrelated property-request migrations 068/069 were neither run nor marked executed in this task. Earlier schema already existed, but the database had no migration-history table. At that time, absence of older history was not proof that old SQL was safe to replay or that every old migration ran. The newer operator confirmation above establishes the current reported status, without independently verifying or populating that older history. Do not use unrestricted `supabase db push`, fabricate older applied entries or run the removed review-era files. A full history baseline requires separate schema/data verification.
+
+For another environment, confirm its project and history first, run the [payment preflights](../../docs/SYSTEM.md#how-are-payment-migrations-installed-and-recorded), apply the approved chain only if absent, then verify SQL and effects before checking off execution. If any response is uncertain, inspect history and schema before retrying. Do not reset notification uncertainty or erase listing-consumption history to roll back application code.

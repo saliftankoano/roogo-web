@@ -19,6 +19,8 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
   listing; staff reviews it; the listing goes online after its applicable gates
   pass; renters or buyers then work through Roogo's visit, chat, agreement, and
   payment flows.
+- **Public property discovery:** visitors browse public annonces with cached photos; the homepage hero and featured-annonce results have separate loading states. Photo loading does not change publication or private-document gates. See [image behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
+- **Property sourcing (ROO-20, pending release):** staff publish an appel à biens; agents or owners propose properties; staff follow up, confirm agent terms and link eligible live listings.
 - **Core hotel workflow:** a hotel team publishes room types and count-based
   inventory; a traveler requests dates directly or through an event code; the
   hotel confirms, the traveler pays, reception operates the stay, and Roogo
@@ -29,6 +31,60 @@ works, [DECISIONS.md](./DECISIONS.md) for why trade-offs were made,
 - **External records and rails:** identity, ownership, RCCM business evidence,
   contracts, and Mobile Money records are kept as distinct evidence; government
   per-diem ceilings constrain eligible event rates.
+- **Content Studio (staff):** staff turn a live annonce into marketing content in one **projet**: script, voice-over, visuals and a video, each paid from a monthly budget with the price shown before every click.
+- **Payment evidence:** collection, reservation fulfillment and notification receipt are distinct. The payment-safety PRs remain pending release; see [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover).
+
+## Staff access
+
+### Niveau d'accès (staff level)
+
+The job title that decides what a staff member can do in the back office: Fondateur, Directeur, Assistant (commercial et administratif), Conseiller (clientèle et réseaux sociaux) or Stagiaire. It is not a user type: a Directeur is a `staff` user whose level is `director`. Do not call a level a "role"; `userType` is the role. Matrix and rules: [SYSTEM](./SYSTEM.md#how-do-staff-access-levels-work).
+
+### Invitation
+
+The only way to become staff: a signed link from the founder or a director, tied to one email address and one level, valid 7 days. It replaces the shared staff code.
+
+## Customer payments
+
+### PawaPay deposit
+
+**Meaning:** One customer-to-Roogo Mobile Money collection attempt, identified by a `depositId`. It can fund rent, a reservation, a listing, a boost or a 3D visit; it does not necessarily mean a rental security deposit (caution).
+
+**Origin:** PawaPay's payment terminology, used locally for customer collections.
+
+**Why it matters for building:** Keep the same reference when reconciling an uncertain attempt. An accepted initiation is not evidence that money was collected, and an HTTP error is not by itself proof of rejection.
+
+**Evidence:** [Payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [reconciliation decision](./DECISIONS.md#gateway-errors-preserve-the-original-deposit-for-reconciliation--2026-09-09).
+
+### Payment received, assistance required
+
+**Meaning:** Roogo's `NEEDS_SUPPORT` outcome: payment collection succeeded, but the reservation was not confirmed and needs human resolution. It is neither a failed charge nor proof that the customer can occupy the property.
+
+**Origin:** Roogo's paid-but-unfulfilled reservation state in the payment PRs.
+
+**Why it matters for building:** Keep the paid reference visible and offer support, not another payment or a successful-reservation handoff. Payment status and fulfillment status cannot be collapsed into one success flag.
+
+**Evidence:** [Payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08).
+
+### Listing-payment consumption
+
+**Meaning:** Permanent evidence that a deposit funded a particular listing. It survives property deletion and cannot be restored as reusable credit by clearing a payment link.
+
+**Origin:** Roogo's single-use paid-listing contract, made durable by migration 072.
+
+**Why it matters for building:** Retrying submission recovers the original property. A lost response, failed link repair or deletion never authorizes funding a replacement listing with the same payment.
+
+**Evidence:** [Consumption decision](./DECISIONS.md#listing-payment-consumption-survives-property-deletion--2026-09-09).
+
+### Notification acceptance and uncertain delivery
+
+**Meaning:** Acceptance means Expo or Africa's Talking accepted a send for processing, not that the customer read or received it. An uncertain outcome means Roogo cannot safely prove whether the provider accepted the send.
+
+**Origin:** Provider delivery semantics applied to Roogo's payment alerts.
+
+**Why it matters for building:** Callback delivered, payment completed and customer notified are different facts. Do not resend automatically after uncertainty, or treat a notification error as a payment failure.
+
+**Evidence:** [Send-boundary decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08).
 
 ## Listings and property review
 
@@ -42,6 +98,14 @@ lifecycle.
 
 **Why it matters for building:** Creating a database property is not the same as
 publishing it. Review and sale-specific gates can keep an annonce private.
+
+### Photo principale
+
+**Meaning:** The first photo in an annonce’s saved gallery, used as its cover and marked Principale in photo management. Its position is independent of professional-photo approval.
+
+**Origin:** Established listing terminology, confirmed by the Roogo photo-management labels and `property_images.is_primary`.
+
+**Why it matters for building:** Moving a photo to the first position changes the cover; both order and cover must persist across refresh. It does not approve professional photos or publish the annonce. See [how it is saved](./SYSTEM.md#how-is-the-principal-photo-saved).
 
 ### Type d'annonce
 
@@ -85,6 +149,73 @@ the agreed commercial terms.
 
 **Why it matters for building:** Ownership approval and mandate signature are
 separate sale-publication gates. Passing one never implies the other.
+
+### Échelle de prix (sale price ladder)
+
+**Meaning:** The prices above the owner's own price `D` at which Roogo sells:
+prix affiché `D` + 30% (published by default), objectif + 20% (owner receives
+exactly `D`), repère + 15% (display only) and minimum équipe + 10%.
+
+**Origin:** Salif, 2026-10-11; permissions revised 2026-10-17.
+
+**Why it matters for building:** From + 10% (inclusive) up, "l'équipe décide".
+Below + 10% a price needs "l'accord de Salif": recorded by Salif or the Directeur
+(who confirms he discussed it with Salif), and below the owner's own price only
+with the owner's verbal agreement. Each one is an "accord de prix" in
+`sale_price_approvals`. Owners never see these terms, only what they receive at
+each final sale price. Applies only to sales; rentals keep their price as set.
+
+## Property requests
+
+### Appel à biens
+
+**Meaning:** A staff-created call for properties matching a customer's criteria, offered for sale or monthly rent. Mobile labels this surface **Demandes / Requests**. It is separate from a renter's application to an existing listing.
+
+**Origin:** Roogo's local product usage established by ROO-20.
+
+**Why it matters for building:** A call describes demand, not a public annonce. Publishing the call does not publish a property or expose private customer contact details.
+
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
+
+### Proposition / réponse
+
+**Meaning:** One agent or owner's saved property proposal for one appel à biens. Its receipt preserves the submitted details, terms and follow-up status after the call closes.
+
+**Origin:** Roogo's ROO-20 response model and mobile labels.
+
+**Why it matters for building:** A retry retrieves the same proposal instead of replacing it. A response and its linked annonce have separate lifecycles.
+
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
+
+### Apporteur and commission commitment
+
+**Meaning:** In this flow, an agent supplies a property lead as an apporteur. The commission commitment records the rate and conditions acknowledged on submission and subsequently confirmed by staff; an owner response has no agent commission.
+
+**Origin:** Property brokerage language, narrowed by ROO-20's agent role and saved commitment.
+
+**Why it matters for building:** Agent compensation must remain distinct from Roogo's platform fees and referral rewards. A confirmed commitment records terms; it is not a payment, electronic signature or ownership approval.
+
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
+
+### Commission basis
+
+**Meaning:** The amount to which the saved agent rate applies: final sale price (`sale_price`) or one month of rent (`monthly_rent`).
+
+**Origin:** ROO-20's explicit commercial terms.
+
+**Why it matters for building:** Later edits to a call do not change a saved response's basis. A daily-rental listing cannot satisfy a monthly-rent response merely because both use the listing type `louer`.
+
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
+
+### Retenue / Bien publié
+
+**Meaning:** Staff follow-up statuses meaning accepted and linked to a live matching listing, respectively. Retenue confirms the original agent commitment; Bien publié records the listing handoff.
+
+**Origin:** ROO-20's operations labels.
+
+**Why it matters for building:** Neither status replaces the existing ownership review or publication process. Deleting the linked property returns a listed response to accepted and preserves confirmed terms.
+
+**Evidence:** [Property-request workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work).
 
 ## Hotel booking and coordinated travel
 
@@ -189,3 +320,110 @@ for Mebo.
 **Why it matters for building:** A valid Roogo login does not automatically make
 someone an approved advertiser. Business proof, completeness, feature access,
 and review state independently govern what the user may submit or edit.
+
+## Content Studio
+
+### Projet (Studio)
+
+**Meaning:** The Studio's unit of work: one property and everything made for it (scripts, voice-overs, visuals, videos). Another property means another project.
+
+**Origin:** Coined for the Studio on 2026-10-10 (Salif).
+
+**Why it matters for building:** Results must never carry over between properties; changing the property of a project that already has results opens a new project.
+
+**Evidence:** [Decision](./DECISIONS.md#a-studio-project-is-one-property-laid-out-as-script-plus-result-tiles--2026-10-10).
+
+### Visite POV
+
+**Meaning:** The first Studio video template: the listing's photos shown as a walkthrough under the voice-over, ending on the Roogo outro with the price and the number to call.
+
+**Origin:** Roogo's point-of-view listing video format, made into a template on 2026-10-10.
+
+**Why it matters for building:** Only the listing's own photos are allowed, and the outro price always comes from the listing.
+
+**Evidence:** [How a video is made](./SYSTEM.md#how-does-a-studio-video-get-made-and-stored).
+
+### Fin seule
+
+**Meaning:** The 6-second Roogo outro on its own, to add at the end of a video the team filmed in person.
+
+**Origin:** Requested by Salif on 2026-10-10.
+
+**Why it matters for building:** It has no voice or watermark, keeps the music up the whole time, and is labelled "Fin de vidéo" when downloaded.
+
+### Voix et images / Vidéos (budgets)
+
+**Meaning:** The two monthly Studio budgets per person. **Voix et images** pays for voice-overs, previews, images, subtitles and music (Cartesia and fal); **Vidéos** pays for HeyGen renders.
+
+**Origin:** Split by Salif on 2026-10-10.
+
+**Why it matters for building:** Every paid action reserves from exactly one pot before calling the provider, and the price is shown on the button.
+
+**Evidence:** `reserve_studio_spend` (migrations 082, 083).
+
+### Glossaire de prononciation / Texte envoyé à la voix
+
+**Meaning:** The team's list of words with how to say them, and the respelled text actually sent to the voice, shown before paying. The visible script keeps normal spelling.
+
+**Origin:** Studio feature; matching made tolerant on 2026-10-10.
+
+**Why it matters for building:** Respellings and numbers are produced by rules, never by a model, so prices and phone numbers cannot change.
+
+**Evidence:** [Pronunciation](./SYSTEM.md#how-does-the-studio-make-the-voice-say-words-correctly).
+
+### Bibliothèque musicale (Studio)
+
+**Meaning:** The team's music for Studio videos: Roogo's own tracks plus instrumentals generated in the Studio, shared by everyone.
+
+**Origin:** 2026-10-11 (Salif).
+
+**Why it matters for building:** Only tracks Roogo has the right to use belong here; commercial artist songs wait for rights confirmation.
+
+**Evidence:** [Decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
+
+
+## Team goals and calls
+
+### Vendu
+
+**Meaning:** The listing status of a property whose sale deed has been signed at the notary. It carries the signing date, the price and who marked it.
+
+**Origin:** 2026-10-16 (Salif). Before, « Expirée » was used for both rented and sold listings.
+
+**Why it matters for building:** It is the only source of the sales goal. Only the Directeur or the Fondateur sets it, only on sale listings; « Expirée » now means only that a listing is off.
+
+**Evidence:** [Decision](./DECISIONS.md#sales-come-from-a--vendu--listing-status-follower-counts-are-read-from-meta-every-night--2026-10-16).
+
+### Relevé (automatique, manuel)
+
+**Meaning:** One dated follower count for a social account. « Automatique » is read every night from Meta (Facebook, Instagram); « manuel » is typed in with a screenshot (TikTok, or when Meta fails).
+
+**Origin:** 2026-10-16.
+
+**Why it matters for building:** Goals show the latest relevé and its source, so the team can tell a measured number from a typed one.
+
+**Evidence:** [How it works](./SYSTEM.md#how-do-team-goals-call-notes-and-demande-answers-work).
+
+### Objectif
+
+**Meaning:** A goal the founder sets for the whole team: what we measure, a target and a period (ce mois, chaque mois, ce trimestre, cette année). Everyone sees it on Mon espace.
+
+**Origin:** 2026-10-16 (Salif, design canvas).
+
+**Why it matters for building:** Every number comes from a record or a dated reading with its proof; nothing is typed into the goal itself.
+
+### Levier
+
+**Meaning:** What one person does every week so a goal becomes inevitable (« Qu’est-ce qui doit se passer pour que ce soit inévitable ? »): owner, rhythm, weekly target.
+
+**Origin:** 2026-10-16 (Salif).
+
+**Why it matters for building:** « Ma part cette semaine » is the sum of the viewer's levers, each counted at most its weekly target.
+
+### Tâche d’appel and note d’appel
+
+**Meaning:** A task that is a phone call, and the record of its result (joint, pas de réponse, messagerie, mauvais numéro), notes and next step.
+
+**Origin:** 2026-10-16 (Salif).
+
+**Why it matters for building:** A call task cannot be marked done before its note exists; notes are seen by the caller, the Directeur and the founder only.

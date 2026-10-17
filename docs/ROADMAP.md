@@ -8,12 +8,63 @@ The **Shipped** section below is a high-level, user-benefit view of what
 `roogo-web` does today — derived from the live surfaces (`app/`, `app/api/`,
 `components/`, `vercel.json` crons). It also serves as the **sole backend for the
 mobile app**, so much of this powers `roogo` too; the mobile-side benefit view
-lives in [`roogo/docs/roadmap.md`](../../roogo/docs/roadmap.md). Forward-looking
+lives in [`roogo/docs/ROADMAP.md`](../../roogo/docs/ROADMAP.md). Forward-looking
 work continues in the **Feature Checklist** and detailed sections that follow.
 
 ---
 
+**Current migration record (2026-09-13 UTC):** Salif confirms all 001–073 have run on Roogo. Earlier migration-pending statements below are historical snapshots; app/device QA remains separate. See the [ledger](../supabase/migrations/README.md) before applying SQL to any target.
+
+## Now
+
+- [ ] **Roll out staff access levels** — a person's level decides what they can do in the back office; the founder and directors invite people and the founder reads the journal. Built 2026-10-16 (see [system behavior](./SYSTEM.md#how-do-staff-access-levels-work) and [decision](./DECISIONS.md#staff-access-by-job-title-with-invitations-instead-of-a-shared-code--2026-10-11)); pull request pending merge, not deployed.
+  - [x] **Migration 089 executed 2026-10-16** (confirmed by Salif; [ledger](../supabase/migrations/README.md)).
+  - [ ] **Assign levels** on `/admin/acces/niveaux` to every real staff member (Ablassé: director), invite Rokiatou (advisor) and Moubarak (assistant), then set `STAFF_LEVELS_ENFORCED=true` and delete `STAFF_REGISTRATION_SECRET`.
+  - [ ] **Remaining work:** 30-day temporary extra access; per-route checks on the staff routes listed as not built in SYSTEM.
+
+- [ ] **Verify the deployed image-loading rollout** — visitors see the hero promptly while featured annonces load. [#32](https://github.com/saliftankoano/roogo-web/pull/32), [#33](https://github.com/saliftankoano/roogo-web/pull/33) and [#34](https://github.com/saliftankoano/roogo-web/pull/34) merged on 2026-09-13 UTC; all implementation tickets are Done and migration 073 is operator-confirmed executed. Vercel production deployment was pending at merge verification. Done when: the matching deployment succeeds and is checked for hero/featured-result behavior and source/optimized cache headers, and the release evidence is recorded in [CHANGELOG](./CHANGELOG.md). Compare actual image usage/load measurements without claiming dev-fixture timings as production LCP. [ROO-23](https://linear.app/roogo-burkina/issue/ROO-23), [system behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover).
+
+- [ ] **Release clear, duplicate-safe payment failure notices** — customers can understand a failed charge and distinguish it from a paid reservation needing support. As of 2026-09-09, [web #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile #29](https://github.com/saliftankoano/roogo/pull/29) are open, implemented PRs, not a verified production release.
+  - [x] **Database prerequisite (2026-09-09):** preflights passed; 070 → 071 → 072 were executed and verified on Roogo. [Execution ledger](../supabase/migrations/README.md). Do not rerun applied files or fabricate older history.
+  - **Historical-evidence boundary:** the verified backfill preserved two consumed deposits with no conflicting surviving links. Previously deleted links and missing original amenities remain evidence-based support cases; they were not reconstructed.
+  - [ ] **Resolve the mobile cold-return blocker:** an old successful hosted link without its original draft must reach the already-created property or allow draft repair without losing the deposit or charging again. Add a regression using the real submission handler, not just a mocked handoff.
+  - **Validation gate:** run the accepted sandbox scenario `22602345048` / `INSUFFICIENT_BALANCE`; verify localized screen copy, eligible push/SMS fallback, opt-outs, cooldown, accountless 3D and webhook/poll deduplication. Validate direct/hosted failure and support recovery on a device, then record actual deployment/release evidence in [CHANGELOG.md](./CHANGELOG.md) before marking complete. No live payment or messaging was performed by the implementation task.
+  - **Dependencies:** [system behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [send-boundary decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08). Migration 070 preserves legacy notification uncertainty; do not reset uncertain sends or rewrite historical fulfillment without provider evidence.
+
+- [ ] **Finish ROO-20 release validation** — make customer calls usable by agents, owners and operations across both products. As of 2026-09-08, [web PR #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile PR #30](https://github.com/saliftankoano/roogo/pull/30) are reviewed draft implementations, not shipped features. Done when: a deployed test backend with migrations 068 and 069 supports native agent and owner submission, image/PDF selection, real private uploads, receipt access and retry checks; any resulting issues are resolved. Local automated coverage and renter access-denial checks are recorded in [PR #31](https://github.com/saliftankoano/roogo-web/pull/31).
+
+- [ ] **Turn on the in-app Fiche de visite** — the team fills the field visit sheet on the phone, uploads at the office, and the six follow-up tasks land in the briefing. Done when: (migrations 086 and 090 have run on Roogo, recorded 2026-10-17) the Google service account is set ([setup](./SYSTEM.md#setup-salif-once)), one real visit is done end to end on a phone (offline stretch included), and Salif decides the Drive folder rule (`<CODE> <titre>` from the canvas or `Quartier - Nom du propriétaire` from the paper sheet). Branch `feat/fiche-visite`. [Decision](./DECISIONS.md#the-field-visit-sheet-moves-into-the-app--2026-10-15).
+- [ ] **Turn on field media uploads in the Studio** — staff drop a visit's photos and videos on the property's project and find them in the shared Drive folder, ready for video templates. Done when: Salif creates the service account and sets the env vars ([setup](./SYSTEM.md#setup-salif-once)) (migration 086 has run, recorded 2026-10-17), and a real 200 MB+ phone video uploads directly (no relay warning), lands in the right Drive folder with its duration, and streams through a signed link. Branch `feat/studio-field-media`. [Decision](./DECISIONS.md#studio-field-media-go-straight-to-the-shared-drive--2026-10-12).
+
+- [ ] **Studio staff training video, with the new music section** — staff learn the new Studio from one walkthrough (project, script, voice, pronunciation, visuals, editor, music, video, Fin seule). Done when: the music section is captured and narrated, the final MP4 passes the motion and transcription checks, and it is delivered to the vault `06 Product and technology/Videos/`. Approved by Salif on 2026-10-11.
+
+## Next
+
+- [ ] **Roll out the coordinated property-request workflow** — make the reviewed feature available with its backend dependencies in place. Done when: the paired PRs are merged, the matching web/API deployment is verified (Roogo migrations 068/069 are now operator-confirmed executed; another target requires its own history check), and only then the mobile counterpart is released and checked. No new environment variables are required. Staff must supply approved commission terms before opening calls. Record verified release evidence in [CHANGELOG.md](./CHANGELOG.md), then close this item. See the [product decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08).
+
+## Later
+
+No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
+
+- [ ] **Artist songs in the Studio music library** — staff can pick popular local songs. Done when: Salif confirms the rights for a song; only then is it uploaded. Until then, songs are added with the platform's music picker when posting. [Decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
+
+- [ ] **A model pass on the spoken text, only if needed** — fixes pronunciations the rules still miss. Done when: real use shows words the tolerant rules miss; numbers must stay rule-only. [Decision](./DECISIONS.md#studio-pronunciation-the-glossary-guides-the-writer-rules-make-the-speech--2026-10-10).
+
 ## Recently completed
+
+- [x] **French page addresses — 2026-10-11** — 9 renames with redirects; the payment return stays direct. [#58](https://github.com/saliftankoano/roogo-web/pull/58), [CHANGELOG](./CHANGELOG.md#2026-10-11).
+
+- [x] **Studio music, video compression and loading skeleton — 2026-10-11** — music library and Lyria generation (#54), bundled fonts (#55), skeleton (#56), compressed renders that fixed Ablassé's failed save (#57); all verified on production. [CHANGELOG](./CHANGELOG.md#2026-10-11).
+
+- [x] **Studio project page, photo videos, pronunciation and downloads — 2026-10-10** — #51, #52, #53 deployed; real renders verified. [CHANGELOG](./CHANGELOG.md#2026-10-10).
+
+- [x] **Photo-order training video delivered — 2026-10-05** — actual production recording with Salif French narration and credited music; 45-second 1080p MP4, audio/decode/continuity checks passed, QuickTime playback started. [Delivery record](./photo-gallery-video-delivery.md).
+
+- [x] **Freely arrange listing photos** — production verified 2026-10-05 with drag, arrows and reload; first position is the cover. [CHANGELOG](./CHANGELOG.md#2026-10-05).
+
+- [x] **Public listing sizing, photo retry recovery and homepage streaming implemented** — #32/#33/#34 merged on 2026-09-13 UTC; migration 073 is operator-confirmed applied. Deployment verification remains in Now. See [CHANGELOG](./CHANGELOG.md#2026-09-13) and [ROO-21](https://linear.app/roogo-burkina/issue/ROO-21)/[ROO-22](https://linear.app/roogo-burkina/issue/ROO-22).
+
+- [x] **Payment database prerequisites** — 070–072 executed and verified on Roogo on 2026-09-09. This is not the API/client feature release. See [CHANGELOG](./CHANGELOG.md#2026-09-09) and the [execution ledger](../supabase/migrations/README.md).
 
 - [x] **Hotel booking, operations, trust, events, and groups** — verified and
   merged on 2026-08-30 across mobile PRs
@@ -233,11 +284,11 @@ owners day-to-day control over their annonces.
 
 Migrations:
 
-- `supabase/migrations/031_property_pending_edits.sql` — table + partial unique
+- `supabase/migrations/031_property_pending_edits_executed.sql` — table + partial unique
   index (one pending row per property)
-- `supabase/migrations/032_unescape_html_entities_in_text_fields.sql` — one-pass
+- `supabase/migrations/032_unescape_html_entities_in_text_fields_executed.sql` — one-pass
   decode of legacy HTML-encoded French text in `properties`
-- `supabase/migrations/033_pending_edits_fixes.sql` — `updated_at` trigger on
+- `supabase/migrations/033_pending_edits_fixes_executed.sql` — `updated_at` trigger on
   pending edits; looped entity re-decode (max 3 passes) for double-escaped strings
 
 Table `property_pending_edits`:
@@ -478,7 +529,7 @@ processor fees.
 
 Migration:
 
-- `supabase/migrations/024_referral_program.sql`
+- `supabase/migrations/024_referral_program_executed.sql`
 
 Tables:
 
@@ -563,7 +614,7 @@ Mobile:
 
 ### Rollout Checklist
 
-- Apply `024_referral_program.sql` to Supabase.
+- Apply `024_referral_program_executed.sql` to Supabase.
 - Confirm `referrer-verification` bucket exists and remains private.
 - Verify service role access can create signed ID image URLs for admin review.
 - Confirm staff can approve/reject/suspend referrers.

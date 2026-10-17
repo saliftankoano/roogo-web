@@ -15,6 +15,16 @@ import {
   isBlockedDailyFinalize,
 } from "@/lib/daily-bookings";
 import { handleVisit3dDepositCallback } from "@/lib/visit3d-callback";
+import {
+  extractPaymentFailure,
+  extractPaymentPayerPhone,
+  shouldApplyPaymentStatus,
+} from "@/lib/payment-failures";
+import { queuePaymentFailureNotification } from "@/lib/payment-failure-notifications";
+import {
+  finalizeMonthlyPropertyLock,
+  isMonthlyProperty,
+} from "@/lib/property-lock-finalization";
 
 // PawaPay IPs to whitelist
 const PAWAPAY_IPS = [
@@ -209,7 +219,11 @@ export async function POST(req: Request) {
     if (!transaction) {
       // Not a rent/listing transaction — try Visites 3D bookings, which share
       // this PawaPay account. Deposit IDs are unique in both tables.
-      const visit3d = await handleVisit3dDepositCallback(transactionId, status);
+      const visit3d = await handleVisit3dDepositCallback(
+        transactionId,
+        status,
+        data,
+      );
       if (visit3d.dbError) {
         // The bookings lookup itself failed — don't ack as "not found" or
         // PawaPay will never retry a possibly-real booking callback.
@@ -259,29 +273,87 @@ export async function POST(req: Request) {
       userId: transaction.user_id,
     });
 
-    // Extract detailed failure information
-    let detailedFailureReason = null;
-    if (dbStatus === "failed" && failureReason) {
-      // PawaPay sends failureReason as an object with failureMessage, failureCode, etc.
-      if (typeof failureReason === "object") {
-        detailedFailureReason = JSON.stringify(failureReason);
-      } else {
-        detailedFailureReason = String(failureReason);
-      }
-    }
+    const failure = extractPaymentFailure(data);
+    const payerPhone =
+      extractPaymentPayerPhone(data) ?? transaction.payer_phone ?? null;
 
     const inferredProvider = resolveWebProvider(data);
 
-    const { error: updateError } = await supabase
-      .from("transactions")
-      .update({
-        status: dbStatus,
-        provider: inferredProvider || transaction.provider,
-        failure_reason: detailedFailureReason || null,
-        metadata: { ...(transaction.metadata || {}), ...data }, // Merge metadata
-        updated_at: new Date().toISOString(),
-      })
-      .eq("deposit_id", transactionId);
+    if (!shouldApplyPaymentStatus(transaction.status, dbStatus)) {
+      log("terminal-status-ignored", {
+        transactionId,
+        previousStatus: transaction.status,
+        ignoredStatus: dbStatus,
+      });
+      // A later delivery can safely re-drive a previously failed notification
+      // after its lease expires. The dispatcher still deduplicates successful
+      // sends by deposit ID.
+      if (transaction.status === "failed") {
+        await queuePaymentFailureNotification({
+          depositId: transactionId,
+          failureCode: transaction.failure_code || failure.code,
+          payerPhone,
+          userId: transaction.user_id,
+          transactionId: transaction.id,
+          transactionType: transaction.type,
+          propertyId: transaction.property_id,
+        });
+      }
+      return NextResponse.json({ received: true, statusIgnored: true });
+    }
+
+    let updated: { id: string }[] | null = null;
+    let updateError: unknown = null;
+    try {
+      const atomicMonthlyLock =
+        dbStatus === "completed" &&
+        transaction.type === "property_lock" &&
+        (await isMonthlyProperty(transaction.property_id));
+
+      if (atomicMonthlyLock) {
+        const completion = await finalizeMonthlyPropertyLock(
+          transactionId,
+          data,
+        );
+        updated = completion.transitioned ? [{ id: transaction.id }] : [];
+        if (completion.paymentStatus === "completed") {
+          const { error: enrichmentError } = await supabase
+            .from("transactions")
+            .update({
+              provider: inferredProvider || transaction.provider,
+              payer_phone: payerPhone,
+            })
+            .eq("id", transaction.id)
+            .eq("status", "completed");
+          if (enrichmentError) {
+            log("completed-lock-enrichment-failed", {
+              transactionId,
+              error: String(enrichmentError),
+            });
+          }
+        }
+      } else {
+        const update = await supabase
+          .from("transactions")
+          .update({
+            status: dbStatus,
+            provider: inferredProvider || transaction.provider,
+            payer_phone: payerPhone,
+            failure_code: dbStatus === "failed" ? failure.code : null,
+            failure_reason:
+              dbStatus === "failed" ? failure.providerMessage : null,
+            metadata: { ...(transaction.metadata || {}), ...data },
+            updated_at: new Date().toISOString(),
+          })
+          .eq("deposit_id", transactionId)
+          .eq("status", transaction.status)
+          .select("id");
+        updated = update.data;
+        updateError = update.error;
+      }
+    } catch (error) {
+      updateError = error;
+    }
 
     if (updateError) {
       log("db-update-failed", { transactionId, error: String(updateError) });
@@ -289,6 +361,51 @@ export async function POST(req: Request) {
         { error: "Database update failed" },
         { status: 500 },
       );
+    }
+
+    if (!updated?.length) {
+      log("status-update-raced", {
+        transactionId,
+        previousStatus: transaction.status,
+        attemptedStatus: dbStatus,
+      });
+      // A lost compare-and-set is not necessarily a duplicate: a poll may have
+      // advanced pending -> submitted while this terminal callback was in flight.
+      // Only acknowledge after checking the winner; otherwise ask PawaPay to retry.
+      const { data: current, error: reloadError } = await supabase
+        .from("transactions")
+        .select("*")
+        .eq("deposit_id", transactionId)
+        .single();
+      if (
+        reloadError ||
+        !current ||
+        (current.status !== dbStatus &&
+          shouldApplyPaymentStatus(current.status, dbStatus))
+      ) {
+        log("status-update-retry-required", {
+          transactionId,
+          currentStatus: current?.status ?? null,
+          attemptedStatus: dbStatus,
+          reloadFailed: Boolean(reloadError),
+        });
+        return NextResponse.json(
+          { error: "Payment update unresolved; retry callback" },
+          { status: 503 },
+        );
+      }
+      if (current.status === "failed") {
+        await queuePaymentFailureNotification({
+          depositId: transactionId,
+          failureCode: current.failure_code || failure.code,
+          payerPhone: current.payer_phone || payerPhone,
+          userId: current.user_id,
+          transactionId: current.id,
+          transactionType: current.type,
+          propertyId: current.property_id,
+        });
+      }
+      return NextResponse.json({ received: true, statusIgnored: true });
     }
 
     log("db-updated", { transactionId, newStatus: dbStatus });
@@ -359,23 +476,6 @@ export async function POST(req: Request) {
             .select("period")
             .eq("id", propertyId)
             .maybeSingle();
-
-          if (propertyRecord?.period !== "day") {
-            const { error: lockError } = await supabase
-              .from("properties")
-              .update({ status: "locked" })
-              .eq("id", propertyId);
-
-            if (lockError) {
-              log("post-payment-lock-failed", {
-                transactionId,
-                propertyId,
-                error: String(lockError),
-              });
-            } else {
-              log("post-payment-lock-success", { transactionId, propertyId });
-            }
-          }
 
           let dailyFinalizeBlocked = false;
           if (propertyRecord?.period === "day") {
@@ -519,10 +619,22 @@ export async function POST(req: Request) {
           transaction_type: transaction.type || "unknown",
           provider: transaction.provider || "unknown",
           property_id: transaction.property_id || null,
-          failure_reason: detailedFailureReason || "Payment failed",
+          failure_reason: failure.providerMessage || "Payment failed",
           source: "pawapay_callback",
         },
       );
+    }
+
+    if (dbStatus === "failed") {
+      await queuePaymentFailureNotification({
+        depositId: transactionId,
+        failureCode: failure.code,
+        payerPhone,
+        userId: transaction.user_id,
+        transactionId: transaction.id,
+        transactionType: transaction.type,
+        propertyId: transaction.property_id,
+      });
     }
 
     log("callback-complete", { transactionId, finalStatus: dbStatus });

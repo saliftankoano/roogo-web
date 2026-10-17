@@ -11,6 +11,8 @@ import {
 } from "@/lib/data";
 import { getPropertyMetaDescription, isUuid } from "@/lib/property-url";
 import { isStaffLikeMetadata } from "@/lib/user-types";
+import { isDirectorOrFounder } from "@/lib/team-tasks/core";
+import { getViewer } from "@/lib/team-tasks/server";
 import {
   getPropertyCanonicalUrl,
   getPropertyDisplayName,
@@ -135,7 +137,15 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
   }
 
   if (viewerIsStaff) {
-    return <AdminListingDetail propertyId={property.id} />;
+    // « Vendu » is offered to the Directeur and the Fondateur; the status
+    // route checks it again.
+    const viewer = await getViewer().catch(() => null);
+    return (
+      <AdminListingDetail
+        propertyId={property.id}
+        canMarkSold={isDirectorOrFounder(viewer?.level)}
+      />
+    );
   }
 
   return (

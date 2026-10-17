@@ -154,10 +154,9 @@ export async function DELETE(
     }
 
     // 4. Delete from database
-    const { error: dbError } = await supabase
-      .from("property_images")
-      .delete()
-      .match({ property_id: propertyId, url: url });
+    const { error: dbError } = await supabase.rpc("delete_property_image", {
+      p_property_id: propertyId, p_url: url,
+    });
 
     if (dbError) {
       console.error("Error deleting image record:", dbError);
@@ -218,9 +217,16 @@ export async function PATCH(
 
     // 2. Parse request body
     const body = await req.json();
-    const { url } = body;
-
-    if (!url) {
+    const { url, urls, expectedUrls } = body;
+    const isReorder = urls !== undefined;
+    const validUrls = (value: unknown): value is string[] =>
+      Array.isArray(value) && value.length > 0 && value.length <= 20 &&
+      value.every((entry) => typeof entry === "string" && entry.trim().length > 0) &&
+      new Set(value).size === value.length;
+    if (isReorder && (!validUrls(urls) || !validUrls(expectedUrls))) {
+      return cors(json({ error: "Invalid photo order", code: "INVALID_PHOTO_ORDER" }, 400));
+    }
+    if (!isReorder && (typeof url !== "string" || !url.trim())) {
       return cors(json({ error: "Missing image url" }, 400));
     }
 
@@ -241,55 +247,30 @@ export async function PATCH(
       return cors(json({ error: "Forbidden" }, 403));
     }
 
-    const { data: targetImage, error: targetImageError } = await supabase
-      .from("property_images")
-      .select("id")
-      .match({ property_id: propertyId, url })
-      .maybeSingle();
+    // Selection and reset must commit together. primary_image is a read-view
+    // projection, never a column to write on properties.
+    const { data: primaryImage, error: primaryError } = isReorder
+      ? await supabase.rpc("reorder_property_images", {
+          p_property_id: propertyId, p_urls: urls, p_expected_urls: expectedUrls,
+        })
+      : await supabase.rpc("set_property_primary_image", {
+          p_property_id: propertyId, p_url: url,
+        });
 
-    if (targetImageError) {
-      console.error("Error finding primary image target:", targetImageError);
-      return cors(json({ error: "Failed to find image" }, 500));
+    if (primaryError) {
+      if (primaryError.code === "40001" || primaryError.code === "22023") {
+        return cors(json({ error: "Gallery changed; reload before rearranging", code: "PHOTO_ORDER_CONFLICT" }, 409));
+      }
+      if (primaryError.code === "P0002") {
+        return cors(json({ error: "Image not found", code: "IMAGE_NOT_FOUND" }, 404));
+      }
+      console.error("Error setting primary image:", primaryError);
+      return cors(json({ error: "Failed to set primary image", code: "PRIMARY_IMAGE_SAVE_FAILED" }, 500));
     }
 
-    if (!targetImage) {
-      return cors(json({ error: "Image not found" }, 404));
-    }
-
-    // 4. Update database: Set all to false, then target to true
-    // First, set all images for this property to is_primary = false
-    const { error: resetError } = await supabase
-      .from("property_images")
-      .update({ is_primary: false })
-      .eq("property_id", propertyId);
-
-    if (resetError) {
-      console.error("Error resetting primary images:", resetError);
-      return cors(json({ error: "Failed to update image status" }, 500));
-    }
-
-    // Then set the target image to is_primary = true
-    const { error: setError } = await supabase
-      .from("property_images")
-      .update({ is_primary: true })
-      .match({ property_id: propertyId, url: url });
-
-    if (setError) {
-      console.error("Error setting primary image:", setError);
-      return cors(json({ error: "Failed to set primary image" }, 500));
-    }
-
-    const { error: propertyUpdateError } = await supabase
-      .from("properties")
-      .update({ primary_image: url })
-      .eq("id", propertyId);
-
-    if (propertyUpdateError) {
-      console.error("Error updating property primary image:", propertyUpdateError);
-      return cors(json({ error: "Failed to update property primary image" }, 500));
-    }
-
-    return cors(json({ success: true }));
+    return cors(json(isReorder
+      ? { success: true, photos: primaryImage, primaryImageUrl: primaryImage?.[0] }
+      : { success: true, primaryImageUrl: primaryImage }));
 
   } catch (error) {
     console.error("Error in PATCH /api/properties/[id]/images:", error);

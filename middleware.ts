@@ -116,6 +116,8 @@ const isPublicRoute = createRouteMatcher([
   "/tutoriels(.*)",
   "/proprietes",
   "/visites-3d",
+  "/proprietaires",
+  "/api/media/(.*)",
   "/mebo",
   "/mebo/plans(.*)",
   "/mebo/vendeurs(.*)",
@@ -143,6 +145,9 @@ const isPublicRoute = createRouteMatcher([
   // isStaffLikeUserType internally, so exposing them here doesn't relax authorization.
   "/api/support/admin/(.*)",
   "/api/cron/(.*)",
+  // Studio field media stream: HeyGen fetches it with a signed ?exp=&token=
+  // link and no session; the handler checks the token or a staff session.
+  "/api/admin/studio/media/(.*)/stream",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates
   "/api/properties/(.*)/availability",
@@ -155,6 +160,9 @@ const isPublicRoute = createRouteMatcher([
   // Ownership documents (Roogo Sell) — mobile authenticates with Bearer JWT
   "/api/properties/(.*)/ownership-documents",
   "/api/properties/(.*)/ownership-documents/upload-url",
+  // Sale price ladder — staff only; the handler validates the session or the
+  // mobile Bearer JWT and returns 403 to everyone else.
+  "/api/properties/(.*)/sale-ladder",
   // Sale chat — mobile authenticates with Bearer JWT
   "/api/sale-chat/(.*)",
   // Hotel operations — the handler validates the mobile Bearer JWT and admin role.
@@ -172,7 +180,8 @@ const isPublicRoute = createRouteMatcher([
   "/p/(.*)",
   "/proprietes/(.*)",
   // Payment callback — accessed from PawaPay redirect; Safari has no Clerk session
-  "/payments/callback",
+  "/paiements/retour",
+  "/payments/callback", // old address, still served directly for payments in progress
 ]);
 
 // Routes that bypass the onboarding gate:
@@ -180,7 +189,7 @@ const isPublicRoute = createRouteMatcher([
 // - admin/personnel routes (staff and founders are exempt)
 // - all API routes (server-side, no session-based gate needed)
 const isOnboardingGateExempt = createRouteMatcher([
-  "/onboarding(.*)",
+  "/bienvenue(.*)",
   "/admin(.*)",
   "/personnel(.*)",
   "/api(.*)",
@@ -222,7 +231,7 @@ export default clerkMiddleware(
         const isBypassRole = ["staff", "founder"].includes(gateState.userType);
 
         if (!gateState.hasCompletedOnboarding && !isBypassRole) {
-          return NextResponse.redirect(new URL("/onboarding", req.url));
+          return NextResponse.redirect(new URL("/bienvenue", req.url));
         }
       }
     }

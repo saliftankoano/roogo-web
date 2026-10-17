@@ -13,7 +13,7 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> },
 ) {
   try {
-    const admin = await requireAdminSupabaseUser();
+    const admin = await requireAdminSupabaseUser(undefined, "referrals.validate");
     const { id } = await params;
     const body = updateSchema.parse(await req.json());
 

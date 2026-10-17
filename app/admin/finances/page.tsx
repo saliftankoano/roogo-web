@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo } from "react";
 import { useUser } from "@clerk/nextjs";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 import { useRouter } from "next/navigation";
 import {
   MagnifyingGlassIcon,
@@ -83,7 +84,8 @@ const ADD_ON_LABELS: Record<string, string> = {
 };
 
 export default function AdminFinancesPage() {
-  const { user, isLoaded } = useUser();
+  const { isLoaded } = useUser();
+  const staffAccess = useStaffAccess();
   const router = useRouter();
 
   const [transactions, setTransactions] = useState<ExtendedTransaction[]>([]);
@@ -97,12 +99,14 @@ export default function AdminFinancesPage() {
     console.log("🔄 Environment filter changed to:", environmentFilter);
   }, [environmentFilter]);
 
-  // Redirect staff users - only founders can access finances
+  // Founder and director read finances. The route guard already blocks the
+  // page, this keeps the client in step if the level changes while it is open.
+  const canViewFinances = staffAccess.can("finances.view");
   useEffect(() => {
-    if (isLoaded && user?.publicMetadata?.userType !== "founder") {
+    if (isLoaded && !canViewFinances) {
       router.push("/admin");
     }
-  }, [isLoaded, user, router]);
+  }, [isLoaded, canViewFinances, router]);
 
   useEffect(() => {
     async function loadTransactions() {
@@ -281,8 +285,7 @@ export default function AdminFinancesPage() {
     };
   }, [transactions, environmentFilter]);
 
-  // Don't render for staff - only founders can access finances
-  if (!isLoaded || user?.publicMetadata?.userType !== "founder") {
+  if (!isLoaded || !canViewFinances) {
     return null;
   }
 

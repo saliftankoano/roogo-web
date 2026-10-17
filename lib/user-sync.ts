@@ -1,3 +1,4 @@
+import { isAssignableStaffLevel } from "@/lib/staff-access";
 import { createClient } from "@supabase/supabase-js";
 import { createClerkClient } from "@clerk/backend";
 import { redis } from "@/lib/rate-limit";
@@ -137,6 +138,8 @@ export interface ClerkUserData {
   phone_numbers?: Array<{ phone_number: string }>;
   public_metadata?: {
     userType?: string;
+    /** Job title of a staff member, see lib/staff-access.ts. */
+    staffLevel?: string;
     role?: string;
     hasCompletedMobileOnboarding?: boolean;
     hasCompletedOnboarding?: boolean; // legacy — same as hasCompletedMobileOnboarding
@@ -308,6 +311,14 @@ export async function createUserInSupabase(
       referral_source: referralSource,
       preferences: onboardingData, // Store everything in JSONB as well
     };
+
+    // Mirror the staff level only when Clerk carries a valid one. Leaving the
+    // key out for everyone else keeps sign-ups working on a database that has
+    // not run migration 089 yet.
+    const clerkStaffLevel = String(public_metadata?.staffLevel ?? "").toLowerCase();
+    if (supabaseUserType === "staff" && isAssignableStaffLevel(clerkStaffLevel)) {
+      userData.staff_level = clerkStaffLevel;
+    }
 
     const signupSnapshot = opts?.signupSnapshot ?? opts?.signupGeo ?? null;
     let wroteSignupSnapshot = false;

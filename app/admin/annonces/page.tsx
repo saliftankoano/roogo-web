@@ -27,6 +27,7 @@ import {
   removePendingPhotos,
 } from "@/lib/clientPendingPhotos";
 import { uploadCompressedPropertyPhotos } from "@/lib/clientPropertyPhotoUpload";
+import { propertyStatusBadge, propertyStatusLabel } from "@/lib/property-status";
 
 export default function AdminListingsPage() {
   const { user } = useUser();
@@ -41,6 +42,8 @@ export default function AdminListingsPage() {
   const [locationFilter, setLocationFilter] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  // Status label (« En ligne », « Vendu »…), "all" for every status.
+  const [statusFilter, setStatusFilter] = useState("all");
   const [listingTypeFilter, setListingTypeFilter] = useState<
     "all" | "louer" | "vendre"
   >("all");
@@ -295,13 +298,17 @@ export default function AdminListingsPage() {
       const matchesListingType =
         listingTypeFilter === "all" ||
         (listing.listingType ?? "louer") === listingTypeFilter;
+      const matchesStatus =
+        statusFilter === "all" ||
+        propertyStatusLabel(listing.status) === statusFilter;
 
       return (
         matchesSearch &&
         matchesLocation &&
         matchesType &&
         matchesCategory &&
-        matchesListingType
+        matchesListingType &&
+        matchesStatus
       );
     });
   }, [
@@ -311,6 +318,7 @@ export default function AdminListingsPage() {
     typeFilter,
     categoryFilter,
     listingTypeFilter,
+    statusFilter,
   ]);
 
   const locations = useMemo(
@@ -320,6 +328,17 @@ export default function AdminListingsPage() {
           properties
             .map((p) => p.city)
             .filter((city): city is string => !!city),
+        ),
+      ),
+    [properties],
+  );
+  const statuses = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          properties
+            .map((p) => propertyStatusLabel(p.status))
+            .filter((label): label is string => !!label),
         ),
       ),
     [properties],
@@ -475,6 +494,14 @@ export default function AdminListingsPage() {
                   options={["Residential", "Business"]}
                   placeholder="Toutes catégories"
                 />
+
+                <FilterSelect
+                  label="Statut"
+                  value={statusFilter}
+                  onChange={setStatusFilter}
+                  options={statuses}
+                  placeholder="Tous les statuts"
+                />
               </div>
             </motion.div>
           )}
@@ -493,29 +520,9 @@ export default function AdminListingsPage() {
             >
               <div className="absolute top-7 right-7 z-10">
                 <span
-                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border backdrop-blur-sm ${
-                    listing.status === "en_ligne"
-                      ? "bg-green-100/90 text-green-800 border-green-200"
-                      : listing.status === "locked"
-                        ? "bg-primary/90 text-white border-primary/20"
-                        : listing.status === "finalized"
-                          ? "bg-neutral-900 text-white border-neutral-800"
-                          : listing.status === "en_attente"
-                            ? "bg-yellow-100 text-yellow-900 border-yellow-300"
-                            : "bg-neutral-100/90 text-neutral-600 border-neutral-200"
-                  }`}
+                  className={`px-3 py-1 rounded-full text-[10px] font-bold uppercase tracking-wider shadow-sm border backdrop-blur-sm ${propertyStatusBadge(listing.status)}`}
                 >
-                  {listing.status === "en_ligne"
-                    ? "En ligne"
-                    : listing.status === "locked"
-                      ? "Réservé"
-                      : listing.status === "finalized"
-                        ? "Loué"
-                        : listing.status === "en_attente"
-                          ? "En attente"
-                          : listing.status === "expired"
-                            ? "Expiré"
-                            : listing.status}
+                  {propertyStatusLabel(listing.status)}
                 </span>
               </div>
               {listing.saleIntake?.status === "unlinked" && (

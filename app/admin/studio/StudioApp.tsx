@@ -1,0 +1,906 @@
+"use client";
+
+import { createPortal } from "react-dom";
+
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import gsap from "gsap";
+import { AnimatePresence, motion } from "framer-motion";
+import {
+  ArrowLeftIcon,
+  FilmSlateIcon,
+  ImageSquareIcon,
+  TranslateIcon,
+  WaveformIcon,
+  ClockCounterClockwiseIcon,
+  SlidersHorizontalIcon,
+  XIcon,
+} from "@phosphor-icons/react";
+import { cn } from "@/lib/utils";
+import { estimateJobCostUsd } from "@/lib/studio/ai-tools";
+import { DEFAULT_FCFA_PER_USD, formatMoney, type StudioCurrency } from "@/lib/studio/currency";
+import { parseSseBuffer } from "@/lib/studio/sse";
+import { orderArtifacts } from "./ArtifactsPanel";
+import { ProjectView, ProjectSkeleton } from "./ProjectView";
+import { CloneVoice } from "./CloneVoice";
+import { GlossaryPanel } from "./GlossaryPanel";
+import { HistoryPanel } from "./HistoryPanel";
+import { ProjectPanel, type CenterView } from "./ProjectPanel";
+import { PropertyPicker } from "./PropertyPicker";
+import { StudioEditor } from "./StudioEditor";
+import { useJobs } from "./StudioTools";
+import { StudioVisuals } from "./StudioVisuals";
+import { VoiceStudio } from "./VoiceStudio";
+import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
+import { glass, stage } from "./studio-ui";
+import {
+  FIRST_DRAFT_REQUEST,
+  type Artifact,
+  type Budget,
+  type ChatMessage,
+  type ConversationDetail,
+  type ConversationItem,
+  type PropertySummary,
+} from "./studio-types";
+
+const VOICE_STORAGE_KEY = "roogo-studio-voice";
+const CURRENCY_STORAGE_KEY = "roogo-studio-currency";
+const PANEL_STORAGE_KEY = "roogo-studio-panel";
+const ease = [0.22, 1, 0.36, 1] as const;
+
+const VIEW_TITLE: Record<Exclude<CenterView, "chat">, string> = {
+  editor: "Éditeur vidéo",
+  visuals: "Visuels",
+  glossary: "Prononciation",
+  voices: "Gérer les voix",
+  voiceover: "Voix off",
+  clone: "Cloner une voix",
+};
+
+function readStored(key: string, fallback: string): string {
+  try {
+    return window.localStorage.getItem(key) || fallback;
+  } catch {
+    return fallback;
+  }
+}
+
+function store(key: string, value: string) {
+  try {
+    window.localStorage.setItem(key, value);
+  } catch {
+    // Not critical.
+  }
+}
+
+/**
+ * The Studio (layout approved by Salif on 2026-10-09): the team's shared
+ * history on the left, the conversation in the centre with every result as a
+ * card in the thread, the open project's panel on the right. On a phone the
+ * history and the project panel open as sheets.
+ */
+export function StudioApp() {
+  const [view, setView] = useState<CenterView>("chat");
+  const [panelCollapsed, setPanelCollapsed] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
+  // Side columns slide with GSAP instead of snapping (Salif, 2026-10-10): one tween
+  // drives both widths, then the column's content fades back in at its new size.
+  const gridRef = useRef<HTMLDivElement | null>(null);
+  // A result tile grows into its tool (Salif, 2026-10-10): remember where the tile was,
+  // then the tool opens from that rectangle to the whole centre.
+  const mainRef = useRef<HTMLElement | null>(null);
+  const toolRef = useRef<HTMLDivElement | null>(null);
+  const expandFrom = useRef<{ top: number; left: number; width: number; height: number } | null>(null);
+  const historyInnerRef = useRef<HTMLDivElement | null>(null);
+  const panelInnerRef = useRef<HTMLDivElement | null>(null);
+  const colsRef = useRef<{ l: number; r: number } | null>(null);
+  const settledRef = useRef(false);
+  useEffect(() => {
+    // The saved panel state arrives just after mount: apply it without animating.
+    const id = window.setTimeout(() => (settledRef.current = true), 400);
+    return () => window.clearTimeout(id);
+  }, []);
+  // The centre swaps views after a short fade, so the tool mounts a moment after the click:
+  // run the expansion when its element appears.
+  const attachTool = useCallback((el: HTMLDivElement | null) => {
+    toolRef.current = el;
+    const from = expandFrom.current;
+    if (!el || !from) return;
+    expandFrom.current = null;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    const w = el.offsetWidth;
+    const h = el.offsetHeight;
+    const inset = `inset(${Math.max(0, from.top)}px ${Math.max(0, w - from.left - from.width)}px ${Math.max(0, h - from.top - from.height)}px ${Math.max(0, from.left)}px round 22px)`;
+    gsap.fromTo(
+      el,
+      { clipPath: inset },
+      { clipPath: "inset(0px 0px 0px 0px round 28px)", duration: 0.55, ease: "power3.inOut", clearProps: "clipPath" },
+    );
+  }, []);
+
+  useLayoutEffect(() => {
+    const grid = gridRef.current;
+    if (!grid) return;
+    const target = { l: historyCollapsed ? 68 : 320, r: panelCollapsed ? 68 : 300 };
+    const apply = () => {
+      const c = colsRef.current!;
+      grid.style.setProperty("--studio-cols", `${c.l}px minmax(0,1fr) ${c.r}px`);
+    };
+    if (colsRef.current === null || !settledRef.current) {
+      colsRef.current = { ...target };
+      apply();
+      return;
+    }
+    const moved = [
+      colsRef.current!.l !== target.l ? historyInnerRef.current : null,
+      colsRef.current!.r !== target.r ? panelInnerRef.current : null,
+    ].filter((el): el is HTMLDivElement => el !== null);
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const tl = gsap.timeline();
+    tl.to(colsRef.current!, { ...target, duration: reduce ? 0 : 0.5, ease: "power3.inOut", onUpdate: apply }, 0);
+    if (moved.length) {
+      tl.fromTo(moved, { autoAlpha: 0 }, { autoAlpha: 1, duration: reduce ? 0 : 0.25, ease: "power1.out" }, reduce ? 0 : 0.32);
+    }
+    return () => {
+      tl.progress(1).kill();
+    };
+  }, [historyCollapsed, panelCollapsed]);
+  // Below 1280 px only one side column is open at a time, so the chat keeps
+  // its width and nothing is ever drawn over it.
+  const [wide, setWide] = useState(true);
+  const [sheet, setSheet] = useState<"history" | "project" | null>(null);
+  const [highlightId, setHighlightId] = useState<string | null>(null);
+  const [currency, setCurrency] = useState<StudioCurrency>("FCFA");
+  const [rate, setRate] = useState(DEFAULT_FCFA_PER_USD);
+  const [glossaryVersion, setGlossaryVersion] = useState(0);
+  const [budget, setBudget] = useState<Budget | null>(null);
+  const [creatingVisual, setCreatingVisual] = useState(false);
+  const [switching, setSwitching] = useState(false);
+  // Overlays render on <body>: the Studio wrapper is translated, and a transform
+  // turns "fixed" into "relative to the wrapper", so they opened wherever the chat was scrolled.
+  const [portalReady, setPortalReady] = useState(false);
+  useEffect(() => setPortalReady(true), []);
+
+  const [voice, setVoice] = useState("sandrine");
+  const [voices, setVoices] = useState<VoiceInfo[]>([]);
+  const [terms, setTerms] = useState<TermsInfo | null>(null);
+  const [guestTerms, setGuestTerms] = useState<TermsInfo | null>(null);
+  const [cloningEnabled, setCloningEnabled] = useState(false);
+
+  const [conversations, setConversations] = useState<ConversationItem[]>([]);
+  const [activeId, setActiveId] = useState<string | null>(null);
+  const [detail, setDetail] = useState<ConversationDetail | null>(null);
+  const [sending, setSending] = useState(false);
+  const [streamingText, setStreamingText] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [booted, setBooted] = useState(false);
+  const activeRef = useRef<string | null>(null);
+
+  useEffect(() => {
+    setVoice(readStored(VOICE_STORAGE_KEY, "sandrine"));
+    setCurrency(readStored(CURRENCY_STORAGE_KEY, "FCFA") === "USD" ? "USD" : "FCFA");
+    // The panel starts folded on laptops so the chat keeps its width.
+    const saved = readStored(PANEL_STORAGE_KEY, "");
+    setPanelCollapsed(saved ? saved === "closed" : window.innerWidth < 1360);
+    const query = window.matchMedia("(min-width: 1280px)");
+    const sync = () => setWide(query.matches);
+    sync();
+    query.addEventListener("change", sync);
+    return () => query.removeEventListener("change", sync);
+  }, []);
+
+  const loadVoices = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/voices");
+      if (!res.ok) return;
+      const data = (await res.json()) as { voices: VoiceInfo[]; terms: TermsInfo; guestTerms?: TermsInfo; cloningEnabled?: boolean };
+      setCloningEnabled(data.cloningEnabled === true);
+      setVoices(data.voices);
+      setTerms(data.terms);
+      setGuestTerms(data.guestTerms ?? null);
+      setVoice((current) =>
+        data.voices.some((v) => v.key === current && v.status === "active") ? current : "sandrine",
+      );
+    } catch {
+      // The default voice still works without the list.
+    }
+  }, []);
+
+  const loadBudget = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/budget");
+      if (!res.ok) return;
+      const data = (await res.json()) as Budget;
+      setBudget(data);
+      setRate(data.fcfaPerUsd);
+    } catch {
+      // The budget card simply stays hidden.
+    }
+  }, []);
+
+  const loadConversations = useCallback(async () => {
+    try {
+      const res = await fetch("/api/admin/studio/conversations");
+      if (!res.ok) return [];
+      const data = (await res.json()) as { conversations: ConversationItem[] };
+      setConversations(data.conversations);
+      return data.conversations;
+    } catch {
+      return [];
+    }
+  }, []);
+
+  const loadDetail = useCallback(
+    async (id: string) => {
+      try {
+        const res = await fetch(`/api/admin/studio/conversations/${id}`);
+        if (!res.ok) throw new Error("detail failed");
+        const data = (await res.json()) as ConversationDetail;
+        if (activeRef.current === id) setDetail(data);
+        void loadBudget();
+      } catch {
+        setError("Le projet n'a pas pu être chargé.");
+      }
+    },
+    [loadBudget],
+  );
+
+  const open = useCallback(
+    async (id: string, nextView: CenterView = "chat") => {
+      activeRef.current = id;
+      setActiveId(id);
+      setError(null);
+      setStreamingText("");
+      setView(nextView);
+      setSheet(null);
+      await loadDetail(id);
+    },
+    [loadDetail],
+  );
+
+  // First load: voices, budget, the shared history, then your latest project.
+  useEffect(() => {
+    void (async () => {
+      void loadVoices();
+      void loadBudget();
+      const list = await loadConversations();
+      const first = list.find((item) => item.isMine) ?? list[0];
+      if (first) await open(first.id, first.kind === "visual" ? "visuals" : "chat");
+      setBooted(true);
+    })();
+  }, [loadVoices, loadBudget, loadConversations, open]);
+
+  const money = useCallback((usd: number) => formatMoney(usd, currency, rate), [currency, rate]);
+  const reloadActive = useCallback(() => {
+    if (activeRef.current) void loadDetail(activeRef.current);
+  }, [loadDetail]);
+  const jobsApi = useJobs(detail?.conversation.id ?? null, detail?.jobs ?? [], reloadActive);
+
+  const getVoiceoverDuration = useCallback(
+    (artifactId: string): number => {
+      const meta = detail?.artifacts.find((a) => a.id === artifactId)?.meta ?? {};
+      return typeof meta.duration_seconds === "number" ? meta.duration_seconds : 60;
+    },
+    [detail?.artifacts],
+  );
+
+  const getCaptionsLabel = useCallback(
+    (artifactId: string): string =>
+      ` (environ ${money(estimateJobCostUsd({ tool: "captions", audioSeconds: getVoiceoverDuration(artifactId) }))})`,
+    [getVoiceoverDuration, money],
+  );
+
+  function newConversation() {
+    activeRef.current = null;
+    setActiveId(null);
+    setDetail(null);
+    setStreamingText("");
+    setError(null);
+    setView("chat");
+    setSheet(null);
+  }
+
+  async function createConversation(propertyId?: string, title?: string): Promise<string | null> {
+    const res = await fetch("/api/admin/studio/conversations", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ property_id: propertyId, voice_key: voice, title }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok || !data.id) {
+      setError(data.error ?? "Le projet n'a pas pu être créé.");
+      return null;
+    }
+    await loadConversations();
+    return data.id as string;
+  }
+
+  // Sends one message and streams the reply. Shows the user's message at once.
+  const send = useCallback(
+    async (conversationId: string, text: string) => {
+      setSending(true);
+      setError(null);
+      setStreamingText("");
+      setView("chat");
+      setDetail((current) =>
+        current && current.conversation.id === conversationId
+          ? {
+              ...current,
+              messages: [
+                ...current.messages,
+                { id: `local-${Date.now()}`, role: "user", content: text, createdAt: new Date().toISOString() } as ChatMessage,
+              ],
+            }
+          : current,
+      );
+
+      try {
+        const res = await fetch("/api/admin/studio/chat", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ conversation_id: conversationId, message: text }),
+        });
+        if (!res.ok || !res.body) {
+          const data = await res.json().catch(() => ({}));
+          setError(data.error ?? "L'assistant n'a pas répondu.");
+          return;
+        }
+
+        const reader = res.body.getReader();
+        const decoder = new TextDecoder();
+        let buffer = "";
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          buffer += decoder.decode(value, { stream: true });
+          const parsed = parseSseBuffer(buffer);
+          buffer = parsed.rest;
+          for (const event of parsed.events) {
+            const data = event.data as { text?: string; message?: string };
+            if (event.event === "delta" && data.text) {
+              setStreamingText((current) => current + data.text);
+            } else if (event.event === "error") {
+              setError(data.message ?? "La réponse s'est interrompue.");
+            }
+          }
+        }
+        await loadDetail(conversationId);
+        void loadConversations();
+      } catch {
+        setError("Connexion impossible. Réessayez.");
+      } finally {
+        setSending(false);
+        setStreamingText("");
+      }
+    },
+    [loadDetail, loadConversations],
+  );
+
+  async function sendText(text: string) {
+    let id = activeId;
+    if (!id) {
+      id = await createConversation();
+      if (!id) return;
+      activeRef.current = id;
+      setActiveId(id);
+      await loadDetail(id);
+    }
+    await send(id, text);
+  }
+
+  // Choosing a property in an empty project starts the first draft at once.
+  async function pickProperty(property: PropertySummary) {
+    setError(null);
+    let id = activeId;
+    if (!id) {
+      id = await createConversation(property.id);
+      if (!id) return;
+      activeRef.current = id;
+      setActiveId(id);
+    } else {
+      const res = await fetch(`/api/admin/studio/conversations/${id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_id: property.id }),
+      });
+      if (!res.ok) {
+        setError("Le bien n'a pas pu être choisi.");
+        return;
+      }
+    }
+    await loadDetail(id);
+    await send(id, FIRST_DRAFT_REQUEST);
+  }
+
+  // From the project panel: change the open project's property, no new draft.
+  // A project belongs to one property. With results already made, "Changer de bien"
+  // opens a new project for the chosen property and leaves this one untouched.
+  async function switchProperty(property: PropertySummary) {
+    setSwitching(false);
+    if (!activeId) {
+      await pickProperty(property);
+      return;
+    }
+    if ((detail?.artifacts.length ?? 0) > 0 && detail?.property?.id !== property.id) {
+      setError(null);
+      const id = await createConversation(property.id);
+      if (!id) return;
+      await open(id);
+      return;
+    }
+    setError(null);
+    const res = await fetch(`/api/admin/studio/conversations/${activeId}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ property_id: property.id }),
+    });
+    if (!res.ok) {
+      setError("Le bien n'a pas pu être changé.");
+      return;
+    }
+    await loadDetail(activeId);
+    void loadConversations();
+  }
+
+  // A visuals-only project (greetings, announcements): its own history entry.
+  async function newVisualProject() {
+    setCreatingVisual(true);
+    setError(null);
+    const label = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long" });
+    const id = await createConversation(undefined, `Visuels du ${label}`);
+    setCreatingVisual(false);
+    if (!id) return;
+    await open(id, "visuals");
+  }
+
+  // "Réutiliser": a new project on the same property, starting from a script.
+  async function rework(artifact: Artifact) {
+    const id = await createConversation(detail?.property?.id);
+    if (!id) return;
+    activeRef.current = id;
+    setActiveId(id);
+    await loadDetail(id);
+    await send(
+      id,
+      `Voici un script existant. Reprends-le tel quel dans un bloc script, puis j'indiquerai les changements.\n\n${artifact.text}`,
+    );
+  }
+
+  function chooseVoice(key: string) {
+    setVoice(key);
+    store(VOICE_STORAGE_KEY, key);
+  }
+
+  function toggleCurrency() {
+    const next = currency === "FCFA" ? "USD" : "FCFA";
+    setCurrency(next);
+    store(CURRENCY_STORAGE_KEY, next);
+  }
+
+  function togglePanel() {
+    const opening = panelCollapsed;
+    setPanelCollapsed(!opening);
+    store(PANEL_STORAGE_KEY, opening ? "open" : "closed");
+    if (opening && !wide) setHistoryCollapsed(true);
+  }
+
+  function toggleHistory() {
+    const opening = historyCollapsed;
+    setHistoryCollapsed(!opening);
+    if (opening && !wide) setPanelCollapsed(true);
+  }
+
+  // Narrowing the window with both sides open: fold the history first.
+  useEffect(() => {
+    if (!wide && !panelCollapsed && !historyCollapsed) setHistoryCollapsed(true);
+  }, [wide, panelCollapsed, historyCollapsed]);
+
+  function openView(next: CenterView, from?: HTMLElement) {
+    const main = mainRef.current;
+    if (from && main) {
+      const a = from.getBoundingClientRect();
+      const m = main.getBoundingClientRect();
+      // The tool opens at the top of the centre; measure the tile against where it will be.
+      const shift = Math.max(0, -m.top + 96);
+      expandFrom.current = { top: a.top - m.top - shift, left: a.left - m.left, width: a.width, height: a.height };
+    }
+    setView(next);
+    if (main && main.getBoundingClientRect().top < 0) {
+      window.scrollTo({ top: window.scrollY + main.getBoundingClientRect().top - 96, behavior: "smooth" });
+    }
+  }
+
+  // From "Résultats épinglés": back to the chat, scroll to the card, flash it.
+  function jumpTo(artifactId: string) {
+    setView("chat");
+    setSheet(null);
+    window.setTimeout(() => {
+      document.getElementById(`artifact-${artifactId}`)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      setHighlightId(artifactId);
+      window.setTimeout(() => setHighlightId(null), 1600);
+    }, 60);
+  }
+
+  useEffect(() => {
+    if (!switching && !sheet) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSwitching(false);
+      setSheet(null);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [switching, sheet]);
+
+  const voiceLabel = voices.find((v) => v.key === voice)?.label ?? "Sandrine";
+  const artifacts = detail?.artifacts ?? [];
+  const ordered = orderArtifacts(artifacts);
+  const canWrite = detail ? detail.conversation.isMine : true;
+  const activeItem = conversations.find((c) => c.id === activeId) ?? null;
+
+  const cardProps = {
+    voiceKey: voice,
+    voiceLabel,
+    currency,
+    glossaryVersion,
+    conversationId: detail?.conversation.id ?? "",
+    onChanged: reloadActive,
+    onRework: (artifact: Artifact) => void rework(artifact),
+    onRates: setRate,
+    onCaptions: (artifactId: string) =>
+      void jobsApi.start(
+        "captions",
+        { artifact_id: artifactId },
+        estimateJobCostUsd({ tool: "captions", audioSeconds: getVoiceoverDuration(artifactId) }),
+      ),
+    getCaptionsLabel,
+    captionsBusy: jobsApi.jobs.some((j) => j.tool === "captions"),
+  };
+
+  const history = (
+    <HistoryPanel
+      conversations={conversations}
+      activeId={activeId}
+      onSelect={(id: string) => {
+        const item = conversations.find((c) => c.id === id);
+        void open(id, item?.kind === "visual" ? "visuals" : "chat");
+      }}
+      onNewChat={newConversation}
+      onNewVisual={() => void newVisualProject()}
+    />
+  );
+
+  const historyRail = (
+    <HistoryPanel
+      conversations={conversations}
+      activeId={activeId}
+      onSelect={(id: string) => {
+        const item = conversations.find((c) => c.id === id);
+        void open(id, item?.kind === "visual" ? "visuals" : "chat");
+      }}
+      onNewChat={newConversation}
+      onNewVisual={() => void newVisualProject()}
+      collapsed={historyCollapsed}
+      onToggle={toggleHistory}
+    />
+  );
+
+  const projectPanel = (collapsed: boolean) => (
+    <ProjectPanel
+      detail={detail}
+      collapsed={collapsed}
+      onToggle={togglePanel}
+      view={view}
+      onView={(next: CenterView) => {
+        setView(next);
+        setSheet(null);
+      }}
+      budget={budget}
+      money={money}
+      currency={currency}
+      onCurrency={toggleCurrency}
+      voices={voices}
+      voice={voice}
+      onVoice={chooseVoice}
+      cloningEnabled={cloningEnabled}
+      canWrite={canWrite}
+      onSwitchProperty={() => setSwitching(true)}
+      onJump={jumpTo}
+    />
+  );
+
+  const center =
+    view === "chat" ? (
+      booted ? (
+        <ProjectView
+          detail={detail}
+          startedBy={activeItem?.author ?? null}
+          startedAt={activeItem?.createdAt ?? null}
+          streamingText={streamingText}
+          sending={sending}
+          error={error}
+          canWrite={canWrite}
+          highlightId={highlightId}
+          onSend={(text: string) => void sendText(text)}
+          onAskScript={() => {
+            if (!detail?.property) {
+              setSwitching(true);
+              return;
+            }
+            void sendText(FIRST_DRAFT_REQUEST);
+          }}
+          onPickProperty={(p: PropertySummary) => void pickProperty(p)}
+          onView={openView}
+          card={cardProps}
+        />
+      ) : (
+        <ProjectSkeleton />
+      )
+    ) : (
+      <div ref={attachTool} className="flex flex-col">
+        {/* Switch tools without going back (Salif, 2026-10-10); the right panel is a second way. */}
+        <div className="flex items-center gap-2 border-b border-[rgba(74,52,36,0.10)] px-3 py-2.5">
+          <nav aria-label="Outils du projet" className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1 [scrollbar-width:none]">
+            {(
+              [
+                ["chat", "Projet", ArrowLeftIcon],
+                ["voiceover", "Voix off", WaveformIcon],
+                ["visuals", "Visuels", ImageSquareIcon],
+                ["editor", "Éditeur vidéo", FilmSlateIcon],
+                ["glossary", "Prononciation", TranslateIcon],
+              ] as const
+            ).map(([key, label, Icon]) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setView(key)}
+                aria-current={view === key ? "page" : undefined}
+                className={cn(
+                  "relative inline-flex h-9 shrink-0 cursor-pointer items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-semibold transition-colors",
+                  view === key ? "text-[#a8521d]" : "text-neutral-600 hover:bg-white/60",
+                )}
+              >
+                {/* Selected tool: a soft filled pill, no outline, sliding between tabs. */}
+                {view === key && (
+                  <motion.span
+                    layoutId="studio-tool-pill"
+                    transition={{ type: "spring", stiffness: 420, damping: 34 }}
+                    className="absolute inset-0 rounded-full bg-primary/12"
+                  />
+                )}
+                <Icon size={15} weight="bold" className="relative size-[15px] shrink-0" />
+                <span className="relative">{label}</span>
+              </button>
+            ))}
+            {(view === "voices" || view === "clone") && (
+              <span className="inline-flex h-9 shrink-0 items-center rounded-full bg-primary/12 px-3 text-sm font-semibold text-[#a8521d]">
+                {VIEW_TITLE[view]}
+              </span>
+            )}
+          </nav>
+        </div>
+        {view === "editor" && (
+          <StudioEditor
+            conversationId={detail?.conversation.id ?? null}
+            property={detail?.property ?? null}
+            ordered={ordered}
+            canWrite={canWrite}
+            money={money}
+            videoRemainingUsd={budget?.video?.remainingUsd ?? null}
+            onRendered={() => {
+              if (detail) void loadDetail(detail.conversation.id);
+              void loadBudget();
+            }}
+            onOpenArtifact={jumpTo}
+            onAddVoice={() => setView("voiceover")}
+          />
+        )}
+        {view === "visuals" && (
+          <StudioVisuals
+            detail={detail}
+            canWrite={canWrite}
+            money={money}
+            jobs={jobsApi.jobs}
+            message={jobsApi.message}
+            start={jobsApi.start}
+            onNewVisualProject={() => void newVisualProject()}
+            creating={creatingVisual}
+            card={cardProps}
+          />
+        )}
+        {view === "voiceover" && (
+          <VoiceStudio
+            artifacts={artifacts}
+            voices={voices}
+            voice={voice}
+            onVoice={chooseVoice}
+            canWrite={canWrite}
+            card={cardProps}
+            onAskScript={() => {
+              // One click: with a property the request goes straight out and the
+              // script streams into the chat; without one, pick the property first.
+              if (!detail?.property) {
+                setSwitching(true);
+                return;
+              }
+              setView("chat");
+              void sendText(FIRST_DRAFT_REQUEST);
+            }}
+            onManage={() => setView("voices")}
+          />
+        )}
+        {view === "glossary" && (
+          <div className="p-4 md:p-6">
+            <GlossaryPanel
+              voice={voice}
+              currency={currency}
+              rate={rate}
+              scriptText={artifacts.filter((a) => a.kind === "script").map((a) => a.text).join("\n")}
+              onChange={() => setGlossaryVersion((v) => v + 1)}
+            />
+          </div>
+        )}
+        {view === "voices" && (
+          <div className="mx-auto w-full max-w-2xl p-4 md:p-6">
+            <VoicePicker voices={voices} terms={terms} selectedKey={voice} onSelect={chooseVoice} onChanged={loadVoices} />
+          </div>
+        )}
+        {view === "clone" && cloningEnabled && (
+          <div className="mx-auto w-full max-w-2xl p-4 md:p-6">
+            <CloneVoice voices={voices} terms={terms} guestTerms={guestTerms} onChanged={loadVoices} />
+          </div>
+        )}
+      </div>
+    );
+
+  return (
+    // Break out of the admin container so the Studio uses the whole width.
+    <div className="relative left-1/2 w-[calc(100vw-1rem)] max-w-[1840px] -translate-x-1/2 md:w-[calc(100vw-3rem)]">
+      <div className={cn(stage, "p-2.5 md:p-4")}>
+        {/* Phone and tablet: history and project open as sheets. */}
+        <div className="mb-2.5 flex items-center gap-2 lg:hidden">
+          <button
+            type="button"
+            onClick={() => setSheet("history")}
+            className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/80 bg-white/70 px-4 text-sm font-semibold text-neutral-800"
+          >
+            <ClockCounterClockwiseIcon size={16} weight="bold" className="size-4 shrink-0" />
+            Historique
+          </button>
+          <span className="min-w-0 flex-1 truncate text-center text-sm font-semibold text-neutral-700">
+            {detail?.conversation.title ?? "Studio"}
+          </span>
+          <button
+            type="button"
+            onClick={() => setSheet("project")}
+            className="inline-flex h-10 shrink-0 items-center gap-2 whitespace-nowrap rounded-full border border-white/80 bg-white/70 px-4 text-sm font-semibold text-neutral-800"
+          >
+            <SlidersHorizontalIcon size={16} weight="bold" className="size-4 shrink-0" />
+            Projet
+          </button>
+        </div>
+
+        <div ref={gridRef} className="grid items-start gap-3.5 lg:[grid-template-columns:var(--studio-cols)]">
+          <aside className={cn(glass, "hidden overflow-hidden lg:block", historyCollapsed ? "px-2 py-3" : "p-3.5")}>
+            <div ref={historyInnerRef}>{historyRail}</div>
+          </aside>
+
+          <main ref={mainRef} className={cn(glass, "min-w-0 overflow-visible")}>
+            <AnimatePresence mode="wait" initial={false}>
+              <motion.div
+                key={view === "chat" ? `chat-${activeId ?? "new"}` : view}
+                initial={{ opacity: 0, y: 6 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -4 }}
+                transition={{ duration: 0.2, ease }}
+              >
+                {center}
+              </motion.div>
+            </AnimatePresence>
+          </main>
+
+          <aside className={cn(glass, "sticky top-24 hidden overflow-hidden lg:block", panelCollapsed ? "px-2 py-3" : "p-3.5")}>
+            <div ref={panelInnerRef}>{projectPanel(panelCollapsed)}</div>
+          </aside>
+        </div>
+      </div>
+
+      {portalReady &&
+        createPortal(
+          <>
+      <AnimatePresence>
+        {sheet && (
+          <motion.div
+            key="sheet"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 z-[80] bg-neutral-900/30 lg:hidden"
+            onClick={() => setSheet(null)}
+          >
+            <motion.div
+              role="dialog"
+              aria-modal="true"
+              aria-label={sheet === "history" ? "Historique" : "Projet"}
+              onClick={(event) => event.stopPropagation()}
+              initial={sheet === "history" ? { x: "-100%" } : { y: "100%" }}
+              animate={sheet === "history" ? { x: 0 } : { y: 0 }}
+              exit={sheet === "history" ? { x: "-100%" } : { y: "100%" }}
+              transition={{ duration: 0.3, ease }}
+              className={cn(
+                "absolute overflow-y-auto bg-[#f7efe5] p-4 shadow-2xl",
+                sheet === "history"
+                  ? "inset-y-0 left-0 w-[min(92vw,380px)] rounded-r-[28px]"
+                  : "inset-x-0 bottom-0 max-h-[85dvh] rounded-t-[28px]",
+              )}
+            >
+              <div className="mb-2 flex justify-end">
+                <button
+                  type="button"
+                  onClick={() => setSheet(null)}
+                  aria-label="Fermer"
+                  className="flex size-10 items-center justify-center rounded-full bg-white/80 text-neutral-600"
+                >
+                  <XIcon size={18} weight="bold" className="size-[18px] shrink-0" />
+                </button>
+              </div>
+              {sheet === "history" ? history : projectPanel(false)}
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {switching && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.16 }}
+            className="fixed inset-0 z-[90] flex items-start justify-center bg-neutral-900/30 p-4 pt-24 sm:items-center sm:pt-4"
+            onClick={() => setSwitching(false)}
+          >
+            <motion.div
+              initial={{ opacity: 0, y: 12, scale: 0.98 }}
+              animate={{ opacity: 1, y: 0, scale: 1 }}
+              exit={{ opacity: 0, y: 8, scale: 0.98 }}
+              transition={{ duration: 0.22, ease }}
+              role="dialog"
+              aria-modal="true"
+              aria-labelledby="studio-switch-title"
+              onClick={(event) => event.stopPropagation()}
+              className="flex h-[min(80dvh,720px)] w-full max-w-lg flex-col gap-3 overflow-hidden rounded-3xl bg-white p-4 shadow-2xl"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div>
+                  <h2 id="studio-switch-title" className="text-base font-semibold text-neutral-900">
+                    {detail?.property ? "Changer de bien" : "Choisir un bien"}
+                  </h2>
+                  <p className="text-xs text-neutral-500">
+                    {(detail?.artifacts.length ?? 0) > 0
+                      ? "Un nouveau projet s'ouvre pour ce bien. Les résultats de celui-ci restent avec leur bien."
+                      : "Le bien choisi sera celui de ce projet."}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setSwitching(false)}
+                  aria-label="Fermer"
+                  className="flex size-10 items-center justify-center rounded-xl text-neutral-500 hover:bg-neutral-100"
+                >
+                  <XIcon size={18} weight="bold" className="size-[18px] shrink-0" />
+                </button>
+              </div>
+              <div className="min-h-0 overflow-y-auto">
+                <PropertyPicker disabled={sending} onPick={(p: PropertySummary) => void switchProperty(p)} />
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
+          </>,
+          document.body,
+        )}
+    </div>
+  );
+}

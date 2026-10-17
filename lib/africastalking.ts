@@ -1,6 +1,8 @@
 // Africa's Talking SMS helper — used by the Visites 3D booking API.
 // Docs: https://developers.africastalking.com/docs/sms/sending
 
+import { smsRecipientOutcome } from "@/lib/africastalking-response";
+
 // eslint-disable-next-line @typescript-eslint/no-require-imports
 const AfricasTalking = require("africastalking");
 
@@ -49,14 +51,43 @@ function client(): ATClient["SMS"] {
   return _sms;
 }
 
-async function send(to: string, message: string): Promise<void> {
+async function send(to: string, message: string): Promise<boolean> {
+  return (await sendTransactionalSmsWithResult(to, message)) === "accepted";
+}
+
+export async function sendTransactionalSmsWithResult(
+  to: string,
+  message: string,
+): Promise<"accepted" | "rejected" | "unknown"> {
   const from = process.env.AT_SENDER_ID || undefined;
+  let sms: ATClient["SMS"];
   try {
-    await client().send({ to, message, from });
+    sms = client();
+  } catch (err) {
+    console.error("[africastalking] client unavailable", err);
+    return "rejected"; // No request was sent.
+  }
+  try {
+    const response = await sms.send({ to, message, from });
+    const outcome = smsRecipientOutcome(response, to);
+    if (outcome !== "accepted") {
+      console.error("[africastalking] recipient was not accepted", {
+        phoneSuffix: to.replace(/\D/g, "").slice(-4),
+      });
+    }
+    return outcome;
   } catch (err) {
     // We don't want an SMS provider hiccup to fail a booking write — log and continue.
     console.error("[africastalking] send failed", err);
+    return "unknown";
   }
+}
+
+export async function sendTransactionalSms(
+  phone: string,
+  message: string,
+): Promise<boolean> {
+  return send(phone, message);
 }
 
 export function customerConfirmationMessage(input: {
@@ -85,8 +116,8 @@ export async function sendCustomerConfirmation(
   phone: string,
   date: string,
   slot: string,
-): Promise<void> {
-  await send(phone, customerConfirmationMessage({ date, slot }));
+): Promise<boolean> {
+  return send(phone, customerConfirmationMessage({ date, slot }));
 }
 
 export async function sendTeamNotification(payload: {
@@ -98,8 +129,8 @@ export async function sendTeamNotification(payload: {
   address: string;
   room_count: number;
   total_amount: number;
-}): Promise<void> {
+}): Promise<boolean> {
   const to = process.env.TEAM_PHONE;
-  if (!to) return;
-  await send(to, teamNotificationMessage(payload));
+  if (!to) return false;
+  return send(to, teamNotificationMessage(payload));
 }

@@ -5,7 +5,353 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### The access page is /admin/acces — 2026-10-17
+
+**Decision:** The staff levels page (invitations, access journal, setting levels) lives at `/admin/acces`, named « Accès » in the navigation. Salif chose the French word for access over `/admin/equipe/niveaux`.
+
+**Why:** `/admin/equipe` became the L'équipe board, and a page under it would read as a part of the board rather than the place where access is given.
+
+**Ruled out / alternatives:** `/admin/equipe/niveaux` with « Niveaux d’accès » (rejected by Salif on 2026-10-17).
+
+**Status:** Branch `feat/team-dashboard`, not merged. The page keeps the `team.manage` guard; the API routes enforce the same rule. On `feat/fiche-visite` the page becomes one page « Accès » with two tabs: « Qui peut faire quoi » (`/admin/acces`, every staff member, default) and « Niveaux et invitations » (`/admin/acces/niveaux`, `team.manage` only, guarded on the server as before). Sub-routes rather than `?vue=` so the existing route guard protects the levels tab unchanged.
+
 ---
+
+### The users table is private; public owner fields come only from the listing view (security) — 2026-10-17
+
+**Decision:** No client role (anon key, Clerk-authenticated) writes `users`. Signed-in users read only their own row (`clerk_id = auth.jwt() ->> 'sub'`); the anon key reads no row. What a listing card shows about its owner (name, avatar, phone, badges) is decided by `public_property_details` alone, which now runs with its owner's rights and never returns a renter. The change ships in two migrations: 094 (writes, `staff_users`, renter fields) is safe for every app in the field; 095 (read lock) runs only after the mobile update that reads the own row with the Clerk token.
+
+**Why:** On 2026-10-16 the public anon key, shipped in the website bundle and the app, could read all 695 users rows (695 emails, 570 phones, 116 WhatsApp numbers, 691 signup IPs, budgets, staff levels) and the staff list, and held the UPDATE privilege on `users`, so a client could likely rewrite `user_type` and pass every policy that trusts it.
+
+**Ruled out / alternatives:** Column revokes alone (old apps `select *` on `users` and would break the same way, while every row stayed listable). A policy that shows only owners of live listings (still exposes those rows' WhatsApp, IP and preferences to anyone). A single migration (it would cut old apps off profile, favourites and "Mes propriétés" the day it runs). Moving the reads to new API routes (the authenticated Supabase client already exists and support chat already relies on it).
+
+**Status:** Branch `fix/users-table-exposure` (web and mobile), not merged, not run. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
+
+---
+
+---
+
+### Sales come from a « Vendu » listing status; follower counts are read from Meta every night — 2026-10-16
+
+**Decision:** A sale listing is marked « Vendu » (`properties.status = 'vendu'`, migration 093) with the notary signing date (`sold_at`), the sale price (`sold_price`) and who marked it (`sold_by`). Only the Directeur or the Fondateur can set or undo it, only on a non-test sale listing, and the date cannot be in the future (`lib/property-status.ts`, enforced in `PATCH /api/properties/[id]/status`). The sales goal counts `vendu` listings whose `sold_at` falls in the goal window, any property type including land. The founder-confirmed `team_goal_sales` table and its route are removed. « Expirée » no longer means "rented or sold". Facebook and Instagram followers are read every night at 02:00 UTC from the Meta Graph API (`/api/cron/social-followers`, readings with `source = 'automatique'`); typing a reading by hand stays as the fallback and remains the only way for TikTok. The goal « 500 abonnés Instagram » for 2026 is seeded in 093 (1 follower on 2026-10-16).
+
+**Why:** Salif (2026-10-16): "add a sold state in db so we can know for certain without manual checks", and follower goals should update without anyone typing numbers. A status on the listing is where staff already work, and it also takes a sold property off the market.
+
+**Ruled out:** keeping founder-confirmed sales next to the status (two sources of truth that can disagree); inferring a sale from a completed notary meeting (nothing in the app marks a meeting completed today); reading followers on every page view (Meta rate limits and a slow page).
+
+### Team goals: every number from a record, founder-only changes, sales confirmed by hand — 2026-10-16
+
+**Decision:** « Nos objectifs » (Mon espace and `/admin/objectifs`) shows goals the founder sets, each with a metric, a target and a period (`month`, `recurring_month`, `quarter`, `year`). Numbers are computed at read time from their own records: users (users rows minus staff, founder and test accounts), properties under an active rental agreement, properties put online in the period, and sales. Roogo has no "sold" status, so a sale counts only once the founder confirms it in `team_goal_sales` (property and notary signature date). Follower counts (TikTok, Facebook, Instagram) are manual readings with an optional screenshot in a private bucket, keyed by metric (the count belongs to the account, not to a goal); no server-side Meta Graph token exists, so Facebook is manual too. Status words come from the real pace against the required pace (En bonne voie at 100% or more, À suivre from 60%, Il faut agir below, Atteint, Pas atteint once the period is over); a pace is judged only after a week of measurement. Only the founder creates, archives, retargets goals, edits levers and confirms sales; founder and Directeur enter readings; a lever is ticked by its owner, the Directeur or the founder. All of it is enforced in `lib/team-goals/server.ts`.
+
+**Why:** Approved on the design canvas with Salif (2026-10-16): "nothing on this dash is static; every number has its proof". The evidence drawer shows that proof, with counts only for users (no names, emails or phones).
+
+**Ruled out:** a nightly counter table (the numbers are cheap to compute live and cannot drift); inferring a sale from a notary meeting or a locked listing (neither proves a signed deed).
+
+### Call tasks need a result before they are done; demandes get three answers — 2026-10-16
+
+**Decision:** A task can be a call (`is_call`). « Appeler et noter » records the result, notes and the next step in `staff_call_notes`; saving creates the next task (rappel, visite à confirmer, a task for the Directeur, or a demande to the founder when the Directeur is the caller) and closes the call task. The server refuses to tick a call task without a note (rule approved by Salif). Notes are visible to their author, the Directeur and the founder only. « Répondre » on a demande is replaced by « Oui, vas-y » (closed as approved), « Pas maintenant » (hidden until a date, then pending again) and « Écrire une réponse » (a thread in `staff_task_messages` that either side closes with « Réglé »); « Je m’en occupe » is unchanged. The sender sees new answers in Mon espace (« Réponse de Salif » card, count on the navbar item) until opened; no push or email.
+
+**Why:** Designed with Salif on 2026-10-16: calls were ticked without a trace, and a single text answer could not say "go ahead" or "later".
+
+**Ruled out:** auto-flagging automatic briefing items as calls; none of today's sources says a callback is due.
+
+### The access page is generated from one matrix file — 2026-10-16
+
+**Decision:** "Qui peut faire quoi" (`/admin/acces`) describes the access levels exactly as the code enforces them on this branch, from a single typed file, `lib/access/matrix.ts`. A test (`lib/access/matrix.test.mjs`) ties the file to the real helpers and fails when a staff API route is added without being described. What the vault proposal of 2026-10-11 approves but the code does not enforce is listed separately as "Prévu mais pas encore appliqué", never as current behaviour. The page is linked from the Pilotage menu (every staff member) and from L'équipe, not from a new top-level navbar item. Since 2026-10-17 it is the default tab of « Accès », next to « Niveaux et invitations » ([decision](#the-access-page-is-adminacces--2026-10-17)).
+
+**Why:** The team needs one place to know what each title can do, and the founder needs to see where the app still allows more than the approved matrix. A hand-written page would drift from the code; a matrix checked by a test cannot drift silently.
+
+**Ruled out / alternatives:** Deriving the page automatically from the route files (checks are written in too many styles to parse reliably). Showing the vault matrix as if it were live. A new top-level navbar item (too noisy for a reference page).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Rewritten on 2026-10-17 when main brought the staff levels (PR 67): the rules now follow `STAFF_CAPABILITY_MATRIX` and the test checks them against it. See [how it works](./SYSTEM.md#how-does-staff-access-work-and-where-is-it-written-down).
+
+### The field visit sheet moves into the app — 2026-10-15
+
+**Decision:** The "Fiche de visite de bien" (paper sheet of 2 October 2026) is filled in Roogo, from the listing page or the briefing, following the approved canvas (phone and computer). Tick times are the device's own clock; the four time buttons notify the team inside Roogo (briefing "Sur le terrain aujourd’hui"), WhatsApp is optional. Files are uploaded only at "Retour au bureau", one button per deliverable, into `Biens / Vente|Location / <CODE> <titre> / <type>` in the shared Drive. "Photos et vidéos supprimées des appareils" can be ticked only once every deliverable has a file confirmed by Drive. Sending the sheet creates six manual tasks (source key `field-visit:<id>:<task>`, so finishing twice creates nothing new) due on business days (Monday to Friday), and stores the planned publication dates (J+1, J+2, J+4, J+5).
+
+**Why:** The paper sheet relied on memory and WhatsApp; the tick times show the Directeur and the founder when each thing was really done, and nothing is lost when the phone has no network (autosave on the phone and on the server).
+
+**Ruled out / alternatives:** A "Règles de publication" screen in the flow (rejected by Salif). Uploads on site at step 3 (step 3 stays a checklist; files go up on the office Wi-Fi). Sending WhatsApp messages through an API (only a share link). Creating publications in the Studio calendar now (that branch is not merged; `lib/field-visits/publications.ts` is the hook).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Open points: Burkina public holidays are not skipped yet; the Drive folder name follows the canvas (`<CODE> <titre>`) while the paper sheet and the Studio's Médias du terrain panel use `Quartier - Nom du propriétaire`, so the same property can get two folders until one rule is chosen. Migrations 086 and 090 have run on Roogo (recorded 2026-10-17); needs the Google service account env vars. See [how it works](./SYSTEM.md#how-does-the-field-visit-sheet-fiche-de-visite-work).
+
+### Staff access by job title, with invitations instead of a shared code — 2026-10-11
+
+**Decision:** Staff access follows the job title (founder, director, assistant, advisor, intern), not individual tool permissions. Only the founder and directors give access; a director cannot name another director; nobody changes their own level. The shared `STAFF_REGISTRATION_SECRET` is replaced by invitation links, and every grant is journaled for the founder. Salif approved the matrix on 2026-10-11, with the director allowed to see the users list, validate and pay referral commissions, and read finances (read only).
+
+**Why:** Ablassé raised the risk that someone with full access can copy the system or leave with the data. The old model gave every staff member the same rights, including deleting listings and reading identity papers, and anyone who knew the shared code could make themselves staff.
+
+**Ruled out / alternatives:** Per-task permissions (too many settings for a team of four; the title stays the key and its tasks justify the access). A matrix with an approval for every action (it would stall a team whose founder is often asleep in another time zone). Enforcing levels on day one: unleveled staff would lose access at deploy, so `STAFF_LEVELS_ENFORCED` stays off until levels are assigned.
+
+---
+
+### Studio guest voices: consent for Roogo marketing without time limit — 2026-10-13
+
+**Decision:** Staff can add the voice of a guest (an owner, a client) who is present. The guest reads the guest terms and a consent sentence that states the voice will be used for Roogo marketing without time limit. Guest voices never use the staff member's single voice slot; a founder or the staff member who recorded the guest can withdraw one.
+
+**Why:** A staff member tried to clone an owner's voice and was told to remove their own voice first. Salif chose long-term marketing rights over limits ("helps us more in the long run").
+
+**Ruled out / alternatives:** Lifting the one-voice limit for staff (anyone's voice from any account, no consent). The council's property limit, expiry and per-voice founder approval (not adopted by Salif). Imported real recordings instead of clones (council's first step, not chosen).
+
+**Status:** Settled. Open risk: Burkina Faso's personal-data law (loi 001-2021) may allow withdrawal whatever the text says, so withdrawal stays available; counsel review of the guest text is pending (vault `08 Decisions/Studio voice cloning and consent.md`).
+
+### Studio field media go straight to the shared Drive — 2026-10-12
+
+**Decision:** Visit photos and videos dropped in the Studio are stored in the shared Google Drive "Roogo" (`Vente|Location / Quartier - Nom du propriétaire`, the field sheet rule), uploaded by the browser directly to Google through a resumable session the server opens as a service account. The Studio keeps an index (`studio_field_media`) and a signed stream route so video templates (HeyGen) can use the clips. A file is marked ready only after Drive confirms it in the right folder at the right size.
+
+**Why:** Staff already file visits in that Drive by hand, so Drive stays the one place to look. Footage is 100 MB to 1 GB, and Supabase refuses anything over 50 MB while Vercel bodies stop near 4.5 MB, so the bytes must skip both. Opening the session with the browser's Origin is what lets Google answer the browser's chunks with CORS headers. No new dependency: the service-account token is a JWT signed with node:crypto.
+
+**Ruled out / alternatives:** Supabase storage, including resumable TUS (50 MB project cap). Sending media through our API (body limits, cost). The `googleapis` SDK (large, not needed for four calls). Per-person OAuth (each staff member would need Drive consent; the service account works for everyone). Converting HEIC or re-encoding videos before upload (Drive is the archive of originals).
+
+**Status:** Built on branch `feat/studio-field-media`, not deployed. Not tested against Google: the direct browser upload (CORS) and the relay fallback are unverified until the service account exists. Migration 086 has run on Roogo (recorded 2026-10-17). See [how it works](./SYSTEM.md#how-do-field-photos-and-videos-reach-the-shared-drive).
+
+### Studio videos can be made with music only — 2026-10-11
+
+**Decision:** A full Studio video no longer requires a voice-over: the team picks a music (for example a Roogo song) and the photos set the pace. There is no separate "music only" mode; the voice-over is simply optional and can be unticked. The team sets the music and voice levels with two sliders, kept in each browser, not in the database. With nothing to hear, the create button opens the music drawer; an empty voice lane opens the Voix off tool. The outro accepts an optional second phone number.
+
+**Why:** Salif wants a viral variant of the walkthrough video with a Roogo song and on-screen property facts instead of a voice-over. He preferred letting the team drop the voice-over to adding a mode, and preferred volume controls to a warning when a sung song meets a voice-over. Levels are set each time, as in any editing app, so storing them was not worth a migration.
+
+**Ruled out / alternatives:** A third "Musique seule" mode (one more concept to learn). Blocking or warning on song plus voice-over. Saving levels per project in the database. A silent video with neither voice nor music (still refused).
+
+**Status:** Built and shown to Salif locally on 2026-10-11; PR pending.
+
+### Sales: the team decides from +10%, below +10% needs Salif — 2026-10-17
+
+**Decision:** Every sale is still published automatically at owner price + 30%. The team agrees any price from +10% (inclusive, exact whole FCFA) up to +30% on its own ("L'équipe décide"). Below +10% a price is allowed, no longer refused, but only for the founder or the Directeur (staff level `director`): the Directeur must tick « J'en ai discuté avec Salif ». Going below the owner's own price (the owner rethinks his price after a verbal yes) is also founder or Directeur only, with the second confirmation « Le propriétaire a accepté ce prix (accord verbal) ». Other staff get 403. Every such price is recorded in `sale_price_approvals` (migration 097: property, approver, level, new and previous public price, owner price at the time, markup, confirmations, time) in the same request; if the row cannot be written the price is not changed. The PostHog event `sale_price_founder_approved_below_team_floor` stays, without the owner's price or the markup. +15% is only a display reference ("Repère"), +20% the target ("Objectif"). Payout math and helper fees are unchanged.
+
+Owners never see how Roogo approves prices: owner screens show only "Ce que vous recevez selon le prix de vente final" for +30%, +20%, +15%, +10% and their own price (`ownerPayoutScenarios`), with no Roogo commission per row; "Vous recevez au minimum" is gone. Staff panels show the rule and the approvals.
+
+The rule and the +30% markup apply only to sales (`listing_type = 'vendre'`, `saleLadderApplies`): rentals, daily or monthly, keep their price exactly as set. The 075 columns keep their names: `team_floor_markup_pct` now holds the +15% reference and `hard_floor_markup_pct` the +10% team floor. In `sale_closings`, 097 replaces the +10% hard stop with "below +10% needs `approved_by` and `approved_at` before leaving draft", tying the requirement to the actual price instead of the self-reported `below_team_floor` flag.
+
+**Why:** Salif, 2026-10-17: a hard stop at +10% could lose a real buyer, and an owner sometimes lowers his price after a verbal yes. The Directeur negotiates in the field while Salif is often in another time zone, so he can record the price once he has talked to Salif. Owners only provide their price; the internal approval rule is not their concern.
+
+**Ruled out / alternatives:** Keeping the hard stop (2026-10-12). Founder only below +10% (first 2026-10-17 draft, replaced the same day). Log-only approvals (no audit trail). Dropping the `sale_closings` floor check entirely (would allow an unapproved closing below +10%). Renaming the 075 columns (an executed migration).
+
+**Status:** Built on `feat/sale-listing-ladder` (web PR #74 and mobile PR), not merged, not deployed. Migrations 096 then 097 not run. Supersedes the 2026-10-12 rule.
+
+### Sales: keep 10% + 50/50, publish at the top of the price ladder — 2026-10-11
+
+**Decision:** Keep the v2 commission (10% of the owner's price + 50% of the surplus, migration 050) and stop publishing the owner's own price. A sale listing is published at owner price + 30% (`publishedListingPrice`, on creation and again on mandate signing). Staff may move the public price down to +15%; between +15% and +10% only a founder; below +10% nobody (`checkPublicSalePriceChange` on `PATCH /api/properties/[id]`). (Superseded: refined on 2026-10-12 to staff above +10%, founder only AT +10%, below +10% refused; replaced on 2026-10-17 by the entry above.) Owners cannot change a sale's price through a listing edit. The ladder is snapshotted onto each mandate (075 columns, on v2 mandates) and the offer card carries the listing price and the payout table. Notary and referrer fees come out of Roogo's commission. The owner's price moves to the private `sale_asking_prices` table (migration 084) and staff prefill mandates from it, never from `properties.price`.
+
+**Why:** Salif, 2026-10-11: owners responded well to 10% + 50/50, but publishing the owner's number locked every sale into the lowest profit tier. At the +20% target the owner receives exactly his price, which is the pitch. The owner's price must be private once the public price differs, or negotiation starts at the owner's number.
+
+**Ruled out / alternatives:** The guaranteed-net economics on `feat/sale-v3-guaranteed-price` (seller always nets his price, Roogo keeps the margin), approved 2026-09-27 and never shipped; its ladder, markup and guard are reused here, its closing panel and v3 mandate are not. A lower floor at the owner's price (Salif chose a hard stop at +10%, superseded on 2026-10-17).
+
+**Status:** Partly superseded by the 2026-10-17 entry (who decides the price). Built on `feat/sale-listing-ladder`, not merged, not deployed. Run 096 (renumbered from 084 on 2026-10-17) before deploying. Vault: "Roogo Sell commission with listing ladder".
+
+### Page addresses are French; old ones redirect, except the payment return — 2026-10-11
+
+**Decision:** Rename the 9 English page addresses to French (`/bienvenue`, `/paiements/retour`, and seven admin pages such as `/admin/demandes-de-biens` and `/admin/assistance`). Every old address answers with a permanent redirect in one hop, keeping the query string. The old payment return `/payments/callback` is **not** redirected: it keeps serving the same page directly. `/api/` addresses, `/app`, `/p/[id]`, `/admin`, `/blog`, `/talent`, `/mebo` and `/confidentialite/en` keep their names.
+
+**Why:** Salif wants every address in French. Payments must stay as fast as possible, so a payment started before the change must not take an extra hop on its way back. The mobile app only calls `/api/` and opens listing and terms pages, so it is unaffected (checked on 2026-10-11, including older installed versions; the payment return address is chosen by the server, not the app).
+
+**Ruled out / alternatives:** Redirecting the payment return (one extra round trip for in-flight payments). Renaming `/api/` routes (the mobile app and PawaPay call them). `/admin/appels-a-biens`, which matches the page title, was offered; Salif kept `/admin/demandes-de-biens`.
+
+**Status:** Settled. Full before/after list in [#58](https://github.com/saliftankoano/roogo-web/pull/58). The one-hop fix for old admin addresses is #59.
+
+### Studio videos are re-encoded before storage — 2026-10-11
+
+**Decision:** Re-encode every HeyGen render on the server before saving it (ffmpeg, H.264 CRF 23, 8 Mbps cap, AAC 160k). A file still over 48 MB fails with a clear message.
+
+**Why:** HeyGen has no bitrate setting and rendered a 34 s video of a field at 85 MB. Supabase refuses any upload over 50 MB project-wide, whatever the bucket says (measured: 49 MB accepted, 51 MB refused), so Ablassé's video failed. Re-encoding gave 12.9 MB with no visible difference, and staff download on mobile data.
+
+**Ruled out / alternatives:** Raising the Supabase limit (plan-dependent, and the files would stay heavy to download). HeyGen `draft` quality (lower picture quality, size not guaranteed). 720p renders (visible loss).
+
+**Status:** Settled. Verified on production on 2026-10-11: 1.25 MB → 0.36 MB (Fin seule) and 13.3 MB → 3.7 MB (full video, ready in 95 s). See [how videos are made](./SYSTEM.md#how-does-a-studio-video-get-made-and-stored).
+
+### Studio music: Roogo tracks and generated instrumentals only — 2026-10-11
+
+**Decision:** The Studio music library holds the 7 tracks Roogo uses in its own productions (6 instrumentals and "Roogo vous rapproche"). Staff can generate instrumentals with fal **Lyria 3 Pro** (about $0.08 a track, paid from the voices-and-images budget); generated tracks join the shared library. The music plays from the first frame to the last, low under the voice (0.08), up when nobody speaks (0.32), faded at the end.
+
+**Why:** Salif wants the team to choose or generate music for videos and to hear the song clearly before and after the voice. Lyria 3 Pro led the instrumental ranking for under a tenth of Eleven Music's price; a real test call returned an 86 s instrumental with no vocals.
+
+**Ruled out / alternatives:** The 11 artist songs in the vault (Floby, Fils-Belem, Naza and others) and a Facebook reel clip: no licence was found, and Facebook, Instagram and TikTok detect them and can mute or block posts and ads. Staff can add such songs with the platform's own music picker when posting. Eleven Music (exact length but about 10 times the price). Lyria 2 (30 s maximum).
+
+**Status:** Settled for the library and model. Open: the artist songs join the library only when Salif confirms their rights. See [how music is mixed](./SYSTEM.md#how-does-music-play-in-a-studio-video).
+
+### Build-time assets ship with the app — 2026-10-11
+
+**Decision:** Fonts used by app pages are bundled with the repo (`next/font/local`) instead of fetched from Google Fonts during the build.
+
+**Why:** On 2026-10-11 Google answered a Nunito request with URLs Turbopack could not parse, and the production build failed although the same code had built minutes earlier. A build must not depend on a third party's response format.
+
+**Ruled out / alternatives:** Retrying the build (works only by luck). The Studio outro preview has no Nunito Black file yet, so weight 900 uses ExtraBold in that preview; rendered videos are unaffected.
+
+**Status:** Settled.
+
+### Studio videos are built from listing photos and templates — 2026-10-10
+
+**Decision:** Studio videos are HyperFrames pages built from a template and rendered in the HeyGen cloud: **Visite POV** (the listing's photos as a walkthrough, the voice-over, then the outro) and **Fin seule** (the 6 s outro alone, for videos filmed in person). The outro photo and text are editable, but the price always comes from the listing, in the editor and on the server. Videos have their own monthly budget, separate from voices and images, and every button shows its price.
+
+**Why:** Salif wanted photo-based template videos the team can make without filming, and an ending to add to videos they film themselves. A price typed by hand could be wrong on a published ad. HeyGen costs scale differently from voices and images, so one shared pot would let videos starve the rest.
+
+**Ruled out / alternatives:** Rendering on our own servers (no renderer in our stack). AI video models (banned for the Studio since 2026-09-21). One shared budget.
+
+**Status:** Settled. The outro design is council version D, approved 2026-10-10; the full record is in the Obsidian vault (`08 Decisions/Studio photo videos from templates.md`).
+
+### A Studio project is one property, laid out as script plus result tiles — 2026-10-10
+
+**Decision:** A Studio project belongs to one property; everything made for it (script, voice-overs, visuals, videos) stays with it, and changing the property of a project that already has results opens a new project. The page shows the script and the assistant on the left and compact Voix off, Visuels and Vidéo tiles on the right; a tile opens its tool full size, and a tool switcher and the side panel move between tools.
+
+**Why:** Staff found the chat-centred layout confusing and could not see how to start a voice, visual or video. Results carried over between properties by mistake.
+
+**Ruled out / alternatives:** Chat in the centre with results inside the conversation, and stacked full-width result cards (both tried and rejected by Salif). A full admin redesign (would force re-recording the staff training videos). Dark theme (not Roogo's brand).
+
+**Status:** Settled (council layout A).
+
+### Studio pronunciation: the glossary guides the writer, rules make the speech — 2026-10-10
+
+**Decision:** The team glossary and built-in respellings are sent to the script-writing model, so names are spelled the way the rules expect. The text sent to the voice is still produced by deterministic rules, which now ignore case and accents and accept plurals and hyphen variants. Prices, phone numbers and years are converted only by these rules, and prices are spoken in words ("cinquante millions de francs CFA"). Staff see "Texte envoyé à la voix" before paying.
+
+**Why:** Exact matching missed variants. Letting a model write the spoken text could silently drop a zero from a price or change a phone digit.
+
+**Ruled out / alternatives:** A model writing respelled words into the visible script (staff and captions would read misspellings). A second model pass only for speech (not repeatable, extra cost; kept as a later option if the rules still miss words).
+
+**Status:** Settled. See [pronunciation](./SYSTEM.md#how-does-the-studio-make-the-voice-say-words-correctly).
+
+### Gallery order determines the principal photo — 2026-10-05
+
+**Decision:** Let users reorder photos with drag handles or arrows. The first photo is always the principal photo; persist the complete order and principal flag in one transaction.
+
+**Why:** Salif requested freely arranging the pictures and automatically using the top-left picture as the cover. A separate cover selector would allow the visible order and cover to disagree.
+
+**Ruled out / alternatives:** Client-only sorting would disappear on refresh. Independent per-photo writes could leave a partly saved order. Last-write-wins could overwrite another user's arrangement, so saves carry the order the editor started from and reject stale changes.
+
+**Status:** Settled. Production drag, arrow save and reload verified on an unpublished demonstration listing. Uploads append and deleting the first photo promotes the next; existing mobile cover requests move their selected photo to the front. See [system](./SYSTEM.md#how-is-the-principal-photo-saved), [term](./DOMAIN.md#photo-principale), and [release](./CHANGELOG.md#2026-10-05).
+
+### Principal photos use one atomic selection and one source of truth — 2026-10-05
+
+**Decision:** Initial repair stored the selection only in `property_images.is_primary`; expose a computed `primary_image` in both listing views and change the selection through the server-only `set_property_primary_image` transaction.
+
+**Why:** The reported web alert was caused by a write to nonexistent `properties.primary_image` after the image flags had already committed. Live schema checks confirmed SQL error 42703. Neither listing view exposed the selected image, so refresh could fall back to an unrelated first gallery image. Independent writes also allowed partial failure and competing selections.
+
+**Ruled out / alternatives:** Adding another stored principal-photo field would create competing sources of truth. Removing only the failing write would leave refresh and concurrency broken. Rebuilding the public view from the private view would risk undoing sale-owner redaction; the migration preserves each existing projection, grants and security options.
+
+**Status:** Superseded selection mechanic by the ordered-gallery decision above; the atomic persistence and preserved view-security requirements remain. Regression checks exercise the route's authorization and database persistence, rollback, concurrent selections, duplicate URLs and public-view redaction. Release evidence belongs in the changelog.
+
+See [how selection works](./SYSTEM.md#how-is-the-principal-photo-saved) and [the term](./DOMAIN.md#photo-principale).
+
+### Public listing image loading uses layout sizing, immutable sources and a streaming shell — 2026-09-13
+
+**Decision:** Match Next image-size hints to the rendered public layouts; give new public photo uploads immutable URLs and a 30-day source-cache lifetime; resolve featured listings behind Suspense so the static homepage hero can stream first. Single-photo retries use a content key and database uniqueness to recover one linked photo.
+
+**Why:** Broad width hints requested unnecessarily large variants, short source lifetimes encouraged repeated optimizer work, and waiting for listings delayed the entire homepage. A storage conflict alone cannot distinguish an orphan from an upload in progress. Database uniqueness closes that race; retaining an unlinked shared object lets later attempts recover without deleting a competing request's photo.
+
+**Ruled out / alternatives:** A global cache-floor change would affect unrelated files; overwriting a cached photo URL could serve stale content. A legacy backfill and abandoned-object cleanup were not performed. Local stream-order tests and preview checks do not establish production LCP or cost savings.
+
+**Status:** Settled. [#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC; [#34](https://github.com/saliftankoano/roogo-web/pull/34) merged at 00:42:44 UTC the same day. All three implementation tickets are complete; production deployment verification remains open. See [image behavior](./SYSTEM.md#how-do-public-listing-photos-load-and-recover), [changelog](./CHANGELOG.md#2026-09-13) and [remaining release gate](./ROADMAP.md#now).
+
+### Executed migration filenames preserve SQL and the source of execution evidence — 2026-09-13
+
+**Decision:** Rename all numbered SQL files 001–073 to end in `_executed.sql`, following Salif's explicit confirmation that all have run on Roogo. Preserve every SQL file byte-for-byte, including historical header comments, and retain the numeric migration version. Update repository references and fixtures to the new filenames.
+
+**Why:** The suffix makes the operator-confirmed execution status visible in the file browser. It supplements the [execution ledger](../supabase/migrations/README.md), which retains independent verification for 070–072 and distinguishes the newer operator report for the remaining versions.
+
+**Ruled out / alternatives:** Renaming files does not execute SQL, rewrite database migration names/history, audit older schemas or confirm execution in another environment. New schema changes require a new version rather than editing or replaying an executed file.
+
+**Status:** Settled on operator confirmation dated 2026-09-13 UTC. See [filename handling](./SYSTEM.md#how-are-executed-migration-filenames-recorded).
+
+### Record executed SQL separately from application release — 2026-09-09
+
+**Decision:** Record only the three explicitly authorized, verified payment migrations in Supabase history and the [execution ledger](../supabase/migrations/README.md). Mark the database prerequisite complete, not the entire payment feature. Keep applied SQL immutable.
+
+**Why:** Roogo already had schema/data but no migration-history table. A blanket push could replay unrelated migrations; fabricating an older baseline would claim evidence we do not have. CLI project access and the production-configured project reference must agree before writes.
+
+**Ruled out / alternatives:** No unrestricted database push, blind history repair, guessed legacy backfill, app deployment or live payment test was included. Initial history-text escaping was corrected separately without re-executing DDL, then compared byte-for-byte. Future history writes should use bound parameters.
+
+**Status:** Settled; executed 070–072 on Roogo. API/client release and the known mobile cold-return fix remain pending in [ROADMAP](./ROADMAP.md#now).
+
+### Consolidate unapplied payment migrations before first rollout — 2026-09-09
+
+**Decision:** With the user's pre-execution confirmation that the payment migrations had never run, replace the eight review-era files with three transactional migrations: 070 notification delivery, 071 property-lock payments, and 072 listing payments. Keep only the final function definitions. Leave unrelated property-request migrations 068/069 unchanged.
+
+**Why:** At consolidation time there was no deployed payment migration history to preserve. Grouping by responsibility removed duplicate numeric versions and prevented operators from installing intermediate, superseded function definitions.
+
+**Ruled out / alternatives:** Do not squash already-applied migrations or change the property-request feature. Do not concatenate eight files with nested transaction boundaries. Retain conservative legacy notification uncertainty guards as a defensive measure, but do not claim older payment workers are deployed.
+
+**Status:** Settled; 070 → 071 → 072 were subsequently executed and verified on Roogo on 2026-09-09. They are now immutable applied migrations. Application deployment/release is still pending. See the [execution ledger](../supabase/migrations/README.md). If any environment actually applied an old payment file, stop and reconcile its migration history separately; these are not upgrade scripts for that environment. See [rollout instructions](./SYSTEM.md#how-are-payment-migrations-installed-and-recorded).
+
+### Listing payment consumption survives property deletion — 2026-09-09
+
+**Decision:** Migration 072 records each deposit's consuming property in a private ledger without a property foreign key. A database trigger consumes the reference atomically with property insertion; deletion or changing the property's payment cannot restore the credit. Retries may recover the still-existing property, not create a replacement. Preserve inserted paid properties on transaction-link outages so retries can repair the link.
+
+**Why:** The live-property unique index alone loses its evidence when a property is deleted, and the existing transaction foreign key becomes null. A consumed package must not become reusable credit.
+
+**Creation recovery refinement (2026-09-09):** Migration 072 snapshots creation-time amenity names and attaches their links in the property insert transaction. An amenity write failure rolls back the property and its consumption; a later transaction-link failure preserves both. All paid creation/retry paths verify both transaction/property links before success. Optional creation announcements run before the link step and do not run again on replay. Existing properties are not backfilled from retry input: it may have changed, or amenities may have been intentionally removed since creation.
+
+**Ruled out / alternatives:** Do not block legitimate property deletion or guess which historically deleted listing consumed a deposit. Backfill surviving property/transaction links; contradictory evidence must stop the migration. Already-deleted records with no surviving link require evidence-based reconciliation, not invented consumption history.
+
+**Status:** Settled for [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. Database migrations 070–072 are executed and verified; do not replay them. See [payment behavior](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [release gates](./ROADMAP.md#now).
+
+### Gateway errors preserve the original deposit for reconciliation — 2026-09-09
+
+See the [payment system reference](./SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover), [domain terms](./DOMAIN.md#customer-payments), and [release gates](./ROADMAP.md#now).
+
+**Decision:** For initiation, treat HTTP 408 and server/gateway errors as uncertain unless the provider explicitly returns a failed/rejected deposit with a concrete failure code. Empty, HTML, malformed and non-object JSON responses do not authorize failure or a new payment. All direct initiation routes normalize response bodies, and interrupted 3D response reads return the saved deposit ID for polling.
+
+**Status-lookup refinement (2026-09-09):** Only a successful, parsed lookup can establish a deposit outcome. HTTP 404 and other unsuccessful status responses are not PawaPay's documented JSON `NOT_FOUND` result. Leave the saved payment unchanged so a later completion can reconcile it; generic status requests expose upstream HTTP failures as retryable 502 responses, not local record/ownership errors. The 3D status route stays pending on failed lookups or interrupted bodies. A genuine successful `NOT_FOUND` still follows existing reconciliation and hosted-page grace rules. See the [PawaPay status contract](https://docs.pawapay.io/v2/api-reference/deposits/check-deposit-status).
+
+**Why:** The provider may have accepted a payment before an intermediary lost its response. Terminally failing that attempt prevents a later completion callback from reconciling it. The same-deposit reconciliation approach follows [PawaPay's deposit guidance](https://docs.pawapay.io/v2/docs/deposits); treating unstructured gateway failures as uncertain is Roogo's conservative application of that rule.
+
+**Ruled out / alternatives:** Do not infer rejection from HTTP status alone or retry initiation with a new deposit ID. Definitive rejection still uses controlled failure copy and the normal retry flow.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), not deployed. Controlled 3D route tests accept completion after 408/500/502/503/504 and interrupted response bodies; no live payment was submitted.
+
+### Notification uncertainty never authorizes a second send — 2026-09-08
+
+**Decision:** Reserve an attempt identity, then persist a non-reclaimable sending boundary before contacting SMS or push providers. Retry outcome writes separately. Only explicit rejection reopens delivery; accepted sends, lost replies and exhausted outcome writes do not automatically resend. SMS cooldown includes sending and uncertain attempts. Migration 070 preserves pre-boundary pending deliveries as uncertain rather than guessing whether they already sent.
+
+**Conflict refinement (2026-09-09):** The same boundary and shared attempt-owned outcome writer protect each `payments.property_lock_conflict` recipient. Preference/token lookup errors remain retryable before sending; opt-outs and absent tokens are recorded as skipped. Migration 070 marks legacy pending **and failed** conflict attempts uncertain because the old boolean sender could not distinguish rejection from a lost acknowledgment. If an environment ran older experimental conflict workers, stop and reconcile its migration history before rollout. Unknown/accepted sends cannot be reclaimed after lease expiry; definitive rejection may retry.
+
+**Why:** A lease timeout or failed database write cannot prove the provider rejected a message. Retrying in that situation can send duplicate payment alerts. Attempt ownership also prevents an expired worker from overwriting a newer worker's outcome.
+
+**Ruled out / alternatives:** Automatic retry of all provider errors favors eventual delivery over duplicate prevention. We prioritize no duplicate submission for sensitive payment alerts. A crash between the durable boundary and the network call can therefore leave an unsent alert uncertain; support must reconcile it using provider evidence, not reset it blindly.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. The consolidated database migrations were executed and verified on 2026-09-09; the earlier unapplied status is historical. Provider acknowledgment means accepted for processing, not handset delivery; see [Africa's Talking status guidance](https://help.africastalking.com/en/articles/16150386-messaging-error-codes) and [Expo ticket guidance](https://docs.expo.dev/push-notifications/sending-notifications/).
+
+### Payment recovery preserves historical fulfillment and retries unresolved races — 2026-09-08
+
+**Decision:** Treat completed monthly property payments as immutable fulfillment history. Migration 071 installs the finalizer without a legacy repair branch and without rewriting past rows. A lost callback update is acknowledged only after re-reading the winning state; unresolved transitions return a retryable error, including accountless 3D payments. Normal status reads and lost-update reloads share fulfillment-aware responses, so a completed payment with an unconfirmed reservation remains NEEDS_SUPPORT.
+
+**Recovery refinement (2026-09-08):** The first poll discovering a blocked daily/hotel fulfillment also returns NEEDS_SUPPORT. Stored monthly conflicts re-drive outstanding per-recipient escalation without re-finalizing the reservation. Hosted returns display a terminal support-required state, payment reference and contact action, with no second-payment action or automatic redirect. Polling is serialized and cancelled on navigation so stale responses cannot overwrite that state.
+
+**Direct-screen refinement (2026-09-09):** Direct web and mobile payments use the same paid-but-unfulfilled distinction for initiation and polling. The support state retains the deposit reference, says not to pay again, and offers contact/close actions. Closing and reopening the same modal does not reset that state. Direct polls serialize requests and reject stale responses after cancellation.
+
+**Why:** The property's current status cannot prove whether an old payment was fulfilled. Re-locking a relisted property or flagging an already-reserved property as a conflict changes history. A concurrent pending-to-submitted update is not evidence that a terminal callback was saved.
+
+**Ruled out / alternatives:** Do not automatically backfill fulfillment from present-day availability or silently acknowledge every lost update. Preserve existing explicit conflicts; historical inconsistencies require evidence-based support reconciliation.
+
+**Status:** Settled for [payment PR #29](https://github.com/saliftankoano/roogo-web/pull/29), application release pending. Migration 071 was applied after 070 and verified on 2026-09-09.
+
+### Call editing preserves intent across concurrent staff work — 2026-09-08
+
+**Decision:** Merge the original, local and latest saved call field by field. Adopt unrelated staff updates, require an explicit choice for overlapping edits, and keep unresolved conflicts and drafts through repeated or failed refreshes. Give each editor its own session identity; briefly prevent opening another editor during a save while allowing call browsing.
+
+**Why:** A late save or reload must not erase another draft, reopen a call closed by another operator, or pull the operator back to a previously selected call. Response follow-up drafts also remain independent across sibling saves and filters.
+
+**Ruled out / alternatives:** Blind replacement loses work; last-write-wins can overwrite closure and commission changes. A short editor-switch lock makes save ownership unambiguous without blocking browsing. Compare the full database version, including microseconds.
+
+**Status:** Settled. See [editing behavior](./SYSTEM.md#how-do-staff-edit-calls-without-losing-work) and [release work](./ROADMAP.md#now).
+
+### Deletion preserves commitment history while removing private respondent data — 2026-09-08
+
+**Decision:** Unlink deleted properties and users instead of blocking their deletion or deleting all response history. Anonymize respondent details and queue removed private attachments in the same transaction; retry file removal through the existing storage-cleanup job. Delete listing media only after database deletion succeeds.
+
+**Why:** Existing property and account deletion must continue to work, while saved economic commitments remain explainable. Storage failures must not leave a live listing without its media or misreport a successful database deletion.
+
+**Ruled out / alternatives:** Restrictive foreign keys break deletion; cascading all response data destroys commitment history; removing storage first risks data loss when the database rejects deletion.
+
+**Status:** Settled for ROO-20. Abandoned uploads remain a separate known limitation, not a newly scheduled project. See [retention behavior](./SYSTEM.md#what-survives-property-or-account-deletion).
+
+### Property requests capture explicit agent terms before listing follow-up — 2026-09-08
+
+**Decision:** Staff publish customer needs; agents and owners respond privately once per account and call. Snapshot the agent's acknowledged rate, conditions and sale-price or monthly-rent basis at submission. Staff acceptance confirms those saved terms. Owners acknowledge information and contact consent without earning an agent commission. Linking a listing continues the existing review and publication workflow.
+
+**Why:** Later call edits must not silently change an agent's commitment. A proposal, document declaration, confirmed commitment, published listing and payment are different business events.
+
+**Ruled out / alternatives:** Do not infer agent rates from Roogo's owner success fee, rent-collection fee or referral program. Do not treat acceptance as a payment, signature or ownership verification, or create a second publication workflow.
+
+**Status:** Settled for the draft implementation; release remains pending. See [workflow](./SYSTEM.md#how-do-property-requests-connect-mobile-supply-to-staff-work) and [vocabulary](./DOMAIN.md#property-requests).
 
 ### Monthly listing economics separate acquisition from default-on rent collection — 2026-09-01
 

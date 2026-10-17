@@ -1,15 +1,19 @@
 import { NextRequest, NextResponse } from "next/server";
-import {
-  processPropertyStorageCleanupQueue,
-  purgePropertyListingAssets,
-} from "@/lib/property-storage";
+import { processPropertyStorageCleanupQueue } from "@/lib/property-storage";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { requireListingFieldsByType } from "@/lib/validations";
 import {
+  checkPublicSalePriceChange,
+  deleteSalePriceApproval,
+  recordSalePriceApproval,
+} from "@/lib/sale-mandate";
+import { captureServerEvent } from "@/lib/posthog-server";
+import {
   getAuthenticatedUser,
   isOwnerAgentStaffOrFounder,
   isStaffOrFounder,
+  userCan,
 } from "@/lib/api-auth";
 import {
   buildStalePropertyTranslationUpdate,
@@ -19,6 +23,8 @@ import {
 interface PropertyPatchUpdates {
   description?: string;
   price?: string | number;
+  /** Sale price below +10%: confirmations ticked in the price-change UI. */
+  priceConfirmations?: { discussed_with_salif?: boolean; owner_agreed?: boolean };
   address?: string;
   city?: string;
   quartier?: string;
@@ -60,14 +66,16 @@ export async function DELETE(
 
     const { id: propertyId } = await params;
 
-    const isAdmin = isStaffOrFounder(user);
-
     if (!isOwnerAgentStaffOrFounder(user)) {
       return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
-    // For owners/agents, verify they own this property before doing anything
-    if (!isAdmin) {
+    // Only a founder or director deletes any listing. A staff member with
+    // another level, like an owner, can delete only a listing they own.
+    const canDeleteAny = isStaffOrFounder(user) && userCan(user, "listings.delete");
+
+    // For everyone else, verify they own this property before doing anything
+    if (!canDeleteAny) {
       const { data: prop } = await supabaseAdmin
         .from("properties")
         .select("id")
@@ -81,15 +89,6 @@ export async function DELETE(
           { status: 404 },
         );
       }
-    }
-
-    const preDeleteCleanup = await purgePropertyListingAssets(propertyId);
-
-    if (preDeleteCleanup.errors.length > 0) {
-      console.warn(
-        "Property storage cleanup before delete had errors:",
-        preDeleteCleanup.errors,
-      );
     }
 
     // --- Delete DB row (cascades to all related tables via migration 010) ---
@@ -111,9 +110,13 @@ export async function DELETE(
       );
     }
 
+    // Only delete files after a committed DB delete. The durable queue retries failures.
     const queuedCleanup = await processPropertyStorageCleanupQueue({
       propertyId,
       limit: 10,
+    }).catch((error) => {
+      console.error("Property deleted; storage cleanup remains queued:", error);
+      return { deletedPathCount: 0, failedCount: 1 };
     });
 
     if (queuedCleanup.failedCount > 0) {
@@ -126,8 +129,7 @@ export async function DELETE(
     return NextResponse.json({
       success: true,
       storageCleanup: {
-        deletedPathCount:
-          preDeleteCleanup.deletedPathCount + queuedCleanup.deletedPathCount,
+        deletedPathCount: queuedCleanup.deletedPathCount,
         pendingFailures: queuedCleanup.failedCount,
       },
     });
@@ -182,7 +184,43 @@ export async function PATCH(
     const dbUpdates: Record<string, unknown> = {};
     if (updates.description !== undefined)
       dbUpdates.description = updates.description;
-    if (updates.price !== undefined) dbUpdates.price = Number(updates.price);
+    // An approval of a sale price below +10% (migration 097). Written just before
+    // the price is saved (after every other validation) and removed again if
+    // the save fails, so no approval exists without its price change.
+    let pendingApproval: Omit<
+      Parameters<typeof recordSalePriceApproval>[0],
+      "propertyId" | "approverId"
+    > | null = null;
+    let priceApprovalId: string | null = null;
+    if (updates.price !== undefined) {
+      const newPrice = Number(updates.price);
+      // Sale listings only (rentals keep their price as set). Rule of
+      // 2026-10-17: the team decides from +10% above the owner's price; below
+      // +10% founder or Directeur with the required confirmations.
+      const check = await checkPublicSalePriceChange({
+        propertyId,
+        newPrice,
+        user,
+        confirmations: {
+          discussed_with_salif: updates.priceConfirmations?.discussed_with_salif === true,
+          owner_agreed: updates.priceConfirmations?.owner_agreed === true,
+        },
+      });
+      if (!check.ok) {
+        return NextResponse.json(
+          { error: check.error, code: check.code, required: check.required },
+          { status: check.status },
+        );
+      }
+      if (check.approval && check.context) {
+        pendingApproval = {
+          newPrice,
+          approval: check.approval,
+          context: check.context,
+        };
+      }
+      dbUpdates.price = newPrice;
+    }
     if (updates.address !== undefined) dbUpdates.address = updates.address;
     if (updates.city !== undefined) dbUpdates.city = updates.city;
     if (updates.quartier !== undefined) dbUpdates.quartier = updates.quartier;
@@ -282,6 +320,35 @@ export async function PATCH(
       }
     }
 
+    if (pendingApproval) {
+      try {
+        priceApprovalId = await recordSalePriceApproval({
+          propertyId,
+          approverId: user.id,
+          ...pendingApproval,
+        });
+      } catch (error) {
+        console.error("Sale price approval not recorded, change refused:", error);
+        return NextResponse.json(
+          {
+            error:
+              "Impossible d'enregistrer l'accord pour ce prix. Le prix n'a pas été modifié.",
+          },
+          { status: 500 },
+        );
+      }
+      // The owner's private price stays in sale_price_approvals only.
+      await captureServerEvent(user.id, "sale_price_founder_approved_below_team_floor", {
+        property_id: propertyId,
+        approver_level: pendingApproval.approval.approverLevel,
+        below_owner_price: pendingApproval.approval.belowOwnerPrice,
+        discussed_with_salif: pendingApproval.approval.discussedWithSalif,
+        owner_agreed: pendingApproval.approval.ownerAgreed,
+      }).catch((error) =>
+        console.error("Could not send the price approval event:", error),
+      );
+    }
+
     let updatedProperty: PropertyUpdateRow | null = null;
     if (Object.keys(dbUpdates).length > 0) {
       const { data, error } = await supabaseAdmin
@@ -291,6 +358,9 @@ export async function PATCH(
         .select("id, virtual_tour_url")
         .maybeSingle();
 
+      if (error || !data) {
+        if (priceApprovalId) await deleteSalePriceApproval(priceApprovalId);
+      }
       if (error) {
         console.error("Error updating property:", error);
         return NextResponse.json({ error: error.message }, { status: 500 });

@@ -51,6 +51,51 @@ export const advertisingProofUploadLimiter = redis
     })
   : null;
 
+export const studioLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(20, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:studio",
+    })
+  : null;
+
+export const studioPreviewLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(60, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:studio-preview",
+    })
+  : null;
+
+export const studioChatLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(60, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:studio-chat",
+    })
+  : null;
+
+export const studioCloneLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(3, "1 d"),
+      analytics: true,
+      prefix: "ratelimit:studio-clone",
+    })
+  : null;
+
+export const studioJobLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(20, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:studio-job",
+    })
+  : null;
+
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,

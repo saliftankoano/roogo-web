@@ -22,13 +22,13 @@ Le tarif vit dans `lib/visites-3d.ts` (`PRICE_PER_ROOM = 15_000`, `computePrice(
 
 Blocs de 2 heures, tous les jours, entre 7h et 17h : 07:00–09:00, 09:00–11:00, 11:00–13:00, 13:00–15:00, 15:00–17:00.
 
-Définis dans `lib/visites-3d.ts` (`SLOTS`) **et** dans le `check` SQL (`supabase/migrations/045_visites_3d_bookings.sql`). Toute modification doit être appliquée aux deux endroits.
+Définis dans `lib/visites-3d.ts` (`SLOTS`) **et** dans le `check` SQL (`supabase/migrations/045_visites_3d_bookings_executed.sql`). Toute modification doit être appliquée aux deux endroits.
 
 ---
 
 ## Supabase — table `bookings`
 
-La table `bookings` (dédiée aux visites 3D — rien à voir avec `open_house_bookings` / `daily_booking_requests`) a été créée à l'origine par les migrations du repo kazedra sur **ce même projet Supabase**. La migration `045_visites_3d_bookings.sql` reproduit son état final (idempotent) et supprime la colonne `with_roogo` (ancien tarif duo abandonné).
+La table `bookings` (dédiée aux visites 3D — rien à voir avec `open_house_bookings` / `daily_booking_requests`) a été créée à l'origine par les migrations du repo kazedra sur **ce même projet Supabase**. La migration `045_visites_3d_bookings_executed.sql` reproduit son état final (idempotent) et supprime la colonne `with_roogo` (ancien tarif duo abandonné).
 
 Points importants :
 

@@ -12,9 +12,16 @@ interface PropertyCardProps {
   onClick?: () => void;
   showStatus?: boolean;
   className?: string;
+  imageSizes?: string;
 }
 
-export function PropertyCard({ property, onClick, showStatus = false, className }: PropertyCardProps) {
+export function PropertyCard({
+  property,
+  onClick,
+  showStatus = false,
+  className,
+  imageSizes = "(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw",
+}: PropertyCardProps) {
   const [timePosted, setTimePosted] = useState("");
 
   useEffect(() => {
@@ -46,6 +53,8 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
         return "bg-yellow-100 text-yellow-900 border-yellow-300";
       case "expired":
         return "bg-neutral-100/90 text-neutral-600 border-neutral-200";
+      case "vendu":
+        return "bg-[#1f7ca5] text-white border-[#1f7ca5]";
       default:
         return "bg-neutral-100/90 text-neutral-600 border-neutral-200";
     }
@@ -63,6 +72,8 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
         return "En attente";
       case "expired":
         return "Expiré";
+      case "vendu":
+        return "Vendu";
       default:
         return status;
     }
@@ -87,7 +98,7 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
             src={property.image}
             alt={`Propriété à ${property.location}`}
             fill
-            sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+            sizes={imageSizes}
             className="object-cover transition-transform duration-300 group-hover:scale-[1.015]"
           />
           {/* Sponsored Badge */}
@@ -158,9 +169,19 @@ export function PropertyCard({ property, onClick, showStatus = false, className 
           )}
         </div>
 
-        <h3 className="text-lg font-bold text-neutral-900 mb-2 line-clamp-1">
-          {property.location}
-        </h3>
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <h3 className="min-w-0 text-lg font-bold text-neutral-900 line-clamp-1">
+            {property.location}
+          </h3>
+          {property.reference && (
+            <span
+              title="Référence de l'annonce"
+              className="shrink-0 font-mono text-[11px] font-semibold tracking-wide text-neutral-400"
+            >
+              {property.reference}
+            </span>
+          )}
+        </div>
 
         <p className="text-sm text-neutral-500 line-clamp-2 mb-4 grow">
           {property.description}

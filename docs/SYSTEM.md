@@ -6,6 +6,174 @@ what shipped and when, see [`CHANGELOG.md`](./CHANGELOG.md).
 
 ---
 
+## How do staff access levels work?
+
+Every staff member has a **level** that matches their job title: `director`, `assistant`, `advisor` or `intern`. The founder (`userType: "founder"`) is always the founder level and never has a stored level. The matrix of what each level can do is code in [`lib/staff-access.ts`](../lib/staff-access.ts) (`STAFF_CAPABILITY_MATRIX`); it is the approved matrix from the vault note "Permissions de l'equipe par titre" (2026-10-11). Change the note first, then the code.
+
+- **Where the level lives.** Clerk `publicMetadata.staffLevel` (read by the browser and by routes that read the Clerk session) mirrored in `users.staff_level` (read by routes that load the Supabase user). The team page writes both. `lib/user-sync.ts` mirrors it when Clerk sends a user update.
+- **How routes check it.** Pass a capability: `getStaffOrFounder(req, "talent.manage")`, `requireStaffSupabaseUser("identity.review")`, `requireClerkStaffCapability(...)`, `userRowCan(user, ...)`. Routes without a capability still accept any staff member, so a new admin route must name one. Sensitive routes done: listing delete and publish, identity and ownership documents, users list, disputes, referrals, talent, rental imports, pending edits, support, sale-chat replies, finances, voice cloning, glossary moderation.
+- **Pages.** `app/admin/<section>/layout.tsx` wraps each section in `StaffRouteGuard` (server side). The navigation and buttons use `useStaffAccess()`, fed by the admin layout so they agree with the API.
+- **Rollout switch.** `STAFF_LEVELS_ENFORCED=true` makes a staff member without a level act as `advisor`. While it is not set they act as `legacy`: exactly the access staff had before levels. Staff who have a level are bound by the matrix either way. Turn the switch on only after every real staff member has a level on `/admin/acces/niveaux`.
+- **Giving access.** `/admin/acces/niveaux`, tab « Niveaux et invitations » of « Accès » (founder and directors; the tab is hidden for others and the route is guarded by `team.manage`). The founder gives or removes any level; a director gives assistant, advisor and intern, never director; nobody changes their own level. A person joins with an invitation link (valid 7 days, tied to an email address, only its hash stored) on `/personnel/rejoindre`; the inviter's right is checked again when the link is accepted. Every invitation, acceptance, level change and removal is written to `staff_access_log`; the founder reads all of it, a director reads their own.
+- **Titles on the team board are the levels.** The briefing and the L'équipe board (`/admin`, `/admin/equipe`) read the same level (`director` is Directeur, `assistant` Assistant(e) commercial(e), `advisor` Conseiller(ère), `intern` Stagiaire; no level counts as Conseiller(ère) there). Changing a title on the board calls the same `setMemberLevel` as `/admin/acces/niveaux`, so it is logged and synced to Clerk. The `staff_titles` table from `089_staff_tasks_executed.sql` exists on Roogo but is not read.
+- **Studio caps.** Setting a level also sets the person's monthly Studio caps (`studio_user_limits`) to the approved amounts (`STUDIO_CAPS_BY_LEVEL`).
+- **The shared staff code** (`STAFF_REGISTRATION_SECRET`) still works until the variable is deleted in Vercel, but it can now only create the `intern` level and never touches a founder. Delete the variable once invitations are in use.
+- **Not built yet.** The 30-day temporary extra access, the monthly access review (a working rule), advisor listings needing approval beyond going online, and per-route checks on the remaining staff routes (open-house slots, hotel events, property requests, Studio routes other than cloning).
+
+---
+
+## How do public listing photos load and recover?
+
+Public discovery uses a photo variant that matches its layout, an immutable source URL for each new photo, and a homepage shell that can render while featured annonces load. [Annonce](./DOMAIN.md#annonce) is a public listing, not private ownership evidence.
+
+On the homepage and search page, responsive image hints include the container padding, grid gaps and card borders. Detail and fullscreen images have separate hints. Other PropertyCard callers retain their existing default. The optimizer chooses an available variant from these hints; this change does not replace the optimizer or alter photo quality/loading priority.
+
+New property single/batch and room-type uploads set `cacheControl=2592000` and disable overwrites. Single uploads derive their URL from the photo bytes; edited content gets a new URL. Batch and room-type uploads use UUID filenames. Existing photos keep their prior headers. Private documents, avatars and the global Next cache floor retain their policies.
+
+An identical single-photo retry returns the linked record before checking the gallery cap. If the storage object exists without a link, the route attempts to recover the link. Migration 073 permits one content-addressed URL per property: competing inserts return the record that committed. A failed insert keeps the shared object available for later recovery; removing it after a lookup could delete another request's linked photo. Lost database responses also recheck the link. Deletion still follows the saved URL, and already cached public copies may remain until expiry. Abandoned unlinked objects and legacy backfill remain limitations, not cleanup work delivered here.
+
+The homepage passes an async featured-listing section through a ReactNode slot behind Suspense. The hero and its preload can stream first; the section separately shows a skeleton, a genuine empty result or an unavailable message on query/malformed-data failure. Other property-query callers keep their previous error handling. The real-route regression test runs in a disposable source copy, so generated Next output cannot overwrite the working checkout's production build.
+
+[#32](https://github.com/saliftankoano/roogo-web/pull/32) and [#33](https://github.com/saliftankoano/roogo-web/pull/33) merged on 2026-09-13 UTC. [#34](https://github.com/saliftankoano/roogo-web/pull/34) merged at 00:42:44 UTC the same day, commit `4832b90`. Homepage streaming and the logbook/migration-filename updates are now in main; this merge does not establish production deployment or measured savings. Salif reports migration 073 applied; see the [execution ledger](../supabase/migrations/README.md). Layout measurements, 14 image tests and four delayed-query streaming scenarios passed. Production cache headers, stream behavior and measured savings remain release checks. See the [decision](./DECISIONS.md#public-listing-image-loading-uses-layout-sizing-immutable-sources-and-a-streaming-shell--2026-09-13) and [release gate](./ROADMAP.md#now).
+
+## How are executed migration filenames recorded?
+
+Files named `<version>_<name>_executed.sql` represent migrations confirmed executed on Roogo. The suffix is an operational record for that database; it does not mean that a fresh or test database already has the schema. New migrations omit the suffix until their execution is confirmed and recorded.
+
+All 001–073 are marked on Salif's confirmation dated 2026-09-13 UTC. The [ledger](../supabase/migrations/README.md) preserves the stronger SQL/history/effects verification for 070–072 from 2026-09-09 and labels the remainder as operator-reported. Each renamed SQL file remains byte-identical; tests and links read its new path, while original names in SQL comments remain historical. Database migration-history names and recorded SQL are unchanged. Renaming files is not history reconciliation and does not make an unrestricted database push safe.
+
+Treat earlier production-migration checklist wording as a historical snapshot when it conflicts with this current execution record. App/device validation gates remain separate. Consult the target environment's actual history/schema before applying any SQL; future changes use a new numeric version. See the [filename decision](./DECISIONS.md#executed-migration-filenames-preserve-sql-and-the-source-of-execution-evidence--2026-09-13).
+
+## How do failed and uncertain customer payments recover?
+
+Roogo keeps payment collection, reservation fulfillment and notification delivery separate. This behavior is implemented in [web PR #29](https://github.com/saliftankoano/roogo-web/pull/29) and [mobile PR #29](https://github.com/saliftankoano/roogo/pull/29); both remain open as of 2026-09-09. Database prerequisites 070–072 were executed and verified on Roogo that day; the API/mobile feature has not been released by this task. See the [execution ledger](../supabase/migrations/README.md). Local tests and the web preview do not establish production release.
+
+The shared failure flow covers customer-initiated reservation, rent, listing, boost, hosted-payment and 3D-visit deposits. Owner payouts and refunds are outside this notification feature. The server saves the [deposit reference](./DOMAIN.md#pawapay-deposit) before requesting collection.
+
+| Observed result | Meaning and handling |
+| --- | --- |
+| Ambiguous initiation response | Preserve the saved deposit for polling/callback reconciliation. HTTP 408/5xx without a definitive provider rejection, unreadable bodies and interrupted response reads do not establish failure. |
+| Unsuccessful status lookup | Leave the saved payment unchanged. An upstream HTTP 404/4xx/5xx is not proof of a missing deposit; only a successful parsed `NOT_FOUND` can enter not-found reconciliation. Generic upstream HTTP failures return retryable 502 responses, while 3D remains pending. |
+| Definitive failure | Persist the normalized failure code, show Roogo-controlled French/English copy, and allow the failure retry flow. Never display the provider's raw support-oriented message. |
+| Collected and fulfilled | Return normal completion; historical completed monthly reservations are not re-locked based on present-day property availability. |
+| Collected but reservation unconfirmed | Return [NEEDS_SUPPORT](./DOMAIN.md#payment-received-assistance-required). Retain the payment reference, explain that money was received, and offer support instead of repayment. |
+
+Initiation, polling and callbacks share failed-payment notification dispatch. One `payments.failed` record belongs to the deposit, including accountless 3D bookings. Account notification preferences are honored; a preference/token lookup outage is retryable, not evidence of consent or an absent token. Use push when eligible tokens exist, otherwise the normalized Mobile Money payer number for SMS. After definitively rejected push attempts, the bounded retry path may use SMS. Matching SMS alerts share a 15-minute cooldown per hashed payer phone and failure code. Delivery records retain channel, outcome, phone hash and code; optional notification failures do not change the payment result. No notification inbox is added.
+
+Listing deposits have a separate permanent consumption ledger, created by migration 072. Its property reference intentionally survives property deletion. Consumption commits or rolls back with the property insert; an already-consumed deposit can recover its existing listing but cannot create another, including after deletion. Transaction-link outages preserve that listing for idempotent repair. Historical backfill uses only surviving property/payment links and fails on conflicting evidence. See the [consumption decision](./DECISIONS.md#listing-payment-consumption-survives-property-deletion--2026-09-09).
+
+Migration 072 also makes creation-time amenities atomic with that insert. The API supplies a sale-filtered names snapshot; the insert trigger attaches the matching amenities, so database failure rolls back both listing and consumption. Retries verify the transaction's property link and the property's transaction link, returning a retryable error if either cannot be confirmed. They neither replace amenities from changed retry input nor restore amenities removed by later edits. Initial analytics/matching-listing announcements remain best-effort and run before payment linking; payment-link retries do not re-announce old listings. Legacy writers can omit the nullable snapshot. No existing amenities are inferred or backfilled.
+
+### Why can an alert remain uncertain rather than retry automatically?
+
+The dispatcher records an attempt-owned, non-reclaimable sending boundary before contacting a provider. It retries outcome persistence without repeating the send. Only definite rejection permits a new attempt; provider acceptance, a lost reply or an exhausted outcome write cannot prove resending is safe. Provider acceptance is not proof of handset delivery. A crash between that boundary and the network call can leave an unsent alert uncertain; resolve it from provider evidence, never by blindly resetting its state.
+
+Monthly reservation conflicts use the same protection independently for each customer/staff recipient. Stored conflict status reads retry eligible outstanding escalation without re-finalizing the payment. Preference opt-outs and absent tokens are recorded as skipped, while pre-send lookup errors remain retryable. Failed-payment SMS cooldown remains separate from these push-only conflict alerts.
+
+See the [gateway decision](./DECISIONS.md#gateway-errors-preserve-the-original-deposit-for-reconciliation--2026-09-09), [notification uncertainty decision](./DECISIONS.md#notification-uncertainty-never-authorizes-a-second-send--2026-09-08), and [fulfillment decision](./DECISIONS.md#payment-recovery-preserves-historical-fulfillment-and-retries-unresolved-races--2026-09-08). Deployment gates and sandbox/device checks live in [ROADMAP.md](./ROADMAP.md#now); detailed validation evidence stays in the linked PRs.
+
+### What must future payment changes preserve?
+
+The originating support case was an insufficient-balance attempt, not a successful charge: a delivered provider callback means Roogo received the provider event, not that the payer received a notification. Never conflate callback delivery, collection, reservation fulfillment and customer delivery.
+
+| Contract | Implementation boundary | Reason |
+| --- | --- | --- |
+| Normalized failure codes and controlled copy | `lib/payment-failures.ts`, initiation/status/callback routes | Raw provider support messages are not localized customer instructions. |
+| One notification record per deposit | `lib/payment-failure-notifications.ts`, `lib/notification-deliveries.ts`, migration 070 | Initiation, polling and webhook workers can race. Accountless 3D still needs deduplication. |
+| No automatic resend after uncertain provider acceptance | Durable send boundary plus Expo/AT outcome parsers | Provider acknowledgment can be lost after a send; retry persistence, not the external send. |
+| Collection does not prove reservation fulfillment | `lib/property-lock-finalization.ts`, migration 071, direct/hosted support screens | Historical completed payments must not re-lock relisted properties. |
+| One paid listing survives retries/deletion | `app/api/properties/route.ts`, migration 072 | Recover the original property; deleted listings must not restore a paid credit. |
+| Browser returns are hints | Mobile hosted-status parser, listing draft and recovery helpers | Verify ownership/purpose and preserve a different unresolved attempt. |
+
+Safe messages cover `INSUFFICIENT_BALANCE`, `PAYMENT_NOT_APPROVED`, `PAYMENT_IN_PROGRESS`, `PAYER_NOT_FOUND` and `PROVIDER_TEMPORARILY_UNAVAILABLE`; other codes use the generic failure copy. A failure code describes why one attempt failed, not permission to regress a completed transaction.
+
+Notification work is best-effort and bounded: two delayed retries (2.5 and 7.5 seconds) follow the initial attempt when safely retryable. This is not an indefinitely running delivery queue. Eligibility lookup failure is retryable, opt-out suppresses the alert rather than bypassing it with SMS, and missing contact data is recorded without altering payment processing. Provider acceptance is not handset delivery. Do not promise exactly-once receipt, guaranteed arrival or automatic recovery of an uncertain send.
+
+### Support and release limitations
+
+- A failed charge can offer payment retry. An unverified deposit offers status reconciliation. A collected but unfulfilled reservation offers support with the existing reference.
+- Investigate using deposit/transaction references, controlled failure code and delivery channel/outcome. Never log credentials or raw payer numbers; phone hashes are still sensitive identifiers, not anonymous data.
+- On listing-link outages, retry submission against the original deposit. Do not delete the property or reset its consumption to force success.
+- Historical deleted listing links, missing original amenities and old reservation conflicts cannot be reconstructed from present-day state; require original/provider evidence.
+- **Open mobile review finding:** reopening an old successful hosted link with no original draft calls submission with incomplete fields, then persists a nondismissible paid state. Before release, recognize an already-linked property and allow missing-draft repair without discarding the deposit or authorizing another charge. Existing cold-return tests mocked submission and missed this path.
+- Native-device and live-provider acceptance remain unverified. Run the agreed sandbox scenario in an explicitly configured sandbox backend; production PawaPay configuration uses live credentials, so a test number alone does not establish sandbox safety.
+
+## How are payment migrations installed and recorded?
+
+Before consolidation, the user confirmed on 2026-09-09 that the review-era payment migrations had not been applied. They are replaced by three files, each with one transaction and only final function definitions:
+
+| Order | File | Responsibility | Replaces review-era payment files |
+| --- | --- | --- | --- |
+| 1 | `070_payment_failure_notifications_executed.sql` | Failure fields, accountless delivery records, leases, SMS cooldown and attempt-fenced failure/conflict sends | 068, 072, 073 |
+| 2 | `071_atomic_property_lock_payments_executed.sql` | Reservation claims, release and atomic finalization preserving completed history | 069, 071 |
+| 3 | `072_atomic_listing_payments_executed.sql` | Unique deposit index, durable consumption backfill/trigger and atomic creation amenities | 070, 074, 075 |
+
+These are in `supabase/migrations/`. Unrelated `068_property_requests_executed.sql` and `069_property_request_deletion_safety_executed.sql` remain unchanged; they are separate features, not prerequisites introduced by payment SQL. The execution ledger records only verified migrations, not an assumed baseline for the rest of the repository.
+
+For an environment where the chain has not run, first confirm the target/history and run these read-only preflights before 072. Both must return zero rows; conflicting evidence requires investigation, not deletion or choosing a winner:
+
+```sql
+SELECT payment_id, COUNT(*) AS properties
+FROM public.properties
+WHERE payment_id IS NOT NULL
+GROUP BY payment_id HAVING COUNT(*) > 1;
+
+WITH evidence AS (
+  SELECT payment_id AS deposit_id, id AS property_id
+  FROM public.properties WHERE payment_id IS NOT NULL
+  UNION
+  SELECT deposit_id, property_id FROM public.transactions
+  WHERE type = 'listing_submission'
+    AND deposit_id IS NOT NULL AND property_id IS NOT NULL
+)
+SELECT deposit_id, COUNT(DISTINCT property_id) AS properties
+FROM evidence GROUP BY deposit_id HAVING COUNT(DISTINCT property_id) > 1;
+```
+
+Schedule 072 for a maintenance window: it blocks property and transaction writes while indexing/backfilling. A conflict rolls back that entire migration, not the preceding 070/071 transactions. Previously deleted listings with no surviving payment link cannot be reconstructed; reconcile from external evidence. No existing amenities are inferred from later retry input.
+
+Apply 070 → 071 → 072, verify completion, deploy the backend, then release mobile and run the sandbox/device checks in [ROADMAP.md](./ROADMAP.md#now). Do not deploy the backend after only part of this chain. Do not run deleted review-era SQL or edit the database's migration history to force a match. If any other environment already ran an old payment migration or experimental notification workers, stop for a separate history/data reconciliation; this regrouping is intended for the confirmed unapplied rollout. Regrouping itself did not execute SQL. The subsequent authorized execution applied 070–072 to Roogo and verified their effects; see the [execution ledger](../supabase/migrations/README.md). No application deployment was performed. Because the existing database had no migration history, only these three entries were established; older migrations require a separate baseline audit before broad CLI push.
+
+See the [consolidation decision](./DECISIONS.md#consolidate-unapplied-payment-migrations-before-first-rollout--2026-09-09).
+
+## How do property requests connect mobile supply to staff work?
+
+As of 2026-09-08, ROO-20 is implemented and reviewed on draft PRs [web #31](https://github.com/saliftankoano/roogo-web/pull/31) and [mobile #30](https://github.com/saliftankoano/roogo/pull/30). Shared database migrations and the mobile release have not been performed by this task. Local tests and preview deployments are not production release evidence.
+
+An [appel à biens](./DOMAIN.md#appel-à-biens) captures a customer's property need. Operations owns the call and follow-up in **Opérations → Appels à biens** (`/admin/demandes-de-biens`); mobile agents and owners supply proposals. Staff publish a draft by selecting **Ouvert** and close it when no further proposals are needed. The backend authenticates Clerk bearer tokens and enforces identity, role, privacy and submission rules.
+
+| Actor | Access and responsibility |
+| --- | --- |
+| Staff / founder | Create draft calls, publish or close them, see private customer details, review all responses and confirm commitments. |
+| Agent / owner | Browse open calls and submit one property per call; retain access to their own response and its call after closure. |
+| Renter / hotel / guest | No mobile Requests tab or direct access to the feed. |
+
+Staff specify sale or monthly rental intent, location, budget and property criteria. Customer names, contacts and internal notes stay private to operations. Agent rates and payment terms must be entered explicitly before publication. A monthly-rent commission uses one month of rent; a sale commission uses the final sale price. These are separate from Roogo's listing and collection fees.
+
+A submission records the property details, document declarations and optional private evidence. The server serializes submission with call edits/closure and checks the acknowledged call version. Retrying returns the original response, including after closure, without changing its economic snapshot. Declaring documents does not verify ownership.
+
+Staff move responses through submitted, contacted, accepted, listed or rejected. **Retenue** confirms an agent's saved commitment, which staff can print and the agent can share. Owners have no agent commission. **Bien publié** requires a live listing belonging to the respondent and matching the response's saved transaction basis. Daily rentals cannot fulfill a monthly call. Existing listing creation, ownership review and publication gates still apply; response status alone does not perform those actions or pay anyone.
+
+See the [decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08), [release roadmap](./ROADMAP.md#now), and [PR #31](https://github.com/saliftankoano/roogo-web/pull/31) for validation evidence.
+
+## How do staff edit calls without losing work?
+
+Call editing compares the original version, local draft and latest saved record. Unrelated remote changes are adopted; overlapping edits require the operator to choose saved or local values. Refresh failures preserve drafts, and another refresh cannot silently clear unresolved conflicts. Full database timestamps distinguish updates within the same millisecond.
+
+Editor sessions own their asynchronous saves. Opening another editor is disabled while a save is pending, but browsing calls remains available and save completion respects the current selection. Failures release controls and retain the draft. Response drafts are tracked separately so saving one response, filtering, refreshing or typing during an earlier save does not erase newer or sibling work.
+
+See the [concurrency decision](./DECISIONS.md#call-editing-preserves-intent-across-concurrent-staff-work--2026-09-08) and browser regression instructions in [PR #31](https://github.com/saliftankoano/roogo-web/pull/31).
+
+## What survives property or account deletion?
+
+Deleting a linked property clears its response link and records the deletion. A listed response returns to accepted while retaining its confirmed commission. Deleting a respondent clears their user reference, contact and precise location details, freeform response and staff notes, document declarations and attachment references. Deidentified economic history remains. Deleting a creator or confirmer also clears the reference instead of blocking account deletion.
+
+Removed response files enter a private cleanup queue transactionally. The existing hourly `/api/cron/property-storage-cleanup` job retries removal. Listing media removal begins only after successful database deletion. Attachment reads use ten-minute signed URLs; refresh the call to renew them. Uploads use the private `property-request-files` bucket, are scoped to the respondent and call, and are validated before submission. Up to ten JPG, PNG, WebP or PDF attachments are allowed, each at most 10 MB.
+
+**Known limitation:** interrupted or abandoned uploads that never become response attachments can remain unreferenced in storage. The deletion queue does not establish a general orphan-upload cleanup policy.
+
+See the [retention decision](./DECISIONS.md#deletion-preserves-commitment-history-while-removing-private-respondent-data--2026-09-08). The [release roadmap](./ROADMAP.md#next) records migration and deployment dependencies.
+
 ## How does the Roogo hotel program work?
 
 **Bottom line:** Roogo connects hotel supply to individual travelers and coordinated
@@ -447,6 +615,16 @@ zero rows through it — any consumer of that view must use the service-role
 client (the view exposes only date+slot, no PII). This also means availability
 was silently broken on the old Kazedra site.
 
+## Who can read the users table? (security, 2026-10-17)
+
+**Bottom line:** once migrations 094 and 095 have run, only the service role (our API routes) writes `users`. A signed-in Clerk user reads only their own row through `supabaseAuth`; the anon key reads none. Public owner fields (name, avatar, phone, badges on rentals, nothing on sales) come from `public_property_details`, a view that runs with its owner's rights and always returns NULL renter fields. `staff_users` is service-role only.
+
+- **New client code** that needs the caller's own profile uses `supabaseAuth` (mobile) or an API route; never the anon `supabase` client.
+- **Never add an anon policy on `users`.** Anon keeps SELECT on a few card columns only so old app embeds (`users:agent_id(...)`) return an empty owner instead of an error; with no policy that is zero rows.
+- **Policies that look up "my users row"** (support chat, sale chat, listing config, advertiser profiles) keep working because the own row stays visible to `authenticated`.
+- **Order:** 094 is safe at any time. 095 waits for the mobile OTA; app binaries on an older runtime lose profile load, adding favourites, "Mes propriétés" and the listing edit screen until they update. Check with `node scripts/check-users-exposure.mjs` (GET only, prints counts and column names).
+- [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
+
 ## How do app updates reach users? (OTA vs store builds, and runtimeVersion)
 
 **Bottom line:** the app updates through two pipes. OTA (expo-updates) pushes
@@ -474,7 +652,7 @@ the endpoint after approval. Never bump the runtime for an OTA-only release.
 **Bottom line:** the kazedra site and roogo-web have always pointed at the **same
 Supabase project**, so when the 3D-visits service migrated to Roogo (2026-07-06) the
 `bookings` table, its indexes, the `booking_slots_view` and every past booking were
-already "ours" — no data moved. Migration `045_visites_3d_bookings.sql` still needs
+already "ours" — no data moved. Migration `045_visites_3d_bookings_executed.sql` still needs
 to be run once, for two reasons:
 
 1. **One real change:** `drop column with_roogo` — the old dual-pricing flag
@@ -539,10 +717,41 @@ fees are paid by Roogo. See
    the ownership docs.
 3. Roogo sends a **mandate** (desired price + commission percentages + an
    exclusivity period). The owner **signs it in-app** (tap-to-confirm + typed name).
-   Signing publishes the listing at the desired price.
-4. Only then is the listing publishable and photographed by Roogo. Staff may then
-   adjust the public price (`properties.price`) freely to experiment; the seller is
-   deliberately NOT shown or notified of Roogo's listing price.
+   Signing publishes the listing at the desired price + 30% (since 2026-10-11).
+4. Only then is the listing publishable and photographed by Roogo. Staff then move
+   the public price (`properties.price`) within the ladder below. Since 2026-10-11
+   the owner sees the listing price and the payout table on the mandate.
+
+**Price ladder and who decides (sales only, 2026-10-17):** a `vendre` listing is
+published at owner price `D` + 30% (`publishedListingPrice`, on creation and again
+when the mandate is signed); `D` stays private (`sale_asking_prices`, then the
+mandate's `desired_price`). Rungs: +30% listing, +20% target (owner receives exactly
+`D`), +15% reference (display only), +10% team floor. `PATCH /api/properties/[id]`
+runs `checkPublicSalePriceChange` (an unchanged price is not a change):
+
+| New public price | Who | Confirmations (`priceConfirmations`) |
+| --- | --- | --- |
+| >= `ceil(D × 1.10)` | any staff | none |
+| below +10%, >= `D` | founder or Directeur (`staff_level = 'director'`) | Directeur: `discussed_with_salif` |
+| below `D` | founder or Directeur | `owner_agreed`, plus `discussed_with_salif` for the Directeur |
+
+Other staff get 403. Missing confirmations get 422 with
+`code: "sale_price_confirmation_required"` and `required`, and the admin listing
+page (checkboxes) and the app (confirmation dialogs) ask for them. An allowed price
+below +10% first writes a row in `sale_price_approvals` (097, service role only,
+holds `D`), then saves the price; the row is removed if the save fails, and the
+change is refused if the row cannot be written (so nothing below +10% saves before
+097 runs). PostHog gets `sale_price_founder_approved_below_team_floor` without `D`.
+The staff ladder (`GET /api/properties/[id]/sale-ladder`, admin listing and app)
+lists the last 10 approvals: who, level, when, price, markup, confirmations.
+
+Owners see only `ownerPayoutScenarios`: what they receive at +30%, +20%, +15%,
++10% and at `D`, stored on the mandate card as `payout_table` without Roogo's
+commission per row. Displayed team floors are rounded UP to 50,000 FCFA. Rentals
+(`louer`, daily or monthly) skip all of this (`saleLadderApplies`). The ladder
+percentages live in `sale_economics_config` (075) and are snapshotted on each
+mandate; the 075 column `team_floor_markup_pct` holds the +15% reference and
+`hard_floor_markup_pct` the +10% team floor.
 
 **Buyer flow:**
 
@@ -574,3 +783,162 @@ moderation (and any payment/tier requirements).
 The practical consequence: an owner can post a property without proving who they are,
 but Roogo will not publish a sale — and cannot take its spread — until it has verified
 the property's ownership and the owner has signed the mandate.
+
+## How is the principal photo saved?
+
+The first photo in the saved gallery is the principal photo. Dragging a handle or using a previous/next arrow saves the entire permutation with the editor's starting order. Authentication and staff/founder or property-ownership checks happen before a server-only transaction locks the property and gallery. It validates every URL, rejects stale edits, and updates positions and the single principal flag together. A retry of an already saved order succeeds without another change. Invalid or failed writes leave the previous order intact.
+
+Both listing views expose ordered `images` and computed `primary_image` from the first position. Existing public redaction, grants and security options are preserved. No `properties.primary_image` storage column exists or is needed. Uploads append without stealing the cover; deleting a photo resequences the gallery and promotes the first remaining photo. The legacy mobile principal-photo endpoint moves its selected photo to the front while retaining the others' relative order.
+
+The web control displays pending and saved states, blocks overlapping mutations, restores the previous arrangement on failure, and tells the user to reload on a stale-order conflict. Professional-photo approval and publication remain separate actions.
+
+The original alert came from writing to a nonexistent column after image flags had already committed. The transaction and shared read views eliminate that diagnosed partial-save path. Regression checks cover persistence, rollback, stale edits, authorization and view security; these safeguards cannot guarantee that authentication, networks or database services never fail.
+
+See [ordered-gallery decision](./DECISIONS.md#gallery-order-determines-the-principal-photo--2026-10-05) and [photo principale](./DOMAIN.md#photo-principale). Run `npm run test:primary-photo`; optional concurrency checks require `ROOGO_PHOTO_ORDER_TEST_CONTAINER` pointing to a disposable local Postgres fixture, never production.
+
+## How does a Studio video get made and stored?
+
+The editor sends the project, the photo order, the voice position, the outro text and (optionally) a music track. The server rebuilds everything that matters from its own records: it accepts only the listing's own photos, takes the newest voice-over of the project, and always takes the price from the listing, whatever the browser sends. It reserves the price from the person's **video** budget, writes a self-contained HyperFrames page from the template, and submits it to HeyGen. Pressing the priced button is the confirmation.
+
+```mermaid
+sequenceDiagram
+  participant E as Éditeur vidéo
+  participant S as roogo-web
+  participant H as HeyGen (HyperFrames)
+  participant B as Storage (content-studio)
+  E->>S: Créer la vidéo (photos, voice position, outro, music)
+  S->>S: rebuild from records, reserve video budget
+  S->>H: render the template page
+  loop every 4 s
+    E->>S: poll the render
+    S->>H: status
+  end
+  S->>S: first poll that sees it finished claims it
+  S->>H: download the MP4
+  S->>S: re-encode (ffmpeg, about 1/7 of the size)
+  S->>B: store, then add the video to the project
+```
+
+The diagram leaves out failures: a render that fails or takes more than 15 minutes is marked failed and stops counting against the budget. Only one poll can claim a finished render, so a video is saved once even with several tabs open. The page polls; if nobody has the editor open, the render is saved the next time someone opens it.
+
+- **Templates:** **Visite POV** lasts voice start + voice length + 1.4 s; the voice starts 0.4 s in and staff can slide it up to 6 s. **Fin seule** is the 6 s outro alone, without voice or watermark.
+- **Price:** $0.12 per rendered minute, rounded up to the cent. Videos have their own monthly cap (`STUDIO_DEFAULT_VIDEO_CAP_USD`, or the person's `monthly_video_cap_usd`), counted apart from voices, images, subtitles and music.
+- **Storage:** Supabase refuses files over 50 MB whatever the bucket setting, so every render is re-encoded before storing (85 MB → 12.9 MB on a real render); a file still over 48 MB fails with a message. The ffmpeg binary ships with the save route (`outputFileTracingIncludes`). See the [decision](./DECISIONS.md#studio-videos-are-re-encoded-before-storage--2026-10-11).
+- **Download:** the project page and the editor offer the newest video with a signed link that names the file like a title (`Roogo - <bien> - Visite du bien.mp4` or `- Fin de vidéo.mp4`).
+
+Why templates and separate budgets: [decision](./DECISIONS.md#studio-videos-are-built-from-listing-photos-and-templates--2026-10-10).
+
+## How does music play in a Studio video?
+
+The music is one audio track under the whole video, from the first frame to the last. Its level follows a curve written into the page as a HyperFrames volume lane: it fades in, sits at 0.32 while nobody speaks, drops to 0.08 about 0.3 s before the voice and rises again just after it, then fades out over the last 1.6 s. "Fin seule" has no voice, so the song stays up the whole time. The editor preview plays the music with the same curve (`musicEnvelope`, `musicLevelAt`), so what staff hear is what renders.
+
+Tracks live in `studio_music_tracks` and the `content-studio` bucket. **Library** tracks were uploaded once from the vault by `scripts/upload-studio-music.mjs`; **generated** tracks come from fal Lyria 3 Pro through the same job pipeline as images (ledger kind `music`, paid from the voices-and-images budget) and are shared with the whole team. The chosen track is remembered per project in the browser and sent with the render; a track that no longer exists is refused by the server. Lyria has no "instrumental" switch, so the prompt always asks for no vocals in several ways. See the [decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
+
+## How does the Studio make the voice say words correctly?
+
+The visible script stays in correct French; a separate "texte envoyé à la voix" is produced by deterministic rules and shown before paying.
+
+1. The script-writing model receives the team glossary and the built-in respellings, so it spells names the way the rules expect.
+2. The rules replace glossary words regardless of case, accents, plurals and hyphen variants (a longer word containing the term is left alone), then apply built-in respellings: Roogo → "Rohgo", Ouagadougou → "Waga", roogobf.com → "Rohgo bé èf point com".
+3. Prices become words with "de" after millions ("cinquante millions de francs CFA"), phone numbers are read in pairs, years in full. Only the rules touch numbers, never a model.
+
+Why: [decision](./DECISIONS.md#studio-pronunciation-the-glossary-guides-the-writer-rules-make-the-speech--2026-10-10).
+
+## How do field photos and videos reach the shared Drive?
+
+Staff open a property's project in the Studio and drop the visit's files in **Médias du terrain**. Each file goes from the browser straight to the shared Google Drive "Roogo", in `Vente` (sales) or `Location` (everything else), then a folder named `Quartier - Nom du propriétaire`. The owner name is the seller from a direct sale intake, else the account that listed the property. An existing folder with the same name is reused even if accents, case or dash style differ (oldest first). Missing parts become `Sans quartier` or `Propriétaire inconnu`.
+
+```mermaid
+sequenceDiagram
+  participant B as Studio (browser)
+  participant S as roogo-web
+  participant G as Google Drive
+  B->>S: POST /api/admin/studio/media (name, size, type, duration)
+  S->>G: find or create Vente|Location / Quartier - Propriétaire
+  S->>G: open a resumable session (Origin = the Studio's origin)
+  S-->>B: session address, row "uploading"
+  loop 16 MiB chunks
+    B->>G: PUT bytes (Content-Range)
+  end
+  B->>S: POST /media/[id]/finalize
+  S->>G: session status, then file id, folder and size
+  S-->>B: row "ready"
+```
+
+- **Why direct:** Supabase refuses files over 50 MB and Vercel request bodies stop near 4.5 MB, while phone footage is 100 MB to 1 GB. The bytes never pass through Supabase; they pass through Vercel only in the fallback. Limit 5 GB per file.
+- **Fallback:** if Google refuses the browser before the first chunk (CORS, network filter), the same session is fed in 4 MiB chunks through `PUT /api/admin/studio/media/[id]/chunk`. It is slower, but it works.
+- **Resume:** after a network error the browser asks `GET /api/admin/studio/media/[id]` how many bytes Google kept and continues from there. After a reload, dropping the same file again (same person, property, name and size, within 6 days) resumes the old session.
+- **Ready means checked:** finalize asks Drive itself. A file is ready only if the session is complete and the file exists in the chosen folder, not in the bin, at exactly the announced size. Otherwise the row is `failed` with the reason.
+- **Index:** `studio_field_media` (migration 086): property, kind, name, type, size, duration, Drive file and folder ids, status, uploader. The Drive session address is kept only while uploading. Service role only.
+- **Video length:** `duration_seconds` is set at finalize from Drive's `videoMediaMetadata.durationMillis`, else from the browser's own reading of the file before upload. If both are missing (Drive still processing, a codec the browser cannot read), the list route asks Drive again, five rows per call, until it is filled.
+- **Originals are kept as shot** (HEIC, MOV): Drive is the archive. The panel shows Drive's preview images.
+
+### Using the clips in other features (shared contract)
+
+- `GET /api/admin/studio/media?propertyId=<uuid>` (staff) returns `{ media: [{ id, kind, fileName, mimeType, sizeBytes, durationSeconds, status, driveFileId, createdAt, driveUrl, folderPath, error }], folderUrl, driveConfigured }`, newest first.
+- `signedFieldMediaUrl(mediaId, ttlSeconds?)` in `lib/studio/field-media.ts` returns `https://www.roogobf.com/api/admin/studio/media/<id>/stream?exp=<unix>&token=<hmac>`. It is valid 3 hours by default and 24 hours at most, for that file only. It throws if the file is not `ready`.
+- `GET|HEAD /api/admin/studio/media/[id]/stream` streams the Drive file with Range support (206). It opens with a valid token, without a session (public in `middleware.ts`), or with a staff session. `?thumb=1` returns Drive's preview image. Long files pass through a Vercel function (max 300 s) and count as Vercel data transfer.
+- The token is HMAC-SHA256 over `studio-field-media:v1:<id>:<exp>` with `STUDIO_MEDIA_URL_SECRET`, or a key derived from `SUPABASE_SERVICE_ROLE_KEY` when that is not set. Changing the secret revokes every link. The base URL is `STUDIO_PUBLIC_BASE_URL`, else `NEXT_PUBLIC_APP_URL`, else `https://www.roogobf.com`.
+
+### Setup (Salif, once)
+
+1. **Google Cloud project.** At [console.cloud.google.com](https://console.cloud.google.com), signed in with the Roogo Workspace account, create a project (or pick one), for example `roogo-studio`.
+2. **Enable the Drive API.** APIs & Services, Library, search "Google Drive API", Enable.
+3. **Create the service account.** IAM & Admin, Service Accounts, Create service account: name `roogo-studio-drive`, no roles needed, Done. Copy its address (`roogo-studio-drive@<project>.iam.gserviceaccount.com`).
+4. **Create a key.** Open the service account, Keys, Add key, Create new key, JSON. A file downloads. Keep it private; never put it in the vault or a repository.
+   - If Workspace blocks key creation (policy `iam.disableServiceAccountKeyCreation`), an organisation admin must allow it for this project under IAM & Admin, Organization policies.
+5. **Add it to the shared drive.** In Google Drive, the shared drive "Roogo", Manage members, paste the service account address, role **Content manager**, uncheck "Notify", Send. If sharing outside the domain is blocked, allow it for this address in the Admin console (Apps, Google Workspace, Drive and Docs, Sharing settings).
+6. **Vercel environment variables** (Production, and Preview if you test there):
+   - `GOOGLE_SERVICE_ACCOUNT_EMAIL` = `client_email` from the JSON.
+   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` = `private_key` from the JSON, pasted whole, including `-----BEGIN PRIVATE KEY-----`. Both real line breaks and `\n` work.
+   - Or instead of those two: `GOOGLE_SERVICE_ACCOUNT_JSON` = the whole key file (this is what production has).
+   - `ROOGO_SHARED_DRIVE_ID` = `0AMeNoBD5FUIfUk9PVA`.
+   - `STUDIO_MEDIA_URL_SECRET` (recommended) = a long random value, for example from `openssl rand -base64 48`.
+   - Optional: `STUDIO_PUBLIC_BASE_URL` if stream links must point somewhere other than `https://www.roogobf.com`.
+7. **Migration 086** (`supabase/migrations/086_studio_field_media_executed.sql`) has run on Roogo (recorded 2026-10-17); redeploy after the env vars are set.
+8. **Check:** upload one photo and one video of about 200 MB from the Studio, confirm they appear in `Biens/Location/<Quartier - Propriétaire>` in the Drive, that the panel shows them, and that the browser console has no "switching to the relay" warning (that warning means the direct CORS path was refused).
+
+Why: [decision](./DECISIONS.md#studio-field-media-go-straight-to-the-shared-drive--2026-10-12).
+
+## How does the field visit sheet (Fiche de visite) work?
+
+Staff open it from a listing (`Fiche de visite` button on `/admin/annonces/[id]`, which goes to `/admin/fiche-visite?bien=<id>`) or from the briefing (`Commencer une fiche de visite`, which asks for the listing first). The property, quartier, owner and type come from the listing. A sheet continues on another device at `/admin/fiche-visite/<id>`.
+
+- **Screens:** Infos, 1 Avant de partir, 2 Départ du bureau, 3 Sur place, 4 Départ du site, 5 Retour au bureau, Tournage terminé. The rules (checklist wording, what each step needs, business days, tasks, folder name, follow-up status) live in `lib/field-visits/core.ts` and are tested in `core.test.mjs`. On a phone the sheet is a full-screen app; from 1024 px it sits in the admin with a stepper (completed steps clickable).
+- **Team:** one or two people (enforced in the UI, the API and the table). The first is "personne 1".
+- **Times:** every tick stores the device time (ISO, shown as Ouagadougou time, which is UTC). The four time buttons fill `departed_office_at`, `arrived_at`, `left_site_at`, `returned_at`. The in-app notice is read from `field_visits` by the briefing (`fieldNotices` in the briefing payload); nothing is sent outside Roogo. "Aussi sur WhatsApp" only opens a `wa.me` share link.
+- **Sur place:** checklist only. Browser geolocation (latitude, longitude, accuracy); if refused or impossible, "Continuer sans position" records why. Three ticks within 20 seconds show the red notice and store its time in `batch_warnings`.
+- **Uploads (step 5 only):** each deliverable button is a file picker with `multiple`; files go through the Studio field-media upload (`POST /api/admin/studio/media` with `fieldVisitId` and `deliverable`), straight from the browser to Drive in `Biens / Vente|Location / <CODE> <titre> / <type>`. Scan 3D and Insta360 trips may be `.insv`/`.insp`, stored with kind `file` and hidden from the Studio's media list. Finalize refreshes the sheet's `uploads` summary.
+- **Autosave:** every change goes to `localStorage` (`roogo-fiche-visite:<property id>`) at once and to `PUT /api/admin/field-visits/<id>` after 0.7 s (nothing reaches the server before "Commencer"). The device picks the sheet id, so a sheet begun without network keeps its id. Offline, the pill says "Hors connexion · gardé sur le téléphone" and the sheet syncs on `online`. The newest device change wins; an older one gets 409 and the stored version. Reopening a listing with an unfinished sheet offers "Fiche en cours retrouvée" (Reprendre, or Recommencer, which marks the old sheet `abandonne`).
+- **Finishing:** `POST /api/admin/field-visits/<id>/complete` re-checks every step on the server, creates the six `staff_tasks` (kind `manuel`, linked to the property and to the sheet, owner chosen on the last screen, due on the next business day, 12:00 and 17:00 where the canvas says so) and stores `deliverable_dates`. Each task has `source_key = field-visit:<id>:t1..t6`; the unique index from 089 makes a second call create nothing. Burkina public holidays are not handled yet.
+- **Follow-up:** `/admin/studio/visites` (Directeur and Fondateur, `isDirectorOrFounder`) lists sheets with a status (en cours, sur place depuis…, fichiers manquants, tournage terminé, livrables x sur 5) and shows the four phases, the four times, every tick time, the Drive contents and the deliverables.
+- **Data:** `field_visits` (migration 090, after 086): RLS on, no policies, service role through the admin routes; plus `studio_field_media.field_visit_id`/`deliverable` and `staff_tasks.field_visit_id`. Same Google service account env vars as the field media (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, `ROOGO_SHARED_DRIVE_ID`).
+
+Why: [decision](./DECISIONS.md#the-field-visit-sheet-moves-into-the-app--2026-10-15).
+
+## Why do old page addresses keep working?
+
+Renamed pages answer their old address with a permanent redirect, query string included (`next.config.ts`). Old admin addresses take two hops (to a trailing slash, then the page) until [#59](https://github.com/saliftankoano/roogo-web/pull/59) is merged, then one. The old payment return `/payments/callback` is the exception: it serves the same page as `/paiements/retour` directly, so a payment started before the rename returns without an extra hop. New payments return to `/paiements/retour` because the server builds the return address (`PAWAPAY_PAYMENTPAGE_RETURN_URL` is not set in production). The mobile app only calls `/api/` and opens listing and terms pages, none of which were renamed. See the [decision](./DECISIONS.md#page-addresses-are-french-old-ones-redirect-except-the-payment-return--2026-10-11).
+
+## How does staff access work, and where is it written down?
+
+Three things decide what a staff member can do.
+
+- **Account type (Clerk `publicMetadata.userType`).** `middleware.ts` requires a session for `/admin`; `app/admin/layout.tsx` sends anyone who is not `staff`, `founder` or `admin` (`isStaffLikeUserType`) back to `/`. A few checks still look at `founder` alone: answering demandes, the founder-only title change on L'équipe, and in the Studio editing or deleting someone else's glossary entry and withdrawing someone else's voice.
+- **Staff level (`users.staff_level`, mirrored in Clerk `staffLevel`, migration 089_staff_levels).** `lib/staff-access.ts` holds the capability matrix used by the admin routes, page guards and the menu (see [staff access levels](#how-do-staff-access-levels-work)). Staff without a level act as `legacy` (the access from before levels) until `STAFF_LEVELS_ENFORCED=true`, then as `advisor`.
+- **Title in the team tools.** The title IS the level: `titleFromStaffLevel` maps `director`, `assistant`, `advisor`, `intern` to Directeur, Assistant(e) commercial(e), Conseiller(ère), Stagiaire, and `levelFor` treats no level as Conseiller(ère). It drives `assignmentKind` (who may give a task to whom; a Directeur reaches the founder only through a demande) and `isDirectorOrFounder` (L'équipe board, assigning unowned automatic items, Visites terrain follow-up). The founder's title change on the board calls `setMemberLevel`. The `staff_titles` table of `089_staff_tasks_executed.sql` is not read any more.
+- **Joining.** By invitation from `/admin/acces/niveaux` (tab « Niveaux et invitations » of « Accès »). The shared code (`/api/auth/verify-staff-code`, `STAFF_REGISTRATION_SECRET`) still works but only creates the `intern` level.
+
+The page « Accès » (`/admin/acces`, linked as « Accès » in Pilotage and from L'équipe) has two tabs: « Qui peut faire quoi » (`/admin/acces`, the default, readable by every staff member) and « Niveaux et invitations » (`/admin/acces/niveaux`, only with `team.manage`; `/admin/equipe/niveaux` redirects there). The first tab renders `lib/access/matrix.ts`: every action with Oui / Lecture / Non per level, how it is enforced (server, page, menu) and the files, the note on unleveled staff (it reads `STAFF_LEVELS_ENFORCED` at render), plus the vault proposal items that are not enforced yet. `lib/access/matrix.test.mjs` compares it with `assignmentKind`, `isDirectorOrFounder`, `LEVEL_LABELS`, `STAFF_CAPABILITY_MATRIX` (every rule that names a capability must match it level by level and cite a file that uses it), the legacy level, the menu, the Studio caps per level and the staff code route, and fails when a new route under `app/api/admin` or `app/api/support/admin` is not described. When you change a permission, change the matrix in the same commit.
+
+Why: [decision](./DECISIONS.md#the-access-page-is-generated-from-one-matrix-file--2026-10-16).
+
+## How do team goals, call notes and demande answers work?
+
+Goals live in `team_goals` (migration 091); `lib/team-goals/core.ts` holds the pure rules (period windows, countdown, pace and status, evidence shaping, permissions, input checks) and `lib/team-goals/server.ts` loads each metric once per request: users from `users` (paged, staff and test accounts excluded), contracts from `rental_agreements` with status `active`, listings from `properties.published_at` inside the window (pending ones shown, not counted), sales from listings with status `vendu` and `sold_at` inside the window (migration 093; any property type, test listings excluded), followers from `team_goal_readings` (`source` `automatique` from the nightly Meta reading, or `manuel` with a screenshot in the private bucket `team-goal-proofs`, served as signed links). A `recurring_month` goal is measured on the current month; past months are history rows. Levers (`team_goal_levers`) count this team week's ticks (`team_goal_lever_ticks`) plus done tasks with that `lever_id`. Tasks can carry `goal_id`/`lever_id` (« Pour : … »). API: `/api/admin/goals` (+ `[id]`, `levers`, `levers/[id]`, `readings`).
+
+Marking a listing sold: the status menu on the admin listing page offers « Vendu » for sale listings to the Directeur and the Fondateur; the confirmation asks for the notary signing date and the price. `PATCH /api/properties/[id]/status` with `{ status: 'vendu', soldAt, soldPrice }` checks the rules in `soldTransition` (`lib/property-status.ts`) and writes `sold_at`, `sold_price`, `sold_by`; leaving `vendu` clears them. Public browse and `/proprietes/[slug]` only show `en_ligne` listings, so a sold listing disappears from the site. Open sale chats or visit requests on it are not closed automatically.
+
+Call notes (migration 092) are in `staff_call_notes`, written by `/api/admin/call-notes` through `lib/team-tasks/calls-server.ts`, which also finds the number to call (task, property request contact, visit buyer, listing owner) and the previous calls on the same subject. Demande answers use new `staff_tasks` columns (`decision`, `snoozed_until`, `thread_started_at`, `settled_at`, `sender_seen_at`, `owner_seen_at`) and `staff_task_messages`; the state machine and who may act are `demandeState` and `demandeActionError` in `lib/team-tasks/core.ts`. Approving or settling closes the row (`status = fait`).
+
+Env vars for the automatic follower readings (server only, never `NEXT_PUBLIC_`): `META_GRAPH_TOKEN` (Meta Graph token that can read the page and the Instagram account; sent in the Authorization header, never logged), `META_PAGE_ID` (Roogo Burkina page, `1046356035218080`), `META_IG_ACCOUNT_ID` (`17841436630471998`). Read by `/api/cron/social-followers` (daily 02:00 UTC, `CRON_SECRET`); without the token it returns `{ skipped: "no token" }`.

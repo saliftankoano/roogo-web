@@ -13,13 +13,65 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getAdminNavItems,
+  studioNavItem,
+  todayNavItem,
   type AdminNavEntry,
   type AdminNavItem,
 } from "../../lib/navigation/adminNav";
 import { roogoMotion } from "@/lib/motion";
+import { TEAM_TASKS_CHANGED } from "./team/events";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
 function isLinkActive(pathname: string, href: string) {
+  // "/admin" is the briefing: exact, plus the pages opened from it (team
+  // board, goals and their levers, call notes).
+  if (href === todayNavItem.href) {
+    return pathname === href || ["/admin/equipe", "/admin/objectifs", "/admin/notes-appels"].some(
+      (page) => pathname === page || pathname.startsWith(`${page}/`),
+    );
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Open tasks for today plus unread answers on demandes, on the "Mon espace" item; refreshed when tasks change. */
+function useTodayCount(enabled: boolean) {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const load = async () => {
+      try {
+        const response = await fetch("/api/admin/team-tasks?view=count");
+        if (!response.ok) return;
+        const body = (await response.json()) as { open?: number; unread?: number };
+        if (alive && typeof body.open === "number") setCount(body.open + (typeof body.unread === "number" ? body.unread : 0));
+      } catch {
+        // The badge is a convenience; the briefing page shows the real list.
+      }
+    };
+    load();
+    window.addEventListener(TEAM_TASKS_CHANGED, load);
+    return () => {
+      alive = false;
+      window.removeEventListener(TEAM_TASKS_CHANGED, load);
+    };
+  }, [enabled]);
+  return count;
+}
+
+function CountBadge({ count, active }: { count: number | null; active: boolean }) {
+  if (!count) return null;
+  return (
+    <span
+      aria-label={`${count} ${count > 1 ? "éléments" : "élément"} à voir aujourd’hui (tâches et réponses)`}
+      className={cn(
+        "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-extrabold",
+        active ? "bg-primary text-white" : "bg-primary/90 text-white",
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 }
 
 function isEntryActive(pathname: string, item: AdminNavEntry) {
@@ -47,9 +99,11 @@ function getActiveGroupId(pathname: string, navItems: AdminNavEntry[]) {
 function DesktopNavLink({
   item,
   isActive,
+  badge,
 }: {
   item: AdminNavItem;
   isActive: boolean;
+  badge?: React.ReactNode;
 }) {
   const Icon = item.icon;
 
@@ -71,7 +125,16 @@ function DesktopNavLink({
       )}
       <span className="relative z-10 flex items-center gap-2">
         <Icon size={18} weight={isActive ? "fill" : "bold"} />
-        <span className="whitespace-nowrap">{item.label}</span>
+        {/* Between lg and xl the bar is already full: Mon espace shows its icon and count only. */}
+        <span
+          className={cn(
+            "whitespace-nowrap",
+            item.id === todayNavItem.id && "sr-only xl:not-sr-only",
+          )}
+        >
+          {item.label}
+        </span>
+        {badge}
       </span>
     </Link>
   );
@@ -87,11 +150,13 @@ export function AdminNavbar() {
   const pathname = usePathname();
   const { isLoaded, user } = useUser();
 
-  const userType = (user?.publicMetadata?.userType ||
-    user?.publicMetadata?.user_type) as string | undefined;
-  const isFounder = userType === "founder";
+  const { canAny } = useStaffAccess();
 
-  const navItems = useMemo(() => getAdminNavItems(isFounder), [isFounder]);
+  const navItems = useMemo(
+    () => [todayNavItem, ...getAdminNavItems(canAny)],
+    [canAny],
+  );
+  const todayCount = useTodayCount(isLoaded && !!user);
   const activeEntryId = useMemo(
     () => getActiveEntryId(pathname, navItems),
     [navItems, pathname],
@@ -173,6 +238,11 @@ export function AdminNavbar() {
                   key={item.id}
                   item={item}
                   isActive={isActive}
+                  badge={
+                    item.id === todayNavItem.id ? (
+                      <CountBadge count={todayCount} active={isActive} />
+                    ) : undefined
+                  }
                 />
               );
             }
@@ -264,16 +334,25 @@ export function AdminNavbar() {
           })}
         </div>
 
-        <div className="flex items-center gap-2 sm:gap-4 shrink-0">
+        <div className="flex min-w-0 shrink items-center gap-2 sm:gap-4">
           {!isLoaded ? (
             <div className="w-10 h-10 rounded-full bg-neutral-100 animate-pulse" />
           ) : (
-            <div className="flex items-center gap-3">
-              <div className="hidden lg:flex flex-col items-end leading-tight">
-                <span className="text-sm font-bold text-neutral-900 line-clamp-1">
+            <div className="flex min-w-0 items-center gap-3">
+              {/* Name and email only when the row has room (xl and up); they
+                  are capped and truncated so a long name never pushes the
+                  avatar out of the pill. */}
+              <div className="hidden min-w-0 max-w-44 flex-col items-end leading-tight xl:flex 2xl:max-w-56">
+                <span
+                  className="w-full truncate text-right text-sm font-bold text-neutral-900"
+                  title={user?.fullName ?? undefined}
+                >
                   {user?.fullName || "Administrateur"}
                 </span>
-                <span className="text-[11px] text-neutral-500 font-medium line-clamp-1 opacity-70">
+                <span
+                  className="w-full truncate text-right text-[11px] font-medium text-neutral-500 opacity-70"
+                  title={user?.primaryEmailAddress?.emailAddress}
+                >
                   {user?.primaryEmailAddress?.emailAddress}
                 </span>
               </div>
@@ -289,8 +368,23 @@ export function AdminNavbar() {
             </div>
           )}
 
+          <Link
+            href={studioNavItem.href}
+            data-id="admin-nav-studio-mobile"
+            aria-label="Studio de contenu"
+            aria-current={isLinkActive(pathname, studioNavItem.href) ? "page" : undefined}
+            className={cn(
+              "ml-1 rounded-full p-2 transition-colors lg:hidden",
+              isLinkActive(pathname, studioNavItem.href)
+                ? "bg-primary/10 text-primary"
+                : "bg-neutral-100 text-neutral-600 hover:text-primary",
+            )}
+          >
+            <studioNavItem.icon size={22} weight="bold" />
+          </Link>
+
           <button
-            className="ml-1 rounded-full bg-neutral-100 p-2 text-neutral-600 transition-colors hover:text-primary lg:hidden"
+            className="rounded-full bg-neutral-100 p-2 text-neutral-600 transition-colors hover:text-primary lg:hidden"
             onClick={() => setMobileMenuOpen(!mobileMenuOpen)}
             aria-label={mobileMenuOpen ? "Fermer le menu" : "Ouvrir le menu"}
             aria-expanded={mobileMenuOpen}
@@ -409,6 +503,9 @@ export function AdminNavbar() {
                 >
                   <Icon size={24} weight={isActive ? "fill" : "bold"} />
                   {item.label}
+                  {item.id === todayNavItem.id && (
+                    <CountBadge count={todayCount} active={isActive} />
+                  )}
                 </Link>
               );
             })}
