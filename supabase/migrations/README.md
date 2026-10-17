@@ -9,7 +9,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 
 ## Staff briefing and team board — 2026-10-17 record
 
-- [x] [089_staff_tasks_executed.sql](./089_staff_tasks_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `staff_tasks` and `staff_titles` exist, `staff_tasks` has rows).** Staff tasks and demandes for Mon espace and L'équipe. It shares the number 089 with `089_staff_levels_executed.sql` above: two different files, both applied independently, so neither is renumbered and neither may be replayed by number (same situation as 075 and 076). Its `staff_titles` table is no longer read: board titles come from `users.staff_level` (089_staff_levels). Dropping `staff_titles` would need a new, uniquely numbered migration.
+- [x] [089_staff_tasks_executed.sql](./089_staff_tasks_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `staff_tasks` and `staff_titles` exist, `staff_tasks` has rows).** Staff tasks and demandes for Mon espace and L'équipe. It shares the number 089 with `089_staff_levels_executed.sql` (next entry): two different files, both applied independently, so neither is renumbered and neither may be replayed by number (same situation as 075 and 076). Its `staff_titles` table is no longer read: board titles come from `users.staff_level` (089_staff_levels). Dropping `staff_titles` would need a new, uniquely numbered migration.
 
 ## Staff access levels — 2026-10-16
 
