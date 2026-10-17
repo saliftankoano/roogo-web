@@ -12,8 +12,9 @@
 //   +15% as a display reference only, and the team floor at +10%.
 // - Permissions (Founder, 2026-10-17, replaces the 2026-10-12 hard stop): the
 //   team may agree any price from +10% (inclusive) up to +30% on its own. A
-//   price below +10% is allowed only with the founder's approval; it is no
-//   longer refused outright. See `salePriceApproval`.
+//   price below +10% is no longer refused: it needs Salif's approval, recorded
+//   by the founder or the Directeur (roogo-web lib/sale-price-guard.ts). See
+//   `salePriceApproval`. Owners only see `ownerPayoutScenarios`.
 // - Notary 2%, buyer referrer 2% and seller referrer 1% of the final price are
 //   paid out of Roogo's commission, never out of the owner's share.
 // - Bypass: if sold within 12 months to a buyer Roogo introduced, Roogo is owed
@@ -265,6 +266,38 @@ export function payoutTable(
       roogoCommission: c.roogoCommission,
     };
   });
+}
+
+export type SaleOwnerScenario = {
+  /** A rung of the ladder, or the owner's own price (+0%). */
+  level: SaleLadderLevel | "ownerPrice";
+  markupPct: number;
+  /** Final sale price of this scenario (rungs at their display price). */
+  price: number;
+  /** What the owner receives: price - (base% x owner price + split% x surplus). */
+  ownerReceives: number;
+};
+
+/** The owner-facing table "Ce que vous recevez selon le prix de vente final":
+ * each rung (+30%, +20%, +15%, +10%) and the owner's own price. No Roogo
+ * commission, fees or approval rule: owners only see what they receive. */
+export function ownerPayoutScenarios(
+  ownerPrice: number,
+  pcts: SaleLadderPcts & SaleCommissionPcts,
+): SaleOwnerScenario[] {
+  const rows: SaleOwnerScenario[] = payoutTable(ownerPrice, pcts).map((row) => ({
+    level: row.level,
+    markupPct: row.markupPct,
+    price: row.price,
+    ownerReceives: row.ownerReceives,
+  }));
+  rows.push({
+    level: "ownerPrice",
+    markupPct: 0,
+    price: ownerPrice,
+    ownerReceives: commissionAt(ownerPrice, ownerPrice, pcts).ownerReceives,
+  });
+  return rows;
 }
 
 /** What Roogo is owed when the seller sells to a Roogo-introduced buyer

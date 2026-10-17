@@ -6,11 +6,19 @@ import {
   type SalePayoutRow,
 } from "@/lib/sale-economics";
 
-const LEVEL_LABELS: Record<SaleLadderLevel, string> = {
+const LEVEL_LABELS: Record<SaleLadderLevel | "ownerPrice", string> = {
   listing: "Prix affiché",
   target: "Objectif",
   reference: "Repère",
   teamFloor: "Minimum équipe",
+  ownerPrice: "Prix du propriétaire",
+};
+
+/** A row as shown here: the staff table (with Roogo's commission) or the
+ * owner scenarios stored on a mandate card (without it). */
+type DisplayRow = Omit<SalePayoutRow, "level" | "roogoCommission"> & {
+  level: SaleLadderLevel | "ownerPrice";
+  roogoCommission?: number;
 };
 
 function fmt(n: number) {
@@ -18,16 +26,15 @@ function fmt(n: number) {
 }
 
 /** Reads a payout table stored in a mandate card's metadata, or null. */
-export function payoutRowsFromMeta(value: unknown): SalePayoutRow[] | null {
+export function payoutRowsFromMeta(value: unknown): DisplayRow[] | null {
   if (!Array.isArray(value)) return null;
   const rows = value.filter(
-    (r): r is SalePayoutRow =>
+    (r): r is DisplayRow =>
       typeof r === "object" &&
       r !== null &&
-      typeof (r as SalePayoutRow).price === "number" &&
-      typeof (r as SalePayoutRow).ownerReceives === "number" &&
-      typeof (r as SalePayoutRow).roogoCommission === "number" &&
-      typeof (r as SalePayoutRow).level === "string",
+      typeof (r as DisplayRow).price === "number" &&
+      typeof (r as DisplayRow).ownerReceives === "number" &&
+      typeof (r as DisplayRow).level === "string",
   );
   return rows.length > 0 ? rows : null;
 }
@@ -47,7 +54,8 @@ export function previewPayoutRows(
   });
 }
 
-export function SalePayoutTable({ rows }: { rows: SalePayoutRow[] }) {
+export function SalePayoutTable({ rows }: { rows: DisplayRow[] }) {
+  const showRoogo = rows.every((row) => typeof row.roogoCommission === "number");
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-left text-xs tabular-nums">
@@ -56,7 +64,7 @@ export function SalePayoutTable({ rows }: { rows: SalePayoutRow[] }) {
             <th className="py-1 pr-3 font-semibold">Niveau</th>
             <th className="py-1 pr-3 text-right font-semibold">Prix de vente</th>
             <th className="py-1 pr-3 text-right font-semibold">Propriétaire reçoit</th>
-            <th className="py-1 text-right font-semibold">Roogo</th>
+            {showRoogo && <th className="py-1 text-right font-semibold">Roogo</th>}
           </tr>
         </thead>
         <tbody>
@@ -72,7 +80,9 @@ export function SalePayoutTable({ rows }: { rows: SalePayoutRow[] }) {
               <td className="py-1 pr-3 text-right font-semibold text-neutral-900">
                 {fmt(row.ownerReceives)}
               </td>
-              <td className="py-1 text-right">{fmt(row.roogoCommission)}</td>
+              {showRoogo && (
+                <td className="py-1 text-right">{fmt(row.roogoCommission ?? 0)}</td>
+              )}
             </tr>
           ))}
         </tbody>

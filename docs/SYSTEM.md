@@ -726,16 +726,31 @@ published at owner price `D` + 30% (`publishedListingPrice`, on creation and aga
 when the mandate is signed); `D` stays private (`sale_asking_prices`, then the
 mandate's `desired_price`). Rungs: +30% listing, +20% target (owner receives exactly
 `D`), +15% reference (display only), +10% team floor. `PATCH /api/properties/[id]`
-runs `checkPublicSalePriceChange`: from the exact `ceil(D × 1.10)` upwards anyone
-on staff may set the price; below it only a founder (staff get 403 "accord de
-Salif"), and the founder's change is logged and sent to PostHog as
-`sale_price_founder_approved_below_team_floor`. Displayed team floors are rounded
-UP to 50,000 FCFA so nobody quotes below the real +10%. Rentals (`louer`, daily or
-monthly) skip all of this: their price is stored and changed exactly as entered
-(`saleLadderApplies`). The ladder percentages live in `sale_economics_config`
-(075) and are snapshotted on each mandate; the 075 column `team_floor_markup_pct`
-holds the +15% reference and `hard_floor_markup_pct` the +10% team floor. Staff see
-the ladder on the admin listing and in the app (`GET /api/properties/[id]/sale-ladder`).
+runs `checkPublicSalePriceChange` (an unchanged price is not a change):
+
+| New public price | Who | Confirmations (`priceConfirmations`) |
+| --- | --- | --- |
+| >= `ceil(D × 1.10)` | any staff | none |
+| below +10%, >= `D` | founder or Directeur (`staff_level = 'director'`) | Directeur: `discussed_with_salif` |
+| below `D` | founder or Directeur | `owner_agreed`, plus `discussed_with_salif` for the Directeur |
+
+Other staff get 403. Missing confirmations get 422 with
+`code: "sale_price_confirmation_required"` and `required`, and the admin listing
+page (checkboxes) and the app (confirmation dialogs) ask for them. An allowed price
+below +10% first writes a row in `sale_price_approvals` (097, service role only,
+holds `D`), then saves the price; the row is removed if the save fails, and the
+change is refused if the row cannot be written (so nothing below +10% saves before
+097 runs). PostHog gets `sale_price_founder_approved_below_team_floor` without `D`.
+The staff ladder (`GET /api/properties/[id]/sale-ladder`, admin listing and app)
+lists the last 10 approvals: who, level, when, price, markup, confirmations.
+
+Owners see only `ownerPayoutScenarios`: what they receive at +30%, +20%, +15%,
++10% and at `D`, stored on the mandate card as `payout_table` without Roogo's
+commission per row. Displayed team floors are rounded UP to 50,000 FCFA. Rentals
+(`louer`, daily or monthly) skip all of this (`saleLadderApplies`). The ladder
+percentages live in `sale_economics_config` (075) and are snapshotted on each
+mandate; the 075 column `team_floor_markup_pct` holds the +15% reference and
+`hard_floor_markup_pct` the +10% team floor.
 
 **Buyer flow:**
 

@@ -570,10 +570,16 @@ export async function deleteProperty(id: string): Promise<boolean> {
 
 export async function updateProperty(
   id: string,
-  updates: Partial<Property>,
+  updates: Partial<Property> & {
+    /** Sale price below +10%: confirmations ticked by the founder or Directeur. */
+    priceConfirmations?: { discussed_with_salif?: boolean; owner_agreed?: boolean };
+  },
 ): Promise<{
   success: boolean;
   error?: string;
+  /** "sale_price_confirmation_required" when confirmations are missing. */
+  code?: string;
+  required?: string[];
   property?: Partial<Property>;
 }> {
   try {
@@ -590,7 +596,12 @@ export async function updateProperty(
       console.error("Error updating property:", text);
       try {
         const payload = JSON.parse(text);
-        return { success: false, error: payload.error };
+        return {
+          success: false,
+          error: payload.error,
+          code: typeof payload.code === "string" ? payload.code : undefined,
+          required: Array.isArray(payload.required) ? payload.required : undefined,
+        };
       } catch {
         return { success: false, error: text };
       }

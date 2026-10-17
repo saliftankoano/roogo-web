@@ -7,6 +7,7 @@ import { MANDATE_TERMS_VERSION } from "@/lib/sale";
 import {
   DEFAULT_SALE_ECONOMICS,
   commissionAt,
+  ownerPayoutScenarios,
   payoutTable,
   publishedListingPrice,
   roogoNetAfterFees,
@@ -18,8 +19,11 @@ import {
 } from "@/lib/sale-economics";
 import {
   evaluateSalePriceChange,
+  type SalePriceApprovalRecord,
+  type SalePriceConfirmations,
   type SalePriceDecision,
 } from "@/lib/sale-price-guard";
+import { staffLevelFromUserRow } from "@/lib/staff-access-server";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // The price + exclusivity mandate the owner signs. Economics v2 (migration 050):
@@ -32,7 +36,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 // number. Sending a mandate snapshots the ladder (sale_economics_config, migration
 // 075) onto it; signing publishes properties.price = desired_price + listing
 // markup (+30%). Staff move the public price within the ladder afterwards
-// (checkPublicSalePriceChange: team from +10%, below +10% founder only). The owner sees the listing price and the payout
+// (checkPublicSalePriceChange: team from +10%, below +10% founder or Directeur, recorded in sale_price_approvals). The owner sees the listing price and the payout
 // table on the offer card. The offer and signature are mirrored into the
 // seller↔Roogo thread.
 
@@ -129,7 +133,8 @@ export async function getSaleLadderConfig(): Promise<SaleLadderConfig> {
     targetMarkupPct: num(data?.target_markup_pct),
     // Column names are from migration 075 (2026-09-27). Since 2026-10-17,
     // team_floor_markup_pct (+15%) is only a display reference and
-    // hard_floor_markup_pct (+10%) is the team floor: below it, founder only.
+    // hard_floor_markup_pct (+10%) is the team floor: below it, founder or
+    // Directeur with an approval recorded in sale_price_approvals (097).
     referenceMarkupPct: num(data?.team_floor_markup_pct),
     teamFloorMarkupPct: num(data?.hard_floor_markup_pct),
     notaryFeePct: num(data?.notary_fee_pct),
@@ -195,7 +200,9 @@ export async function sendMandate(params: {
     getSaleLadderConfig(),
   ]);
   const listingPrice = publishedListingPrice(desiredPrice, ladder);
-  const payout = payoutTable(desiredPrice, {
+  // Owner-facing scenarios: what the owner receives at each final sale price
+  // (+30%, +20%, +15%, +10%, his own price). No Roogo commission per row.
+  const payout = ownerPayoutScenarios(desiredPrice, {
     ...ladder,
     baseCommissionPct: commission.baseCommissionPct,
     surplusSplitPct: commission.surplusSplitPct,
@@ -260,7 +267,8 @@ export async function sendMandate(params: {
 
   // The card the owner sees: their price, the commission on it, the surplus
   // clause, the listing price Roogo will publish and what they receive at each
-  // rung of the ladder (decision of 2026-10-11: owners see the table).
+  // final sale price (2026-10-11; owner price row and no Roogo amounts per row
+  // since 2026-10-17).
   const { message } = await postSaleMessage({
     conversationId: conversation.id,
     senderId: staffId,
@@ -413,24 +421,34 @@ export async function getLatestMandateForProperty(propertyId: string) {
 /**
  * Guard for a change to the PUBLIC price (properties.price) of a sale listing.
  * The owner's price is the latest signed mandate's desired_price, or before any
- * mandate, the private asking price from the listing wizard. The new price must
- * respect the rule of 2026-10-17: the team decides from +10% (inclusive) up;
- * below +10% only a founder, whose change is the approval (founderApproved). 
- * Non-sale listings and sales with no known owner price are not constrained.
+ * mandate, the private asking price from the listing wizard. Rule of
+ * 2026-10-17 (lib/sale-price-guard.ts): the team decides from +10% up; below
+ * +10% founder or Directeur with the required confirmations, and the caller
+ * records the approval with recordSalePriceApproval. Rentals, sales with no
+ * known owner price and unchanged prices are not constrained.
  */
+export type PublicSalePriceCheck = SalePriceDecision & {
+  /** Present when an approval must be recorded (private, never logged). */
+  context?: { ownerPrice: number; previousPrice: number | null };
+};
+
 export async function checkPublicSalePriceChange(params: {
   propertyId: string;
   newPrice: number;
-  userType: string | null | undefined;
-}): Promise<SalePriceDecision> {
+  user: { user_type?: string | null; staff_level?: string | null } | null;
+  confirmations?: SalePriceConfirmations;
+}): Promise<PublicSalePriceCheck> {
   const { data: property, error } = await supabaseAdmin
     .from("properties")
-    .select("listing_type")
+    .select("listing_type, price")
     .eq("id", params.propertyId)
     .maybeSingle();
   if (error) throw error;
   // Rentals keep their price as set: the ladder rule is for sales only.
   if (!property || !saleLadderApplies(property.listing_type)) return { ok: true };
+  const previousPrice = property.price != null ? Number(property.price) : null;
+  // Edit forms resend the current price with every save: not a price change.
+  if (previousPrice != null && previousPrice === params.newPrice) return { ok: true };
 
   const { data: mandate, error: mandateError } = await supabaseAdmin
     .from("property_mandates")
@@ -450,12 +468,103 @@ export async function checkPublicSalePriceChange(params: {
   if (ownerPrice == null || !(ownerPrice > 0)) return { ok: true };
 
   const pcts = (mandate && mandateLadder(mandate)) ?? (await getSaleLadderConfig());
-  return evaluateSalePriceChange({
+  const decision = evaluateSalePriceChange({
     newPrice: params.newPrice,
     ownerPrice,
     pcts,
-    isFounder: params.userType === "founder",
+    staffLevel: staffLevelFromUserRow(params.user),
+    confirmations: params.confirmations,
   });
+  return decision.ok && decision.approval
+    ? { ...decision, context: { ownerPrice, previousPrice } }
+    : decision;
+}
+
+/** Writes one row of sale_price_approvals (migration 097, service role only).
+ * Throws if it cannot, so the price change is refused rather than unrecorded. */
+export async function recordSalePriceApproval(params: {
+  propertyId: string;
+  approverId: string;
+  newPrice: number;
+  approval: SalePriceApprovalRecord;
+  context: { ownerPrice: number; previousPrice: number | null };
+}) {
+  const { data, error } = await supabaseAdmin
+    .from("sale_price_approvals")
+    .insert({
+      property_id: params.propertyId,
+      approved_by: params.approverId,
+      approver_level: params.approval.approverLevel,
+      new_price: params.newPrice,
+      previous_price: params.context.previousPrice,
+      owner_price: params.context.ownerPrice,
+      markup_pct: params.approval.markupPct,
+      below_owner_price: params.approval.belowOwnerPrice,
+      discussed_with_salif: params.approval.discussedWithSalif,
+      owner_agreed: params.approval.ownerAgreed,
+    })
+    .select("id")
+    .single();
+  if (error || !data) {
+    // Table missing until migration 097 runs. Never log the amounts.
+    throw new Error(`sale_price_approvals insert failed: ${error?.code ?? "no row"}`);
+  }
+  return data.id as string;
+}
+
+/** Removes an approval whose price change then failed to save. */
+export async function deleteSalePriceApproval(id: string) {
+  const { error } = await supabaseAdmin.from("sale_price_approvals").delete().eq("id", id);
+  if (error) console.error("Could not remove an unused price approval:", { id, code: error.code });
+}
+
+export type SalePriceApprovalView = {
+  id: string;
+  approvedAt: string;
+  approverName: string | null;
+  approverLevel: "founder" | "director";
+  newPrice: number;
+  markupPct: number;
+  belowOwnerPrice: boolean;
+  discussedWithSalif: boolean;
+  ownerAgreed: boolean;
+};
+
+/** Latest approvals for one property (staff only). Empty until 097 runs. */
+async function listSalePriceApprovals(propertyId: string): Promise<SalePriceApprovalView[]> {
+  const { data, error } = await supabaseAdmin
+    .from("sale_price_approvals")
+    .select(
+      "id, created_at, approved_by, approver_level, new_price, markup_pct, below_owner_price, discussed_with_salif, owner_agreed",
+    )
+    .eq("property_id", propertyId)
+    .order("created_at", { ascending: false })
+    .limit(10);
+  if (error) {
+    console.warn("Sale price approvals unavailable:", { propertyId, code: error.code });
+    return [];
+  }
+  const rows = data ?? [];
+  const ids = [...new Set(rows.map((r) => r.approved_by).filter(Boolean))] as string[];
+  const names = new Map<string, string | null>();
+  if (ids.length > 0) {
+    const { data: users } = await supabaseAdmin
+      .from("users")
+      .select("id, full_name")
+      .in("id", ids);
+    for (const u of users ?? []) names.set(u.id as string, (u.full_name as string) ?? null);
+  }
+  return rows.map((r) => ({
+    id: r.id as string,
+    approvedAt: r.created_at as string,
+    approverName: r.approved_by ? (names.get(r.approved_by as string) ?? null) : null,
+    approverLevel: r.approver_level as "founder" | "director",
+    newPrice: Number(r.new_price),
+    markupPct: Number(r.markup_pct),
+    belowOwnerPrice: Boolean(r.below_owner_price),
+    discussedWithSalif: Boolean(r.discussed_with_salif),
+    ownerAgreed: Boolean(r.owner_agreed),
+  }));
 }
 
 /** The owner's asking price from the listing wizard (service role only). */
@@ -490,6 +599,8 @@ export type StaffSaleLadder = {
     roogoAfterNotary: number;
     roogoAfterAllFees: number;
   })[];
+  /** Approvals of prices below +10% (migration 097), newest first. */
+  approvals: SalePriceApprovalView[];
 };
 
 /**
@@ -555,5 +666,6 @@ export async function getStaffSaleLadder(
     surplusSplitPct: split,
     currentLevel: reached ? reached.level : "belowTeamFloor",
     rows,
+    approvals: await listSalePriceApprovals(propertyId),
   };
 }

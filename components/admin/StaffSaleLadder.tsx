@@ -91,7 +91,7 @@ export default function StaffSaleLadder({ propertyId }: { propertyId: string }) 
           </div>
 
           <p className="text-xs text-neutral-600">
-            De +10 % à +30 % : l&apos;équipe décide. Sous +10 % : accord de Salif.
+            De +10 % à +30 % : l&apos;équipe décide. Sous +10 % : accord de Salif, enregistré par Salif ou le Directeur.
           </p>
 
           {ladder.currentLevel === "belowTeamFloor" && (
@@ -161,6 +161,48 @@ export default function StaffSaleLadder({ propertyId }: { propertyId: string }) 
               );
             })}
           </ol>
+
+          <div>
+            <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest">
+              Accords sous +10 %
+            </p>
+            {ladder.approvals.length === 0 ? (
+              <p className="mt-2 text-xs text-neutral-500">Aucun accord enregistré.</p>
+            ) : (
+              <ul className="mt-2 space-y-2">
+                {ladder.approvals.map((a) => (
+                  <li
+                    key={a.id}
+                    className="rounded-2xl border border-amber-100 bg-amber-50/50 px-4 py-3 text-xs text-neutral-700"
+                  >
+                    <p className="font-bold text-neutral-900">
+                      {fcfa(a.newPrice)}{" "}
+                      <span className="font-medium text-neutral-500">
+                        ({a.markupPct >= 0 ? "+" : ""}
+                        {formatSalePct(a.markupPct)} sur le prix du propriétaire)
+                      </span>
+                    </p>
+                    <p className="mt-0.5">
+                      Accord de {a.approverName ?? "membre inconnu"} (
+                      {a.approverLevel === "founder" ? "Fondateur" : "Directeur"}), le{" "}
+                      {new Date(a.approvedAt).toLocaleString("fr-FR", {
+                        dateStyle: "short",
+                        timeStyle: "short",
+                      })}
+                    </p>
+                    {(a.discussedWithSalif || a.ownerAgreed) && (
+                      <ul className="mt-1 list-inside list-disc text-neutral-600">
+                        {a.discussedWithSalif && <li>J&apos;en ai discuté avec Salif</li>}
+                        {a.ownerAgreed && (
+                          <li>Le propriétaire a accepté ce prix (accord verbal)</li>
+                        )}
+                      </ul>
+                    )}
+                  </li>
+                ))}
+              </ul>
+            )}
+          </div>
         </div>
       )}
     </section>

@@ -159,8 +159,11 @@ exactly `D`), repère + 15% (display only) and minimum équipe + 10%.
 **Origin:** Salif, 2026-10-11; permissions revised 2026-10-17.
 
 **Why it matters for building:** From + 10% (inclusive) up, "l'équipe décide".
-Below + 10% a price needs "l'accord de Salif" (a founder); it is no longer a hard
-stop. Applies only to sales; rentals keep their price as set.
+Below + 10% a price needs "l'accord de Salif": recorded by Salif or the Directeur
+(who confirms he discussed it with Salif), and below the owner's own price only
+with the owner's verbal agreement. Each one is an "accord de prix" in
+`sale_price_approvals`. Owners never see these terms, only what they receive at
+each final sale price. Applies only to sales; rentals keep their price as set.
 
 ## Property requests
 
