@@ -53,6 +53,9 @@ export type Property = {
   longitude?: number | null;
   listingType?: "louer" | "vendre";
   ownershipVerified?: boolean;
+  /** Status vendu (migration 093): notary signature date and sale price. Admin view only. */
+  soldAt?: string | null;
+  soldPrice?: number | null;
   agent?: {
     full_name: string;
     phone: string;

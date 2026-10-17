@@ -53,6 +53,8 @@ export function PropertyCard({
         return "bg-yellow-100 text-yellow-900 border-yellow-300";
       case "expired":
         return "bg-neutral-100/90 text-neutral-600 border-neutral-200";
+      case "vendu":
+        return "bg-[#1f7ca5] text-white border-[#1f7ca5]";
       default:
         return "bg-neutral-100/90 text-neutral-600 border-neutral-200";
     }
@@ -70,6 +72,8 @@ export function PropertyCard({
         return "En attente";
       case "expired":
         return "Expiré";
+      case "vendu":
+        return "Vendu";
       default:
         return status;
     }
