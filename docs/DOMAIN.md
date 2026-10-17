@@ -359,6 +359,26 @@ and review state independently govern what the user may submit or edit.
 
 ## Team goals and calls
 
+### Vendu
+
+**Meaning:** The listing status of a property whose sale deed has been signed at the notary. It carries the signing date, the price and who marked it.
+
+**Origin:** 2026-10-16 (Salif). Before, « Expirée » was used for both rented and sold listings.
+
+**Why it matters for building:** It is the only source of the sales goal. Only the Directeur or the Fondateur sets it, only on sale listings; « Expirée » now means only that a listing is off.
+
+**Evidence:** [Decision](./DECISIONS.md#sales-come-from-a--vendu--listing-status-follower-counts-are-read-from-meta-every-night--2026-10-16).
+
+### Relevé (automatique, manuel)
+
+**Meaning:** One dated follower count for a social account. « Automatique » is read every night from Meta (Facebook, Instagram); « manuel » is typed in with a screenshot (TikTok, or when Meta fails).
+
+**Origin:** 2026-10-16.
+
+**Why it matters for building:** Goals show the latest relevé and its source, so the team can tell a measured number from a typed one.
+
+**Evidence:** [How it works](./SYSTEM.md#how-do-team-goals-call-notes-and-demande-answers-work).
+
 ### Objectif
 
 **Meaning:** A goal the founder sets for the whole team: what we measure, a target and a period (ce mois, chaque mois, ce trimestre, cette année). Everyone sees it on Mon espace.
