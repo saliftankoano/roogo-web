@@ -413,8 +413,8 @@ export const AREAS: Area[] = [
       },
       {
         id: "listing-status",
-        action: "Mettre une annonce en ligne ou changer son statut",
-        detail: "Une annonce ne passe en ligne qu’une fois ses documents de propriété validés. Le ou la Conseiller(ère) prépare, l’Assistant(e) ou le Directeur met en ligne.",
+        action: "Mettre une annonce en ligne",
+        detail: "Une annonce ne passe en ligne qu’une fois ses documents de propriété validés. Le ou la Conseiller(ère) prépare, l’Assistant(e) ou le Directeur met en ligne. Les autres statuts restent ouverts à tout le personnel.",
         access: UP_TO_ASSISTANT,
         capability: "listings.publish",
         enforcedBy: ["serveur"],
