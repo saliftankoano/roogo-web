@@ -212,7 +212,7 @@ export default function TeamPage() {
     <main className="space-y-6">
       <header>
         <p className="text-sm font-semibold uppercase tracking-wide text-roogo-primary-600">Admin</p>
-        <h1 className="mt-2 text-3xl font-bold text-neutral-950">Équipe et accès</h1>
+        <h1 className="mt-2 text-3xl font-bold text-neutral-950">Accès</h1>
         <p className="mt-2 max-w-2xl text-sm text-neutral-600">
           Chaque personne a un niveau qui dépend de son poste. Le fondateur donne
           ou retire n&apos;importe quel niveau. Un directeur donne les niveaux

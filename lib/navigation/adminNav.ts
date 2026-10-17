@@ -193,9 +193,9 @@ const founderPilotageNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
-    label: "Niveaux d’accès",
-    href: "/admin/equipe/niveaux",
-    id: "admin-nav-equipe",
+    label: "Accès",
+    href: "/admin/acces",
+    id: "admin-nav-access",
     icon: UsersThreeIcon,
     needs: ["team.manage"],
   },

@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### The access page is /admin/acces — 2026-10-17
+
+**Decision:** The staff levels page (invitations, access journal, setting levels) lives at `/admin/acces`, named « Accès » in the navigation. Salif chose the French word for access over `/admin/equipe/niveaux`.
+
+**Why:** `/admin/equipe` became the L'équipe board, and a page under it would read as a part of the board rather than the place where access is given.
+
+**Ruled out / alternatives:** `/admin/equipe/niveaux` with « Niveaux d’accès » (rejected by Salif on 2026-10-17).
+
+**Status:** Branch `feat/team-dashboard`, not merged. The page keeps the `team.manage` guard; the API routes enforce the same rule.
+
+---
+
 ### The users table is private; public owner fields come only from the listing view (security) — 2026-10-17
 
 **Decision:** No client role (anon key, Clerk-authenticated) writes `users`. Signed-in users read only their own row (`clerk_id = auth.jwt() ->> 'sub'`); the anon key reads no row. What a listing card shows about its owner (name, avatar, phone, badges) is decided by `public_property_details` alone, which now runs with its owner's rights and never returns a renter. The change ships in two migrations: 094 (writes, `staff_users`, renter fields) is safe for every app in the field; 095 (read lock) runs only after the mobile update that reads the own row with the Clerk token.
