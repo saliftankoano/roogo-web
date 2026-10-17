@@ -15,7 +15,7 @@ async function signedUrl(path: string | null) {
 
 export async function GET() {
   try {
-    await requireAdminSupabaseUser();
+    await requireAdminSupabaseUser(undefined, "referrals.validate");
     const supabase = getSupabaseClient();
 
     const [{ data: profiles }, { data: redemptions }, { data: commissions }] =

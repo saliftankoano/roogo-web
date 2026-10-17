@@ -16,10 +16,11 @@ export async function PATCH(
   try {
     const { id } = await params;
     const body = updateSchema.parse(await req.json());
-    const actor =
-      body.status === "paid"
-        ? await requireAdminSupabaseUser(["founder"])
-        : await requireAdminSupabaseUser();
+    // Founder and director approve and pay commissions (decision of 2026-10-11).
+    const actor = await requireAdminSupabaseUser(
+      undefined,
+      "referrals.validate",
+    );
 
     const payload: Record<string, unknown> = {
       status: body.status,

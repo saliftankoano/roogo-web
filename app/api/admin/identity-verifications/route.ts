@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: Request) {
   try {
-    const authResult = await requireStaffSupabaseUser();
+    const authResult = await requireStaffSupabaseUser("identity.status");
     if ("error" in authResult) return authResult.error;
 
     const { searchParams } = new URL(req.url);

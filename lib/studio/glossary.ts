@@ -31,11 +31,15 @@ export function validateGlossaryEntry(
   return { ok: true, value: { term, spoken } };
 }
 
-/** Anyone can remove their own entries; only a founder can remove others'. */
+/**
+ * Anyone can remove their own entries; only the founder or a director can
+ * remove others' (approved matrix, 2026-10-11).
+ */
 export function canDeleteGlossaryEntry(
-  viewer: { id: string; user_type: string | null },
+  viewer: { id: string; user_type: string | null; staff_level?: string | null },
   entry: { created_by: string | null },
 ): boolean {
   if (viewer.user_type === "founder") return true;
+  if (viewer.user_type === "staff" && viewer.staff_level === "director") return true;
   return entry.created_by !== null && entry.created_by === viewer.id;
 }

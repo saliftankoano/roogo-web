@@ -18,6 +18,7 @@ import {
   type AdminNavItem,
 } from "../../lib/navigation/adminNav";
 import { roogoMotion } from "@/lib/motion";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
 function isLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
@@ -88,11 +89,9 @@ export function AdminNavbar() {
   const pathname = usePathname();
   const { isLoaded, user } = useUser();
 
-  const userType = (user?.publicMetadata?.userType ||
-    user?.publicMetadata?.user_type) as string | undefined;
-  const isFounder = userType === "founder";
+  const { canAny } = useStaffAccess();
 
-  const navItems = useMemo(() => getAdminNavItems(isFounder), [isFounder]);
+  const navItems = useMemo(() => getAdminNavItems(canAny), [canAny]);
   const activeEntryId = useMemo(
     () => getActiveEntryId(pathname, navItems),
     [navItems, pathname],
