@@ -150,6 +150,21 @@ the agreed commercial terms.
 **Why it matters for building:** Ownership approval and mandate signature are
 separate sale-publication gates. Passing one never implies the other.
 
+### Échelle de prix (sale price ladder)
+
+**Meaning:** The prices above the owner's own price `D` at which Roogo sells:
+prix affiché `D` + 30% (published by default), objectif + 20% (owner receives
+exactly `D`), repère + 15% (display only) and minimum équipe + 10%.
+
+**Origin:** Salif, 2026-10-11; permissions revised 2026-10-17.
+
+**Why it matters for building:** From + 10% (inclusive) up, "l'équipe décide".
+Below + 10% a price needs "l'accord de Salif": recorded by Salif or the Directeur
+(who confirms he discussed it with Salif), and below the owner's own price only
+with the owner's verbal agreement. Each one is an "accord de prix" in
+`sale_price_approvals`. Owners never see these terms, only what they receive at
+each final sale price. Applies only to sales; rentals keep their price as set.
+
 ## Property requests
 
 ### Appel à biens
@@ -366,6 +381,52 @@ and review state independently govern what the user may submit or edit.
 
 **Evidence:** [Decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
 
+
+## Team goals and calls
+
+### Vendu
+
+**Meaning:** The listing status of a property whose sale deed has been signed at the notary. It carries the signing date, the price and who marked it.
+
+**Origin:** 2026-10-16 (Salif). Before, « Expirée » was used for both rented and sold listings.
+
+**Why it matters for building:** It is the only source of the sales goal. Only the Directeur or the Fondateur sets it, only on sale listings; « Expirée » now means only that a listing is off.
+
+**Evidence:** [Decision](./DECISIONS.md#sales-come-from-a--vendu--listing-status-follower-counts-are-read-from-meta-every-night--2026-10-16).
+
+### Relevé (automatique, manuel)
+
+**Meaning:** One dated follower count for a social account. « Automatique » is read every night from Meta (Facebook, Instagram); « manuel » is typed in with a screenshot (TikTok, or when Meta fails).
+
+**Origin:** 2026-10-16.
+
+**Why it matters for building:** Goals show the latest relevé and its source, so the team can tell a measured number from a typed one.
+
+**Evidence:** [How it works](./SYSTEM.md#how-do-team-goals-call-notes-and-demande-answers-work).
+
+### Objectif
+
+**Meaning:** A goal the founder sets for the whole team: what we measure, a target and a period (ce mois, chaque mois, ce trimestre, cette année). Everyone sees it on Mon espace.
+
+**Origin:** 2026-10-16 (Salif, design canvas).
+
+**Why it matters for building:** Every number comes from a record or a dated reading with its proof; nothing is typed into the goal itself.
+
+### Levier
+
+**Meaning:** What one person does every week so a goal becomes inevitable (« Qu’est-ce qui doit se passer pour que ce soit inévitable ? »): owner, rhythm, weekly target.
+
+**Origin:** 2026-10-16 (Salif).
+
+**Why it matters for building:** « Ma part cette semaine » is the sum of the viewer's levers, each counted at most its weekly target.
+
+### Tâche d’appel and note d’appel
+
+**Meaning:** A task that is a phone call, and the record of its result (joint, pas de réponse, messagerie, mauvais numéro), notes and next step.
+
+**Origin:** 2026-10-16 (Salif).
+
+**Why it matters for building:** A call task cannot be marked done before its note exists; notes are seen by the caller, the Directeur and the founder only.
 
 ### Publication (calendrier du Studio) / Validation
 

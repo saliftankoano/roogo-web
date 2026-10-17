@@ -1,5 +1,6 @@
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import type { ApiUser } from "@/lib/api-auth";
+import { staffLevelFromUserRow } from "@/lib/staff-access-server";
 import { PROPERTY_COLUMNS, loadPropertyRow, propertyLabels } from "./conversations-server";
 import { toPropertySummary, type PropertyRow } from "./property-context";
 import { STUDIO_BUCKET } from "./server";
@@ -25,8 +26,11 @@ import {
   type Role,
 } from "./publishing";
 import {
+  frenchMetaError,
   metaConfigFromEnv,
   publishFacebook,
+  withPageToken,
+  type MetaConfig,
   publishInstagram,
   type PublishDeps,
   type PublishMedia,
@@ -75,8 +79,9 @@ export type PublicationRow = {
 /** Signed links Meta downloads from. Three hours covers a slow Instagram video. */
 export const PUBLISH_SIGNED_URL_SECONDS = 3 * 3600;
 
-export function roleOf(user: Pick<ApiUser, "user_type">): Role {
-  return user.user_type === "founder" ? "founder" : "staff";
+/** Founder from the staff level helpers (lib/staff-access.ts): only "founder" validates. */
+export function roleOf(user: Pick<ApiUser, "user_type" | "staff_level">): Role {
+  return staffLevelFromUserRow(user) === "founder" ? "founder" : "staff";
 }
 
 export function publishSlots(): string[] {
@@ -255,6 +260,20 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
     ...opts.deps,
   };
 
+  // Facebook needs the Page token: read once per run from the system user token.
+  let facebookConfig: Promise<MetaConfig> | null = null;
+  const facebookCfg = () => (facebookConfig ??= withPageToken(deps, meta.config!));
+  const publishToFacebook = async (media: PublishMedia, text: string, opts?: { commentOn?: string | null }): Promise<NetworkResult> => {
+    let cfg: MetaConfig;
+    try {
+      cfg = await facebookCfg();
+    } catch (error) {
+      facebookConfig = null;
+      return { status: "failed", error: frenchMetaError(error) };
+    }
+    return publishFacebook(deps, cfg, media, text, opts);
+  };
+
   for (const { id } of due) {
     // Leave time for the posts already claimed; the rest waits for the next run.
     if (Date.now() - started > (opts.budgetMs ?? 90_000)) break;
@@ -289,18 +308,18 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
         result = { status: "failed", error: mediaError ?? "Média introuvable." };
       } else if (network === "facebook") {
         if (!meta.facebook || !meta.config) {
-          result = { status: "failed", error: "Facebook n'est pas configuré (META_PAGE_ID, META_PAGE_ACCESS_TOKEN)." };
+          result = { status: "failed", error: "Facebook n'est pas configuré (META_GRAPH_TOKEN, META_PAGE_ID)." };
         } else if (row.cadence_step === "tour_3d_link") {
           const parent = await carouselPostId(row);
           result = parent
-            ? await publishFacebook(deps, meta.config, media, text, { commentOn: parent })
+            ? await publishToFacebook(media, text, { commentOn: parent })
             : { status: "failed", error: "Le carrousel photos de cette visite n'est pas encore publié sur Facebook." };
         } else {
-          result = await publishFacebook(deps, meta.config, media, text);
+          result = await publishToFacebook(media, text);
         }
       } else {
         if (!meta.instagram || !meta.config) {
-          result = { status: "failed", error: "Instagram n'est pas configuré (META_IG_USER_ID, META_PAGE_ACCESS_TOKEN)." };
+          result = { status: "failed", error: "Instagram n'est pas configuré (META_GRAPH_TOKEN, META_IG_ACCOUNT_ID)." };
         } else if (media.kind === "images" && media.urls.some((u) => !isJpegUrl(u))) {
           result = { status: "failed", error: "Instagram n'accepte que des images JPEG." };
         } else {

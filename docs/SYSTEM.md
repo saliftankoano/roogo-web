@@ -13,8 +13,9 @@ Every staff member has a **level** that matches their job title: `director`, `as
 - **Where the level lives.** Clerk `publicMetadata.staffLevel` (read by the browser and by routes that read the Clerk session) mirrored in `users.staff_level` (read by routes that load the Supabase user). The team page writes both. `lib/user-sync.ts` mirrors it when Clerk sends a user update.
 - **How routes check it.** Pass a capability: `getStaffOrFounder(req, "talent.manage")`, `requireStaffSupabaseUser("identity.review")`, `requireClerkStaffCapability(...)`, `userRowCan(user, ...)`. Routes without a capability still accept any staff member, so a new admin route must name one. Sensitive routes done: listing delete and publish, identity and ownership documents, users list, disputes, referrals, talent, rental imports, pending edits, support, sale-chat replies, finances, voice cloning, glossary moderation.
 - **Pages.** `app/admin/<section>/layout.tsx` wraps each section in `StaffRouteGuard` (server side). The navigation and buttons use `useStaffAccess()`, fed by the admin layout so they agree with the API.
-- **Rollout switch.** `STAFF_LEVELS_ENFORCED=true` makes a staff member without a level act as `advisor`. While it is not set they act as `legacy`: exactly the access staff had before levels. Staff who have a level are bound by the matrix either way. Turn the switch on only after every real staff member has a level on `/admin/equipe`.
-- **Giving access.** `/admin/equipe` (founder and directors). The founder gives or removes any level; a director gives assistant, advisor and intern, never director; nobody changes their own level. A person joins with an invitation link (valid 7 days, tied to an email address, only its hash stored) on `/personnel/rejoindre`; the inviter's right is checked again when the link is accepted. Every invitation, acceptance, level change and removal is written to `staff_access_log`; the founder reads all of it, a director reads their own.
+- **Rollout switch.** `STAFF_LEVELS_ENFORCED=true` makes a staff member without a level act as `advisor`. While it is not set they act as `legacy`: exactly the access staff had before levels. Staff who have a level are bound by the matrix either way. Turn the switch on only after every real staff member has a level on `/admin/acces/niveaux`.
+- **Giving access.** `/admin/acces/niveaux`, tab « Niveaux et invitations » of « Accès » (founder and directors; the tab is hidden for others and the route is guarded by `team.manage`). The founder gives or removes any level; a director gives assistant, advisor and intern, never director; nobody changes their own level. A person joins with an invitation link (valid 7 days, tied to an email address, only its hash stored) on `/personnel/rejoindre`; the inviter's right is checked again when the link is accepted. Every invitation, acceptance, level change and removal is written to `staff_access_log`; the founder reads all of it, a director reads their own.
+- **Titles on the team board are the levels.** The briefing and the L'équipe board (`/admin`, `/admin/equipe`) read the same level (`director` is Directeur, `assistant` Assistant(e) commercial(e), `advisor` Conseiller(ère), `intern` Stagiaire; no level counts as Conseiller(ère) there). Changing a title on the board calls the same `setMemberLevel` as `/admin/acces/niveaux`, so it is logged and synced to Clerk. The `staff_titles` table from `089_staff_tasks_executed.sql` exists on Roogo but is not read.
 - **Studio caps.** Setting a level also sets the person's monthly Studio caps (`studio_user_limits`) to the approved amounts (`STUDIO_CAPS_BY_LEVEL`).
 - **The shared staff code** (`STAFF_REGISTRATION_SECRET`) still works until the variable is deleted in Vercel, but it can now only create the `intern` level and never touches a founder. Delete the variable once invitations are in use.
 - **Not built yet.** The 30-day temporary extra access, the monthly access review (a working rule), advisor listings needing approval beyond going online, and per-route checks on the remaining staff routes (open-house slots, hotel events, property requests, Studio routes other than cloning).
@@ -716,10 +717,41 @@ fees are paid by Roogo. See
    the ownership docs.
 3. Roogo sends a **mandate** (desired price + commission percentages + an
    exclusivity period). The owner **signs it in-app** (tap-to-confirm + typed name).
-   Signing publishes the listing at the desired price.
-4. Only then is the listing publishable and photographed by Roogo. Staff may then
-   adjust the public price (`properties.price`) freely to experiment; the seller is
-   deliberately NOT shown or notified of Roogo's listing price.
+   Signing publishes the listing at the desired price + 30% (since 2026-10-11).
+4. Only then is the listing publishable and photographed by Roogo. Staff then move
+   the public price (`properties.price`) within the ladder below. Since 2026-10-11
+   the owner sees the listing price and the payout table on the mandate.
+
+**Price ladder and who decides (sales only, 2026-10-17):** a `vendre` listing is
+published at owner price `D` + 30% (`publishedListingPrice`, on creation and again
+when the mandate is signed); `D` stays private (`sale_asking_prices`, then the
+mandate's `desired_price`). Rungs: +30% listing, +20% target (owner receives exactly
+`D`), +15% reference (display only), +10% team floor. `PATCH /api/properties/[id]`
+runs `checkPublicSalePriceChange` (an unchanged price is not a change):
+
+| New public price | Who | Confirmations (`priceConfirmations`) |
+| --- | --- | --- |
+| >= `ceil(D × 1.10)` | any staff | none |
+| below +10%, >= `D` | founder or Directeur (`staff_level = 'director'`) | Directeur: `discussed_with_salif` |
+| below `D` | founder or Directeur | `owner_agreed`, plus `discussed_with_salif` for the Directeur |
+
+Other staff get 403. Missing confirmations get 422 with
+`code: "sale_price_confirmation_required"` and `required`, and the admin listing
+page (checkboxes) and the app (confirmation dialogs) ask for them. An allowed price
+below +10% first writes a row in `sale_price_approvals` (097, service role only,
+holds `D`), then saves the price; the row is removed if the save fails, and the
+change is refused if the row cannot be written (so nothing below +10% saves before
+097 runs). PostHog gets `sale_price_founder_approved_below_team_floor` without `D`.
+The staff ladder (`GET /api/properties/[id]/sale-ladder`, admin listing and app)
+lists the last 10 approvals: who, level, when, price, markup, confirmations.
+
+Owners see only `ownerPayoutScenarios`: what they receive at +30%, +20%, +15%,
++10% and at `D`, stored on the mandate card as `payout_table` without Roogo's
+commission per row. Displayed team floors are rounded UP to 50,000 FCFA. Rentals
+(`louer`, daily or monthly) skip all of this (`saleLadderApplies`). The ladder
+percentages live in `sale_economics_config` (075) and are snapshotted on each
+mandate; the 075 column `team_floor_markup_pct` holds the +15% reference and
+`hard_floor_markup_pct` the +10% team floor.
 
 **Buyer flow:**
 
@@ -812,9 +844,104 @@ The visible script stays in correct French; a separate "texte envoyé à la voix
 
 Why: [decision](./DECISIONS.md#studio-pronunciation-the-glossary-guides-the-writer-rules-make-the-speech--2026-10-10).
 
+## How do field photos and videos reach the shared Drive?
+
+Staff open a property's project in the Studio and drop the visit's files in **Médias du terrain**. Each file goes from the browser straight to the shared Google Drive "Roogo", in `Vente` (sales) or `Location` (everything else), then a folder named `Quartier - Nom du propriétaire`. The owner name is the seller from a direct sale intake, else the account that listed the property. An existing folder with the same name is reused even if accents, case or dash style differ (oldest first). Missing parts become `Sans quartier` or `Propriétaire inconnu`.
+
+```mermaid
+sequenceDiagram
+  participant B as Studio (browser)
+  participant S as roogo-web
+  participant G as Google Drive
+  B->>S: POST /api/admin/studio/media (name, size, type, duration)
+  S->>G: find or create Vente|Location / Quartier - Propriétaire
+  S->>G: open a resumable session (Origin = the Studio's origin)
+  S-->>B: session address, row "uploading"
+  loop 16 MiB chunks
+    B->>G: PUT bytes (Content-Range)
+  end
+  B->>S: POST /media/[id]/finalize
+  S->>G: session status, then file id, folder and size
+  S-->>B: row "ready"
+```
+
+- **Why direct:** Supabase refuses files over 50 MB and Vercel request bodies stop near 4.5 MB, while phone footage is 100 MB to 1 GB. The bytes never pass through Supabase; they pass through Vercel only in the fallback. Limit 5 GB per file.
+- **Fallback:** if Google refuses the browser before the first chunk (CORS, network filter), the same session is fed in 4 MiB chunks through `PUT /api/admin/studio/media/[id]/chunk`. It is slower, but it works.
+- **Resume:** after a network error the browser asks `GET /api/admin/studio/media/[id]` how many bytes Google kept and continues from there. After a reload, dropping the same file again (same person, property, name and size, within 6 days) resumes the old session.
+- **Ready means checked:** finalize asks Drive itself. A file is ready only if the session is complete and the file exists in the chosen folder, not in the bin, at exactly the announced size. Otherwise the row is `failed` with the reason.
+- **Index:** `studio_field_media` (migration 086): property, kind, name, type, size, duration, Drive file and folder ids, status, uploader. The Drive session address is kept only while uploading. Service role only.
+- **Video length:** `duration_seconds` is set at finalize from Drive's `videoMediaMetadata.durationMillis`, else from the browser's own reading of the file before upload. If both are missing (Drive still processing, a codec the browser cannot read), the list route asks Drive again, five rows per call, until it is filled.
+- **Originals are kept as shot** (HEIC, MOV): Drive is the archive. The panel shows Drive's preview images.
+
+### Using the clips in other features (shared contract)
+
+- `GET /api/admin/studio/media?propertyId=<uuid>` (staff) returns `{ media: [{ id, kind, fileName, mimeType, sizeBytes, durationSeconds, status, driveFileId, createdAt, driveUrl, folderPath, error }], folderUrl, driveConfigured }`, newest first.
+- `signedFieldMediaUrl(mediaId, ttlSeconds?)` in `lib/studio/field-media.ts` returns `https://www.roogobf.com/api/admin/studio/media/<id>/stream?exp=<unix>&token=<hmac>`. It is valid 3 hours by default and 24 hours at most, for that file only. It throws if the file is not `ready`.
+- `GET|HEAD /api/admin/studio/media/[id]/stream` streams the Drive file with Range support (206). It opens with a valid token, without a session (public in `middleware.ts`), or with a staff session. `?thumb=1` returns Drive's preview image. Long files pass through a Vercel function (max 300 s) and count as Vercel data transfer.
+- The token is HMAC-SHA256 over `studio-field-media:v1:<id>:<exp>` with `STUDIO_MEDIA_URL_SECRET`, or a key derived from `SUPABASE_SERVICE_ROLE_KEY` when that is not set. Changing the secret revokes every link. The base URL is `STUDIO_PUBLIC_BASE_URL`, else `NEXT_PUBLIC_APP_URL`, else `https://www.roogobf.com`.
+
+### Setup (Salif, once)
+
+1. **Google Cloud project.** At [console.cloud.google.com](https://console.cloud.google.com), signed in with the Roogo Workspace account, create a project (or pick one), for example `roogo-studio`.
+2. **Enable the Drive API.** APIs & Services, Library, search "Google Drive API", Enable.
+3. **Create the service account.** IAM & Admin, Service Accounts, Create service account: name `roogo-studio-drive`, no roles needed, Done. Copy its address (`roogo-studio-drive@<project>.iam.gserviceaccount.com`).
+4. **Create a key.** Open the service account, Keys, Add key, Create new key, JSON. A file downloads. Keep it private; never put it in the vault or a repository.
+   - If Workspace blocks key creation (policy `iam.disableServiceAccountKeyCreation`), an organisation admin must allow it for this project under IAM & Admin, Organization policies.
+5. **Add it to the shared drive.** In Google Drive, the shared drive "Roogo", Manage members, paste the service account address, role **Content manager**, uncheck "Notify", Send. If sharing outside the domain is blocked, allow it for this address in the Admin console (Apps, Google Workspace, Drive and Docs, Sharing settings).
+6. **Vercel environment variables** (Production, and Preview if you test there):
+   - `GOOGLE_SERVICE_ACCOUNT_EMAIL` = `client_email` from the JSON.
+   - `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY` = `private_key` from the JSON, pasted whole, including `-----BEGIN PRIVATE KEY-----`. Both real line breaks and `\n` work.
+   - Or instead of those two: `GOOGLE_SERVICE_ACCOUNT_JSON` = the whole key file (this is what production has).
+   - `ROOGO_SHARED_DRIVE_ID` = `0AMeNoBD5FUIfUk9PVA`.
+   - `STUDIO_MEDIA_URL_SECRET` (recommended) = a long random value, for example from `openssl rand -base64 48`.
+   - Optional: `STUDIO_PUBLIC_BASE_URL` if stream links must point somewhere other than `https://www.roogobf.com`.
+7. **Migration 086** (`supabase/migrations/086_studio_field_media_executed.sql`) has run on Roogo (recorded 2026-10-17); redeploy after the env vars are set.
+8. **Check:** upload one photo and one video of about 200 MB from the Studio, confirm they appear in `Biens/Location/<Quartier - Propriétaire>` in the Drive, that the panel shows them, and that the browser console has no "switching to the relay" warning (that warning means the direct CORS path was refused).
+
+Why: [decision](./DECISIONS.md#studio-field-media-go-straight-to-the-shared-drive--2026-10-12).
+
+## How does the field visit sheet (Fiche de visite) work?
+
+Staff open it from a listing (`Fiche de visite` button on `/admin/annonces/[id]`, which goes to `/admin/fiche-visite?bien=<id>`) or from the briefing (`Commencer une fiche de visite`, which asks for the listing first). The property, quartier, owner and type come from the listing. A sheet continues on another device at `/admin/fiche-visite/<id>`.
+
+- **Screens:** Infos, 1 Avant de partir, 2 Départ du bureau, 3 Sur place, 4 Départ du site, 5 Retour au bureau, Tournage terminé. The rules (checklist wording, what each step needs, business days, tasks, folder name, follow-up status) live in `lib/field-visits/core.ts` and are tested in `core.test.mjs`. On a phone the sheet is a full-screen app; from 1024 px it sits in the admin with a stepper (completed steps clickable).
+- **Team:** one or two people (enforced in the UI, the API and the table). The first is "personne 1".
+- **Times:** every tick stores the device time (ISO, shown as Ouagadougou time, which is UTC). The four time buttons fill `departed_office_at`, `arrived_at`, `left_site_at`, `returned_at`. The in-app notice is read from `field_visits` by the briefing (`fieldNotices` in the briefing payload); nothing is sent outside Roogo. "Aussi sur WhatsApp" only opens a `wa.me` share link.
+- **Sur place:** checklist only. Browser geolocation (latitude, longitude, accuracy); if refused or impossible, "Continuer sans position" records why. Three ticks within 20 seconds show the red notice and store its time in `batch_warnings`.
+- **Uploads (step 5 only):** each deliverable button is a file picker with `multiple`; files go through the Studio field-media upload (`POST /api/admin/studio/media` with `fieldVisitId` and `deliverable`), straight from the browser to Drive in `Biens / Vente|Location / <CODE> <titre> / <type>`. Scan 3D and Insta360 trips may be `.insv`/`.insp`, stored with kind `file` and hidden from the Studio's media list. Finalize refreshes the sheet's `uploads` summary.
+- **Autosave:** every change goes to `localStorage` (`roogo-fiche-visite:<property id>`) at once and to `PUT /api/admin/field-visits/<id>` after 0.7 s (nothing reaches the server before "Commencer"). The device picks the sheet id, so a sheet begun without network keeps its id. Offline, the pill says "Hors connexion · gardé sur le téléphone" and the sheet syncs on `online`. The newest device change wins; an older one gets 409 and the stored version. Reopening a listing with an unfinished sheet offers "Fiche en cours retrouvée" (Reprendre, or Recommencer, which marks the old sheet `abandonne`).
+- **Finishing:** `POST /api/admin/field-visits/<id>/complete` re-checks every step on the server, creates the six `staff_tasks` (kind `manuel`, linked to the property and to the sheet, owner chosen on the last screen, due on the next business day, 12:00 and 17:00 where the canvas says so) and stores `deliverable_dates`. Each task has `source_key = field-visit:<id>:t1..t6`; the unique index from 089 makes a second call create nothing. Burkina public holidays are not handled yet.
+- **Follow-up:** `/admin/studio/visites` (Directeur and Fondateur, `isDirectorOrFounder`) lists sheets with a status (en cours, sur place depuis…, fichiers manquants, tournage terminé, livrables x sur 5) and shows the four phases, the four times, every tick time, the Drive contents and the deliverables.
+- **Data:** `field_visits` (migration 090, after 086): RLS on, no policies, service role through the admin routes; plus `studio_field_media.field_visit_id`/`deliverable` and `staff_tasks.field_visit_id`. Same Google service account env vars as the field media (`GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_PRIVATE_KEY`, `ROOGO_SHARED_DRIVE_ID`).
+
+Why: [decision](./DECISIONS.md#the-field-visit-sheet-moves-into-the-app--2026-10-15).
+
 ## Why do old page addresses keep working?
 
 Renamed pages answer their old address with a permanent redirect, query string included (`next.config.ts`). Old admin addresses take two hops (to a trailing slash, then the page) until [#59](https://github.com/saliftankoano/roogo-web/pull/59) is merged, then one. The old payment return `/payments/callback` is the exception: it serves the same page as `/paiements/retour` directly, so a payment started before the rename returns without an extra hop. New payments return to `/paiements/retour` because the server builds the return address (`PAWAPAY_PAYMENTPAGE_RETURN_URL` is not set in production). The mobile app only calls `/api/` and opens listing and terms pages, none of which were renamed. See the [decision](./DECISIONS.md#page-addresses-are-french-old-ones-redirect-except-the-payment-return--2026-10-11).
+
+## How does staff access work, and where is it written down?
+
+Three things decide what a staff member can do.
+
+- **Account type (Clerk `publicMetadata.userType`).** `middleware.ts` requires a session for `/admin`; `app/admin/layout.tsx` sends anyone who is not `staff`, `founder` or `admin` (`isStaffLikeUserType`) back to `/`. A few checks still look at `founder` alone: answering demandes, the founder-only title change on L'équipe, and in the Studio editing or deleting someone else's glossary entry and withdrawing someone else's voice.
+- **Staff level (`users.staff_level`, mirrored in Clerk `staffLevel`, migration 089_staff_levels).** `lib/staff-access.ts` holds the capability matrix used by the admin routes, page guards and the menu (see [staff access levels](#how-do-staff-access-levels-work)). Staff without a level act as `legacy` (the access from before levels) until `STAFF_LEVELS_ENFORCED=true`, then as `advisor`.
+- **Title in the team tools.** The title IS the level: `titleFromStaffLevel` maps `director`, `assistant`, `advisor`, `intern` to Directeur, Assistant(e) commercial(e), Conseiller(ère), Stagiaire, and `levelFor` treats no level as Conseiller(ère). It drives `assignmentKind` (who may give a task to whom; a Directeur reaches the founder only through a demande) and `isDirectorOrFounder` (L'équipe board, assigning unowned automatic items, Visites terrain follow-up). The founder's title change on the board calls `setMemberLevel`. The `staff_titles` table of `089_staff_tasks_executed.sql` is not read any more.
+- **Joining.** By invitation from `/admin/acces/niveaux` (tab « Niveaux et invitations » of « Accès »). The shared code (`/api/auth/verify-staff-code`, `STAFF_REGISTRATION_SECRET`) still works but only creates the `intern` level.
+
+The page « Accès » (`/admin/acces`, linked as « Accès » in Pilotage and from L'équipe) has two tabs: « Qui peut faire quoi » (`/admin/acces`, the default, readable by every staff member) and « Niveaux et invitations » (`/admin/acces/niveaux`, only with `team.manage`; `/admin/equipe/niveaux` redirects there). The first tab renders `lib/access/matrix.ts`: every action with Oui / Lecture / Non per level, how it is enforced (server, page, menu) and the files, the note on unleveled staff (it reads `STAFF_LEVELS_ENFORCED` at render), plus the vault proposal items that are not enforced yet. `lib/access/matrix.test.mjs` compares it with `assignmentKind`, `isDirectorOrFounder`, `LEVEL_LABELS`, `STAFF_CAPABILITY_MATRIX` (every rule that names a capability must match it level by level and cite a file that uses it), the legacy level, the menu, the Studio caps per level and the staff code route, and fails when a new route under `app/api/admin` or `app/api/support/admin` is not described. When you change a permission, change the matrix in the same commit.
+
+Why: [decision](./DECISIONS.md#the-access-page-is-generated-from-one-matrix-file--2026-10-16).
+
+## How do team goals, call notes and demande answers work?
+
+Goals live in `team_goals` (migration 091); `lib/team-goals/core.ts` holds the pure rules (period windows, countdown, pace and status, evidence shaping, permissions, input checks) and `lib/team-goals/server.ts` loads each metric once per request: users from `users` (paged, staff and test accounts excluded), contracts from `rental_agreements` with status `active`, listings from `properties.published_at` inside the window (pending ones shown, not counted), sales from listings with status `vendu` and `sold_at` inside the window (migration 093; any property type, test listings excluded), followers from `team_goal_readings` (`source` `automatique` from the nightly Meta reading, or `manuel` with a screenshot in the private bucket `team-goal-proofs`, served as signed links). A `recurring_month` goal is measured on the current month; past months are history rows. Levers (`team_goal_levers`) count this team week's ticks (`team_goal_lever_ticks`) plus done tasks with that `lever_id`. Tasks can carry `goal_id`/`lever_id` (« Pour : … »). API: `/api/admin/goals` (+ `[id]`, `levers`, `levers/[id]`, `readings`).
+
+Marking a listing sold: the status menu on the admin listing page offers « Vendu » for sale listings to the Directeur and the Fondateur; the confirmation asks for the notary signing date and the price. `PATCH /api/properties/[id]/status` with `{ status: 'vendu', soldAt, soldPrice }` checks the rules in `soldTransition` (`lib/property-status.ts`) and writes `sold_at`, `sold_price`, `sold_by`; leaving `vendu` clears them. Public browse and `/proprietes/[slug]` only show `en_ligne` listings, so a sold listing disappears from the site. Open sale chats or visit requests on it are not closed automatically.
+
+Call notes (migration 092) are in `staff_call_notes`, written by `/api/admin/call-notes` through `lib/team-tasks/calls-server.ts`, which also finds the number to call (task, property request contact, visit buyer, listing owner) and the previous calls on the same subject. Demande answers use new `staff_tasks` columns (`decision`, `snoozed_until`, `thread_started_at`, `settled_at`, `sender_seen_at`, `owner_seen_at`) and `staff_task_messages`; the state machine and who may act are `demandeState` and `demandeActionError` in `lib/team-tasks/core.ts`. Approving or settling closes the row (`status = fait`).
+
+Env vars for the automatic follower readings (server only, never `NEXT_PUBLIC_`): `META_GRAPH_TOKEN` (Meta Graph token that can read the page and the Instagram account; sent in the Authorization header, never logged), `META_PAGE_ID` (Roogo Burkina page, `1046356035218080`), `META_IG_ACCOUNT_ID` (`17841436630471998`). Read by `/api/cron/social-followers` (daily 02:00 UTC, `CRON_SECRET`); without the token it returns `{ skipped: "no token" }`.
 
 ## How does the Studio publishing calendar post to Facebook and Instagram?
 
@@ -834,7 +961,7 @@ Why this design: [decision](./DECISIONS.md#studio-publishing-calendar-founder-ap
 
 ### Setting up the Meta connection (Salif, once)
 
-Nothing posts until these variables exist in Vercel (Production): `META_PAGE_ID`, `META_PAGE_ACCESS_TOKEN`, `META_IG_USER_ID`, optionally `META_GRAPH_VERSION` (default `v25.0`) and `STUDIO_PUBLISH_SLOTS`. `CRON_SECRET` already exists. The calendar shows a yellow banner while they are missing.
+Posting uses the same variables as the nightly follower readings (aligned 2026-10-17): `META_GRAPH_TOKEN` (system user token with the publish permissions below), `META_PAGE_ID` (`1046356035218080`), `META_IG_ACCOUNT_ID` (`17841436630471998`), optionally `META_GRAPH_VERSION` (default `v25.0`) and `STUDIO_PUBLISH_SLOTS`. `CRON_SECRET` already exists. Instagram calls use `META_GRAPH_TOKEN` directly; Facebook calls first read the Page token with `GET /{page-id}?fields=access_token` (once per cron run, never stored, never logged), so the system user must have the Page assigned. The first names of this branch, `META_PAGE_ACCESS_TOKEN` (a Page token) and `META_IG_USER_ID`, still work as fallbacks when the main names are absent. The calendar shows a yellow banner while the variables are missing. The AI description and hashtags need `OPENAI_API_KEY` (optional model override `STUDIO_CAPTION_MODEL`).
 
 1. **Create the app.** At developers.facebook.com, "Create app", use case "Other", type **Business**, and attach it to the **Roogo Business portfolio**. Keep it in **Development mode**.
 2. **Add products.** "Facebook Login for Business" and "Instagram" (the Instagram API with Facebook Login, since the Instagram professional account is linked to the Roogo Page). The Instagram account must be a Business or Creator account linked to the Page.
@@ -844,6 +971,6 @@ Nothing posts until these variables exist in Vercel (Production): `META_PAGE_ID`
 6. **Find the ids.** `GET /me/accounts` gives the Page `id`. `GET /{page-id}?fields=instagram_business_account` gives the Instagram user id.
 7. **Set the variables in Vercel** (Production only), redeploy, then validate one test post in the calendar on a slot a few minutes ahead.
 
-**Token expiry:** a system user token set to "Never" lasts until revoked; a Page token from a long-lived user token can still die if Salif changes his password, loses his Page role, or Meta invalidates the session. The cron then marks posts "Échec" with "Le jeton Meta a expiré ou a été révoqué": generate a new token (step 5), replace `META_PAGE_ACCESS_TOKEN` in Vercel, redeploy, press "Réessayer". The token is never stored in the database and never logged.
+**Token expiry:** a system user token set to "Never" lasts until revoked; a Page token from a long-lived user token can still die if Salif changes his password, loses his Page role, or Meta invalidates the session. The cron then marks posts "Échec" with "Le jeton Meta a expiré ou a été révoqué": generate a new token (step 5), replace `META_GRAPH_TOKEN` in Vercel, redeploy, press "Réessayer". The token is never stored in the database and never logged.
 
 Limits to keep in mind: Instagram allows 100 API posts per 24 h (Meta's page also says 50 for carousels), Facebook Reels 30 per 24 h; Roogo's cadence is far below.

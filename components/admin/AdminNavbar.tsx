@@ -14,10 +14,12 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import {
   getAdminNavItems,
   studioNavItem,
+  todayNavItem,
   type AdminNavEntry,
   type AdminNavItem,
 } from "../../lib/navigation/adminNav";
 import { roogoMotion } from "@/lib/motion";
+import { TEAM_TASKS_CHANGED } from "./team/events";
 import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 import { useStudioApprovals } from "./useStudioApprovals";
 
@@ -38,7 +40,55 @@ function ApprovalBadge({ count, className }: { count: number; className?: string
 }
 
 function isLinkActive(pathname: string, href: string) {
+  // "/admin" is the briefing: exact, plus the pages opened from it (team
+  // board, goals and their levers, call notes).
+  if (href === todayNavItem.href) {
+    return pathname === href || ["/admin/equipe", "/admin/objectifs", "/admin/notes-appels"].some(
+      (page) => pathname === page || pathname.startsWith(`${page}/`),
+    );
+  }
   return pathname === href || pathname.startsWith(`${href}/`);
+}
+
+/** Open tasks for today plus unread answers on demandes, on the "Mon espace" item; refreshed when tasks change. */
+function useTodayCount(enabled: boolean) {
+  const [count, setCount] = useState<number | null>(null);
+  useEffect(() => {
+    if (!enabled) return;
+    let alive = true;
+    const load = async () => {
+      try {
+        const response = await fetch("/api/admin/team-tasks?view=count");
+        if (!response.ok) return;
+        const body = (await response.json()) as { open?: number; unread?: number };
+        if (alive && typeof body.open === "number") setCount(body.open + (typeof body.unread === "number" ? body.unread : 0));
+      } catch {
+        // The badge is a convenience; the briefing page shows the real list.
+      }
+    };
+    load();
+    window.addEventListener(TEAM_TASKS_CHANGED, load);
+    return () => {
+      alive = false;
+      window.removeEventListener(TEAM_TASKS_CHANGED, load);
+    };
+  }, [enabled]);
+  return count;
+}
+
+function CountBadge({ count, active }: { count: number | null; active: boolean }) {
+  if (!count) return null;
+  return (
+    <span
+      aria-label={`${count} ${count > 1 ? "éléments" : "élément"} à voir aujourd’hui (tâches et réponses)`}
+      className={cn(
+        "inline-flex h-[18px] min-w-[18px] items-center justify-center rounded-full px-1 text-[11px] font-extrabold",
+        active ? "bg-primary text-white" : "bg-primary/90 text-white",
+      )}
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
 }
 
 function isEntryActive(pathname: string, item: AdminNavEntry) {
@@ -66,11 +116,11 @@ function getActiveGroupId(pathname: string, navItems: AdminNavEntry[]) {
 function DesktopNavLink({
   item,
   isActive,
-  badge = 0,
+  badge,
 }: {
   item: AdminNavItem;
   isActive: boolean;
-  badge?: number;
+  badge?: React.ReactNode;
 }) {
   const Icon = item.icon;
 
@@ -92,8 +142,16 @@ function DesktopNavLink({
       )}
       <span className="relative z-10 flex items-center gap-2">
         <Icon size={18} weight={isActive ? "fill" : "bold"} />
-        <span className="whitespace-nowrap">{item.label}</span>
-        <ApprovalBadge count={badge} />
+        {/* Between lg and xl the bar is already full: Mon espace shows its icon and count only. */}
+        <span
+          className={cn(
+            "whitespace-nowrap",
+            item.id === todayNavItem.id && "sr-only xl:not-sr-only",
+          )}
+        >
+          {item.label}
+        </span>
+        {badge}
       </span>
     </Link>
   );
@@ -112,7 +170,11 @@ export function AdminNavbar() {
   const { canAny, level } = useStaffAccess();
 
   const isFounder = level === "founder";
-  const navItems = useMemo(() => getAdminNavItems(canAny), [canAny]);
+  const navItems = useMemo(
+    () => [todayNavItem, ...getAdminNavItems(canAny)],
+    [canAny],
+  );
+  const todayCount = useTodayCount(isLoaded && !!user);
   const waitingApprovals = useStudioApprovals(isFounder);
   const activeEntryId = useMemo(
     () => getActiveEntryId(pathname, navItems),
@@ -195,7 +257,13 @@ export function AdminNavbar() {
                   key={item.id}
                   item={item}
                   isActive={isActive}
-                  badge={item.id === studioNavItem.id ? waitingApprovals : 0}
+                  badge={
+                    item.id === todayNavItem.id ? (
+                      <CountBadge count={todayCount} active={isActive} />
+                    ) : item.id === studioNavItem.id ? (
+                      <ApprovalBadge count={waitingApprovals} />
+                    ) : undefined
+                  }
                 />
               );
             }
@@ -458,6 +526,9 @@ export function AdminNavbar() {
                   <Icon size={24} weight={isActive ? "fill" : "bold"} />
                   {item.label}
                   {item.id === studioNavItem.id && <ApprovalBadge count={waitingApprovals} />}
+                  {item.id === todayNavItem.id && (
+                    <CountBadge count={todayCount} active={isActive} />
+                  )}
                 </Link>
               );
             })}

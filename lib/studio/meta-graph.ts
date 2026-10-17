@@ -20,7 +20,15 @@ export type MetaConfig = {
   graphVersion: string;
   pageId: string;
   igUserId: string;
+  /**
+   * The token sent to Meta. With META_GRAPH_TOKEN (system user token) it is
+   * that token, and Facebook calls first swap it for the Page token
+   * (`withPageToken`). With the legacy META_PAGE_ACCESS_TOKEN it is already a
+   * Page token.
+   */
   pageToken: string;
+  /** True when pageToken is the system user token, not yet a Page token. */
+  needsPageToken?: boolean;
 };
 
 export type GraphRequest = {
@@ -30,26 +38,35 @@ export type GraphRequest = {
   body?: string;
 };
 
-/** Reads the Meta settings from the environment. Returns what is missing instead of throwing. */
+/**
+ * Reads the Meta settings from the environment. Returns what is missing instead of throwing.
+ *
+ * Same variables as the nightly follower readings (lib/team-goals/meta-followers.ts):
+ * META_GRAPH_TOKEN (system user token with the publish permissions), META_PAGE_ID,
+ * META_IG_ACCOUNT_ID. The first names of this branch (META_PAGE_ACCESS_TOKEN,
+ * META_IG_USER_ID) still work as fallbacks so nothing breaks if they were set.
+ */
 export function metaConfigFromEnv(env: Record<string, string | undefined>): {
   config: MetaConfig | null;
   facebook: boolean;
   instagram: boolean;
   missing: string[];
 } {
-  const pageToken = env.META_PAGE_ACCESS_TOKEN?.trim() ?? "";
+  const systemToken = env.META_GRAPH_TOKEN?.trim() ?? "";
+  const legacyPageToken = env.META_PAGE_ACCESS_TOKEN?.trim() ?? "";
+  const pageToken = systemToken || legacyPageToken;
   const pageId = env.META_PAGE_ID?.trim() ?? "";
-  const igUserId = env.META_IG_USER_ID?.trim() ?? "";
+  const igUserId = env.META_IG_ACCOUNT_ID?.trim() || env.META_IG_USER_ID?.trim() || "";
   const graphVersion = /^v\d+\.\d+$/.test(env.META_GRAPH_VERSION?.trim() ?? "") ? env.META_GRAPH_VERSION!.trim() : DEFAULT_GRAPH_VERSION;
   const missing = [
-    !pageToken ? "META_PAGE_ACCESS_TOKEN" : null,
+    !pageToken ? "META_GRAPH_TOKEN" : null,
     !pageId ? "META_PAGE_ID" : null,
-    !igUserId ? "META_IG_USER_ID" : null,
+    !igUserId ? "META_IG_ACCOUNT_ID" : null,
   ].filter((v): v is string => Boolean(v));
   const facebook = Boolean(pageToken && pageId);
   const instagram = Boolean(pageToken && igUserId);
   return {
-    config: facebook || instagram ? { graphVersion, pageId, igUserId, pageToken } : null,
+    config: facebook || instagram ? { graphVersion, pageId, igUserId, pageToken, needsPageToken: Boolean(systemToken) } : null,
     facebook,
     instagram,
     missing,
@@ -148,7 +165,7 @@ export function frenchMetaError(error: unknown): string {
     const code = error.code;
     const sub = error.subcode;
     const detail = error.message.replace(/https?:\/\/\S+/g, "[lien]").replace(/access_token=\S+/g, "").slice(0, 160);
-    if (code === 190) return "Le jeton Meta a expiré ou a été révoqué. Il faut générer un nouveau jeton de Page (voir le guide).";
+    if (code === 190) return "Le jeton Meta a expiré ou a été révoqué. Il faut générer un nouveau jeton (voir le guide).";
     if (code === 10 || code === 200 || (code !== null && code >= 200 && code < 300)) {
       return `Permission Meta manquante pour cette action (${code}). Vérifiez les permissions de l'application.`;
     }
@@ -205,6 +222,19 @@ export async function graphCall(deps: PublishDeps, req: GraphRequest): Promise<J
     throw new MetaError(err?.code ?? null, err?.error_subcode ?? null, res.status, err?.message ?? `HTTP ${res.status}`);
   }
   return data;
+}
+
+/**
+ * Facebook Page posts must be made with the Page token. A system user token
+ * that manages the Page reads it from GET /{page-id}?fields=access_token.
+ * The token is never logged; a failure throws a MetaError like any call.
+ */
+export async function withPageToken(deps: PublishDeps, cfg: MetaConfig): Promise<MetaConfig> {
+  if (!cfg.needsPageToken) return cfg;
+  const data = await graphCall(deps, get(cfg, cfg.pageId, "access_token"));
+  const token = typeof data.access_token === "string" ? data.access_token : "";
+  if (!token) fail("Le jeton Meta (META_GRAPH_TOKEN) ne donne pas accès à la Page Facebook. Vérifiez que l'utilisateur système gère la Page.");
+  return { ...cfg, pageToken: token, needsPageToken: false };
 }
 
 function str(value: unknown): string | null {

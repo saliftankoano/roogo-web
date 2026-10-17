@@ -13,6 +13,11 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { cn } from "@/lib/utils";
+import {
+  SalePayoutTable,
+  payoutRowsFromMeta,
+  previewPayoutRows,
+} from "@/components/admin/SalePayoutTable";
 
 type Kind = "seller" | "buyer";
 
@@ -133,6 +138,9 @@ export default function AdminSaleChatPage() {
   // Action panels
   const [showMandate, setShowMandate] = useState(false);
   const [desired, setDesired] = useState("");
+  // The owner's own price for the selected thread (staff-only API field). Never
+  // the public price, which is Roogo's ladder price.
+  const [ownerPrice, setOwnerPrice] = useState<number | null>(null);
   const [days, setDays] = useState("90");
   const [mandateSending, setMandateSending] = useState(false);
   const [mandateError, setMandateError] = useState<string | null>(null);
@@ -162,6 +170,11 @@ export default function AdminSaleChatPage() {
       if (!res.ok) throw new Error("Échec du chargement");
       const data = await res.json();
       setMessages((data.messages ?? []) as Message[]);
+      setOwnerPrice(
+        typeof data.owner_price === "number" && data.owner_price > 0
+          ? data.owner_price
+          : null,
+      );
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erreur");
     }
@@ -275,12 +288,7 @@ export default function AdminSaleChatPage() {
 
   const handleOpenMandate = () => {
     if (!selected) return;
-    const propertyPrice = Number(selected.property?.price);
-    setDesired(
-      Number.isFinite(propertyPrice) && propertyPrice > 0
-        ? String(Math.round(propertyPrice))
-        : "",
-    );
+    setDesired(ownerPrice ? String(Math.round(ownerPrice)) : "");
     setDays("90");
     setMandateError(null);
     setShowNotary(false);
@@ -614,25 +622,30 @@ export default function AdminSaleChatPage() {
                 />
               </div>
 
-              {saleBasePct != null && Number(desired) > 0 && (
-                <div className="rounded-2xl border border-[#C96A2E]/20 bg-[#C96A2E]/5 p-4 text-sm text-neutral-700">
-                  <p className="font-semibold text-neutral-900">
-                    Résumé des conditions
-                  </p>
-                  <p className="mt-1 leading-relaxed">
-                    Commission Roogo : {(saleBasePct * 100).toFixed(1)}% ={" "}
-                    {fmtFCFA(Number(desired) * saleBasePct)}. Le vendeur reçoit
-                    au minimum{" "}
-                    {fmtFCFA(Number(desired) * (1 - saleBasePct))}
-                    {saleSplitPct != null &&
-                      ` · Surplus : ${(saleSplitPct * 100).toFixed(
-                        0,
-                      )}% Roogo / ${((1 - saleSplitPct) * 100).toFixed(
-                        0,
-                      )}% vendeur.`}
-                  </p>
-                </div>
-              )}
+              {saleBasePct != null && Number(desired) > 0 && (() => {
+                const rows = previewPayoutRows(
+                  Number(desired),
+                  saleBasePct,
+                  saleSplitPct ?? 0.5,
+                );
+                return (
+                  <div className="space-y-2 rounded-2xl border border-[#C96A2E]/20 bg-[#C96A2E]/5 p-4 text-sm text-neutral-700">
+                    <p className="font-semibold text-neutral-900">
+                      Résumé des conditions
+                    </p>
+                    <p className="leading-relaxed">
+                      Commission Roogo : {(saleBasePct * 100).toFixed(1)}% du
+                      prix du propriétaire
+                      {saleSplitPct != null &&
+                        ` + ${(saleSplitPct * 100).toFixed(0)}% du surplus`}
+                      . Le bien sera publié à{" "}
+                      <strong>{fmtFCFA(rows?.[0]?.price)}</strong>, jamais au prix
+                      du propriétaire.
+                    </p>
+                    {rows && <SalePayoutTable rows={rows} />}
+                  </div>
+                );
+              })()}
 
               {mandateError && (
                 <p
@@ -865,6 +878,14 @@ function MessageRow({
                 {((1 - meta.surplus_split_pct) * 100).toFixed(0)}% vendeur
               </p>
             )}
+            {typeof meta.listing_price === "number" && (
+              <p>Prix affiché : {fmtFCFA(meta.listing_price)}</p>
+            )}
+            {payoutRowsFromMeta(meta.payout_table) && (
+              <div className="pt-1">
+                <SalePayoutTable rows={payoutRowsFromMeta(meta.payout_table)!} />
+              </div>
+            )}
             <p>Exclusivité : {String(meta.exclusivity_days ?? 90)} jours</p>
           </div>
         ) : (
@@ -879,7 +900,12 @@ function MessageRow({
       {message.message_type === "mandate_signed" && (
         <div className="mt-2 text-sm text-neutral-700 space-y-0.5">
           {typeof meta.desired_price === "number" ? (
-            <p>Prix désiré : {fmtFCFA(meta.desired_price)}</p>
+            <>
+              <p>Prix désiré : {fmtFCFA(meta.desired_price)}</p>
+              {typeof meta.listing_price === "number" && (
+                <p>Publié à : {fmtFCFA(meta.listing_price)}</p>
+              )}
+            </>
           ) : (
             <p>Prix de vente : {fmtFCFA(meta.list_price)}</p>
           )}

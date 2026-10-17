@@ -53,6 +53,9 @@ export type Property = {
   longitude?: number | null;
   listingType?: "louer" | "vendre";
   ownershipVerified?: boolean;
+  /** Status vendu (migration 093): notary signature date and sale price. Admin view only. */
+  soldAt?: string | null;
+  soldPrice?: number | null;
   agent?: {
     full_name: string;
     phone: string;
@@ -512,6 +515,7 @@ const PROPERTY_STATUS_UPDATE_FALLBACK_ERROR =
 export async function updatePropertyStatus(
   id: string,
   status: string,
+  sold?: { soldAt: string; soldPrice: number | null },
 ): Promise<PropertyStatusUpdateResult> {
   try {
     const response = await fetch(`/api/properties/${id}/status`, {
@@ -519,7 +523,7 @@ export async function updatePropertyStatus(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(sold ? { status, ...sold } : { status }),
     });
 
     if (!response.ok) {
@@ -570,10 +574,16 @@ export async function deleteProperty(id: string): Promise<boolean> {
 
 export async function updateProperty(
   id: string,
-  updates: Partial<Property>,
+  updates: Partial<Property> & {
+    /** Sale price below +10%: confirmations ticked by the founder or Directeur. */
+    priceConfirmations?: { discussed_with_salif?: boolean; owner_agreed?: boolean };
+  },
 ): Promise<{
   success: boolean;
   error?: string;
+  /** "sale_price_confirmation_required" when confirmations are missing. */
+  code?: string;
+  required?: string[];
   property?: Partial<Property>;
 }> {
   try {
@@ -590,7 +600,12 @@ export async function updateProperty(
       console.error("Error updating property:", text);
       try {
         const payload = JSON.parse(text);
-        return { success: false, error: payload.error };
+        return {
+          success: false,
+          error: payload.error,
+          code: typeof payload.code === "string" ? payload.code : undefined,
+          required: Array.isArray(payload.required) ? payload.required : undefined,
+        };
       } catch {
         return { success: false, error: text };
       }

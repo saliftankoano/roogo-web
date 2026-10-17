@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### The access page is /admin/acces — 2026-10-17
+
+**Decision:** The staff levels page (invitations, access journal, setting levels) lives at `/admin/acces`, named « Accès » in the navigation. Salif chose the French word for access over `/admin/equipe/niveaux`.
+
+**Why:** `/admin/equipe` became the L'équipe board, and a page under it would read as a part of the board rather than the place where access is given.
+
+**Ruled out / alternatives:** `/admin/equipe/niveaux` with « Niveaux d’accès » (rejected by Salif on 2026-10-17).
+
+**Status:** Branch `feat/team-dashboard`, not merged. The page keeps the `team.manage` guard; the API routes enforce the same rule. On `feat/fiche-visite` the page becomes one page « Accès » with two tabs: « Qui peut faire quoi » (`/admin/acces`, every staff member, default) and « Niveaux et invitations » (`/admin/acces/niveaux`, `team.manage` only, guarded on the server as before). Sub-routes rather than `?vue=` so the existing route guard protects the levels tab unchanged.
+
+---
+
 ### The users table is private; public owner fields come only from the listing view (security) — 2026-10-17
 
 **Decision:** No client role (anon key, Clerk-authenticated) writes `users`. Signed-in users read only their own row (`clerk_id = auth.jwt() ->> 'sub'`); the anon key reads no row. What a listing card shows about its owner (name, avatar, phone, badges) is decided by `public_property_details` alone, which now runs with its owner's rights and never returns a renter. The change ships in two migrations: 094 (writes, `staff_users`, renter fields) is safe for every app in the field; 095 (read lock) runs only after the mobile update that reads the own row with the Clerk token.
@@ -18,6 +30,50 @@ out. Newest first. For what shipped and when, see
 ---
 
 ---
+
+### Sales come from a « Vendu » listing status; follower counts are read from Meta every night — 2026-10-16
+
+**Decision:** A sale listing is marked « Vendu » (`properties.status = 'vendu'`, migration 093) with the notary signing date (`sold_at`), the sale price (`sold_price`) and who marked it (`sold_by`). Only the Directeur or the Fondateur can set or undo it, only on a non-test sale listing, and the date cannot be in the future (`lib/property-status.ts`, enforced in `PATCH /api/properties/[id]/status`). The sales goal counts `vendu` listings whose `sold_at` falls in the goal window, any property type including land. The founder-confirmed `team_goal_sales` table and its route are removed. « Expirée » no longer means "rented or sold". Facebook and Instagram followers are read every night at 02:00 UTC from the Meta Graph API (`/api/cron/social-followers`, readings with `source = 'automatique'`); typing a reading by hand stays as the fallback and remains the only way for TikTok. The goal « 500 abonnés Instagram » for 2026 is seeded in 093 (1 follower on 2026-10-16).
+
+**Why:** Salif (2026-10-16): "add a sold state in db so we can know for certain without manual checks", and follower goals should update without anyone typing numbers. A status on the listing is where staff already work, and it also takes a sold property off the market.
+
+**Ruled out:** keeping founder-confirmed sales next to the status (two sources of truth that can disagree); inferring a sale from a completed notary meeting (nothing in the app marks a meeting completed today); reading followers on every page view (Meta rate limits and a slow page).
+
+### Team goals: every number from a record, founder-only changes, sales confirmed by hand — 2026-10-16
+
+**Decision:** « Nos objectifs » (Mon espace and `/admin/objectifs`) shows goals the founder sets, each with a metric, a target and a period (`month`, `recurring_month`, `quarter`, `year`). Numbers are computed at read time from their own records: users (users rows minus staff, founder and test accounts), properties under an active rental agreement, properties put online in the period, and sales. Roogo has no "sold" status, so a sale counts only once the founder confirms it in `team_goal_sales` (property and notary signature date). Follower counts (TikTok, Facebook, Instagram) are manual readings with an optional screenshot in a private bucket, keyed by metric (the count belongs to the account, not to a goal); no server-side Meta Graph token exists, so Facebook is manual too. Status words come from the real pace against the required pace (En bonne voie at 100% or more, À suivre from 60%, Il faut agir below, Atteint, Pas atteint once the period is over); a pace is judged only after a week of measurement. Only the founder creates, archives, retargets goals, edits levers and confirms sales; founder and Directeur enter readings; a lever is ticked by its owner, the Directeur or the founder. All of it is enforced in `lib/team-goals/server.ts`.
+
+**Why:** Approved on the design canvas with Salif (2026-10-16): "nothing on this dash is static; every number has its proof". The evidence drawer shows that proof, with counts only for users (no names, emails or phones).
+
+**Ruled out:** a nightly counter table (the numbers are cheap to compute live and cannot drift); inferring a sale from a notary meeting or a locked listing (neither proves a signed deed).
+
+### Call tasks need a result before they are done; demandes get three answers — 2026-10-16
+
+**Decision:** A task can be a call (`is_call`). « Appeler et noter » records the result, notes and the next step in `staff_call_notes`; saving creates the next task (rappel, visite à confirmer, a task for the Directeur, or a demande to the founder when the Directeur is the caller) and closes the call task. The server refuses to tick a call task without a note (rule approved by Salif). Notes are visible to their author, the Directeur and the founder only. « Répondre » on a demande is replaced by « Oui, vas-y » (closed as approved), « Pas maintenant » (hidden until a date, then pending again) and « Écrire une réponse » (a thread in `staff_task_messages` that either side closes with « Réglé »); « Je m’en occupe » is unchanged. The sender sees new answers in Mon espace (« Réponse de Salif » card, count on the navbar item) until opened; no push or email.
+
+**Why:** Designed with Salif on 2026-10-16: calls were ticked without a trace, and a single text answer could not say "go ahead" or "later".
+
+**Ruled out:** auto-flagging automatic briefing items as calls; none of today's sources says a callback is due.
+
+### The access page is generated from one matrix file — 2026-10-16
+
+**Decision:** "Qui peut faire quoi" (`/admin/acces`) describes the access levels exactly as the code enforces them on this branch, from a single typed file, `lib/access/matrix.ts`. A test (`lib/access/matrix.test.mjs`) ties the file to the real helpers and fails when a staff API route is added without being described. What the vault proposal of 2026-10-11 approves but the code does not enforce is listed separately as "Prévu mais pas encore appliqué", never as current behaviour. The page is linked from the Pilotage menu (every staff member) and from L'équipe, not from a new top-level navbar item. Since 2026-10-17 it is the default tab of « Accès », next to « Niveaux et invitations » ([decision](#the-access-page-is-adminacces--2026-10-17)).
+
+**Why:** The team needs one place to know what each title can do, and the founder needs to see where the app still allows more than the approved matrix. A hand-written page would drift from the code; a matrix checked by a test cannot drift silently.
+
+**Ruled out / alternatives:** Deriving the page automatically from the route files (checks are written in too many styles to parse reliably). Showing the vault matrix as if it were live. A new top-level navbar item (too noisy for a reference page).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Rewritten on 2026-10-17 when main brought the staff levels (PR 67): the rules now follow `STAFF_CAPABILITY_MATRIX` and the test checks them against it. See [how it works](./SYSTEM.md#how-does-staff-access-work-and-where-is-it-written-down).
+
+### The field visit sheet moves into the app — 2026-10-15
+
+**Decision:** The "Fiche de visite de bien" (paper sheet of 2 October 2026) is filled in Roogo, from the listing page or the briefing, following the approved canvas (phone and computer). Tick times are the device's own clock; the four time buttons notify the team inside Roogo (briefing "Sur le terrain aujourd’hui"), WhatsApp is optional. Files are uploaded only at "Retour au bureau", one button per deliverable, into `Biens / Vente|Location / <CODE> <titre> / <type>` in the shared Drive. "Photos et vidéos supprimées des appareils" can be ticked only once every deliverable has a file confirmed by Drive. Sending the sheet creates six manual tasks (source key `field-visit:<id>:<task>`, so finishing twice creates nothing new) due on business days (Monday to Friday), and stores the planned publication dates (J+1, J+2, J+4, J+5).
+
+**Why:** The paper sheet relied on memory and WhatsApp; the tick times show the Directeur and the founder when each thing was really done, and nothing is lost when the phone has no network (autosave on the phone and on the server).
+
+**Ruled out / alternatives:** A "Règles de publication" screen in the flow (rejected by Salif). Uploads on site at step 3 (step 3 stays a checklist; files go up on the office Wi-Fi). Sending WhatsApp messages through an API (only a share link). Creating publications in the Studio calendar now (that branch is not merged; `lib/field-visits/publications.ts` is the hook).
+
+**Status:** Built on branch `feat/fiche-visite`, not deployed. Open points: Burkina public holidays are not skipped yet; the Drive folder name follows the canvas (`<CODE> <titre>`) while the paper sheet and the Studio's Médias du terrain panel use `Quartier - Nom du propriétaire`, so the same property can get two folders until one rule is chosen. Migrations 086 and 090 have run on Roogo (recorded 2026-10-17); needs the Google service account env vars. See [how it works](./SYSTEM.md#how-does-the-field-visit-sheet-fiche-de-visite-work).
 
 ### Staff access by job title, with invitations instead of a shared code — 2026-10-11
 
@@ -39,6 +95,16 @@ out. Newest first. For what shipped and when, see
 
 **Status:** Settled. Open risk: Burkina Faso's personal-data law (loi 001-2021) may allow withdrawal whatever the text says, so withdrawal stays available; counsel review of the guest text is pending (vault `08 Decisions/Studio voice cloning and consent.md`).
 
+### Studio field media go straight to the shared Drive — 2026-10-12
+
+**Decision:** Visit photos and videos dropped in the Studio are stored in the shared Google Drive "Roogo" (`Vente|Location / Quartier - Nom du propriétaire`, the field sheet rule), uploaded by the browser directly to Google through a resumable session the server opens as a service account. The Studio keeps an index (`studio_field_media`) and a signed stream route so video templates (HeyGen) can use the clips. A file is marked ready only after Drive confirms it in the right folder at the right size.
+
+**Why:** Staff already file visits in that Drive by hand, so Drive stays the one place to look. Footage is 100 MB to 1 GB, and Supabase refuses anything over 50 MB while Vercel bodies stop near 4.5 MB, so the bytes must skip both. Opening the session with the browser's Origin is what lets Google answer the browser's chunks with CORS headers. No new dependency: the service-account token is a JWT signed with node:crypto.
+
+**Ruled out / alternatives:** Supabase storage, including resumable TUS (50 MB project cap). Sending media through our API (body limits, cost). The `googleapis` SDK (large, not needed for four calls). Per-person OAuth (each staff member would need Drive consent; the service account works for everyone). Converting HEIC or re-encoding videos before upload (Drive is the archive of originals).
+
+**Status:** Built on branch `feat/studio-field-media`, not deployed. Not tested against Google: the direct browser upload (CORS) and the relay fallback are unverified until the service account exists. Migration 086 has run on Roogo (recorded 2026-10-17). See [how it works](./SYSTEM.md#how-do-field-photos-and-videos-reach-the-shared-drive).
+
 ### Studio publishing calendar: founder approval and direct Meta posting — 2026-10-12
 
 **Decision:** The Studio gets a weekly publishing calendar (`/admin/studio/calendrier`). Every post moves À faire, À valider, Validé, Publié or Échec; only a founder can set Validé, and a Vercel cron every 10 minutes publishes validated, due posts directly through the Meta Graph API (Facebook Page Reels, photos, multi-photo, text and the 3D link comment; Instagram Reels, image and carousel). "Planifier une visite" creates the five cadence posts on business days. Captions come from a deterministic template. The Page id, Instagram user id and Page token live only in Vercel environment variables, not in a table. TikTok is shown as "bientôt" and not built.
@@ -47,7 +113,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** Meta's own scheduled publishing (`scheduled_publish_time`): it would publish without our final check and split the source of truth. Encrypted tokens in the database: not needed for one account. A third-party scheduler (Buffer, Later): cost and another login, no link to Studio media. TikTok's Content Posting API: unaudited apps can only post privately (`SELF_ONLY`); see the roadmap. Auto-retrying stale claims.
 
-**Status:** Built on branch `feat/studio-publishing-calendar`, not deployed. Migrations 085 and 087 ran on Roogo (recorded 2026-10-17). No call to Meta was made; Salif must create the Meta app and set the env vars ([setup](./SYSTEM.md#setting-up-the-meta-connection-salif-once)). Layout wireframe awaiting Salif's approval. Open: public holidays in the business-day count, default slot per cadence step.
+**Status:** Built on branch `feat/studio-publishing-calendar`, not deployed. Migrations 085 and 087 ran on Roogo (recorded 2026-10-17). No call to Meta was made. 2026-10-17: the env names were aligned with main's follower readings, one system user token `META_GRAPH_TOKEN` plus `META_PAGE_ID` and `META_IG_ACCOUNT_ID`; Facebook reads the Page token from it at run time, and the first names stay as fallbacks ([setup](./SYSTEM.md#setting-up-the-meta-connection-salif-once)). Founder approval is checked with the staff level helpers and listed on `/admin/acces`. Layout wireframe awaiting Salif's approval. Open: public holidays in the business-day count, default slot per cadence step.
 
 ### Studio videos can be made with music only — 2026-10-11
 
@@ -58,6 +124,30 @@ out. Newest first. For what shipped and when, see
 **Ruled out / alternatives:** A third "Musique seule" mode (one more concept to learn). Blocking or warning on song plus voice-over. Saving levels per project in the database. A silent video with neither voice nor music (still refused).
 
 **Status:** Built and shown to Salif locally on 2026-10-11; PR pending.
+
+### Sales: the team decides from +10%, below +10% needs Salif — 2026-10-17
+
+**Decision:** Every sale is still published automatically at owner price + 30%. The team agrees any price from +10% (inclusive, exact whole FCFA) up to +30% on its own ("L'équipe décide"). Below +10% a price is allowed, no longer refused, but only for the founder or the Directeur (staff level `director`): the Directeur must tick « J'en ai discuté avec Salif ». Going below the owner's own price (the owner rethinks his price after a verbal yes) is also founder or Directeur only, with the second confirmation « Le propriétaire a accepté ce prix (accord verbal) ». Other staff get 403. Every such price is recorded in `sale_price_approvals` (migration 097: property, approver, level, new and previous public price, owner price at the time, markup, confirmations, time) in the same request; if the row cannot be written the price is not changed. The PostHog event `sale_price_founder_approved_below_team_floor` stays, without the owner's price or the markup. +15% is only a display reference ("Repère"), +20% the target ("Objectif"). Payout math and helper fees are unchanged.
+
+Owners never see how Roogo approves prices: owner screens show only "Ce que vous recevez selon le prix de vente final" for +30%, +20%, +15%, +10% and their own price (`ownerPayoutScenarios`), with no Roogo commission per row; "Vous recevez au minimum" is gone. Staff panels show the rule and the approvals.
+
+The rule and the +30% markup apply only to sales (`listing_type = 'vendre'`, `saleLadderApplies`): rentals, daily or monthly, keep their price exactly as set. The 075 columns keep their names: `team_floor_markup_pct` now holds the +15% reference and `hard_floor_markup_pct` the +10% team floor. In `sale_closings`, 097 replaces the +10% hard stop with "below +10% needs `approved_by` and `approved_at` before leaving draft", tying the requirement to the actual price instead of the self-reported `below_team_floor` flag.
+
+**Why:** Salif, 2026-10-17: a hard stop at +10% could lose a real buyer, and an owner sometimes lowers his price after a verbal yes. The Directeur negotiates in the field while Salif is often in another time zone, so he can record the price once he has talked to Salif. Owners only provide their price; the internal approval rule is not their concern.
+
+**Ruled out / alternatives:** Keeping the hard stop (2026-10-12). Founder only below +10% (first 2026-10-17 draft, replaced the same day). Log-only approvals (no audit trail). Dropping the `sale_closings` floor check entirely (would allow an unapproved closing below +10%). Renaming the 075 columns (an executed migration).
+
+**Status:** Built on `feat/sale-listing-ladder` (web PR #74 and mobile PR), not merged, not deployed. Migrations 096 then 097 not run. Supersedes the 2026-10-12 rule.
+
+### Sales: keep 10% + 50/50, publish at the top of the price ladder — 2026-10-11
+
+**Decision:** Keep the v2 commission (10% of the owner's price + 50% of the surplus, migration 050) and stop publishing the owner's own price. A sale listing is published at owner price + 30% (`publishedListingPrice`, on creation and again on mandate signing). Staff may move the public price down to +15%; between +15% and +10% only a founder; below +10% nobody (`checkPublicSalePriceChange` on `PATCH /api/properties/[id]`). (Superseded: refined on 2026-10-12 to staff above +10%, founder only AT +10%, below +10% refused; replaced on 2026-10-17 by the entry above.) Owners cannot change a sale's price through a listing edit. The ladder is snapshotted onto each mandate (075 columns, on v2 mandates) and the offer card carries the listing price and the payout table. Notary and referrer fees come out of Roogo's commission. The owner's price moves to the private `sale_asking_prices` table (migration 084) and staff prefill mandates from it, never from `properties.price`.
+
+**Why:** Salif, 2026-10-11: owners responded well to 10% + 50/50, but publishing the owner's number locked every sale into the lowest profit tier. At the +20% target the owner receives exactly his price, which is the pitch. The owner's price must be private once the public price differs, or negotiation starts at the owner's number.
+
+**Ruled out / alternatives:** The guaranteed-net economics on `feat/sale-v3-guaranteed-price` (seller always nets his price, Roogo keeps the margin), approved 2026-09-27 and never shipped; its ladder, markup and guard are reused here, its closing panel and v3 mandate are not. A lower floor at the owner's price (Salif chose a hard stop at +10%, superseded on 2026-10-17).
+
+**Status:** Partly superseded by the 2026-10-17 entry (who decides the price). Built on `feat/sale-listing-ladder`, not merged, not deployed. Run 096 (renumbered from 084 on 2026-10-17) before deploying. Vault: "Roogo Sell commission with listing ladder".
 
 ### Page addresses are French; old ones redirect, except the payment return — 2026-10-11
 

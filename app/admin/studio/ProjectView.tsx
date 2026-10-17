@@ -17,6 +17,7 @@ import {
 import { cn } from "@/lib/utils";
 import { ArtifactCard, type CardProps } from "./ArtifactsPanel";
 import { Composer, LiveReply, Message, OldScript } from "./ChatView";
+import { FieldMediaPanel } from "./FieldMediaPanel";
 import { PropertyPicker } from "./PropertyPicker";
 import { PublicationCard } from "./publishing/PublicationCard";
 import type { Artifact, ConversationDetail, PropertySummary } from "./studio-types";
@@ -256,6 +257,13 @@ export function ProjectView({
           )}
         </div>
       </div>
+
+      {/* Field media (2026-10-12): the visit's photos and videos, saved to the shared Drive. */}
+      {property && (
+        <div className="px-4 pb-4 md:px-5">
+          <FieldMediaPanel propertyId={property.id} canWrite={canWrite} />
+        </div>
+      )}
 
       {messages.length > 0 && (
         <div className="px-4 pb-6 md:px-5">

@@ -145,6 +145,9 @@ const isPublicRoute = createRouteMatcher([
   // isStaffLikeUserType internally, so exposing them here doesn't relax authorization.
   "/api/support/admin/(.*)",
   "/api/cron/(.*)",
+  // Studio field media stream: HeyGen fetches it with a signed ?exp=&token=
+  // link and no session; the handler checks the token or a staff session.
+  "/api/admin/studio/media/(.*)/stream",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates
   "/api/properties/(.*)/availability",
@@ -157,6 +160,9 @@ const isPublicRoute = createRouteMatcher([
   // Ownership documents (Roogo Sell) — mobile authenticates with Bearer JWT
   "/api/properties/(.*)/ownership-documents",
   "/api/properties/(.*)/ownership-documents/upload-url",
+  // Sale price ladder — staff only; the handler validates the session or the
+  // mobile Bearer JWT and returns 403 to everyone else.
+  "/api/properties/(.*)/sale-ladder",
   // Sale chat — mobile authenticates with Bearer JWT
   "/api/sale-chat/(.*)",
   // Hotel operations — the handler validates the mobile Bearer JWT and admin role.

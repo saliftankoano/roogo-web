@@ -29,6 +29,10 @@
       "schedule": "0 7 * * *"
     },
     {
+      "path": "/api/cron/social-followers",
+      "schedule": "0 2 * * *"
+    },
+    {
       "path": "/api/cron/studio-publish",
       "schedule": "*/10 * * * *"
     }
