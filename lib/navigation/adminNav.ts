@@ -14,7 +14,6 @@ import {
   MicrophoneIcon,
   PencilSimpleLineIcon,
   ShieldCheckIcon,
-  UsersThreeIcon,
 } from "@phosphor-icons/react";
 
 // Top-level (not inside a group) and pinned in the mobile header too, so the
@@ -174,10 +173,11 @@ const pilotageNavItems: AdminNavItem[] = [
     icon: ChartLineUpIcon,
     needs: ["users.listAll", "users.listOwnersAgents"],
   },
-  // Documentation of the access levels, readable by every staff member.
+  // « Accès »: who can do what (every staff member), plus the levels and
+  // invitations tab for team.manage (app/admin/acces/layout.tsx).
   {
     type: "link",
-    label: "Qui peut faire quoi",
+    label: "Accès",
     href: "/admin/acces",
     id: "admin-nav-access",
     icon: ShieldCheckIcon,
@@ -200,14 +200,6 @@ const founderPilotageNavItems: AdminNavItem[] = [
     id: "admin-nav-parametres",
     icon: GearIcon,
     needs: ["settings.manage"],
-  },
-  {
-    type: "link",
-    label: "Niveaux d’accès",
-    href: "/admin/equipe/niveaux",
-    id: "admin-nav-equipe",
-    icon: UsersThreeIcon,
-    needs: ["team.manage"],
   },
 ];
 

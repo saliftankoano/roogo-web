@@ -22,14 +22,10 @@ import { roogoMotion } from "@/lib/motion";
 import { TEAM_TASKS_CHANGED } from "./team/events";
 import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
-const teamLevelsHref = "/admin/equipe/niveaux";
-
 function isLinkActive(pathname: string, href: string) {
   // "/admin" is the briefing: exact, plus the pages opened from it (team
   // board, goals and their levers, call notes).
   if (href === todayNavItem.href) {
-    // The access levels page under it belongs to its own nav item.
-    if (pathname === teamLevelsHref || pathname.startsWith(`${teamLevelsHref}/`)) return false;
     return pathname === href || ["/admin/equipe", "/admin/objectifs", "/admin/notes-appels"].some(
       (page) => pathname === page || pathname.startsWith(`${page}/`),
     );

@@ -6,6 +6,12 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-17
+
+- **Access levels page moved to `/admin/acces`** (web, branch `feat/team-dashboard`, not merged): invitations, the access journal and setting levels now live on « Accès » (`/admin/acces`, same `team.manage` guard as before), because `/admin/equipe` is now the L'équipe board. `/admin/equipe/niveaux`, used only on this branch, redirects there. On `feat/fiche-visite` « Accès » has two tabs: « Qui peut faire quoi » (`/admin/acces`, every staff member, default) and « Niveaux et invitations » (`/admin/acces/niveaux`, `team.manage` only). [Decision](./DECISIONS.md#the-access-page-is-adminacces--2026-10-17).
+
+- **Security: users table no longer readable or writable with the public key** (web and mobile branch `fix/users-table-exposure`, not merged, migrations 094 and 095 not run): 094 removes every client write on `users`, closes `staff_users`, and makes `public_property_details` return no renter and run with its owner's rights; 095, after the mobile OTA, turns on row security so a signed-in user reads only their own row and the anon key none. Mobile reads the own row with the Clerk token. Read-only check: `node scripts/check-users-exposure.mjs`. [Decision](./DECISIONS.md#the-users-table-is-private-public-owner-fields-come-only-from-the-listing-view-security--2026-10-17).
+
 ## 2026-10-16
 
 - **« Vendu » listing status and automatic follower readings** (web, branch `feat/objectifs-equipe`, not merged; migration 093 run by Salif on 2026-10-17): Directeur or Fondateur marks a sale listing « Vendu » with the notary date and price; the sales goal counts these; « Expirée » no longer means sold. Facebook and Instagram followers read nightly from Meta (needs `META_GRAPH_TOKEN`); new goal « 500 abonnés Instagram ». [Decision](./DECISIONS.md#sales-come-from-a--vendu--listing-status-follower-counts-are-read-from-meta-every-night--2026-10-16).
