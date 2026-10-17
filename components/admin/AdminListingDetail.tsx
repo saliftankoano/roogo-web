@@ -1,5 +1,6 @@
 "use client";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
 import { useState, useEffect, useRef } from "react";
 import { PropertyDetailSkeleton } from "@/components/admin/skeletons";
@@ -17,6 +18,7 @@ import {
   WarningCircleIcon,
   EnvelopeIcon,
   PhoneIcon,
+  HashIcon,
   BuildingsIcon,
   FacebookLogoIcon,
   InfoIcon,
@@ -183,6 +185,8 @@ export default function AdminListingDetail({
   const [editError, setEditError] = useState<string | null>(null);
 
   const isStaffOrFounder = isStaffLikeMetadata(clerkUser?.publicMetadata);
+  const staffAccess = useStaffAccess();
+  const canViewFinances = staffAccess.can("finances.view");
 
   const startEditing = () => {
     if (!listing) return;
@@ -384,13 +388,16 @@ export default function AdminListingDetail({
           setAdminPendingEdit(pendingJson.pendingEdit ?? null);
         }
 
-        // Fetch transactions SECURELY via Server Action
-        const transactionsData = await getSecureTransactions(
-          id,
-          propertyData?.payment_id,
-          propertyData?.transaction_id,
-        );
-        setTransactions(transactionsData);
+        // Payment records are financial data (founder and director). Fetch
+        // them SECURELY via Server Action, and not at all for other levels.
+        if (canViewFinances) {
+          const transactionsData = await getSecureTransactions(
+            id,
+            propertyData?.payment_id,
+            propertyData?.transaction_id,
+          );
+          setTransactions(transactionsData);
+        }
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -412,7 +419,7 @@ export default function AdminListingDetail({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [id]);
+  }, [id, canViewFinances]);
 
   useEffect(() => {
     if (!saleIntake || saleIntake.status !== "unlinked" || !ownerSearch.trim()) {
@@ -953,13 +960,15 @@ export default function AdminListingDetail({
               )}
             </>
           )}
-          <Button
-            variant="ghost"
-            className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
-            onClick={() => setDeleteModalOpen(true)}
-          >
-            Supprimer
-          </Button>
+          {staffAccess.can("listings.delete") && (
+            <Button
+              variant="ghost"
+              className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
+              onClick={() => setDeleteModalOpen(true)}
+            >
+              Supprimer
+            </Button>
+          )}
           <div className="relative" ref={dropdownRef}>
             <Button
               onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
@@ -1002,7 +1011,13 @@ export default function AdminListingDetail({
                       label: "Expirée (Louée/Vendue)",
                       color: "text-neutral-500",
                     },
-                  ].map((status) => (
+                  ]
+                    .filter(
+                      (status) =>
+                        status.id !== "en_ligne" ||
+                        staffAccess.can("listings.publish"),
+                    )
+                    .map((status) => (
                     <button
                       key={status.id}
                       onClick={() => initiateStatusChange(status.id)}
@@ -1368,6 +1383,19 @@ export default function AdminListingDetail({
               </div>
 
               <div className="space-y-3 pt-2 border-t border-neutral-50">
+                {listing.reference && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
+                      <HashIcon size={16} weight="bold" />
+                    </div>
+                    <span
+                      title="Référence de l'annonce"
+                      className="font-mono font-semibold tracking-wide text-neutral-700"
+                    >
+                      {listing.reference}
+                    </span>
+                  </div>
+                )}
                 {listing.agent?.phone && (
                   <div className="flex items-center gap-3 text-sm">
                     <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">

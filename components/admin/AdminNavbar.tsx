@@ -18,6 +18,7 @@ import {
   type AdminNavItem,
 } from "../../lib/navigation/adminNav";
 import { roogoMotion } from "@/lib/motion";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 import { useStudioApprovals } from "./useStudioApprovals";
 
 /** Founder only: posts waiting for validation, on the Studio item. */
@@ -108,11 +109,10 @@ export function AdminNavbar() {
   const pathname = usePathname();
   const { isLoaded, user } = useUser();
 
-  const userType = (user?.publicMetadata?.userType ||
-    user?.publicMetadata?.user_type) as string | undefined;
-  const isFounder = userType === "founder";
+  const { canAny, level } = useStaffAccess();
 
-  const navItems = useMemo(() => getAdminNavItems(isFounder), [isFounder]);
+  const isFounder = level === "founder";
+  const navItems = useMemo(() => getAdminNavItems(canAny), [canAny]);
   const waitingApprovals = useStudioApprovals(isFounder);
   const activeEntryId = useMemo(
     () => getActiveEntryId(pathname, navItems),

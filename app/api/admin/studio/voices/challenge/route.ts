@@ -5,6 +5,8 @@ import { isVoiceCloningEnabled } from "@/lib/studio/flags";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   buildChallengeSentence,
+  buildGuestChallengeSentence,
+  cleanGuestName,
   CHALLENGE_TTL_MINUTES,
   generateCode,
   READ_ALOUD_PARAGRAPH,
@@ -18,16 +20,26 @@ export async function OPTIONS(req: Request) {
 }
 
 // Starts a cloning attempt: a fresh sentence and code to read aloud at the
-// start of the recording. Refused up front if the person already has a voice.
+// start of the recording. For the person's own voice, refused up front if they
+// already have one. With { guest_name }, it is for a guest who is present and
+// reads the guest sentence (Roogo marketing, no time limit); guests never use
+// the staff member's own voice slot.
 export async function POST(req: Request) {
-  const staff = await getStaffOrFounder(req);
+  const staff = await getStaffOrFounder(req, "studio.cloneVoice");
   if (!staff) return errorResponse("Forbidden", 403, req);
   if (!isVoiceCloningEnabled()) {
     return errorResponse("La création de voix n'est pas encore ouverte.", 404, req);
   }
 
+  const body = (await req.json().catch(() => null)) as { guest_name?: unknown } | null;
+  const asGuest = body !== null && body.guest_name !== undefined;
+  const guestName = asGuest ? cleanGuestName(body?.guest_name) : null;
+  if (asGuest && !guestName) {
+    return errorResponse("Écrivez le nom et le prénom de l'invité (lettres uniquement).", 400, req);
+  }
+
   const voices = await loadVoices();
-  if (!canOwnAnotherVoice(staff.id, voices)) {
+  if (!guestName && !canOwnAnotherVoice(staff.id, voices)) {
     return errorResponse(
       "Vous avez déjà une voix. Retirez-la d'abord pour en créer une nouvelle.",
       409,
@@ -37,7 +49,9 @@ export async function POST(req: Request) {
 
   const code = generateCode();
   const now = new Date();
-  const sentence = buildChallengeSentence(staff.full_name ?? "", code, now);
+  const sentence = guestName
+    ? buildGuestChallengeSentence(guestName, code, now)
+    : buildChallengeSentence(staff.full_name ?? "", code, now);
 
   const { data, error } = await supabaseAdmin
     .from("studio_voice_challenges")
@@ -45,6 +59,8 @@ export async function POST(req: Request) {
       user_id: staff.id,
       sentence,
       code,
+      subject: guestName ? "guest" : "self",
+      subject_name: guestName,
       expires_at: new Date(
         now.getTime() + CHALLENGE_TTL_MINUTES * 60_000,
       ).toISOString(),

@@ -165,9 +165,19 @@ export function PropertyCard({
           )}
         </div>
 
-        <h3 className="text-lg font-bold text-neutral-900 mb-2 line-clamp-1">
-          {property.location}
-        </h3>
+        <div className="mb-2 flex items-baseline justify-between gap-3">
+          <h3 className="min-w-0 text-lg font-bold text-neutral-900 line-clamp-1">
+            {property.location}
+          </h3>
+          {property.reference && (
+            <span
+              title="Référence de l'annonce"
+              className="shrink-0 font-mono text-[11px] font-semibold tracking-wide text-neutral-400"
+            >
+              {property.reference}
+            </span>
+          )}
+        </div>
 
         <p className="text-sm text-neutral-500 line-clamp-2 mb-4 grow">
           {property.description}

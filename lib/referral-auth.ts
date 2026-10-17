@@ -1,6 +1,8 @@
 import { verifyToken } from "@clerk/backend";
 import { auth, currentUser } from "@clerk/nextjs/server";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
+import { type StaffCapability, staffLevelCan } from "@/lib/staff-access";
+import { staffLevelFromMetadata } from "@/lib/staff-access-server";
 
 export type SupabaseUser = NonNullable<
   Awaited<ReturnType<typeof getOrSyncUserByClerkId>>
@@ -29,10 +31,17 @@ export async function resolveSupabaseUserFromRequest(
 
 export async function requireAdminSupabaseUser(
   allowedTypes: string[] = ["staff", "founder", "admin"],
+  capability?: StaffCapability,
 ): Promise<SupabaseUser> {
   const user = await currentUser();
   const userType = user?.publicMetadata?.userType;
   if (!user || !allowedTypes.includes(String(userType))) {
+    throw new Error("Forbidden");
+  }
+  if (
+    capability &&
+    !staffLevelCan(staffLevelFromMetadata(user.publicMetadata), capability)
+  ) {
     throw new Error("Forbidden");
   }
 
