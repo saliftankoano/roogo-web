@@ -217,7 +217,7 @@ export function unitWord(metric: GoalMetric, n: number) {
 
 export const GOAL_PERIODS = ["month", "recurring_month", "quarter", "year"] as const;
 export type GoalPeriod = (typeof GOAL_PERIODS)[number];
-/** Tabs on Mon espace: Tous / Ce mois / Ce trimestre / Cette année. */
+/** Tabs on Accueil: Tous / Ce mois / Ce trimestre / Cette année. */
 export type PeriodTab = "mois" | "trimestre" | "annee";
 
 export function isGoalPeriod(value: unknown): value is GoalPeriod {

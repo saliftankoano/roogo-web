@@ -406,7 +406,7 @@ and review state independently govern what the user may submit or edit.
 
 ### Objectif
 
-**Meaning:** A goal the founder sets for the whole team: what we measure, a target and a period (ce mois, chaque mois, ce trimestre, cette année). Everyone sees it on Mon espace.
+**Meaning:** A goal the founder sets for the whole team: what we measure, a target and a period (ce mois, chaque mois, ce trimestre, cette année). Everyone sees it on Accueil (named Mon espace until 2026-10-18).
 
 **Origin:** 2026-10-16 (Salif, design canvas).
 

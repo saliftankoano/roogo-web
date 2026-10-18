@@ -27,12 +27,13 @@ export const studioNavItem: AdminNavItemLink = {
   needs: ["studio.use"],
 };
 
-// "Mon espace": first item of the admin navbar only (the public Navbar keeps
-// its own list). It is active on /admin itself and on /admin/equipe,
-// /admin/objectifs and /admin/notes-appels (opened from it).
+// "Accueil" (named "Mon espace" until 2026-10-18): the staff home, first item
+// of the admin navbar only (the public Navbar keeps its own list). It is
+// active on /admin itself and on /admin/equipe, /admin/objectifs and
+// /admin/notes-appels (opened from it).
 export const todayNavItem: AdminNavItemLink = {
   type: "link",
-  label: "Mon espace",
+  label: "Accueil",
   href: "/admin",
   id: "admin-nav-today",
   icon: SquaresFourIcon,
@@ -46,6 +47,8 @@ export type AdminNavItem = {
   icon: typeof BuildingsIcon;
   /** Shown when the person holds at least one of these. Absent: shown to all staff. */
   needs?: readonly StaffCapability[];
+  /** Small heading above this item inside a group menu (starts a new section). */
+  section?: string;
 };
 type AdminNavItemLink = AdminNavItem;
 
@@ -149,6 +152,7 @@ const developmentNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Talent",
+    section: "Développement",
     href: "/admin/talent",
     id: "admin-nav-talent",
     icon: ClipboardTextIcon,
@@ -237,19 +241,14 @@ export function getAdminNavItems(
       icon: ClipboardTextIcon,
       children: operationsNavItems,
     },
-    {
-      type: "group",
-      label: "Développement",
-      id: "admin-nav-development",
-      icon: HandshakeIcon,
-      children: developmentNavItems,
-    },
+    // Développement (Talent, Parrainage) lives inside Pilotage since
+    // 2026-10-18 so the bar keeps five entries after Accueil.
     {
       type: "group",
       label: "Pilotage",
       id: "admin-nav-pilotage",
       icon: ChartLineUpIcon,
-      children: [...pilotageNavItems, ...founderPilotageNavItems],
+      children: [...pilotageNavItems, ...founderPilotageNavItems, ...developmentNavItems],
     },
   ];
 

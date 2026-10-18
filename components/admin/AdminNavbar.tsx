@@ -50,7 +50,7 @@ function isLinkActive(pathname: string, href: string) {
   return pathname === href || pathname.startsWith(`${href}/`);
 }
 
-/** Open tasks for today plus unread answers on demandes, on the "Mon espace" item; refreshed when tasks change. */
+/** Open tasks for today plus unread answers on demandes, on the "Accueil" item; refreshed when tasks change. */
 function useTodayCount(enabled: boolean) {
   const [count, setCount] = useState<number | null>(null);
   useEffect(() => {
@@ -113,6 +113,78 @@ function getActiveGroupId(pathname: string, navItems: AdminNavEntry[]) {
   );
 }
 
+// Desktop bar: icons only from lg (1024 px) to xl (1280 px), icons and
+// labels from xl. A label never wraps or truncates: below xl it is a
+// screen-reader label plus this tooltip on hover and keyboard focus.
+const desktopItemClass =
+  "group/nav relative flex items-center rounded-full px-3 py-2 text-sm font-bold outline-none transition-colors duration-200 focus-visible:ring-2 focus-visible:ring-primary/40";
+
+function NavTooltip({ label, hidden }: { label: string; hidden?: boolean }) {
+  if (hidden) return null;
+  return (
+    <span
+      aria-hidden="true"
+      className="pointer-events-none absolute left-1/2 top-full z-20 mt-2 -translate-x-1/2 whitespace-nowrap rounded-lg bg-neutral-900 px-2 py-1 text-xs font-semibold text-white opacity-0 shadow-md transition-opacity duration-150 group-hover/nav:opacity-100 group-focus-visible/nav:opacity-100 xl:hidden"
+    >
+      {label}
+    </span>
+  );
+}
+
+/** Children of a group, with a small heading where a new section starts. */
+function GroupLinks({
+  items,
+  pathname,
+  onNavigate,
+  size,
+}: {
+  items: AdminNavItem[];
+  pathname: string;
+  onNavigate: () => void;
+  size: "desktop" | "mobile";
+}) {
+  return (
+    <>
+      {items.map((child, index) => {
+        const childActive = isLinkActive(pathname, child.href);
+        const ChildIcon = child.icon;
+        const heading = child.section && child.section !== items[index - 1]?.section ? child.section : null;
+        return (
+          <div key={child.id} role="none">
+            {heading && (
+              <p
+                role="presentation"
+                className={cn(
+                  "px-4 pb-1 text-[11px] font-extrabold uppercase tracking-[0.06em] text-neutral-400",
+                  index > 0 && "mt-2 border-t border-neutral-100 pt-3",
+                )}
+              >
+                {heading}
+              </p>
+            )}
+            <Link
+              href={child.href}
+              data-id={child.id}
+              role={size === "desktop" ? "menuitem" : undefined}
+              aria-current={childActive ? "page" : undefined}
+              onClick={onNavigate}
+              className={cn(
+                "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-colors",
+                childActive
+                  ? "bg-primary/10 text-primary"
+                  : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
+              )}
+            >
+              <ChildIcon size={20} weight={childActive ? "fill" : "bold"} className="shrink-0" />
+              <span className="whitespace-nowrap">{child.label}</span>
+            </Link>
+          </div>
+        );
+      })}
+    </>
+  );
+}
+
 function DesktopNavLink({
   item,
   isActive,
@@ -128,8 +200,9 @@ function DesktopNavLink({
     <Link
       href={item.href}
       data-id={item.id}
+      aria-current={isActive ? "page" : undefined}
       className={cn(
-        "relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+        desktopItemClass,
         isActive ? "text-primary" : "text-neutral-500 hover:text-neutral-900",
       )}
     >
@@ -140,19 +213,12 @@ function DesktopNavLink({
           transition={roogoMotion.spring}
         />
       )}
-      <span className="relative z-10 flex items-center gap-2">
-        <Icon size={18} weight={isActive ? "fill" : "bold"} />
-        {/* Between lg and xl the bar is already full: Mon espace shows its icon and count only. */}
-        <span
-          className={cn(
-            "whitespace-nowrap",
-            item.id === todayNavItem.id && "sr-only xl:not-sr-only",
-          )}
-        >
-          {item.label}
-        </span>
+      <span className="relative z-10 flex items-center gap-1.5">
+        <Icon size={18} weight={isActive ? "fill" : "bold"} className="shrink-0" />
+        <span className="sr-only whitespace-nowrap xl:not-sr-only">{item.label}</span>
         {badge}
       </span>
+      <NavTooltip label={item.label} />
     </Link>
   );
 }
@@ -226,7 +292,7 @@ export function AdminNavbar() {
       className="fixed top-4 left-1/2 -translate-x-1/2 w-[calc(100%-2rem)] max-w-7xl mx-auto z-50"
     >
       <div
-        className="flex h-16 items-center justify-between rounded-full border border-white/40 bg-white/85 px-4 py-2 shadow-lg backdrop-blur-xl sm:px-6"
+        className="flex h-16 items-center justify-between gap-3 rounded-full border border-white/40 bg-white/85 px-3 py-2 shadow-lg backdrop-blur-xl sm:px-4"
       >
         <Link href="/" className="flex items-center shrink-0 group">
           <div className="mr-3 rounded-2xl bg-primary/10 p-2 transition-colors duration-200 group-hover:bg-primary/15">
@@ -246,9 +312,9 @@ export function AdminNavbar() {
         <div
           ref={desktopNavRef}
           data-id="staff-menu"
-          className="hidden lg:flex items-center gap-1 bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30"
+          className="hidden lg:flex items-center gap-0.5 bg-neutral-100/50 p-1 rounded-full border border-neutral-200/30"
         >
-          {navItems.map((item) => {
+          {navItems.map((item, index) => {
             const isActive = activeEntryId === item.id;
 
             if (item.type === "link") {
@@ -284,7 +350,7 @@ export function AdminNavbar() {
                     )
                   }
                   className={cn(
-                    "relative flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold outline-none transition-colors duration-200",
+                    desktopItemClass,
                     isActive
                       ? "text-primary"
                       : "text-neutral-500 hover:text-neutral-900",
@@ -297,18 +363,19 @@ export function AdminNavbar() {
                       transition={roogoMotion.spring}
                     />
                   )}
-                  <span className="relative z-10 flex items-center gap-2">
-                    <Icon size={18} weight={isActive ? "fill" : "bold"} />
-                    <span className="whitespace-nowrap">{item.label}</span>
+                  <span className="relative z-10 flex items-center gap-1.5">
+                    <Icon size={18} weight={isActive ? "fill" : "bold"} className="shrink-0" />
+                    <span className="sr-only whitespace-nowrap xl:not-sr-only">{item.label}</span>
                     <CaretDownIcon
-                      size={14}
+                      size={12}
                       weight="bold"
                       className={cn(
-                        "transition-transform duration-200",
+                        "shrink-0 transition-transform duration-200",
                         isOpen && "rotate-180",
                       )}
                     />
                   </span>
+                  <NavTooltip label={item.label} hidden={isOpen} />
                 </button>
 
                 <AnimatePresence>
@@ -319,34 +386,19 @@ export function AdminNavbar() {
                       exit={{ opacity: 0, y: 4 }}
                       transition={roogoMotion.quick}
                       role="menu"
-                      className="absolute left-0 top-full mt-3 w-64 overflow-hidden rounded-[24px] border border-neutral-200/70 bg-white p-2 shadow-2xl"
+                      aria-label={item.label}
+                      className={cn(
+                        "absolute top-full mt-3 w-64 overflow-hidden rounded-[24px] border border-neutral-200/70 bg-white p-2 shadow-2xl",
+                        // The last groups sit near the avatar: open them leftwards so they stay on screen.
+                        index >= navItems.length - 2 ? "right-0" : "left-0",
+                      )}
                     >
-                      {item.children.map((child) => {
-                        const childActive = isLinkActive(pathname, child.href);
-                        const ChildIcon = child.icon;
-
-                        return (
-                          <Link
-                            key={child.id}
-                            href={child.href}
-                            data-id={child.id}
-                            role="menuitem"
-                            onClick={() => setOpenGroupId(null)}
-                            className={cn(
-                              "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-colors",
-                              childActive
-                                ? "bg-primary/10 text-primary"
-                                : "text-neutral-600 hover:bg-neutral-50 hover:text-neutral-950",
-                            )}
-                          >
-                            <ChildIcon
-                              size={20}
-                              weight={childActive ? "fill" : "bold"}
-                            />
-                            {child.label}
-                          </Link>
-                        );
-                      })}
+                      <GroupLinks
+                        items={item.children}
+                        pathname={pathname}
+                        onNavigate={() => setOpenGroupId(null)}
+                        size="desktop"
+                      />
                     </motion.div>
                   )}
                 </AnimatePresence>
@@ -355,28 +407,16 @@ export function AdminNavbar() {
           })}
         </div>
 
-        <div className="flex min-w-0 shrink items-center gap-2 sm:gap-4">
+        <div className="flex shrink-0 items-center gap-2 sm:gap-3">
           {!isLoaded ? (
             <div className="w-10 h-10 rounded-full bg-neutral-100 animate-pulse" />
           ) : (
-            <div className="flex min-w-0 items-center gap-3">
-              {/* Name and email only when the row has room (xl and up); they
-                  are capped and truncated so a long name never pushes the
-                  avatar out of the pill. */}
-              <div className="hidden min-w-0 max-w-44 flex-col items-end leading-tight xl:flex 2xl:max-w-56">
-                <span
-                  className="w-full truncate text-right text-sm font-bold text-neutral-900"
-                  title={user?.fullName ?? undefined}
-                >
-                  {user?.fullName || "Administrateur"}
-                </span>
-                <span
-                  className="w-full truncate text-right text-[11px] font-medium text-neutral-500 opacity-70"
-                  title={user?.primaryEmailAddress?.emailAddress}
-                >
-                  {user?.primaryEmailAddress?.emailAddress}
-                </span>
-              </div>
+            // Avatar only: the name and email are in its menu (and in the
+            // tooltip), so the bar never crops them.
+            <div
+              className="flex shrink-0 items-center"
+              title={[user?.fullName, user?.primaryEmailAddress?.emailAddress].filter(Boolean).join(" · ") || undefined}
+            >
               <UserButton
                 afterSignOutUrl="/"
                 appearance={{
@@ -428,7 +468,7 @@ export function AdminNavbar() {
             exit={{ opacity: 0, y: 6 }}
             transition={roogoMotion.standard}
             data-id="staff-menu"
-            className="lg:hidden absolute top-full left-0 right-0 mt-4 bg-white/95 backdrop-blur-xl rounded-[32px] p-6 shadow-2xl border border-white/50 flex flex-col gap-2"
+            className="lg:hidden absolute top-full left-0 right-0 mt-4 max-h-[calc(100dvh-7rem)] overflow-y-auto overscroll-contain bg-white/95 backdrop-blur-xl rounded-[32px] p-6 shadow-2xl border border-white/50 flex flex-col gap-2"
           >
             {navItems.map((item) => {
               const isActive = isEntryActive(pathname, item);
@@ -471,37 +511,16 @@ export function AdminNavbar() {
                           initial={{ height: 0, opacity: 0 }}
                           animate={{ height: "auto", opacity: 1 }}
                           exit={{ height: 0, opacity: 0 }}
+                          transition={roogoMotion.standard}
                           className="overflow-hidden"
                         >
                           <div className="ml-4 mt-1 flex flex-col gap-1 border-l border-neutral-100 pl-3">
-                            {item.children.map((child) => {
-                              const childActive = isLinkActive(
-                                pathname,
-                                child.href,
-                              );
-                              const ChildIcon = child.icon;
-
-                              return (
-                                <Link
-                                  key={child.id}
-                                  href={child.href}
-                                  data-id={child.id}
-                                  onClick={() => setMobileMenuOpen(false)}
-                                  className={cn(
-                                    "flex items-center gap-3 rounded-2xl px-4 py-3 text-sm font-bold transition-all",
-                                    childActive
-                                      ? "bg-primary/10 text-primary"
-                                      : "text-neutral-600 hover:bg-neutral-50",
-                                  )}
-                                >
-                                  <ChildIcon
-                                    size={20}
-                                    weight={childActive ? "fill" : "bold"}
-                                  />
-                                  {child.label}
-                                </Link>
-                              );
-                            })}
+                            <GroupLinks
+                              items={item.children}
+                              pathname={pathname}
+                              onNavigate={() => setMobileMenuOpen(false)}
+                              size="mobile"
+                            />
                           </div>
                         </motion.div>
                       )}

@@ -82,8 +82,13 @@ test('public roles have five tailored slots and the same destinations on mobile'
 test('staff operations stay grouped and founder-only destinations stay restricted', () => {
   const staff = nav(render(signedIn('staff')), 'Navigation principale');
   const founder = nav(render(signedIn('founder')), 'Navigation principale');
-  assert.equal((staff.match(/<details/g) || []).length, 4);
-  for (const label of ['Messages', 'Opérations', 'Développement', 'Pilotage']) assert.ok(staff.includes(label));
+  // Développement (Talent, Parrainage) sits inside Pilotage since 2026-10-18.
+  assert.equal((staff.match(/<details/g) || []).length, 3);
+  for (const label of ['Messages', 'Opérations', 'Pilotage']) assert.ok(staff.includes(label));
+  assert.doesNotMatch(staff, />Développement</);
+  const pilotage = staff.slice(staff.indexOf('Pilotage'));
+  assert.match(pilotage, /href="\/admin\/talent"/);
+  assert.match(pilotage, /href="\/admin\/parrainage"/);
   assert.doesNotMatch(staff, /href="\/admin\/(finances|parametres)"/);
   assert.match(founder, /href="\/admin\/finances"/);
   assert.match(founder, /href="\/admin\/parametres"/);

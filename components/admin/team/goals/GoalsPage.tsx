@@ -3,7 +3,7 @@
 // /admin/objectifs (Objectifs.dc.html on desktop, ObjectifsMobile.dc.html on
 // the phone): the goals as cards, then the selected goal's levers, « Ma part »
 // for the viewer, who keeps their levers this week, and how each number is
-// counted. Opened from Mon espace (« Voir les leviers »). Everyone reads; the
+// counted. Opened from Accueil (« Voir les leviers »). Everyone reads; the
 // founder adds goals and levers; the server checks it.
 
 import Link from "next/link";
@@ -59,7 +59,7 @@ export function GoalsPage({ initial, initialGoalId, founderName }: { initial: Go
       <header data-anim className="flex flex-wrap items-end gap-x-6 gap-y-3">
         <div className="flex min-w-0 flex-[1_1_560px] flex-col gap-1.5">
           <Link href="/admin" className="mb-1 inline-flex min-h-11 items-center self-start text-sm font-extrabold text-[#8A4924] no-underline hover:text-[#5A321A] lg:min-h-0">
-            ‹ Mon espace
+            ‹ Accueil
           </Link>
           <span className="text-xs font-extrabold uppercase tracking-[0.08em] text-[#8A4924] lg:text-[13px]">{eyebrow}</span>
           <h1 className="m-0 text-[28px] font-extrabold tracking-[-0.01em] lg:text-[34px]">Nos objectifs</h1>

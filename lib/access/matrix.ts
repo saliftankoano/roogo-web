@@ -152,7 +152,7 @@ export const AREAS: Area[] = [
   {
     id: "taches",
     title: "Tâches et demandes au Fondateur",
-    intro: "Mon espace (le briefing) et L’équipe. Le titre de chacun est son niveau d’accès.",
+    intro: "Accueil (le briefing) et L’équipe. Le titre de chacun est son niveau d’accès.",
     rules: [
       {
         id: "briefing",
