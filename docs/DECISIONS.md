@@ -5,6 +5,28 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### Admin navbar: Accueil, five entries, avatar only — 2026-10-18
+
+**Decision:** The first admin item is « Accueil » (was « Mon espace »). Talent and Parrainage move from « Développement » into « Pilotage » under a « Développement » heading, so the bar has Accueil, Annonces, Studio, Messages, Opérations, Pilotage. The name and email leave the bar: the avatar opens Clerk's menu, which shows both. From 1024 to 1279 px the bar shows icons with tooltips and screen-reader labels; labels appear from 1280 px.
+
+**Why:** Salif (2026-10-18): the bar was too big, « Mon espace » wrapped and the name and email were truncated. « Accueil » is the shortest label every French speaker reads as "the home of this space", and it covers tasks, goals and demandes; « Aujourd’hui » was rejected because the page is more than today. Développement and Pilotage are the least used groups.
+
+**Ruled out:** « Bureau » (clear but less familiar as a menu word), « Tableau de bord » (too long), « Briefing » (anglicism); a « Plus » menu (hides where things are without saving more width than the merge).
+
+### Users goal counts Clerk accounts, Supabase rows are the comparison — 2026-10-18
+
+**Decision:** The « utilisateurs » goal counts Clerk accounts minus staff, founder, admin (`publicMetadata.userType`) and test addresses (`+clerk_test`, `@example.com/.org`). Creation times are cached 10 minutes in Upstash Redis (per-instance memory without Redis). Supabase `users` rows stay as the « Fiches Roogo » line next to « Comptes Clerk » and as the fallback when Clerk does not answer.
+
+**Why:** Salif (2026-10-18): the number did not match reality. A `users` row is created only when a Clerk user first reaches the API (`lib/user-sync.ts`), so accounts that signed up and never came back were missing. Clerk is where accounts live.
+
+**Ruled out:** running a backfill silently (a script is provided, dry run by default, for Salif to run against production); counting Supabase rows and Clerk accounts together.
+
+### TikTok followers come from TikTok's official API after one founder authorization — 2026-10-18
+
+**Decision:** The founder connects @roogo.226 once with TikTok Login Kit (scope `user.info.stats`). Access (24 hours) and refresh (365 days) tokens are encrypted with AES-256-GCM (`SOCIAL_TOKENS_KEY`) in `social_tokens`, readable by the service role only. The nightly cron refreshes the access token when it has less than 10 minutes left, keeps TikTok's new refresh token, reads `follower_count` from `/v2/user/info/` and writes a reading with source « automatique ». Without a connection the cron answers `tiktok: "not connected"` and readings stay manual.
+
+**Why:** Salif asked for TikTok to be read like Facebook and Instagram. TikTok's Display API is the only legitimate source; scraping the website is ruled out. Without the encryption key nothing is stored, so tokens never sit in clear in the database.
+
 ### The access page is /admin/acces — 2026-10-17
 
 **Decision:** The staff levels page (invitations, access journal, setting levels) lives at `/admin/acces`, named « Accès » in the navigation. Salif chose the French word for access over `/admin/equipe/niveaux`.
@@ -41,7 +63,7 @@ out. Newest first. For what shipped and when, see
 
 ### Team goals: every number from a record, founder-only changes, sales confirmed by hand — 2026-10-16
 
-**Decision:** « Nos objectifs » (Mon espace and `/admin/objectifs`) shows goals the founder sets, each with a metric, a target and a period (`month`, `recurring_month`, `quarter`, `year`). Numbers are computed at read time from their own records: users (users rows minus staff, founder and test accounts), properties under an active rental agreement, properties put online in the period, and sales. Roogo has no "sold" status, so a sale counts only once the founder confirms it in `team_goal_sales` (property and notary signature date). Follower counts (TikTok, Facebook, Instagram) are manual readings with an optional screenshot in a private bucket, keyed by metric (the count belongs to the account, not to a goal); no server-side Meta Graph token exists, so Facebook is manual too. Status words come from the real pace against the required pace (En bonne voie at 100% or more, À suivre from 60%, Il faut agir below, Atteint, Pas atteint once the period is over); a pace is judged only after a week of measurement. Only the founder creates, archives, retargets goals, edits levers and confirms sales; founder and Directeur enter readings; a lever is ticked by its owner, the Directeur or the founder. All of it is enforced in `lib/team-goals/server.ts`.
+**Decision:** « Nos objectifs » (Mon espace, now Accueil, and `/admin/objectifs`) shows goals the founder sets, each with a metric, a target and a period (`month`, `recurring_month`, `quarter`, `year`). Numbers are computed at read time from their own records: users (users rows minus staff, founder and test accounts), properties under an active rental agreement, properties put online in the period, and sales. Roogo has no "sold" status, so a sale counts only once the founder confirms it in `team_goal_sales` (property and notary signature date). Follower counts (TikTok, Facebook, Instagram) are manual readings with an optional screenshot in a private bucket, keyed by metric (the count belongs to the account, not to a goal); no server-side Meta Graph token exists, so Facebook is manual too. Status words come from the real pace against the required pace (En bonne voie at 100% or more, À suivre from 60%, Il faut agir below, Atteint, Pas atteint once the period is over); a pace is judged only after a week of measurement. Only the founder creates, archives, retargets goals, edits levers and confirms sales; founder and Directeur enter readings; a lever is ticked by its owner, the Directeur or the founder. All of it is enforced in `lib/team-goals/server.ts`.
 
 **Why:** Approved on the design canvas with Salif (2026-10-16): "nothing on this dash is static; every number has its proof". The evidence drawer shows that proof, with counts only for users (no names, emails or phones).
 

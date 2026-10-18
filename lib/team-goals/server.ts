@@ -13,6 +13,7 @@ import { randomUUID } from "node:crypto";
 import { createClerkClient } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { redis } from "@/lib/rate-limit";
+import { isTikTokConnected } from "./tiktok-store";
 import { accountsGapLine, cachedClerkAccounts, type CacheStore, type ListClerkUsers } from "./clerk-users";
 import { propertyLabel } from "@/lib/team-tasks/sources";
 import type { Person } from "@/lib/team-tasks/core";
@@ -33,6 +34,7 @@ import {
   goalWindow,
   isManualMetric,
   leverDoneThisWeek,
+  metricDefFor,
   listedInWindow,
   pastMonthWindows,
   periodChoices,
@@ -254,6 +256,8 @@ type Loaded = {
   contracts?: { rows: { property_id: string; start_date: string | null; monthly_rent: number | null; property: PropertyBits | null }[] };
   sales?: { rows: SoldProperty[]; forSale: PropertyBits[] };
   listings?: PropertyBits[];
+  /** A TikTok account is connected: its readings come in every night. */
+  tiktokConnected?: boolean;
 };
 
 type UsersLoaded = {
@@ -605,6 +609,7 @@ async function loadMetrics(goals: GoalRow[], ctx: Ctx, readings?: ReadingRow[]):
       loaded.proofUrls = r.proofUrls;
     });
   }
+  if (metrics.has("tiktok_followers")) jobs.push(isTikTokConnected().then((v) => { loaded.tiktokConnected = v; }));
   if (metrics.has("properties_under_contract")) guard(["properties_under_contract"], async () => { loaded.contracts = await loadContracts(); });
   if (metrics.has("properties_sold")) guard(["properties_sold"], async () => { loaded.sales = await loadSales(); });
   if (metrics.has("properties_listed_in_period")) {
@@ -751,7 +756,7 @@ export async function goalsFromRows(
   });
 
   const views: GoalView[] = goals.map((goal) => {
-    const def = METRICS[goal.metric];
+    const def = metricDefFor(goal.metric, { tiktokConnected: loaded.tiktokConnected });
     const window = windows.get(goal.id)!;
     const metric = failed.includes(goal.metric)
       ? { current: null, actualPerDay: null, paceText: "Le chiffre n’a pas pu se charger. Rechargez la page.", listTitle: "", evidence: [], history: [] }

@@ -187,6 +187,24 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
   },
 };
 
+/**
+ * The definition shown for a goal. TikTok joins the nightly automatic
+ * readings only once the founder has connected the account (« Connecter
+ * TikTok », lib/team-goals/tiktok-store.ts); until then it stays manual.
+ * Manual entry stays open as the fallback either way.
+ */
+export function metricDefFor(metric: GoalMetric, opts: { tiktokConnected?: boolean } = {}): MetricDef {
+  const def = METRICS[metric];
+  if (metric === "tiktok_followers" && opts.tiktokConnected) {
+    return {
+      ...def,
+      source: "Lu chaque nuit",
+      measure: "Abonnés du compte TikTok @roogo.226, lus automatiquement chaque nuit chez TikTok. Si la lecture ne passe pas, le chiffre se saisit à la main avec la capture d’écran en preuve.",
+    };
+  }
+  return def;
+}
+
 /** Catalogue order in « Ajouter un objectif » (approved canvas). */
 export const CATALOG_ORDER: GoalMetric[] = [
   "properties_listed_in_period",
@@ -605,6 +623,7 @@ export type ReadingSource = "manuel" | "automatique";
 const AUTO_PLATFORM: Partial<Record<GoalMetric, string>> = {
   facebook_followers: "Facebook",
   instagram_followers: "Instagram",
+  tiktok_followers: "TikTok",
 };
 
 /** Under a reading in the drawer: « Lu automatiquement sur Facebook » or « Saisi par Salif ». */

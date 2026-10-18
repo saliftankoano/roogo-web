@@ -17,7 +17,7 @@
 //
 // No runtime imports: the test loads this file directly with Node.
 
-export const LAST_REVIEWED = "2026-10-17";
+export const LAST_REVIEWED = "2026-10-18";
 
 export type Level = "fondateur" | "directeur" | "assistant" | "conseillere" | "stagiaire";
 
@@ -48,7 +48,7 @@ export const LEVEL_CARDS: LevelCard[] = [
   {
     level: "fondateur",
     summary:
-      "Tout, y compris les Paramètres, la nomination d’un Directeur, les réponses aux demandes, la validation des publications du Studio et les objectifs de l’équipe (objectifs et leviers).",
+      "Tout, y compris les Paramètres, la nomination d’un Directeur, les réponses aux demandes, la validation des publications du Studio, les objectifs de l’équipe (objectifs et leviers) et la connexion du compte TikTok.",
     source: "Type de compte « founder » dans Clerk. Il ne se donne pas dans l’appli.",
   },
   {
@@ -330,6 +330,21 @@ export const AREAS: Area[] = [
           "app/api/admin/goals/route.ts",
           "app/api/admin/goals/[id]/route.ts",
           "app/api/admin/goals/levers/route.ts",
+        ],
+        titleMatters: true,
+      },
+      {
+        id: "social-connect",
+        action: "Connecter ou déconnecter le compte TikTok (abonnés lus chaque nuit)",
+        detail: "Une seule fois, avec le compte @roogo.226 sur TikTok. Les jetons restent chiffrés sur le serveur ; personne ne les voit.",
+        access: FOUNDER_ONLY,
+        enforcedBy: ["serveur"],
+        files: [
+          "app/api/admin/social/tiktok/_shared.ts",
+          "app/api/admin/social/tiktok/connect/route.ts",
+          "app/api/admin/social/tiktok/callback/route.ts",
+          "app/api/admin/social/tiktok/disconnect/route.ts",
+          "app/api/admin/social/tiktok/status/route.ts",
         ],
         titleMatters: true,
       },

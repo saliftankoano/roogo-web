@@ -11,11 +11,12 @@ import gsap from "gsap";
 import { useEffect, useId, useRef, useState } from "react";
 import { LockSimpleIcon, PencilSimpleIcon, PlusIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
-import { METRICS, PRINCIPLE, type GoalMetric } from "@/lib/team-goals/core";
+import { PRINCIPLE } from "@/lib/team-goals/core";
 import type { GoalView, GoalsPayload, LeverView } from "@/lib/team-goals/server";
 import { CreamBackdrop, prefersReducedMotion, useEntrance } from "../ui";
 import { GoalIcon, STATUS_CHIP, STATUS_FILL, TAB_BADGE } from "./GoalIcon";
 import { GoalsOverlays, MyShare, UndoToast, useGoalsUi, type GoalsUi } from "./GoalsStrip";
+import { TikTokConnect } from "./TikTokConnect";
 
 export function GoalsPage({ initial, initialGoalId, founderName }: { initial: GoalsPayload; initialGoalId: string | null; founderName: string }) {
   const ui = useGoalsUi(initial);
@@ -179,12 +180,15 @@ export function GoalsPage({ initial, initialGoalId, founderName }: { initial: Go
             )}
             <section aria-labelledby="comment-compte" className="flex flex-col gap-2 rounded-[20px] border border-[#EFE6DA] bg-[#FBF7F1] p-4">
               <h2 id="comment-compte" className="m-0 text-sm font-extrabold">Comment c’est compté</h2>
-              {[...new Set(data.goals.map((g) => g.metric))].map((metric) => (
-                <p key={metric} className="m-0 text-[13px] leading-normal text-[#4A4540]">
-                  <strong>{METRICS[metric as GoalMetric].family} :</strong> {METRICS[metric as GoalMetric].measure}
-                </p>
-              ))}
+              {data.goals
+                .filter((g, i) => data.goals.findIndex((other) => other.metric === g.metric) === i)
+                .map((goal) => (
+                  <p key={goal.metric} className="m-0 text-[13px] leading-normal text-[#4A4540]">
+                    <strong>{goal.family} :</strong> {goal.measure}
+                  </p>
+                ))}
             </section>
+            {data.canManage && <TikTokConnect />}
             <section aria-label="Visible par" className="flex items-center gap-2.5 rounded-[20px] border border-[#EAE1D5] bg-white p-4">
               <LockSimpleIcon size={18} aria-hidden="true" className="shrink-0 text-[#6B625B]" />
               <span className="text-[13px] leading-snug text-[#4A4540]">Visible par toute l’équipe. Seul {founderName} crée et modifie les objectifs.</span>

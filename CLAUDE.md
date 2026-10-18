@@ -158,6 +158,10 @@ NEXT_PUBLIC_POSTHOG_HOST
 META_GRAPH_TOKEN        # server only: Meta Graph token for the nightly follower readings (never log it)
 META_PAGE_ID            # Roogo Burkina Facebook page id (1046356035218080)
 META_IG_ACCOUNT_ID      # @roogo.burkina Instagram business account id (17841436630471998)
+TIKTOK_CLIENT_KEY       # server only: TikTok developer app (Login Kit, scope user.info.stats)
+TIKTOK_CLIENT_SECRET    # server only, never logged
+TIKTOK_REDIRECT_URI     # optional; default <site>/api/admin/social/tiktok/callback (must be registered in the TikTok app)
+SOCIAL_TOKENS_KEY       # 32 random bytes, base64 (openssl rand -base64 32): encrypts social_tokens; without it TikTok cannot be connected
 ```
 
 ### Design System

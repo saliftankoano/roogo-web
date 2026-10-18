@@ -10,7 +10,8 @@
 export const META_GRAPH_VERSION = "v21.0";
 const TIMEOUT_MS = 10_000;
 
-export type FollowerMetric = "facebook_followers" | "instagram_followers";
+/** tiktok_followers comes from lib/team-goals/tiktok.ts, written by the same cron. */
+export type FollowerMetric = "facebook_followers" | "instagram_followers" | "tiktok_followers";
 
 export type FollowerTarget = { metric: FollowerMetric; objectId: string };
 
