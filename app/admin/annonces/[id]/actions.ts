@@ -109,3 +109,32 @@ export async function getSecureTransactions(propertyId: string, paymentId?: stri
 
   return allTransactions.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 }
+
+// Latest Google indexing check of one listing (098, daily cron). Null when
+// never checked or when the table does not exist yet.
+export async function getListingIndexCheck(propertyId: string) {
+  const { userId } = await auth();
+  if (!userId) throw new Error("Unauthorized");
+  const client = await clerkClient();
+  const user = await client.users.getUser(userId);
+  if (!staffLevelCan(staffLevelFromMetadata(user.publicMetadata), "listings.view")) {
+    throw new Error("Forbidden");
+  }
+  const { data, error } = await supabaseAdmin
+    .from("listing_index_checks")
+    .select("verdict, coverage_state, first_seen_at, checked_at, referring_urls, last_error")
+    .eq("property_id", propertyId)
+    .maybeSingle();
+  if (error) {
+    console.error("[listing-index] read failed", { code: error.code, message: error.message });
+    return null;
+  }
+  return data as {
+    verdict: string;
+    coverage_state: string | null;
+    first_seen_at: string;
+    checked_at: string;
+    referring_urls: string[];
+    last_error: string | null;
+  } | null;
+}

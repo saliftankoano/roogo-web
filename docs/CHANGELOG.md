@@ -6,6 +6,11 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-18
+
+- **Listings are linked for Google** (web PR #75, merged and deployed 2026-10-18): /proprietes lists every live listing as plain links (sale listings were only behind the client-side « Acheter » switch), each listing page links six similar ones, /plan-du-site lists all listings and is public (it redirected to sign-in), `?transaction=vendre` opens on sales, and « Publier mon bien » goes to `/mes-proprietes` (`/annonces/creer` no longer exists).
+- **Listing quality minimum and daily Google check** (web, branch `feat/listing-quality-indexing`, not merged, migration 098 not run): 60 words and 5 photos to go live, `/admin/annonces/google`, checklist card on the admin listing page, form hints, search-first titles and H1, « En résumé » paragraph, sitemap lastmod from the real last edit. [Decision](./DECISIONS.md#every-live-listing-meets-a-quality-minimum-and-is-checked-on-google-daily--2026-10-18).
+
 ## 2026-10-17
 
 - **Roogo Sell price approval** (web PR #74 and mobile PR, branch `feat/sale-listing-ladder`, not merged, not deployed, migrations 096 and 097 not run): sales still publish at owner price + 30%. The team decides any price from +10% up. Below +10% only the founder or the Directeur (who ticks « J'en ai discuté avec Salif »); below the owner's own price also « Le propriétaire a accepté ce prix (accord verbal) ». Other staff get 403. Each such price is recorded in `sale_price_approvals` and listed on the staff ladder panel. Owners see only what they receive at each final sale price (+30 %, +20 %, +15 %, +10 %, their price), never the approval rule. Rentals keep their price exactly as set. [Decision](./DECISIONS.md#sales-the-team-decides-from-10-below-10-needs-salif--2026-10-17).

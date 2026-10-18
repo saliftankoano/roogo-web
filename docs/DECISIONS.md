@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### Every live listing meets a quality minimum and is checked on Google daily — 2026-10-18
+
+**Decision:** A listing goes live (`en_ligne`) only with a description of at least 60 words and at least 5 photos (`lib/listing-quality.ts`, enforced by `PATCH /api/properties/[id]/status`, code `listing_quality_minimum`; test listings exempt). A daily cron asks the Search Console URL Inspection API whether each live listing is indexed; `/admin/annonces/google` lists every live listing with its quality checklist and Google status, and flags a listing not on Google 7 days after the check first saw it live. Listing pages lead with what people search: title "Terrain à vendre à Roumtinga, Ouagadougou : 8 500 000 FCFA", the same headline as H1, and an « En résumé » paragraph built only from the listing's fields. Approved by Salif on 2026-10-18.
+
+**Why:** On 2026-10-18 Search Console showed 12 listing and owner pages "Discovered - currently not indexed", found by chance. The discovery cause (sale listings not linked anywhere) was fixed in PR #75. The audit then showed 27 of 36 live listings under the new minimum, many with one-line descriptions ("Très belle opportunité de ça immobilier"), which Google often declines to index. Listings are the business; indexing cannot be left to chance or to someone opening Search Console.
+
+**Ruled out / alternatives:** Blocking owners at submission (older mobile builds validate 10 characters and 3 photos, and owner acquisition is the main constraint; staff complete a listing before publishing instead). The Google Indexing API (officially for job postings and livestreams only). Manual "Request indexing" as the process (about 10 per day). Unpublishing the 27 incomplete live listings (they stay live; the staff page lists them to complete).
+
+**Status:** Branch `feat/listing-quality-indexing`, not merged. Migration 098 not run. The cron needs `GSC_SERVICE_ACCOUNT_JSON` (a service account added as a user on the `sc-domain:roogobf.com` property); until then it returns `skipped`.
+
+---
+
 ### The access page is /admin/acces — 2026-10-17
 
 **Decision:** The staff levels page (invitations, access journal, setting levels) lives at `/admin/acces`, named « Accès » in the navigation. Salif chose the French word for access over `/admin/equipe/niveaux`.
