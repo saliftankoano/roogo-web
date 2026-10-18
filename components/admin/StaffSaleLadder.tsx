@@ -67,10 +67,14 @@ export default function StaffSaleLadder({ propertyId }: { propertyId: string }) 
           Impossible de charger l&apos;échelle de prix. Rechargez la page.
         </p>
       ) : !ladder ? (
-        <p className="mt-3 text-sm text-neutral-600">
-          Prix du propriétaire inconnu. Envoyez-lui un mandat pour fixer
-          l&apos;échelle de prix.
-        </p>
+        <div className="mt-3 space-y-1">
+          <p className="text-sm font-bold text-neutral-900">
+            Prix du propriétaire non renseigné
+          </p>
+          <p className="text-sm text-neutral-600">
+            Renseignez-le dans le mandat pour voir l&apos;échelle de prix.
+          </p>
+        </div>
       ) : (
         <div className="mt-3 space-y-4">
           <div className="text-sm text-neutral-600">

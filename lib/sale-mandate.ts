@@ -24,6 +24,11 @@ import {
   type SalePriceDecision,
 } from "@/lib/sale-price-guard";
 import { staffLevelFromUserRow } from "@/lib/staff-access-server";
+import {
+  mandateCommissionFromRow,
+  mandateLadderFromRow,
+  readPct,
+} from "@/lib/sale-ladder-snapshot";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // The price + exclusivity mandate the owner signs. Economics v2 (migration 050):
@@ -108,10 +113,8 @@ export async function getSaleCommissionConfig() {
   };
 }
 
-function num(value: unknown) {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? n : Number.NaN;
-}
+// NULL is missing, not 0 (see lib/sale-ladder-snapshot.ts).
+const num = readPct;
 
 export type SaleLadderConfig = SaleLadderPcts & SaleFeePcts;
 
@@ -167,14 +170,7 @@ export async function getSaleLadderConfig(): Promise<SaleLadderConfig> {
 
 /** The ladder snapshotted on a mandate, or null for mandates sent before it. */
 function mandateLadder(mandate: MandateRow): SaleLadderPcts | null {
-  const pcts = {
-    listingMarkupPct: num(mandate.listing_markup_pct),
-    targetMarkupPct: num(mandate.target_markup_pct),
-    // 075 column names: see getSaleLadderConfig.
-    referenceMarkupPct: num(mandate.team_floor_markup_pct),
-    teamFloorMarkupPct: num(mandate.hard_floor_markup_pct),
-  };
-  return Object.values(pcts).every(Number.isFinite) ? pcts : null;
+  return mandateLadderFromRow(mandate);
 }
 
 /**
@@ -634,9 +630,13 @@ export async function getStaffSaleLadder(
 
   const ladder = (live && mandateLadder(live)) ?? (await getSaleLadderConfig());
   const fees = await getSaleLadderConfig();
-  let base = Number(live?.base_commission_pct);
-  let split = Number(live?.surplus_split_pct);
-  if (!Number.isFinite(base) || !Number.isFinite(split)) {
+  const snapshot = mandateCommissionFromRow(live);
+  let base: number;
+  let split: number;
+  if (snapshot) {
+    base = snapshot.baseCommissionPct;
+    split = snapshot.surplusSplitPct;
+  } else {
     const commission = await getSaleCommissionConfig();
     base = commission.baseCommissionPct;
     split = commission.surplusSplitPct;
