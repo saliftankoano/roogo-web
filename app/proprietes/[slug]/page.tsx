@@ -4,7 +4,9 @@ import { notFound, permanentRedirect } from "next/navigation";
 import JsonLd from "@/components/JsonLd";
 import AdminListingDetail from "@/components/admin/AdminListingDetail";
 import { PropertyDetailClient } from "@/components/PropertyDetailClient";
+import { pickRelatedListings, RelatedListings } from "@/components/ListingLinks";
 import {
+  fetchAllOnlineProperties,
   fetchPropertyById,
   fetchPropertyBySlug,
   type Property,
@@ -148,10 +150,17 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
     );
   }
 
+  // Crawlable links to sibling listings, so every listing is reachable from
+  // another listing and not only from the sitemap.
+  const related = pickRelatedListings(property, await fetchAllOnlineProperties());
+
   return (
     <>
       <JsonLd schema={getPropertyPageSchema(property)} />
       <PropertyDetailClient initialListing={property} propertyId={property.id} />
+      <div className="bg-neutral-50/30">
+        <RelatedListings current={property} related={related} />
+      </div>
     </>
   );
 }
