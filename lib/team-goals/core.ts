@@ -116,8 +116,8 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
     unit: ["compte", "comptes"],
     kind: "stock",
     manual: false,
-    source: "Compté en direct",
-    measure: "Comptes Roogo créés sur l’app et le site. Les comptes de l’équipe et les comptes de test ne comptent pas.",
+    source: "Comptes Clerk",
+    measure: "Comptes créés sur l’app et le site, comptés chez Clerk (là où vivent les comptes). Les comptes de l’équipe et les comptes de test ne comptent pas.",
   },
   tiktok_followers: {
     family: "TikTok",

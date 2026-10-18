@@ -5,10 +5,15 @@
 // lib/team-goals/core.ts, never trusted from the client.
 //
 // Privacy: the users metric hands out counts per week only, never a name,
-// an email or a phone number.
+// an email or a phone number. Since 2026-10-18 it counts Clerk accounts (the
+// source of truth for accounts, lib/team-goals/clerk-users.ts); Supabase
+// `users` rows (« Fiches Roogo ») are the comparison line and the fallback.
 
 import { randomUUID } from "node:crypto";
+import { createClerkClient } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { redis } from "@/lib/rate-limit";
+import { accountsGapLine, cachedClerkAccounts, type CacheStore, type ListClerkUsers } from "./clerk-users";
 import { propertyLabel } from "@/lib/team-tasks/sources";
 import type { Person } from "@/lib/team-tasks/core";
 import type { ServiceResult, Viewer } from "@/lib/team-tasks/server";
@@ -243,7 +248,7 @@ type Ctx = {
 
 // One load per metric per request, shared by every goal on that metric.
 type Loaded = {
-  users?: { createdAts: string[] };
+  users?: UsersLoaded;
   readings?: Map<string, ReadingRow[]>;
   proofUrls?: Map<string, string>;
   contracts?: { rows: { property_id: string; start_date: string | null; monthly_rent: number | null; property: PropertyBits | null }[] };
@@ -251,7 +256,43 @@ type Loaded = {
   listings?: PropertyBits[];
 };
 
-async function loadUsers(): Promise<{ createdAts: string[] }> {
+type UsersLoaded = {
+  createdAts: string[];
+  /** Where the count comes from: Clerk, or Supabase rows when Clerk did not answer. */
+  source: "clerk" | "supabase";
+  /** Accounts that count, in Clerk (null when Clerk did not answer). */
+  clerkCount: number | null;
+  /** Supabase users rows that count (null when the read failed). */
+  roogoCount: number | null;
+};
+
+const clerkList: ListClerkUsers = async (params) => {
+  const secretKey = process.env.CLERK_SECRET_KEY;
+  if (!secretKey) throw new Error("CLERK_SECRET_KEY missing");
+  const page = await createClerkClient({ secretKey }).users.getUserList(params);
+  return { data: page.data, totalCount: page.totalCount };
+};
+
+async function loadUsers(): Promise<UsersLoaded> {
+  const [clerk, roogo] = await Promise.allSettled([
+    cachedClerkAccounts(clerkList, redis as unknown as CacheStore | null),
+    loadSupabaseUsers(),
+  ]);
+  const roogoCount = roogo.status === "fulfilled" ? roogo.value.createdAts.length : null;
+  if (roogo.status === "rejected") {
+    const e = roogo.reason as { code?: string; message?: string };
+    console.error("[team-goals] Supabase users read failed", { code: e?.code, message: e?.message });
+  }
+  if (clerk.status === "fulfilled") {
+    return { createdAts: clerk.value.createdAts, source: "clerk", clerkCount: clerk.value.createdAts.length, roogoCount };
+  }
+  const e = clerk.reason as { status?: number; message?: string };
+  console.error("[team-goals] Clerk users read failed, falling back to Supabase rows", { status: e?.status, message: e?.message });
+  if (roogo.status === "fulfilled") return { createdAts: roogo.value.createdAts, source: "supabase", clerkCount: null, roogoCount };
+  throw roogo.reason;
+}
+
+async function loadSupabaseUsers(): Promise<{ createdAts: string[] }> {
   const createdAts: string[] = [];
   const page = 1000;
   for (let from = 0; from < 50000; from += page) {
@@ -395,19 +436,29 @@ function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded):
 
   switch (goal.metric) {
     case "users": {
-      const times = loaded.users?.createdAts ?? [];
+      const users = loaded.users;
+      const times = users?.createdAts ?? [];
       const current = times.filter((iso) => dayKeyOf(new Date(iso)) <= at).length;
       const weeks = weeklyCounts(times, today, 8);
       const word = (n: number) => `${formatCount(n)} ${n > 1 ? "nouveaux comptes" : "nouveau compte"}`;
+      const gapRows: EvidenceRow[] = [];
+      if (users?.clerkCount != null && users.roogoCount != null) {
+        const line = accountsGapLine(users.clerkCount, users.roogoCount);
+        gapRows.push({ key: "clerk-vs-roogo", tag: "Écart", tagTone: "light", title: line.title, sub: line.sub, href: null, link: null, proofUrl: null });
+      }
+      const fallback = users?.source === "supabase" ? " Compté sur les fiches Roogo : Clerk n’a pas répondu." : "";
       return {
         ...empty,
         current,
         actualPerDay: recentPerDay(times, today, 28),
-        paceText: `${weeks[0].count} cette semaine, ${weeks[1].count} la semaine du ${dayLabel(weeks[1].startKey, today)}.`,
+        paceText: `${weeks[0].count} cette semaine, ${weeks[1].count} la semaine du ${dayLabel(weeks[1].startKey, today)}.${fallback}`,
         listTitle: "Nouveaux comptes par semaine",
-        evidence: weeks.map((w) => ({
-          key: w.startKey, tag: w.label, tagTone: "light", title: word(w.count), sub: w.sub, href: null, link: null, proofUrl: null,
-        })),
+        evidence: [
+          ...gapRows,
+          ...weeks.map((w): EvidenceRow => ({
+            key: w.startKey, tag: w.label, tagTone: "light", title: word(w.count), sub: w.sub, href: null, link: null, proofUrl: null,
+          })),
+        ],
         history: months.map((m) => {
           const n = times.filter((iso) => dayKeyOf(new Date(iso)) <= m.endKey).length;
           return { key: m.startKey, label: m.label, value: reachedLabel(n), reached: n >= target };
