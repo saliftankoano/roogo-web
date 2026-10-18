@@ -212,8 +212,8 @@ function Simulator({ ladder }: { ladder: Ladder }) {
         </label>
       </div>
 
-      <div className="space-y-3 rounded-[22px] border border-[#EADFD3] bg-white p-4">
-        <div className="flex items-start justify-between gap-2">
+      <div className="space-y-3 rounded-[22px] border border-[#EADFD3] bg-white p-3.5">
+        <div className="flex flex-wrap items-start justify-between gap-x-2 gap-y-1">
           <div className="min-w-0">
             <p className="text-xs font-bold text-[#72584B]">Vente à</p>
             <AnimatedAmount
@@ -246,14 +246,14 @@ function Simulator({ ladder }: { ladder: Ladder }) {
 
         <ul className="space-y-2">
           {rows.map((r) => (
-            <li key={r.key} className="flex items-center gap-2.5">
+            <li key={r.key} className="flex items-center gap-2">
               <span
                 className="h-3 w-3 flex-none rounded-[4px] transition-colors duration-200"
                 style={{ backgroundColor: r.active ? SALE_PARTY_COLORS[r.key] : "#E5DBD1" }}
               />
               <span
                 className={cn(
-                  "min-w-0 flex-1 text-sm text-[#251B16]",
+                  "min-w-0 flex-1 text-[13px] leading-snug text-[#251B16]",
                   r.strong ? "font-extrabold" : "font-medium",
                 )}
               >
@@ -264,10 +264,10 @@ function Simulator({ ladder }: { ladder: Ladder }) {
                 <AnimatedAmount
                   value={r.amount}
                   format={fcfaFull}
-                  className="w-[118px] whitespace-nowrap text-right text-sm font-extrabold tabular-nums text-[#251B16]"
+                  className="flex-none whitespace-nowrap text-right text-[13px] font-extrabold tabular-nums text-[#251B16]"
                 />
               ) : (
-                <span className="w-[118px] text-right text-sm font-extrabold text-[#A8968A]">non</span>
+                <span className="flex-none text-right text-[13px] font-extrabold text-[#A8968A]">non</span>
               )}
             </li>
           ))}
@@ -388,7 +388,7 @@ export default function StaffSaleLadder({ propertyId }: { propertyId: string }) 
   if (state === "hidden" || state === "loading") return null;
 
   return (
-    <section className="space-y-4 rounded-[32px] border border-neutral-100 bg-white p-6 text-[#251B16] shadow-sm">
+    <section className="space-y-4 rounded-[32px] border border-neutral-100 bg-white p-5 text-[#251B16] shadow-sm">
       <p className="text-[11px] font-extrabold uppercase tracking-[0.1em] text-[#8E3420]">
         Négociation · équipe uniquement
       </p>
