@@ -9,47 +9,57 @@ import { getPropertyPath } from "../lib/property-url";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://www.roogobf.com";
 
+  let properties: Awaited<ReturnType<typeof fetchAllOnlineProperties>> = [];
+  try {
+    properties = await fetchAllOnlineProperties();
+  } catch (error) {
+    console.error("Error generating dynamic sitemap parts:", error);
+  }
+
+  // The home page and /proprietes change when a listing does. Other static
+  // pages carry no lastmod: stamping them "now" on every build taught Google
+  // to ignore our lastmod values, listings included.
+  const latestListingEdit = properties.reduce<Date | undefined>((latest, p) => {
+    const edited = new Date(p.updated_at || p.created_at || 0);
+    return !latest || edited > latest ? edited : latest;
+  }, undefined);
+
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
-      lastModified: new Date(),
+      lastModified: latestListingEdit,
       changeFrequency: "daily",
       priority: 1,
     },
     {
       url: `${baseUrl}/proprietes`,
-      lastModified: new Date(),
+      lastModified: latestListingEdit,
       changeFrequency: "hourly",
       priority: 0.9,
     },
     {
       url: `${baseUrl}/proprietaires`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.8,
     },
     {
       url: `${baseUrl}/visites-3d`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: `${baseUrl}/nous-contacter`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.6,
     },
     {
       url: `${baseUrl}/carrieres`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.5,
     },
     {
       url: `${baseUrl}/a-propos`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.5,
     },
@@ -79,30 +89,23 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     },
     {
       url: `${baseUrl}/conditions-utilisation`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.4,
     },
     {
       url: `${baseUrl}/confidentialite`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.4,
     },
   ];
 
-  try {
-    const properties = await fetchAllOnlineProperties();
-    const propertyPages: MetadataRoute.Sitemap = properties.map((p) => ({
-      url: `${baseUrl}${getPropertyPath(p)}`,
-      lastModified: p.created_at ? new Date(p.created_at) : new Date(),
-      changeFrequency: "weekly",
-      priority: 0.7,
-    }));
+  const propertyPages: MetadataRoute.Sitemap = properties.map((p) => ({
+    url: `${baseUrl}${getPropertyPath(p)}`,
+    // Real last edit, so a price or photo change tells Google to recrawl.
+    lastModified: new Date(p.updated_at || p.created_at || Date.now()),
+    changeFrequency: "weekly",
+    priority: 0.7,
+  }));
 
-    return [...staticPages, ...propertyPages];
-  } catch (error) {
-    console.error("Error generating dynamic sitemap parts:", error);
-    return staticPages;
-  }
+  return [...staticPages, ...propertyPages];
 }
