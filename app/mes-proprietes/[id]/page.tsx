@@ -26,6 +26,7 @@ import {
 import { roogoMotion } from "@/lib/motion";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
+import OwnerSalePayout from "@/components/sale/OwnerSalePayout";
 import { fetchPropertyById, Property } from "@/lib/data";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -807,6 +808,9 @@ export default function OwnerPropertyDetailPage() {
               </div>
             )}
           </section>
+
+          {/* Sale: what the owner receives at each final price (2026-10-18). */}
+          {isSaleListing && <OwnerSalePayout propertyId={listing.id} />}
 
           {/* Agent Card */}
           {listing.agent && (

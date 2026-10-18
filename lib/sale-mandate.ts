@@ -599,6 +599,63 @@ export type StaffSaleLadder = {
   approvals: SalePriceApprovalView[];
 };
 
+export type OwnerSalePayout = SaleLadderPcts &
+  SaleFeePcts & {
+    /** The owner's own price (what they asked to receive). */
+    ownerPrice: number;
+    /** The public price (properties.price). */
+    listingPrice: number;
+    baseCommissionPct: number;
+    surplusSplitPct: number;
+  };
+
+/**
+ * Owner view of their own sale listing (simulator, 2026-10-18): their price,
+ * the public price and the percentages needed to show what they receive at
+ * Prix affiché, Objectif and Minimum. The caller must check the property
+ * belongs to the signed-in owner. No approvals, no approval rule. Null for
+ * non-sales or when the owner's price is unknown.
+ */
+export async function getOwnerSalePayout(
+  propertyId: string,
+): Promise<OwnerSalePayout | null> {
+  const { data: property, error } = await supabaseAdmin
+    .from("properties")
+    .select("listing_type, price")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!property || property.listing_type !== "vendre") return null;
+
+  const mandate = await getLatestMandateForProperty(propertyId);
+  const live =
+    mandate && ["sent", "signed"].includes(mandate.status) && mandate.desired_price != null
+      ? mandate
+      : null;
+  const ownerPrice = live
+    ? Number(live.desired_price)
+    : await getPrivateAskingPrice(propertyId);
+  if (ownerPrice == null || !(ownerPrice > 0)) return null;
+
+  const config = await getSaleLadderConfig();
+  const ladder = (live && mandateLadder(live)) ?? config;
+  const snapshot = mandateCommissionFromRow(live);
+  const commission = snapshot ?? (await getSaleCommissionConfig());
+  return {
+    ownerPrice,
+    listingPrice: Number(property.price) || 0,
+    listingMarkupPct: ladder.listingMarkupPct,
+    targetMarkupPct: ladder.targetMarkupPct,
+    referenceMarkupPct: ladder.referenceMarkupPct,
+    teamFloorMarkupPct: ladder.teamFloorMarkupPct,
+    notaryFeePct: config.notaryFeePct,
+    buyerReferralPct: config.buyerReferralPct,
+    sellerReferralPct: config.sellerReferralPct,
+    baseCommissionPct: commission.baseCommissionPct,
+    surplusSplitPct: commission.surplusSplitPct,
+  };
+}
+
 /**
  * Staff-only view of a sale listing's price ladder: what the owner receives and
  * what Roogo keeps at each rung, and where the current public price sits.
