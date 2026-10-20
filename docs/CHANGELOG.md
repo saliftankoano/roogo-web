@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-19
+
+- **« Fin de journée »: end-of-day report and absences** (web, branch `feat/compte-rendu-fin-de-journee`, not merged, migration 099 not run): on Mon espace from 15:00 Ouagadougou (highlighted from 17:30), each staff member sends what they did (today’s ticked tasks plus free text), 1 to 5 actions for tomorrow that become their tasks, what did not work and how to do better, or declares an absence (maladie, urgence familiale, congé, autre; private note for the Directeur and the Fondateur, no medical details). One report per day, editable until midnight. On L’équipe: a status chip per person, the report behind it, « Déclarer une absence » for the Directeur and the Fondateur (who declared is recorded), and the week’s summary (x/5, absences by category, improvement ideas). [Decision](./DECISIONS.md#end-of-day-report-and-absences-in-the-app--2026-10-19), [system](./SYSTEM.md#how-do-end-of-day-reports-and-absences-work--fin-de-journée-2026-10-19).
+
 ## 2026-10-18
 
 - **Listings are linked for Google** (web PR #75, merged and deployed 2026-10-18): /proprietes lists every live listing as plain links (sale listings were only behind the client-side « Acheter » switch), each listing page links six similar ones, /plan-du-site lists all listings and is public (it redirected to sign-in), `?transaction=vendre` opens on sales, and « Publier mon bien » goes to `/mes-proprietes` (`/annonces/creer` no longer exists).

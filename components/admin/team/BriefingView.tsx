@@ -13,6 +13,8 @@ import type { GoalsPayload } from "@/lib/team-goals/server";
 import { TaskComposer, type ComposerGoal } from "./TaskComposer";
 import { AsksBlock, MyAsksBlock, ReplyCards, type AskAction } from "./AsksBlock";
 import { CallPanel } from "./CallPanel";
+import { EndOfDayCard } from "./DayReport";
+import type { MyDayReportPayload } from "@/lib/team-tasks/day-reports-server";
 import { GoalsOverlays, GoalsStrip, MyShare, useGoalsUi } from "./goals/GoalsStrip";
 import {
   Chip,
@@ -101,7 +103,11 @@ function emptyGoals(data: BriefingPayload): GoalsPayload {
   };
 }
 
-export function BriefingView({ initial }: { initial: BriefingPayload }) {
+export function BriefingView({ initial, dayReport = null }: {
+  initial: BriefingPayload;
+  /** « Fin de journée » (migration 099). Null when it could not be loaded. */
+  dayReport?: MyDayReportPayload | null;
+}) {
   const { data, overrides, busy, error, refresh, run, toggle } = useBriefing(initial);
   const [composerOpen, setComposerOpen] = useState(false);
   const [callTaskId, setCallTaskId] = useState<string | null>(null);
@@ -203,6 +209,7 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
 
       <div className="flex flex-wrap items-start gap-5">
         <main className="flex min-w-0 flex-[999_1_640px] flex-col gap-3">
+          {dayReport && <EndOfDayCard initial={dayReport} onSaved={refreshAll} />}
           {data.fieldNotices.length > 0 && <FieldNotices notices={data.fieldNotices} canSeeTeam={data.canSeeTeam} />}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
             {openLate.map((item) => (
