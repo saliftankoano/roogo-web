@@ -24,6 +24,7 @@ export default async function VisitesTerrainPage({ searchParams }: { searchParam
         <SuiviView
           initial={result.value.items}
           selectedId={fiche ?? null}
+          canWithdraw={viewer.isFounder}
           people={people.map((p) => ({ id: p.id, firstName: p.firstName, initials: p.initials }))}
         />
       </div>

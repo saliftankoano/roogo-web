@@ -40,6 +40,7 @@ import {
   weekBounds,
   weekdayAndDate,
   whenLabel,
+  withoutWithdrawnFiches,
   type BoardColumn,
   type BriefingItem,
   type DaySummary,
@@ -156,7 +157,21 @@ async function loadTaskRows(now: Date): Promise<TasksResult> {
     if (isMissingTable(error)) return { rows: [], ready: false };
     throw error;
   }
-  return { rows: (data ?? []) as StaffTaskRow[], ready: true };
+  const rows = (data ?? []) as StaffTaskRow[];
+  return { rows: withoutWithdrawnFiches(rows, await withdrawnFicheIds(rows)), ready: true };
+}
+
+/** Field visit sheets withdrawn by the founder, among those that created the given tasks. */
+async function withdrawnFicheIds(rows: StaffTaskRow[]): Promise<Set<string>> {
+  const ids = [...new Set(rows.map((row) => row.field_visit_id).filter((id): id is string => !!id))];
+  if (!ids.length) return new Set();
+  const { data, error } = await supabaseAdmin.from("field_visits").select("id").in("id", ids).eq("status", "abandonne");
+  if (error) {
+    // Never hide the whole briefing for this: show the tasks as they are.
+    console.error("[team-tasks] withdrawn sheets lookup failed", { code: error.code, message: error.message });
+    return new Set();
+  }
+  return new Set((data ?? []).map((row) => row.id as string));
 }
 
 function namesOf(people: Person[]): PersonNames {
