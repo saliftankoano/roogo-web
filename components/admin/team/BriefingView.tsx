@@ -217,10 +217,14 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
             <SectionLabel className="mt-1 lg:m-0 lg:border-b lg:border-[#F0E8DD] lg:px-4 lg:py-3.5">
               <span id="plus-tard">Plus tard aujourd’hui</span>
             </SectionLabel>
-            {rowsFor(data, overrides).length === 0 && (
-              <p className="m-0 rounded-[18px] border border-dashed border-[#D6CBBE] px-4 py-3 text-sm text-[#6B625B] lg:rounded-none lg:border-0">
-                {total === 0 ? "Rien d’autre pour aujourd’hui." : "Rien d’autre après ça."}
-              </p>
+            {total === 0 ? (
+              <EmptyDay canSeeTeam={data.canSeeTeam} onAdd={() => setComposerOpen(true)} />
+            ) : (
+              rowsFor(data, overrides).length === 0 && (
+                <p className="m-0 rounded-[18px] border border-dashed border-[#D6CBBE] px-4 py-3 text-sm text-[#6B625B] lg:rounded-none lg:border-0">
+                  Rien d’autre après ça.
+                </p>
+              )
             )}
             {rowsFor(data, overrides).map((item) => (
               <TaskRow
@@ -329,6 +333,28 @@ function rowsFor(data: BriefingPayload, overrides: Record<string, string>) {
   // A late or current item that was just ticked drops into the list, struck through.
   const extra = [...data.late, ...(data.next ? [data.next] : [])].filter((item) => isDone(item, overrides));
   return [...data.rest, ...extra];
+}
+
+/** No task today: say where tasks come from and offer the one action that fills the day. */
+function EmptyDay({ canSeeTeam, onAdd }: { canSeeTeam: boolean; onAdd: () => void }) {
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-[18px] border border-dashed border-[#D6CBBE] bg-white px-4 py-4 lg:rounded-none lg:border-0 lg:py-5">
+      <div className="flex flex-col gap-1">
+        <span className="text-[15px] font-extrabold">Aucune tâche pour aujourd’hui</span>
+        <span className="max-w-[560px] text-[13px] leading-relaxed text-[#6B625B]">
+          Vos tâches arrivent ici : celles que vous ajoutez, celles qu’on vous donne, et les visites, messages et dossiers qui vous sont attribués.
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-[#C96A2E] px-4 text-sm font-extrabold text-white transition-colors hover:bg-[#8A4924]"
+      >
+        <PlusIcon size={16} weight="bold" aria-hidden="true" />
+        {canSeeTeam ? "Donner une tâche" : "Ajouter une tâche"}
+      </button>
+    </div>
+  );
 }
 
 export function SetupNotice() {

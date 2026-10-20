@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-20
+
+- **Test field visit sheets can be withdrawn; clearer empty Mon espace** (web, branch `fix/studio-tasks-demo`, not merged, no migration): on Studio > Visites terrain the founder can « Retirer cette fiche » (also a finished one). The sheet is marked `abandonne` and its six montage tasks leave every briefing and the team board; nothing is deleted. Mon espace shows « Aucune tâche pour aujourd’hui » with an add button, and the add-task confirmation names the day.
+
 ## 2026-10-18
 
 - **Listings are linked for Google** (web PR #75, merged and deployed 2026-10-18): /proprietes lists every live listing as plain links (sale listings were only behind the client-side « Acheter » switch), each listing page links six similar ones, /plan-du-site lists all listings and is public (it redirected to sign-in), `?transaction=vendre` opens on sales, and « Publier mon bien » goes to `/mes-proprietes` (`/annonces/creer` no longer exists).

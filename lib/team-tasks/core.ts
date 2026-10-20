@@ -273,6 +273,8 @@ export type StaffTaskRow = {
   call_phone?: string | null;
   call_subject?: CallSubject | null;
   property_request_id?: string | null;
+  /** 090: the field visit sheet that created this task (one of its six montage tasks). */
+  field_visit_id?: string | null;
   decision?: "approved" | null;
   decided_at?: string | null;
   snoozed_until?: string | null;
@@ -426,6 +428,16 @@ export function rowToItem(row: StaffTaskRow, names: PersonNames, goalTitles?: Ma
  * source key (someone was given the item, or ticked it). Then the stored task
  * is shown instead.
  */
+/**
+ * Tasks of a field visit sheet the founder withdrew (a test sheet, or one
+ * started on the wrong listing) leave every briefing and the team board. The
+ * rows stay in the table: withdrawing hides, it never deletes.
+ */
+export function withoutWithdrawnFiches<T extends Pick<StaffTaskRow, "field_visit_id">>(rows: T[], withdrawn: Set<string>): T[] {
+  if (!withdrawn.size) return rows;
+  return rows.filter((row) => !row.field_visit_id || !withdrawn.has(row.field_visit_id));
+}
+
 export function mergeItems(stored: BriefingItem[], auto: BriefingItem[]): BriefingItem[] {
   const taken = new Set(stored.map((item) => item.sourceKey).filter(Boolean));
   return [...stored, ...auto.filter((item) => !item.sourceKey || !taken.has(item.sourceKey))];
