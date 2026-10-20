@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-19
+
+- **Studio > Statistiques: Facebook and Instagram numbers** (web, branch `feat/social-data-sync`, not merged, no migration): followers with 30-day change, 28-day reach, views and interactions, the 12 latest posts with reach, views, likes, comments, shares, saves and engagement, and the posting rhythm, read from Meta and refreshed every 6 h by `/api/cron/social-insights`. Needs `read_insights` and `instagram_manage_insights` on `META_GRAPH_TOKEN` for reach and views. [How it works](./SYSTEM.md#studio--statistiques-social-numbers-2026-10-19).
+
 ## 2026-10-18
 
 - **Listings are linked for Google** (web PR #75, merged and deployed 2026-10-18): /proprietes lists every live listing as plain links (sale listings were only behind the client-side « Acheter » switch), each listing page links six similar ones, /plan-du-site lists all listings and is public (it redirected to sign-in), `?transaction=vendre` opens on sales, and « Publier mon bien » goes to `/mes-proprietes` (`/annonces/creer` no longer exists).
