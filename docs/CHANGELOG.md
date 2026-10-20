@@ -8,7 +8,11 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-20
 
-- **Test field visit sheets can be withdrawn; clearer empty Mon espace** (web, branch `fix/studio-tasks-demo`, not merged, no migration): on Studio > Visites terrain the founder can « Retirer cette fiche » (also a finished one). The sheet is marked `abandonne` and its six montage tasks leave every briefing and the team board; nothing is deleted. Mon espace shows « Aucune tâche pour aujourd’hui » with an add button, and the add-task confirmation names the day.
+- **Test field visit sheets can be withdrawn; clearer empty Mon espace** (web, PR #80, merged 2026-10-20, no migration): on Studio > Visites terrain the founder can « Retirer cette fiche » (also a finished one). The sheet is marked `abandonne` and its six montage tasks leave every briefing and the team board; nothing is deleted. Mon espace shows « Aucune tâche pour aujourd’hui » with an add button, and the add-task confirmation names the day.
+
+## 2026-10-19
+
+- **« Fin de journée »: end-of-day report and absences** (web, branch `feat/compte-rendu-fin-de-journee`, PR #81, migration 099 run by Salif on 2026-10-20): on Mon espace from 15:00 Ouagadougou (highlighted from 17:30), each staff member sends what they did (today’s ticked tasks plus free text), 1 to 5 actions for tomorrow that become their tasks, what did not work and how to do better, or declares an absence (maladie, urgence familiale, congé, autre; private note for the Directeur and the Fondateur, no medical details). One report per day, editable until midnight. On L’équipe: a status chip per person, the report behind it, « Déclarer une absence » for the Directeur and the Fondateur (who declared is recorded), and the week’s summary (x/5, absences by category, improvement ideas). [Decision](./DECISIONS.md#end-of-day-report-and-absences-in-the-app--2026-10-19), [system](./SYSTEM.md#how-do-end-of-day-reports-and-absences-work--fin-de-journée-2026-10-19).
 
 ## 2026-10-18
 

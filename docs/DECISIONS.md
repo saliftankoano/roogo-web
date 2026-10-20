@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### End-of-day report and absences in the app — 2026-10-19
+
+**Decision:** Every staff member sends a short end-of-day report from Mon espace (from 15:00 Ouagadougou, highlighted from 17:30): what they did, 1 to 5 actions for tomorrow that become their own tasks, what did not work today, and how we could do better. Absences are declared in the same form, or by the Directeur or the Fondateur on someone’s behalf, with one of four categories and an optional private note. Design from the council recommendation, approved by Salif on 2026-10-19; the four parts were set by Salif the same day.
+
+**Why:** On 2026-10-19 Moubarak was absent for a family emergency and the only trace was Ablassé’s phone call to Salif. Logging days and absences gives data to learn from and plan around, and the two reflection questions turn the report into a daily improvement loop rather than a check-in.
+
+**Ruled out / alternatives:** WhatsApp or SMS reminders (in-app highlight only). Asking for medical details (the category is enough; the form says not to write any). A free-text « Demain » (actions become real tasks instead, so the next day starts from them). Altering `staff_tasks` to link back to the report (the task ids are stored in the new table). Counting Saturday in the weekly x/5 (Monday to Friday only; Saturday reports are kept).
+
+**Status:** Branch `feat/compte-rendu-fin-de-journee`, not merged. Migration `099_staff_day_reports.sql` not run; the app shows « migration 099 à lancer » until then.
+
+---
+
 ### Every live listing meets a quality minimum and is checked on Google daily — 2026-10-18
 
 **Decision:** A listing goes live (`en_ligne`) only with a description of at least 60 words and at least 5 photos (`lib/listing-quality.ts`, enforced by `PATCH /api/properties/[id]/status`, code `listing_quality_minimum`; test listings exempt). A daily cron asks the Search Console URL Inspection API whether each live listing is indexed; `/admin/annonces/google` lists every live listing with its quality checklist and Google status, and flags a listing not on Google 7 days after the check first saw it live. Listing pages lead with what people search: title "Terrain à vendre à Roumtinga, Ouagadougou : 8 500 000 FCFA", the same headline as H1, and an « En résumé » paragraph built only from the listing's fields. Approved by Salif on 2026-10-18.
