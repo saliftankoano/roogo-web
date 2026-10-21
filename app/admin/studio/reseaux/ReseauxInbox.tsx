@@ -232,7 +232,7 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
       )}
 
       <p className="mt-4 text-[12px] text-neutral-500">
-        {TIKTOK_COMMENTS_NOTE} Les messages privés ne peuvent recevoir une réponse depuis Roogo que dans les 24 heures qui suivent le dernier message de la personne (règle de Meta).
+        {TIKTOK_COMMENTS_NOTE} Les messages privés peuvent recevoir une réponse depuis Roogo pendant 7 jours après le dernier message de la personne : normalement pendant 24 heures, puis en agent humain (règle de Meta).
       </p>
     </div>
   );
