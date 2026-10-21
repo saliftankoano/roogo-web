@@ -8,7 +8,6 @@ import { cn } from "@/lib/utils";
 import { notifyApprovalsChanged } from "@/components/admin/useStudioApprovals";
 import {
   RETURN_TAGS,
-  TIKTOK_PENDING_TOOLTIP,
   isoToDateAndSlot,
   networksLabel,
   postText,
@@ -21,6 +20,8 @@ import { NetworkIcon } from "../calendrier/NetworkIcons";
 import { readError, type Post } from "../calendrier/calendar-types";
 import { isPhone, motionOn, riseIn } from "./motion";
 import { useDialog } from "./useDialog";
+import { TikTokChoice, TikTokNote } from "./TikTokChoice";
+import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
 
 type View = "preview" | "return" | "approved";
 
@@ -33,12 +34,15 @@ export function ApprovalPreview({
   queue,
   startIndex = 0,
   daySlots,
+  tiktok,
   onClose,
   onChanged,
 }: {
   queue: Post[];
   startIndex?: number;
   daySlots: string[];
+  /** TikTok publishing status from the server (feature flag). */
+  tiktok?: TikTokPublishInfo | null;
   onClose: () => void;
   onChanged: (post: Post) => void;
 }) {
@@ -451,7 +455,7 @@ export function ApprovalPreview({
         <div
           role="group"
           aria-label="Réseaux"
-          className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2"
+          className={cn("grid gap-2", tiktok?.enabled ? "grid-cols-3" : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]")}
         >
           {(["instagram", "facebook"] as const).map((n) => {
             const on = post.networks.includes(n);
@@ -476,20 +480,17 @@ export function ApprovalPreview({
               </button>
             );
           })}
-          <span
-            title={TIKTOK_PENDING_TOOLTIP}
-            aria-disabled="true"
-            className="inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[rgba(74,52,36,0.18)] px-2 text-[13px] font-semibold text-neutral-400"
-          >
-            <NetworkIcon
-              network="tiktok"
-              size={16}
-              label={false}
-              className="opacity-50 grayscale"
-            />
-            Bientôt
-          </span>
+          <TikTokChoice
+            info={tiktok}
+            on={post.networks.includes("tiktok")}
+            isVideo={post.mediaType === "video"}
+            disabled={busy !== null}
+            onToggle={() => void toggleNetwork("tiktok")}
+            iconSize={16}
+            className="h-11"
+          />
         </div>
+        {(tiktok?.enabled || post.networks.includes("tiktok")) && <TikTokNote info={tiktok} />}
 
         <section
           aria-labelledby="preview-desc"

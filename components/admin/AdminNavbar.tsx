@@ -22,6 +22,7 @@ import { roogoMotion } from "@/lib/motion";
 import { TEAM_TASKS_CHANGED } from "./team/events";
 import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 import { useStudioApprovals } from "./useStudioApprovals";
+import { useSocialInboxCount } from "./useSocialInboxCount";
 
 /** Founder only: posts waiting for validation, on the Studio item. */
 function ApprovalBadge({ count, className }: { count: number; className?: string }) {
@@ -35,6 +36,22 @@ function ApprovalBadge({ count, className }: { count: number; className?: string
       )}
     >
       {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
+/** Comments and messages waiting for a reply (Studio > Réseaux), terracotta. */
+function InboxBadge({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      aria-label={`${count} commentaire${count > 1 ? "s" : ""} ou message${count > 1 ? "s" : ""} à répondre`}
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#C96A2E] px-1.5 text-[11px] font-bold leading-none text-white",
+        className,
+      )}
+    >
+      {count > 99 ? "99+" : count}
     </span>
   );
 }
@@ -167,7 +184,7 @@ export function AdminNavbar() {
   const pathname = usePathname();
   const { isLoaded, user } = useUser();
 
-  const { canAny, level } = useStaffAccess();
+  const { can, canAny, level } = useStaffAccess();
 
   const isFounder = level === "founder";
   const navItems = useMemo(
@@ -176,6 +193,7 @@ export function AdminNavbar() {
   );
   const todayCount = useTodayCount(isLoaded && !!user);
   const waitingApprovals = useStudioApprovals(isFounder);
+  const inboxToAnswer = useSocialInboxCount(can("social.inbox"));
   const activeEntryId = useMemo(
     () => getActiveEntryId(pathname, navItems),
     [navItems, pathname],
@@ -261,7 +279,10 @@ export function AdminNavbar() {
                     item.id === todayNavItem.id ? (
                       <CountBadge count={todayCount} active={isActive} />
                     ) : item.id === studioNavItem.id ? (
-                      <ApprovalBadge count={waitingApprovals} />
+                      <>
+                        <ApprovalBadge count={waitingApprovals} />
+                        <InboxBadge count={inboxToAnswer} />
+                      </>
                     ) : undefined
                   }
                 />
@@ -402,7 +423,11 @@ export function AdminNavbar() {
             )}
           >
             <studioNavItem.icon size={22} weight="bold" />
-            <ApprovalBadge count={waitingApprovals} className="absolute -right-1 -top-1" />
+            {waitingApprovals > 0 ? (
+              <ApprovalBadge count={waitingApprovals} className="absolute -right-1 -top-1" />
+            ) : (
+              <InboxBadge count={inboxToAnswer} className="absolute -right-1 -top-1" />
+            )}
           </Link>
 
           <button
@@ -526,6 +551,7 @@ export function AdminNavbar() {
                   <Icon size={24} weight={isActive ? "fill" : "bold"} />
                   {item.label}
                   {item.id === studioNavItem.id && <ApprovalBadge count={waitingApprovals} />}
+                  {item.id === studioNavItem.id && <InboxBadge count={inboxToAnswer} />}
                   {item.id === todayNavItem.id && (
                     <CountBadge count={todayCount} active={isActive} />
                   )}

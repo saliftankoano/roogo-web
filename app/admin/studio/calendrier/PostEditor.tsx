@@ -18,6 +18,8 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
+import { TikTokNote } from "../publishing/TikTokChoice";
 import {
   NETWORK_LABELS,
   TIKTOK_PENDING_TOOLTIP,
@@ -64,6 +66,7 @@ export function PostEditor({
   slots,
   team,
   me,
+  tiktok,
   onClose,
   onSaved,
 }: {
@@ -71,6 +74,8 @@ export function PostEditor({
   slots: string[];
   team: TeamMember[];
   me: { id: string; role: Role };
+  /** TikTok publishing status from the server (feature flag). */
+  tiktok?: TikTokPublishInfo | null;
   onClose: () => void;
   onSaved: (post: Post | null, removedId?: string) => void;
 }) {
@@ -508,15 +513,32 @@ export function PostEditor({
                   </button>
                 );
               })}
-              <span
-                title={TIKTOK_PENDING_TOOLTIP}
-                aria-disabled="true"
-                className="inline-flex h-10 cursor-help items-center gap-2 rounded-full bg-white/40 px-4 text-sm font-semibold text-neutral-400 ring-1 ring-inset ring-[rgba(74,52,36,0.08)]"
-              >
-                <NetworkIcon network="tiktok" size={16} className="opacity-40" />
-                TikTok (bientôt)
-              </span>
+              {tiktok?.enabled && mediaType === "video" ? (
+                <button
+                  type="button"
+                  aria-pressed={networks.includes("tiktok")}
+                  disabled={locked}
+                  onClick={() => setNetworks((cur) => (cur.includes("tiktok") ? cur.filter((x) => x !== "tiktok") : [...cur, "tiktok"]))}
+                  className={cn(
+                    "inline-flex h-10 items-center gap-2 rounded-full px-4 text-sm font-semibold ring-1 ring-inset",
+                    networks.includes("tiktok") ? "bg-white text-neutral-900 ring-primary/40" : "bg-white/50 text-neutral-500 ring-[rgba(74,52,36,0.10)]",
+                  )}
+                >
+                  <NetworkIcon network="tiktok" size={16} />
+                  TikTok
+                </button>
+              ) : (
+                <span
+                  title={tiktok?.enabled ? "TikTok ne publie que des vidéos depuis Roogo." : tiktok?.reason ?? TIKTOK_PENDING_TOOLTIP}
+                  aria-disabled="true"
+                  className="inline-flex h-10 cursor-help items-center gap-2 rounded-full bg-white/40 px-4 text-sm font-semibold text-neutral-400 ring-1 ring-inset ring-[rgba(74,52,36,0.08)]"
+                >
+                  <NetworkIcon network="tiktok" size={16} className="opacity-40" />
+                  {tiktok?.enabled ? "TikTok (vidéo seulement)" : "TikTok (bientôt)"}
+                </span>
+              )}
             </div>
+            {(tiktok?.enabled || networks.includes("tiktok")) && <TikTokNote info={tiktok} />}
           </section>
 
           <section className="grid grid-cols-2 gap-3">

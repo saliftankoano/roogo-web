@@ -23,6 +23,7 @@ import { CALENDAR_HREF } from "../StudioSwitch";
 import { ApprovalPreview } from "./ApprovalPreview";
 import { PlanSheet } from "./PlanSheet";
 import { Toast, type ToastMessage } from "./Toast";
+import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
 import { popDots, popPill, riseIn } from "./motion";
 
 type Data = {
@@ -30,6 +31,7 @@ type Data = {
   slots: SlotOption[];
   daySlots: string[];
   me: { id: string; role: Role };
+  tiktok?: TikTokPublishInfo | null;
 };
 
 const STAGE_TONE: Record<PublicationStage, (typeof TONE)[keyof typeof TONE]> = {
@@ -312,6 +314,7 @@ export function PublicationCard({ artifactId, madeBy }: { artifactId: string; ma
           publication={post}
           slots={data.slots}
           daySlots={data.daySlots}
+          tiktok={data.tiktok}
           onClose={() => setSheet(null)}
           onDone={(saved) => {
             setData((cur) => (cur ? { ...cur, publication: saved } : cur));
@@ -330,6 +333,7 @@ export function PublicationCard({ artifactId, madeBy }: { artifactId: string; ma
         <ApprovalPreview
           queue={[post]}
           daySlots={data.daySlots}
+          tiktok={data.tiktok}
           onClose={() => {
             setPreview(false);
             void load();

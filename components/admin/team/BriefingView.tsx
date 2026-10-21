@@ -5,7 +5,8 @@
 
 import Link from "next/link";
 import { useCallback, useMemo, useRef, useState } from "react";
-import { ArrowRightIcon, CaretRightIcon, ClipboardTextIcon, PhoneIcon, PlusIcon } from "@phosphor-icons/react";
+import { ArrowRightIcon, CaretRightIcon, ChatsCircleIcon, ClipboardTextIcon, PhoneIcon, PlusIcon } from "@phosphor-icons/react";
+import { waitingSentence, type InboxCounts } from "@/lib/social/inbox";
 import { cn } from "@/lib/utils";
 import type { DemandeView } from "@/lib/team-tasks/core";
 import type { BriefingPayload, ViewItem } from "@/lib/team-tasks/server";
@@ -103,10 +104,12 @@ function emptyGoals(data: BriefingPayload): GoalsPayload {
   };
 }
 
-export function BriefingView({ initial, dayReport = null }: {
+export function BriefingView({ initial, dayReport = null, socialInbox = null }: {
   initial: BriefingPayload;
   /** « Fin de journée » (migration 099). Null when it could not be loaded. */
   dayReport?: MyDayReportPayload | null;
+  /** Studio > Réseaux « À répondre » counts (Conseiller and above). Null to hide. */
+  socialInbox?: InboxCounts | null;
 }) {
   const { data, overrides, busy, error, refresh, run, toggle } = useBriefing(initial);
   const [composerOpen, setComposerOpen] = useState(false);
@@ -153,6 +156,17 @@ export function BriefingView({ initial, dayReport = null }: {
       )}
 
       {!data.tasksReady && <SetupNotice />}
+      {socialInbox && waitingSentence(socialInbox) && (
+        <Link
+          data-anim
+          href="/admin/studio/reseaux"
+          className="flex items-center gap-2 rounded-2xl bg-[#FCEBDD] px-4 py-3 text-sm font-semibold text-[#8A3F12] ring-1 ring-inset ring-[#F1C9A6] hover:bg-[#F9E0CB]"
+        >
+          <ChatsCircleIcon size={18} weight="bold" className="shrink-0" />
+          <span className="min-w-0 flex-1">{waitingSentence(socialInbox)} sur Facebook et Instagram.</span>
+          <span className="shrink-0 underline underline-offset-2">Répondre</span>
+        </Link>
+      )}
       {data.failedSources.length > 0 && (
         <p className="m-0 rounded-2xl bg-[#FCEFD4] px-4 py-3 text-sm font-semibold text-[#6E4300]" role="status">
           Certaines tâches automatiques n’ont pas pu être chargées. Les autres sont à jour.

@@ -35,6 +35,10 @@ import {
   type PublishDeps,
   type PublishMedia,
 } from "./meta-graph";
+import { publishTikTok, tiktokPostMode } from "@/lib/social/tiktok-publish";
+import { tiktokAccessToken, tiktokPublishStatus } from "@/lib/social/tiktok-token-server";
+
+export { tiktokPublishStatus };
 
 export const PUBLICATION_COLUMNS =
   "id, property_id, artifact_id, title, cadence_step, visit_date, media_type, photo_urls, caption, notes, networks, scheduled_at, assignee_id, status, approved_by, approved_at, claimed_at, published_at, results, last_error, created_by, created_at, updated_at, hashtags, caption_model, caption_generated_at, caption_edited_by, caption_edited_at, submitted_by, submitted_at, returned_by, returned_at, review_comment, review_tags";
@@ -136,6 +140,7 @@ export async function approvalProblems(row: PublicationRow): Promise<CaptionProb
       artifactKind: artifact?.kind ?? null,
       photoCount: row.photo_urls.length,
       step: row.cadence_step,
+      tiktokEnabled: row.networks.includes("tiktok") ? (await tiktokPublishStatus()).enabled : false,
     }),
   ];
   if (row.networks.includes("instagram") && (row.media_type === "image" || row.media_type === "carousel")) {
@@ -274,6 +279,36 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
     return publishFacebook(deps, cfg, media, text, opts);
   };
 
+  // TikTok: the video bytes are downloaded from our signed URL and pushed with
+  // FILE_UPLOAD (lib/social/tiktok-publish.ts). Private until TikTok's audit.
+  const publishToTikTok = async (
+    media: PublishMedia,
+    text: string,
+    existingPublishId: string | null,
+    onProgress: (partial: NetworkResult) => Promise<void>,
+  ): Promise<NetworkResult> => {
+    if (media.kind !== "video") return { status: "failed", error: "TikTok ne publie que des vidéos depuis Roogo." };
+    const access = await tiktokAccessToken();
+    if ("error" in access) return { status: "failed", error: access.error };
+    return publishTikTok(
+      {
+        fetch: (url, init) => fetch(url, init as RequestInit),
+        sleep: deps.sleep,
+        pollIntervalMs: 5000,
+        maxPolls: 12,
+        onProgress,
+        loadVideo: async () => {
+          const res = await fetch(media.url);
+          if (!res.ok) throw new Error("ROOGO:La vidéo n'a pas pu être lue depuis le Studio.");
+          return new Uint8Array(await res.arrayBuffer());
+        },
+      },
+      access.token,
+      text,
+      { mode: tiktokPostMode(process.env), existingPublishId },
+    );
+  };
+
   for (const { id } of due) {
     // Leave time for the posts already claimed; the rest waits for the next run.
     if (Date.now() - started > (opts.budgetMs ?? 90_000)) break;
@@ -306,6 +341,11 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
       let result: NetworkResult;
       if (!media) {
         result = { status: "failed", error: mediaError ?? "Média introuvable." };
+      } else if (network === "tiktok") {
+        result = await publishToTikTok(media, text, results.tiktok?.container_id ?? null, async (partial) => {
+          results.tiktok = partial;
+          await save();
+        });
       } else if (network === "facebook") {
         if (!meta.facebook || !meta.config) {
           result = { status: "failed", error: "Facebook n'est pas configuré (META_GRAPH_TOKEN, META_PAGE_ID)." };
@@ -522,8 +562,12 @@ export async function parsePostInput(
   if (has("networks")) {
     if (!Array.isArray(body.networks)) return { values, error: "Réseaux invalides" };
     const nets = [...new Set(body.networks.map(String))];
-    if (nets.includes("tiktok")) return { values, error: "TikTok n'est pas encore disponible." };
-    if (nets.some((n) => n !== "facebook" && n !== "instagram")) return { values, error: "Réseau inconnu" };
+    if (nets.some((n) => n !== "facebook" && n !== "instagram" && n !== "tiktok")) return { values, error: "Réseau inconnu" };
+    if (nets.includes("tiktok") && !current?.networks?.includes("tiktok")) {
+      // Feature flag: TikTok key, connected account (PR #78) and a publishing scope.
+      const tiktok = await tiktokPublishStatus();
+      if (!tiktok.enabled) return { values, error: tiktok.reason ?? "TikTok n'est pas disponible." };
+    }
     values.networks = nets as Network[];
   }
   if (has("scheduledAt")) {
@@ -550,6 +594,12 @@ export async function parsePostInput(
   }
   if (postText(values.caption ?? current?.caption ?? "", values.hashtags ?? current?.hashtags ?? []).length > MAX_CAPTION) {
     return { values, error: "La légende dépasse 2 200 caractères." };
+  }
+
+  // TikTok publishes videos only from Roogo.
+  const finalNetworks = values.networks ?? current?.networks ?? [];
+  if (finalNetworks.includes("tiktok") && mediaType && mediaType !== "video") {
+    return { values, error: "TikTok ne publie que des vidéos depuis Roogo." };
   }
 
   // Cross-checks on the post as it will be stored.

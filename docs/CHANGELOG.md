@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-21
+
+- **Studio > Réseaux: comments and messages inbox with replies, TikTok publishing** (web, branch `feat/studio-reseaux`, migration 101 déjà exécutée par Salif le 2026-10-21): a fourth Studio tab lists Facebook and Instagram comments and Messenger and Instagram direct messages, each with its post, thumbnail, VEN-/LOC- link, status « À répondre » / « Répondu » / « Ignoré » and who replied. The team replies from the card as the Roogo Page / account (24-hour window respected for messages), every reply logged with the staff member. Read every 10 minutes by `/api/cron/social-inbox` and on « Actualiser ». Badges on the Réseaux tab and the Studio navbar item, line on Mon espace. Conseiller(ère) and above (`social.inbox`). A validated video can also go to TikTok (private until TikTok audits the app), behind a feature flag waiting for PR #78's connection. [How it works](./SYSTEM.md#studio--réseaux-comments-and-messages-inbox-2026-10-21).
+
 ## 2026-10-20
 
 - **Test field visit sheets can be withdrawn; clearer empty Mon espace** (web, PR #80, merged 2026-10-20, no migration): on Studio > Visites terrain the founder can « Retirer cette fiche » (also a finished one). The sheet is marked `abandonne` and its six montage tasks leave every briefing and the team board; nothing is deleted. Mon espace shows « Aucune tâche pour aujourd’hui » with an add button, and the add-task confirmation names the day.

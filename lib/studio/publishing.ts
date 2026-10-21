@@ -24,8 +24,13 @@ export type MediaType = (typeof MEDIA_TYPES)[number];
 
 export const NETWORKS = ["facebook", "instagram", "tiktok"] as const;
 export type Network = (typeof NETWORKS)[number];
-/** Networks the worker can publish to today. TikTok waits for TikTok's app audit. */
-export const PUBLISHABLE_NETWORKS: readonly Network[] = ["facebook", "instagram"];
+/**
+ * Networks the worker can publish to. TikTok (2026-10-21) only when a TikTok
+ * account is connected with a publishing scope (checked when the post is
+ * saved and validated, lib/social/tiktok-token-server.ts); its posts stay
+ * private until TikTok audits the Roogo app.
+ */
+export const PUBLISHABLE_NETWORKS: readonly Network[] = ["facebook", "instagram", "tiktok"];
 
 export const NETWORK_LABELS: Record<Network, string> = {
   facebook: "Facebook",
@@ -451,6 +456,8 @@ export type MediaCheckInput = {
   artifactKind?: string | null;
   photoCount: number;
   step?: CadenceStep | null;
+  /** TikTok account connected with a publishing scope (server check). */
+  tiktokEnabled?: boolean;
 };
 
 /** Problems that block "Valider": the post cannot go out as described. */
@@ -458,7 +465,10 @@ export function mediaProblems(input: MediaCheckInput): CaptionProblem[] {
   const problems: CaptionProblem[] = [];
   const nets = input.networks;
   if (!nets.length) problems.push({ code: "no-network", message: "Choisissez au moins un réseau." });
-  if (nets.includes("tiktok")) problems.push({ code: "tiktok", message: "TikTok n'est pas encore disponible." });
+  if (nets.includes("tiktok")) {
+    if (!input.tiktokEnabled) problems.push({ code: "tiktok", message: "TikTok n'est pas connecté pour la publication." });
+    else if (input.mediaType !== "video") problems.push({ code: "tiktok-video", message: "TikTok ne publie que des vidéos depuis Roogo." });
+  }
   if (input.mediaType === "text") {
     if (nets.includes("instagram")) problems.push({ code: "ig-text", message: "Instagram ne publie pas de texte seul." });
     return problems;
@@ -490,6 +500,8 @@ export type NetworkResult = {
   container_id?: string | null;
   error?: string | null;
   published_at?: string | null;
+  /** Shown under the network on the card, e.g. TikTok « Publiée en privé ». */
+  note?: string | null;
 };
 
 export type PublicationResults = Partial<Record<Network, NetworkResult>>;
