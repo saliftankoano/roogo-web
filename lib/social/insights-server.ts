@@ -1,14 +1,17 @@
 // Server side of Studio > Statistiques: env, Page token swap, cache and the
 // follower history already stored by the nightly cron (team_goal_readings).
 //
-// Storage: no new table. The Meta snapshot lives in the Next data cache
+// Storage: no new table. The snapshot (Meta and TikTok) lives in the Next data cache
 // (unstable_cache, tag "social-insights", 6 h) and the cron
-// /api/cron/social-insights refreshes it every 6 hours. Follower history comes
+// /api/cron/social-insights refreshes it every 6 hours. TikTok uses the token
+// stored in social_tokens (getFreshTikTokAccess refreshes it when needed); when
+// TikTok is not connected or the table is missing, only the TikTok card says so. Follower history comes
 // from team_goal_readings (written by /api/cron/social-followers), read only.
 
 import { revalidateTag, unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { metaConfigFromEnv } from "@/lib/studio/meta-graph";
+import { getFreshTikTokAccess } from "@/lib/team-goals/tiktok-store";
 import {
   SOCIAL_GRAPH_VERSION,
   followerTrend,
@@ -21,6 +24,8 @@ import {
   type FollowerTrend,
   type SocialConfig,
   type SocialSnapshot,
+  type TikTokAccessLike,
+  type TikTokFetchLike,
 } from "./insights";
 
 export const SOCIAL_CACHE_TAG = "social-insights";
@@ -29,8 +34,20 @@ export const SOCIAL_CACHE_SECONDS = 6 * 60 * 60;
 const log = (message: string, detail: Record<string, unknown>) => console.error(message, detail);
 
 const fetchImpl: FetchLike = (url, init) => fetch(url, init);
+const tiktokFetch: TikTokFetchLike = (url, init) => fetch(url, init);
 
-/** Reads Meta now, uncached. Never throws. */
+/** The TikTok token, refreshed when close to expiry. A missing social_tokens table reads as « not connected ». */
+async function tiktokAccess(): Promise<TikTokAccessLike> {
+  try {
+    return await getFreshTikTokAccess();
+  } catch (error) {
+    const e = error as { code?: string; message?: string };
+    log("[social-insights] tiktok token read failed", { code: e?.code, message: e?.message?.slice(0, 200) });
+    return { ok: false, error: "le jeton TikTok n'a pas pu être lu." };
+  }
+}
+
+/** Reads Meta and TikTok now, uncached. Never throws. */
 export async function loadSocialSnapshot(): Promise<SocialSnapshot> {
   const env = metaConfigFromEnv(process.env);
   const graphVersion = env.config?.graphVersion ?? SOCIAL_GRAPH_VERSION;
@@ -59,7 +76,7 @@ export async function loadSocialSnapshot(): Promise<SocialSnapshot> {
     }
   }
 
-  const snapshot = await readSocialSnapshot({ fetch: fetchImpl }, cfg, env.missing, log);
+  const snapshot = await readSocialSnapshot({ fetch: fetchImpl }, cfg, env.missing, log, { access: tiktokAccess, fetch: tiktokFetch });
   if (pageTokenWarning && !snapshot.facebook.warnings.includes(pageTokenWarning)) {
     snapshot.facebook.warnings.unshift(pageTokenWarning);
   }
@@ -72,7 +89,7 @@ class NotCacheable extends Error {
   }
 }
 
-// A snapshot where neither account could be read is thrown, so it is not
+// A snapshot where no account could be read is thrown, so it is not
 // cached for 6 hours: the next visit tries again.
 const cachedSnapshot = unstable_cache(
   async () => {
@@ -80,7 +97,8 @@ const cachedSnapshot = unstable_cache(
     if (!isCacheable(snapshot)) throw new NotCacheable(snapshot);
     return snapshot;
   },
-  ["social-insights-v1"],
+  // v2: the snapshot gained the tiktok block; a v1 entry would lack it.
+  ["social-insights-v2"],
   { revalidate: SOCIAL_CACHE_SECONDS, tags: [SOCIAL_CACHE_TAG] },
 );
 
@@ -94,12 +112,12 @@ export async function getSocialSnapshot(): Promise<SocialSnapshot> {
   }
 }
 
-/** Drops the cached snapshot; the next read goes to Meta. */
+/** Drops the cached snapshot; the next read goes to Meta and TikTok. */
 export function invalidateSocialSnapshot() {
   revalidateTag(SOCIAL_CACHE_TAG);
 }
 
-export type SocialHistory = { facebook: FollowerTrend; instagram: FollowerTrend; error: string | null };
+export type SocialHistory = { facebook: FollowerTrend; instagram: FollowerTrend; tiktok: FollowerTrend; error: string | null };
 
 /** Follower readings of the last 120 days, written by /api/cron/social-followers or typed in. */
 export async function getFollowerHistory(snapshot: SocialSnapshot, now = new Date()): Promise<SocialHistory> {
@@ -107,10 +125,10 @@ export async function getFollowerHistory(snapshot: SocialSnapshot, now = new Dat
   const { data, error } = await supabaseAdmin
     .from("team_goal_readings")
     .select("metric, value, measured_on")
-    .in("metric", ["facebook_followers", "instagram_followers"])
+    .in("metric", ["facebook_followers", "instagram_followers", "tiktok_followers"])
     .gte("measured_on", since)
     .order("measured_on", { ascending: true })
-    .limit(500);
+    .limit(750);
   if (error) {
     console.error("[social-insights] follower history read failed", { code: error.code, message: error.message });
   }
@@ -118,6 +136,7 @@ export async function getFollowerHistory(snapshot: SocialSnapshot, now = new Dat
   return {
     facebook: followerTrend(rows.filter((r) => r.metric === "facebook_followers"), snapshot.facebook.followers, now),
     instagram: followerTrend(rows.filter((r) => r.metric === "instagram_followers"), snapshot.instagram.followers, now),
+    tiktok: followerTrend(rows.filter((r) => r.metric === "tiktok_followers"), snapshot.tiktok?.followers ?? null, now),
     error: error ? "L'historique des abonnés n'a pas pu se charger." : null,
   };
 }

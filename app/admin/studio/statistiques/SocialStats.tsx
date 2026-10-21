@@ -20,7 +20,7 @@ const NUMBER = new Intl.NumberFormat("fr-FR");
 const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "–" : NUMBER.format(n));
 const pct = (r: number | null) => (r === null ? "–" : `${(r * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`);
 
-const NETWORK_NAME: Record<Network, string> = { facebook: "Facebook", instagram: "Instagram" };
+const NETWORK_NAME: Record<Network, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok" };
 const FORMAT_LABEL: Record<PostFormat, string> = {
   reel: "Reel",
   video: "Vidéo",
@@ -68,7 +68,7 @@ export function SocialStats({ initial }: { initial: Payload }) {
         return;
       }
       setData({ snapshot: body.snapshot, history: body.history });
-      setNote(body.refreshed ? "Chiffres relus chez Meta." : "Les chiffres ont moins de 10 minutes : ils sont déjà à jour.");
+      setNote(body.refreshed ? "Chiffres relus chez Meta et TikTok." : "Les chiffres ont moins de 10 minutes : ils sont déjà à jour.");
     } catch (error) {
       setNote(`Actualisation impossible : ${error instanceof Error ? error.message : "erreur réseau"}.`);
     } finally {
@@ -77,7 +77,7 @@ export function SocialStats({ initial }: { initial: Payload }) {
   }
 
   const posts = useMemo(() => {
-    const all = [...snapshot.facebook.posts, ...snapshot.instagram.posts].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const all = [...snapshot.facebook.posts, ...snapshot.instagram.posts, ...(snapshot.tiktok?.posts ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
     return filter === "tous" ? all : all.filter((p) => p.network === filter);
   }, [snapshot, filter]);
 
@@ -101,7 +101,7 @@ export function SocialStats({ initial }: { initial: Payload }) {
 
       <h1 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Nos réseaux sociaux</h1>
       <p className="mt-1 max-w-2xl text-[14px] text-neutral-600">
-        Abonnés, publications et rythme de publication de la Page Facebook et du compte Instagram. Les chiffres viennent de Meta et sont relus toutes les 6 heures.
+        Abonnés, publications et rythme de publication de la Page Facebook, du compte Instagram et du compte TikTok. Les chiffres viennent de Meta et de TikTok et sont relus toutes les 6 heures.
       </p>
 
       {note && (
@@ -116,9 +116,10 @@ export function SocialStats({ initial }: { initial: Payload }) {
         </Banner>
       )}
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2">
+      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <AccountCard account={snapshot.facebook} trend={history.facebook} />
         <AccountCard account={snapshot.instagram} trend={history.instagram} />
+        {snapshot.tiktok && <AccountCard account={snapshot.tiktok} trend={history.tiktok ?? EMPTY_TREND} />}
       </div>
       {history.error && <Banner tone="warn">{history.error}</Banner>}
 
@@ -128,7 +129,7 @@ export function SocialStats({ initial }: { initial: Payload }) {
             Dernières publications
           </h2>
           <div role="radiogroup" aria-label="Réseau" className="ml-auto inline-flex rounded-full bg-[rgba(255,255,255,0.7)] p-1">
-            {(["tous", "facebook", "instagram"] as const).map((key) => (
+            {(["tous", "facebook", "instagram", "tiktok"] as const).map((key) => (
               <button
                 key={key}
                 type="button"
@@ -158,12 +159,14 @@ export function SocialStats({ initial }: { initial: Payload }) {
           </ul>
         )}
         <p className="mt-3 text-[12px] text-neutral-500">
-          Portée : comptes uniques touchés. Vues : lectures de la vidéo ou affichages. Engagement : interactions divisées par la portée. Un tiret veut dire que Meta ne donne pas ce chiffre.
+          Portée : comptes uniques touchés. Vues : lectures de la vidéo ou affichages. Engagement : interactions divisées par la portée. Un tiret veut dire que Meta ou TikTok ne donne pas ce chiffre. TikTok ne donne ni la portée ni les enregistrements.
         </p>
       </section>
     </div>
   );
 }
+
+const EMPTY_TREND: FollowerTrend = { points: [], delta: null, since: null };
 
 function Banner({ tone, children }: { tone: "warn" | "error"; children: React.ReactNode }) {
   return (
@@ -211,7 +214,9 @@ function AccountCard({ account, trend }: { account: AccountSnapshot; trend: Foll
         </div>
       </div>
 
-      {account.error ? (
+      {account.notConnected ? (
+        <p className="mt-4 rounded-2xl bg-[#FBF7F2] px-3 py-3 text-[13px] text-neutral-700">{account.error}</p>
+      ) : account.error ? (
         <Banner tone="error">{account.error}</Banner>
       ) : (
         <>
@@ -235,11 +240,19 @@ function AccountCard({ account, trend }: { account: AccountSnapshot; trend: Foll
             <Sparkline points={trend.points} />
           </div>
 
-          <dl className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-[#FBF7F2] p-3 text-center">
-            <Stat label="Portée 28 j" value={fmt(account.totals?.reach)} />
-            <Stat label="Vues 28 j" value={fmt(account.totals?.views)} />
-            <Stat label="Interactions 28 j" value={fmt(account.totals?.interactions)} />
-          </dl>
+          {account.network === "tiktok" ? (
+            <dl className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-[#FBF7F2] p-3 text-center">
+              <Stat label="J'aime total" value={fmt(account.profileTotals?.likes)} />
+              <Stat label="Vidéos" value={fmt(account.profileTotals?.videos)} />
+              <Stat label="Vues des vidéos des 28 derniers jours" value={fmt(account.totals?.views)} wrap />
+            </dl>
+          ) : (
+            <dl className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-[#FBF7F2] p-3 text-center">
+              <Stat label="Portée 28 j" value={fmt(account.totals?.reach)} />
+              <Stat label="Vues 28 j" value={fmt(account.totals?.views)} />
+              <Stat label="Interactions 28 j" value={fmt(account.totals?.interactions)} />
+            </dl>
+          )}
 
           <div className="mt-4">
             <p className="text-[12px] font-semibold uppercase tracking-wide text-neutral-500">Rythme de publication</p>
@@ -277,12 +290,22 @@ function AccountCard({ account, trend }: { account: AccountSnapshot; trend: Foll
   );
 }
 
-function Stat({ label, value }: { label: string; value: string }) {
+function Stat({ label, value, wrap = false }: { label: string; value: string; wrap?: boolean }) {
   return (
-    <div className="min-w-0">
-      <dt className="truncate text-[11px] text-neutral-500">{label}</dt>
+    <div className="flex min-w-0 flex-col justify-end">
+      <dt className={cn("text-[11px] text-neutral-500", wrap ? "leading-tight" : "truncate")}>{label}</dt>
       <dd className="text-[17px] font-bold tabular-nums">{value}</dd>
     </div>
+  );
+}
+
+function Thumb({ src }: { src: string | null }) {
+  const [broken, setBroken] = useState(false);
+  if (!src || broken) return <div className="size-16 shrink-0 rounded-xl bg-[#F6F1EA]" aria-hidden="true" />;
+  return (
+    // Meta and TikTok CDN images (signed, short-lived, TikTok covers expire after 6 h): a plain img, not next/image.
+    // eslint-disable-next-line @next/next/no-img-element
+    <img src={src} alt="" loading="lazy" onError={() => setBroken(true)} className="size-16 shrink-0 rounded-xl bg-[#F6F1EA] object-cover" />
   );
 }
 
@@ -299,13 +322,7 @@ function PostRow({ post }: { post: SocialPost }) {
   return (
     <li className="flex min-w-0 flex-col gap-3 rounded-[20px] bg-white/85 p-3 ring-1 ring-[rgba(74,52,36,0.08)] md:flex-row md:items-center">
       <div className="flex min-w-0 flex-1 gap-3">
-        {post.thumbnail ? (
-          // Meta CDN images (signed, short-lived): a plain img, not next/image.
-          // eslint-disable-next-line @next/next/no-img-element
-          <img src={post.thumbnail} alt="" loading="lazy" className="size-16 shrink-0 rounded-xl bg-[#F6F1EA] object-cover" />
-        ) : (
-          <div className="size-16 shrink-0 rounded-xl bg-[#F6F1EA]" aria-hidden="true" />
-        )}
+        <Thumb src={post.thumbnail} />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-1.5 text-[12px] text-neutral-600">
             <NetworkIcon network={post.network} size={14} label={false} />

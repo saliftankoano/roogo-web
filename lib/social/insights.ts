@@ -1,7 +1,9 @@
 // Social statistics for Studio > Statistiques: the Roogo Burkina Facebook Page
-// and the @roogo.burkina Instagram account, read from the Meta Graph API.
+// and the @roogo.burkina Instagram account, read from the Meta Graph API, and
+// the @roogo.226 TikTok account, read from TikTok's Display API v2.
 //
-// Read only: every call here is a GET. Nothing is ever posted.
+// Read only: every Meta call here is a GET, and the TikTok calls only read
+// (the video list is a POST by TikTok's design). Nothing is ever posted.
 //
 // No runtime imports, so node:test loads this file directly (lib/social/
 // insights.test.mjs) with a fake fetch. The server wrapper
@@ -21,6 +23,18 @@
 //   Instagram account    /{ig}/insights            reach, views, accounts_engaged, total_interactions (total_value)
 // A metric Meta refuses as unknown (#100) is retried alone, then skipped for
 // the rest of the run, so one renamed metric does not blank the whole table.
+//
+// Facebook per-post reach: a reach of 0 next to views or interactions is not a
+// real number (nobody saw it, yet someone watched or liked it). It is shown as
+// « – », never as 0. A video shared again in a later post (same video id) keeps
+// its plays on the original post only: video_insights counts the video, not the
+// post, so the re-share reads its own post insights instead.
+//
+// TikTok (Display API v2, token from lib/team-goals/tiktok-store.ts):
+//   GET  /v2/user/info/   follower_count, likes_count, video_count (user.info.stats)
+//   POST /v2/video/list/  view_count, like_count, comment_count, share_count (video.list)
+// TikTok gives no reach, saves or account-level views: the card sums the
+// views of the videos posted in the last 28 days and says so.
 
 export const SOCIAL_GRAPH_VERSION = "v25.0";
 const GRAPH_HOST = "https://graph.facebook.com";
@@ -31,7 +45,7 @@ export const CADENCE_POSTS = 60;
 export const INSIGHT_POSTS = 12;
 const CONCURRENCY = 4;
 
-export type Network = "facebook" | "instagram";
+export type Network = "facebook" | "instagram" | "tiktok";
 
 export type PostFormat = "reel" | "video" | "photo" | "carrousel" | "texte" | "autre";
 
@@ -90,6 +104,10 @@ export type AccountSnapshot = {
   totals: AccountTotals | null;
   /** False when the per-post statistics could not be read (permission, token). */
   insightsAvailable: boolean;
+  /** TikTok only: lifetime likes and video count from the profile. */
+  profileTotals: { likes: number | null; videos: number | null } | null;
+  /** True when the account is simply not connected yet (TikTok), not an error. */
+  notConnected: boolean;
   /** French, shown on the card. */
   warnings: string[];
   /** French. Set when the account itself could not be read. */
@@ -100,6 +118,7 @@ export type SocialSnapshot = {
   fetchedAt: string;
   facebook: AccountSnapshot;
   instagram: AccountSnapshot;
+  tiktok: AccountSnapshot;
   /** Env names missing (names only). */
   missing: string[];
 };
@@ -367,6 +386,32 @@ export function parseInstagramMedia(media: Json): SocialPost | null {
   };
 }
 
+/**
+ * A per-post reach Meta returned as 0 while the post has views or interactions
+ * is a placeholder, not a measure: shown as « – » (null), never as 0.
+ */
+export function plausibleReach(reach: number | null, views: number | null, interactions: number | null): number | null {
+  if (reach === null || reach === undefined) return null;
+  if (reach === 0 && ((views ?? 0) > 0 || (interactions ?? 0) > 0)) return null;
+  return reach;
+}
+
+/**
+ * Video id -> the post that owns its video_insights: the oldest post that
+ * carries that video. A later post sharing the same video (a re-share of a
+ * reel) reads its own post insights instead of repeating the video's plays.
+ */
+export function facebookVideoOwners(posts: { id: string; createdAt: string; raw: Json }[]): Map<string, string> {
+  const owners = new Map<string, { id: string; createdAt: string }>();
+  for (const post of posts) {
+    const videoId = facebookVideoId(post.raw);
+    if (!videoId) continue;
+    const current = owners.get(videoId);
+    if (!current || post.createdAt < current.createdAt) owners.set(videoId, { id: post.id, createdAt: post.createdAt });
+  }
+  return new Map([...owners.entries()].map(([video, owner]) => [video, owner.id]));
+}
+
 export function withRate(post: SocialPost): SocialPost {
   const rate = post.reach && post.interactions !== null ? post.interactions / post.reach : null;
   return { ...post, engagementRate: rate === null ? null : Math.min(1, Math.round(rate * 10000) / 10000) };
@@ -471,6 +516,8 @@ function emptyAccount(network: Network, configured: boolean, now: Date): Account
     cadence: cadenceOf([], now),
     totals: null,
     insightsAvailable: false,
+    profileTotals: null,
+    notConnected: false,
     warnings: [],
     error: null,
   };
@@ -540,20 +587,25 @@ export async function readFacebook(deps: Deps, cfg: SocialConfig, log: Logger = 
   const refused = new Set<string>();
   let insightError: unknown = null;
   let anyInsight = false;
+  const videoOwner = facebookVideoOwners(posts.map((p) => ({ id: p.id, createdAt: p.createdAt, raw: rawById.get(p.id) ?? {} })));
   const detailed = await mapLimit(posts.slice(0, INSIGHT_POSTS), CONCURRENCY, async (post) => {
     if (insightError && errorKind(insightError) !== "other") return post;
     try {
       const raw = rawById.get(post.id) ?? {};
       const videoId = facebookVideoId(raw);
       let m: Record<string, number> = {};
-      if (videoId) {
+      // Only the first post of a video reads video_insights: a later re-share
+      // of the same video would otherwise show the same lifetime plays.
+      if (videoId && videoOwner.get(videoId) === post.id) {
         m = await readInsights(deps, v, t, `${videoId}/video_insights`, ["post_impressions_unique", "blue_reels_play_count", "total_video_views"], refused);
       }
-      if (m.post_impressions_unique === undefined) {
+      // video_insights answers post_impressions_unique = 0 on reels since the
+      // 2025 views migration: a 0 there is not a reach, read the post insights.
+      if (!m.post_impressions_unique) {
         Object.assign(m, await readInsights(deps, v, t, `${post.id}/insights`, ["post_total_media_view_unique", "post_media_view"], refused));
       }
-      const reach = m.post_impressions_unique ?? m.post_total_media_view_unique ?? null;
       const views = m.blue_reels_play_count ?? m.total_video_views ?? m.post_media_view ?? null;
+      const reach = plausibleReach(m.post_impressions_unique || (m.post_total_media_view_unique ?? null), views, post.interactions);
       if (reach !== null || views !== null) anyInsight = true;
       return withRate({ ...post, reach, views });
     } catch (error) {
@@ -684,20 +736,244 @@ export async function readInstagram(deps: Deps, cfg: SocialConfig, log: Logger =
   return acc;
 }
 
+// --- TikTok ------------------------------------------------------------------
+
+export const TIKTOK_HANDLE = "roogo.226";
+export const TIKTOK_API = "https://open.tiktokapis.com/v2";
+export const TIKTOK_USER_FIELDS = "open_id,display_name,avatar_url,follower_count,following_count,likes_count,video_count";
+export const TIKTOK_VIDEO_FIELDS =
+  "id,title,video_description,create_time,cover_image_url,share_url,duration,view_count,like_count,comment_count,share_count";
+/** Videos read for the rhythm chart (8 weeks) and the 30-day count; 20 per page is TikTok's maximum. */
+export const TIKTOK_MAX_VIDEOS = 60;
+const TIKTOK_PAGE_SIZE = 20;
+export const TIKTOK_NOT_CONNECTED = "TikTok n'est pas encore connecté. Le fondateur le connecte depuis Nos objectifs.";
+
+/** The shape getFreshTikTokAccess (lib/team-goals/tiktok-store.ts) returns. */
+export type TikTokAccessLike = { ok: true; token: string; scope: string } | { ok: false; error: string; notConnected?: boolean };
+
+export type TikTokFetchLike = (
+  url: string,
+  init: { method: "GET" | "POST"; headers: Record<string, string>; body?: string; signal?: AbortSignal; cache?: "no-store" },
+) => Promise<{ ok: boolean; status: number; json: () => Promise<unknown> }>;
+
+export class TikTokApiError extends Error {
+  readonly code: string | null;
+  readonly httpStatus: number;
+  constructor(code: string | null, httpStatus: number, message: string) {
+    super(message);
+    this.name = "TikTokApiError";
+    this.code = code;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/** French text for the TikTok card. Never includes a token or a URL. */
+export function frenchTikTokError(error: unknown, what: "compte" | "vidéos"): string {
+  if (error instanceof TikTokApiError) {
+    const c = error.code ?? "";
+    if (c === "access_token_invalid" || c === "access_token_expired" || error.httpStatus === 401) {
+      return "Le jeton TikTok a expiré ou a été révoqué. Le fondateur reconnecte TikTok depuis Nos objectifs.";
+    }
+    if (c === "scope_not_authorized" || c === "scope_permission_missed") {
+      const scope = what === "compte" ? "user.info.stats" : "video.list";
+      return `Permission TikTok manquante pour lire ${what === "compte" ? "le compte" : "les vidéos"} (${scope}). Le fondateur reconnecte TikTok depuis Nos objectifs.`;
+    }
+    if (c === "rate_limit_exceeded" || error.httpStatus === 429) {
+      return "TikTok limite les lectures pour le moment. Les chiffres reviendront au prochain rafraîchissement.";
+    }
+    if (error.httpStatus >= 500) return "TikTok ne répond pas pour le moment. Réessayez plus tard.";
+    const detail = error.message.replace(/https?:\/\/\S+/g, "[lien]").slice(0, 140);
+    return `Erreur TikTok${c ? ` (${c})` : ""} : ${detail || "réponse inattendue"}`;
+  }
+  return "Pas de réponse de TikTok. Réessayez plus tard.";
+}
+
+function tiktokLogShape(error: unknown) {
+  if (error instanceof TikTokApiError) return { status: error.httpStatus, code: error.code, message: error.message.slice(0, 200) };
+  return { kind: "network", message: error instanceof Error ? error.message.slice(0, 200) : String(error) };
+}
+
+/** One Display API call. TikTok answers { data, error: { code: "ok" | ..., message, log_id } }. */
+export async function tiktokCall(
+  fetchImpl: TikTokFetchLike,
+  token: string,
+  method: "GET" | "POST",
+  path: string,
+  fields: string,
+  body?: Record<string, unknown>,
+): Promise<Json> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    let res;
+    try {
+      res = await fetchImpl(`${TIKTOK_API}/${path}?fields=${fields}`, {
+        method,
+        headers: { Authorization: `Bearer ${token}`, ...(body ? { "Content-Type": "application/json" } : {}) },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+        signal: controller.signal,
+        cache: "no-store",
+      });
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === "AbortError";
+      throw new Error(aborted ? `pas de réponse en ${TIMEOUT_MS / 1000} s` : "erreur réseau");
+    }
+    let data: Json = {};
+    try {
+      data = ((await res.json()) ?? {}) as Json;
+    } catch {
+      data = {};
+    }
+    const err = data.error as { code?: unknown; message?: unknown; log_id?: unknown } | undefined;
+    const code = typeof err?.code === "string" ? err.code : null;
+    if (!res.ok || (code && code !== "ok")) {
+      const logId = typeof err?.log_id === "string" ? ` (log ${err.log_id})` : "";
+      const message = `${typeof err?.message === "string" && err.message ? err.message : `HTTP ${res.status}`}${logId}`;
+      throw new TikTokApiError(code && code !== "ok" ? code : null, res.status, message);
+    }
+    return ((data.data as Json | undefined) ?? {}) as Json;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** One TikTok video as a post row. TikTok gives no reach and no saves. */
+export function parseTikTokVideo(video: Json): SocialPost | null {
+  const id = str(video.id);
+  const created = num(video.create_time);
+  if (!id || !created) return null;
+  const likes = num(video.like_count);
+  const comments = num(video.comment_count);
+  const shares = num(video.share_count);
+  return {
+    network: "tiktok",
+    id,
+    permalink: str(video.share_url) ?? `https://www.tiktok.com/@${TIKTOK_HANDLE}/video/${id}`,
+    createdAt: new Date(created * 1000).toISOString(),
+    caption: shortCaption(str(video.title) ?? str(video.video_description) ?? ""),
+    thumbnail: str(video.cover_image_url),
+    format: "video",
+    reach: null,
+    views: num(video.view_count),
+    likes,
+    comments,
+    shares,
+    saves: null,
+    interactions: likes === null && comments === null && shares === null ? null : (likes ?? 0) + (comments ?? 0) + (shares ?? 0),
+    engagementRate: null,
+  };
+}
+
+/** Sum of view_count for the videos posted in the last `days` days (0 when none was posted, null without any view count). */
+export function recentViews(posts: SocialPost[], now: Date, days = 28): number | null {
+  const recent = posts.filter((p) => now.getTime() - new Date(p.createdAt).getTime() < days * DAY);
+  if (!recent.length) return 0;
+  if (!recent.some((p) => p.views !== null)) return null;
+  return recent.reduce((sum, p) => sum + (p.views ?? 0), 0);
+}
+
+export type TikTokDeps = { fetch: TikTokFetchLike; now?: () => Date };
+
+/**
+ * The TikTok account block. Never throws: not connected is a calm state, a
+ * failed profile read is the card's error, a failed video list keeps the
+ * follower count and shows a warning.
+ */
+export async function readTikTok(deps: TikTokDeps, access: TikTokAccessLike, log: Logger = () => {}): Promise<AccountSnapshot> {
+  const now = deps.now?.() ?? new Date();
+  const acc = emptyAccount("tiktok", access.ok, now);
+  acc.handle = TIKTOK_HANDLE;
+  if (!access.ok) {
+    if (access.notConnected) {
+      acc.notConnected = true;
+      acc.error = TIKTOK_NOT_CONNECTED;
+    } else {
+      acc.error = `TikTok ne peut pas être lu : ${access.error}`;
+    }
+    return acc;
+  }
+
+  try {
+    const data = await tiktokCall(deps.fetch, access.token, "GET", "user/info/", TIKTOK_USER_FIELDS);
+    const user = (data.user as Json | undefined) ?? {};
+    acc.name = str(user.display_name);
+    acc.followers = num(user.follower_count);
+    acc.profileTotals = { likes: num(user.likes_count), videos: num(user.video_count) };
+    acc.ok = true;
+  } catch (error) {
+    log("[social-insights] tiktok profile read failed", tiktokLogShape(error));
+    acc.error = frenchTikTokError(error, "compte");
+    return acc;
+  }
+
+  const posts: SocialPost[] = [];
+  let listFailed = false;
+  try {
+    const oldest = now.getTime() - 60 * DAY;
+    let cursor: number | null = null;
+    for (let page = 0; page < Math.ceil(TIKTOK_MAX_VIDEOS / TIKTOK_PAGE_SIZE); page += 1) {
+      const body: Record<string, unknown> = { max_count: TIKTOK_PAGE_SIZE };
+      if (cursor !== null) body.cursor = cursor;
+      const data = await tiktokCall(deps.fetch, access.token, "POST", "video/list/", TIKTOK_VIDEO_FIELDS, body);
+      const videos = Array.isArray(data.videos) ? (data.videos as Json[]) : [];
+      posts.push(...videos.map(parseTikTokVideo).filter((p): p is SocialPost => p !== null));
+      const next = num(data.cursor);
+      const last = posts[posts.length - 1];
+      if (data.has_more !== true || next === null || next === cursor || !videos.length) break;
+      if (last && new Date(last.createdAt).getTime() < oldest) break;
+      cursor = next;
+    }
+  } catch (error) {
+    listFailed = true;
+    log("[social-insights] tiktok video list failed", tiktokLogShape(error));
+    acc.warnings.push(frenchTikTokError(error, "vidéos"));
+  }
+  const unique = [...new Map(posts.map((p) => [p.id, p])).values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).slice(0, TIKTOK_MAX_VIDEOS);
+  acc.cadence = cadenceOf(unique.map((p) => p.createdAt), now);
+  acc.postCount = unique.length;
+  acc.posts = unique.slice(0, INSIGHT_POSTS);
+  acc.insightsAvailable = unique.some((p) => p.views !== null);
+  acc.totals = listFailed && !unique.length ? null : { reach: null, views: recentViews(unique, now, 28), interactions: null };
+  return acc;
+}
+
+/** Where the TikTok part of the snapshot comes from (server: getFreshTikTokAccess and fetch). */
+export type TikTokSource = { access: () => Promise<TikTokAccessLike>; fetch: TikTokFetchLike };
+
+function tiktokPlaceholder(now: Date, error: string, notConnected: boolean): AccountSnapshot {
+  const acc = emptyAccount("tiktok", !notConnected, now);
+  acc.handle = TIKTOK_HANDLE;
+  acc.notConnected = notConnected;
+  acc.error = error;
+  return acc;
+}
+
 export async function readSocialSnapshot(
   deps: Deps,
   cfg: SocialConfig,
   missing: string[],
   log: Logger = () => {},
+  tiktok?: TikTokSource,
 ): Promise<SocialSnapshot> {
   const now = deps.now?.() ?? new Date();
-  const [facebook, instagram] = await Promise.all([readFacebook(deps, cfg, log), readInstagram(deps, cfg, log)]);
-  return { fetchedAt: now.toISOString(), facebook, instagram, missing };
+  // Each network is read on its own: a TikTok failure never blanks Meta, and the reverse.
+  const readTikTokSafely = async (): Promise<AccountSnapshot> => {
+    if (!tiktok) return tiktokPlaceholder(now, TIKTOK_NOT_CONNECTED, true);
+    try {
+      const access = await tiktok.access();
+      return await readTikTok({ fetch: tiktok.fetch, now: () => now }, access, log);
+    } catch (error) {
+      log("[social-insights] tiktok read crashed", tiktokLogShape(error));
+      return tiktokPlaceholder(now, "TikTok ne peut pas être lu pour le moment. Réessayez plus tard.", false);
+    }
+  };
+  const [facebook, instagram, tiktokAccount] = await Promise.all([readFacebook(deps, cfg, log), readInstagram(deps, cfg, log), readTikTokSafely()]);
+  return { fetchedAt: now.toISOString(), facebook, instagram, tiktok: tiktokAccount, missing };
 }
 
 /** A snapshot worth caching: at least one account was read. */
 export function isCacheable(snapshot: SocialSnapshot): boolean {
-  return snapshot.facebook.ok || snapshot.instagram.ok;
+  return snapshot.facebook.ok || snapshot.instagram.ok || snapshot.tiktok.ok;
 }
 
 // --- Follower history (team_goal_readings) -------------------------------------
