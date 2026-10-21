@@ -24,6 +24,11 @@ import {
   type SalePriceDecision,
 } from "@/lib/sale-price-guard";
 import { staffLevelFromUserRow } from "@/lib/staff-access-server";
+import {
+  mandateCommissionFromRow,
+  mandateLadderFromRow,
+  readPct,
+} from "@/lib/sale-ladder-snapshot";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 
 // The price + exclusivity mandate the owner signs. Economics v2 (migration 050):
@@ -108,10 +113,8 @@ export async function getSaleCommissionConfig() {
   };
 }
 
-function num(value: unknown) {
-  const n = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(n) ? n : Number.NaN;
-}
+// NULL is missing, not 0 (see lib/sale-ladder-snapshot.ts).
+const num = readPct;
 
 export type SaleLadderConfig = SaleLadderPcts & SaleFeePcts;
 
@@ -167,14 +170,7 @@ export async function getSaleLadderConfig(): Promise<SaleLadderConfig> {
 
 /** The ladder snapshotted on a mandate, or null for mandates sent before it. */
 function mandateLadder(mandate: MandateRow): SaleLadderPcts | null {
-  const pcts = {
-    listingMarkupPct: num(mandate.listing_markup_pct),
-    targetMarkupPct: num(mandate.target_markup_pct),
-    // 075 column names: see getSaleLadderConfig.
-    referenceMarkupPct: num(mandate.team_floor_markup_pct),
-    teamFloorMarkupPct: num(mandate.hard_floor_markup_pct),
-  };
-  return Object.values(pcts).every(Number.isFinite) ? pcts : null;
+  return mandateLadderFromRow(mandate);
 }
 
 /**
@@ -603,6 +599,63 @@ export type StaffSaleLadder = {
   approvals: SalePriceApprovalView[];
 };
 
+export type OwnerSalePayout = SaleLadderPcts &
+  SaleFeePcts & {
+    /** The owner's own price (what they asked to receive). */
+    ownerPrice: number;
+    /** The public price (properties.price). */
+    listingPrice: number;
+    baseCommissionPct: number;
+    surplusSplitPct: number;
+  };
+
+/**
+ * Owner view of their own sale listing (simulator, 2026-10-18): their price,
+ * the public price and the percentages needed to show what they receive at
+ * Prix affiché, Objectif and Minimum. The caller must check the property
+ * belongs to the signed-in owner. No approvals, no approval rule. Null for
+ * non-sales or when the owner's price is unknown.
+ */
+export async function getOwnerSalePayout(
+  propertyId: string,
+): Promise<OwnerSalePayout | null> {
+  const { data: property, error } = await supabaseAdmin
+    .from("properties")
+    .select("listing_type, price")
+    .eq("id", propertyId)
+    .maybeSingle();
+  if (error) throw error;
+  if (!property || property.listing_type !== "vendre") return null;
+
+  const mandate = await getLatestMandateForProperty(propertyId);
+  const live =
+    mandate && ["sent", "signed"].includes(mandate.status) && mandate.desired_price != null
+      ? mandate
+      : null;
+  const ownerPrice = live
+    ? Number(live.desired_price)
+    : await getPrivateAskingPrice(propertyId);
+  if (ownerPrice == null || !(ownerPrice > 0)) return null;
+
+  const config = await getSaleLadderConfig();
+  const ladder = (live && mandateLadder(live)) ?? config;
+  const snapshot = mandateCommissionFromRow(live);
+  const commission = snapshot ?? (await getSaleCommissionConfig());
+  return {
+    ownerPrice,
+    listingPrice: Number(property.price) || 0,
+    listingMarkupPct: ladder.listingMarkupPct,
+    targetMarkupPct: ladder.targetMarkupPct,
+    referenceMarkupPct: ladder.referenceMarkupPct,
+    teamFloorMarkupPct: ladder.teamFloorMarkupPct,
+    notaryFeePct: config.notaryFeePct,
+    buyerReferralPct: config.buyerReferralPct,
+    sellerReferralPct: config.sellerReferralPct,
+    baseCommissionPct: commission.baseCommissionPct,
+    surplusSplitPct: commission.surplusSplitPct,
+  };
+}
+
 /**
  * Staff-only view of a sale listing's price ladder: what the owner receives and
  * what Roogo keeps at each rung, and where the current public price sits.
@@ -634,9 +687,13 @@ export async function getStaffSaleLadder(
 
   const ladder = (live && mandateLadder(live)) ?? (await getSaleLadderConfig());
   const fees = await getSaleLadderConfig();
-  let base = Number(live?.base_commission_pct);
-  let split = Number(live?.surplus_split_pct);
-  if (!Number.isFinite(base) || !Number.isFinite(split)) {
+  const snapshot = mandateCommissionFromRow(live);
+  let base: number;
+  let split: number;
+  if (snapshot) {
+    base = snapshot.baseCommissionPct;
+    split = snapshot.surplusSplitPct;
+  } else {
     const commission = await getSaleCommissionConfig();
     base = commission.baseCommissionPct;
     split = commission.surplusSplitPct;
