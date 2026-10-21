@@ -11,7 +11,7 @@ import {
 import { cn } from "@/lib/utils";
 import type { AccountSnapshot, FollowerTrend, Network, PostFormat, SocialPost, SocialSnapshot } from "@/lib/social/insights";
 import type { SocialHistory } from "@/lib/social/insights-server";
-import { StudioSwitch } from "../StudioSwitch";
+import { StudioHeader } from "../StudioHeader";
 import { NetworkIcon } from "../calendrier/NetworkIcons";
 import { TikTokConnectPanel, TikTokConnectedFooter, type TikTokAdmin } from "./TikTokConnection";
 
@@ -86,21 +86,22 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
 
   return (
     <div className="mx-auto w-full max-w-6xl px-1 pb-16 text-[#1F1A16]">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <StudioSwitch />
-        <div className="ml-auto flex items-center gap-2">
-          <span className="text-[13px] text-neutral-600">Mis à jour {ago(snapshot.fetchedAt)}</span>
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={busy}
-            className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#C96A2E] px-4 text-sm font-bold text-white transition-colors hover:bg-[#B85E26] disabled:opacity-60 md:h-10"
-          >
-            <ArrowClockwiseIcon size={15} weight="bold" className={cn("size-[15px]", busy && "animate-spin")} />
-            {busy ? "Lecture…" : "Actualiser"}
-          </button>
-        </div>
-      </div>
+      <StudioHeader
+        actions={
+          <>
+            <span className="text-[13px] text-neutral-600">Mis à jour {ago(snapshot.fetchedAt)}</span>
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={busy}
+              className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#C96A2E] px-4 text-sm font-bold text-white transition-colors hover:bg-[#B85E26] disabled:opacity-60 md:h-10"
+            >
+              <ArrowClockwiseIcon size={15} weight="bold" className={cn("size-[15px]", busy && "animate-spin")} />
+              {busy ? "Lecture…" : "Actualiser"}
+            </button>
+          </>
+        }
+      />
 
       <h1 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Nos réseaux sociaux</h1>
       <p className="mt-1 max-w-2xl text-[14px] text-neutral-600">

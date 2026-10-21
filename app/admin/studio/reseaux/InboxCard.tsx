@@ -26,7 +26,7 @@ import {
   type StatusAction,
 } from "@/lib/social/inbox";
 import { slaLabel, type SlaState } from "@/lib/social/sla";
-import { NetworkIcon } from "../calendrier/NetworkIcons";
+import { MessengerIcon, NetworkIcon } from "../calendrier/NetworkIcons";
 import { ouagaTime } from "./format";
 
 const STATUS_TONE: Record<InboxStatus, string> = {
@@ -129,7 +129,11 @@ export function InboxCard({ item, now, sla = null, pageId, onChange, initialDraf
     >
       {/* Who, where, when */}
       <div className="flex min-w-0 items-start gap-2.5">
-        <NetworkIcon network={item.network} size={22} className="mt-0.5" />
+        {item.kind === "message" && item.network === "facebook" ? (
+          <MessengerIcon size={22} className="mt-0.5" />
+        ) : (
+          <NetworkIcon network={item.network} size={22} className="mt-0.5" />
+        )}
         <div className="min-w-0 flex-1">
           <p className="truncate text-[15px] font-bold text-[#1F1A16]">{item.authorName}</p>
           <p className="text-[12px] text-neutral-600">
