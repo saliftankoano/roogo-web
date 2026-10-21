@@ -354,7 +354,7 @@ export const AREAS: Area[] = [
         detail: "Les preuves sur les utilisateurs ne montrent que des nombres par semaine, jamais un nom, un e-mail ou un téléphone.",
         access: ALL,
         enforcedBy: ["serveur", "page"],
-        files: ["app/api/admin/goals/route.ts", "app/admin/objectifs/page.tsx", "lib/team-goals/server.ts"],
+        files: ["app/api/admin/goals/route.ts", "app/admin/page.tsx", "lib/team-goals/server.ts"],
         titleMatters: false,
       },
       {

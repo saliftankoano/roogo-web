@@ -44,9 +44,9 @@ function ApprovalBadge({ count, className }: { count: number; className?: string
 
 function isLinkActive(pathname: string, href: string) {
   // "/admin" is the briefing: exact, plus the pages opened from it (team
-  // board, goals and their levers, call notes).
+  // board, call notes). Goals and levers live on Accueil itself since 2026-10-21.
   if (href === todayNavItem.href) {
-    return pathname === href || ["/admin/equipe", "/admin/objectifs", "/admin/notes-appels"].some(
+    return pathname === href || ["/admin/equipe", "/admin/notes-appels"].some(
       (page) => pathname === page || pathname.startsWith(`${page}/`),
     );
   }

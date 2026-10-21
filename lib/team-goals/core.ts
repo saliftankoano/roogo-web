@@ -51,6 +51,36 @@ export function formatCount(n: number): string {
   return String(Math.round(n)).replace(/\B(?=(\d{3})+(?!\d))/g, " ");
 }
 
+/**
+ * The title after a target change: the old target written in the title
+ * (« 1 000 », « 1 000 » with a no-break space, or plain « 1000 ») becomes the
+ * new one written with formatCount. A custom title without the old number is
+ * returned unchanged. Only a whole number matches (« 2 » never matches in « 12 »).
+ */
+export function retitleForTarget(title: string, oldTarget: number, newTarget: number): string {
+  if (!Number.isFinite(oldTarget) || !Number.isFinite(newTarget) || oldTarget === newTarget) return title;
+  const groups = formatCount(oldTarget).split(" ");
+  const number = groups.join("[ \\u00A0\\u202F]?");
+  const pattern = new RegExp(`(?<![\\d.,])(?<!\\d[ \\u00A0\\u202F])${number}(?![ \\u00A0\\u202F]?\\d)(?![.,]\\d)`);
+  return pattern.test(title) ? title.replace(pattern, formatCount(newTarget)) : title;
+}
+
+/**
+ * « Modifier l’objectif »: the corrected title to offer in one tap, or null.
+ * First the old target written in the title (retitleForTarget); otherwise, when
+ * the title starts with a number that is not the target (a title left stale
+ * by an earlier change, « 1 000 abonnés TikTok » at 5 000), that number.
+ */
+export function suggestTitle(title: string, oldTarget: number, newTarget: number): string | null {
+  const replaced = retitleForTarget(title, oldTarget, newTarget);
+  if (replaced !== title) return replaced;
+  const lead = /^(\s*)(\d{1,3}(?:[   ]\d{3})+|\d+)(?![.,]\d)/.exec(title);
+  if (!lead) return null;
+  const n = Number(lead[2].replace(/[   ]/g, ""));
+  if (!Number.isFinite(n) || n === newTarget) return null;
+  return `${lead[1]}${formatCount(newTarget)}${title.slice(lead[0].length)}`;
+}
+
 /** "16 octobre", "1er août", or "16 octobre 2025" when the year differs from `yearOf`. */
 export function dayLabel(key: string, yearOf?: string): string {
   const d = startOf(key);
@@ -128,7 +158,7 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
     kind: "stock",
     manual: true,
     source: "Saisi à la main",
-    measure: "TikTok ne donne pas le chiffre à l’appli. Il est saisi à la main depuis le profil, avec la capture d’écran en preuve.",
+    measure: "TikTok n’est pas encore connecté : pour l’instant le chiffre est saisi à la main depuis le profil, avec la capture d’écran en preuve.",
   },
   facebook_followers: {
     family: "Facebook",
@@ -199,7 +229,7 @@ export function metricDefFor(metric: GoalMetric, opts: { tiktokConnected?: boole
     return {
       ...def,
       source: "Lu chaque nuit",
-      measure: "Abonnés du compte TikTok @roogo.226, lus automatiquement chaque nuit chez TikTok. Si la lecture ne passe pas, le chiffre se saisit à la main avec la capture d’écran en preuve.",
+      measure: "Le chiffre est lu automatiquement chaque nuit chez TikTok (compte @roogo.226). Si la lecture ne passe pas, il se saisit à la main avec la capture d’écran en preuve.",
     };
   }
   return def;

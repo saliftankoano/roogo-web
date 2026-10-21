@@ -5,16 +5,20 @@
 // target or removes the goal here, and the founder or the Directeur enter a
 // manual reading with its screenshot (the fallback when the nightly Facebook
 // or Instagram reading fails). Sales come from the « Vendu » status of the
-// listing. The server checks each of these again.
+// listing. The server checks each of these again. Since /admin/objectifs
+// merged into Accueil (2026-10-21) the drawer also holds the goal's levers
+// (the founder adds and edits them here) and « Comment c’est compté ».
 
 import Link from "next/link";
 import { useEffect, useId, useState } from "react";
 import { CameraIcon, LockSimpleIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { compressImageToBase64 } from "@/lib/clientImageCompression";
+import { formatCount, suggestTitle } from "@/lib/team-goals/core";
 import type { GoalView, GoalsPayload } from "@/lib/team-goals/server";
 import { CloseButton, Drawer } from "../Drawer";
 import { GoalIcon, STATUS_CHIP, TAB_BADGE } from "./GoalIcon";
+import { GoalLevers } from "./Levers";
 import type { GoalsApi } from "./useGoals";
 
 export function EvidenceDrawer({
@@ -34,14 +38,9 @@ export function EvidenceDrawer({
   onClose: () => void;
   onRemoved: (goal: GoalView) => void;
 }) {
-  const [editingTarget, setEditingTarget] = useState(false);
-  const [target, setTarget] = useState("");
-  const targetId = useId();
-
-  useEffect(() => {
-    setEditingTarget(false);
-    setTarget(goal ? String(goal.target) : "");
-  }, [goal?.id, goal?.target]); // eslint-disable-line react-hooks/exhaustive-deps
+  // The goal itself always comes from the reloaded payload (by id): no local copy.
+  const [editing, setEditing] = useState(false);
+  useEffect(() => setEditing(false), [goal?.id]);
 
   if (!goal) return null;
   const canManage = data.canManage;
@@ -72,48 +71,29 @@ export function EvidenceDrawer({
               <span className="text-xs font-bold text-[#6B625B]">Il reste {goal.remainingLabel} · {goal.need}</span>
             )}
           </span>
-          <p className="m-0 text-sm leading-[1.45] text-[#4A4540]">{goal.measure}</p>
+          <p className="m-0 text-sm leading-[1.45] text-[#4A4540]">
+            <strong className="font-extrabold text-[#1F1A16]">Comment c’est compté : </strong>
+            {goal.measure}
+          </p>
+          {goal.needsTikTokConnection && canManage && (
+            <Link href="/admin/studio/statistiques" className="self-start text-sm font-extrabold text-[#8A4924] hover:text-[#5A321A]">
+              Connecter TikTok dans Statistiques
+            </Link>
+          )}
         </div>
       }
       footer={
         canManage ? (
-          editingTarget ? (
-            <form
-              className="flex flex-wrap items-end gap-2"
-              onSubmit={async (event) => {
-                event.preventDefault();
-                const n = Number(target.replace(/\s/g, ""));
-                if (!Number.isInteger(n) || n < 1) return;
-                const ok = await api.setTarget(goal.id, n);
-                if (ok) setEditingTarget(false);
-              }}
-            >
-              <label htmlFor={targetId} className="flex flex-col gap-1 text-xs font-extrabold uppercase tracking-[0.06em] text-[#6B625B]">
-                Nouvelle cible
-                <input
-                  id={targetId}
-                  inputMode="numeric"
-                  autoFocus
-                  value={target}
-                  onChange={(event) => setTarget(event.target.value.replace(/[^\d\s]/g, ""))}
-                  className="h-11 w-36 rounded-xl border border-[#E2D8CC] bg-[#FBF7F1] px-3 text-base font-bold normal-case tracking-normal text-[#1F1A16]"
-                />
-              </label>
-              <button type="submit" disabled={busy[`goal:${goal.id}`]} className="h-11 rounded-full bg-[#1F1A16] px-4 text-sm font-extrabold text-white disabled:opacity-60">
-                Enregistrer
-              </button>
-              <button type="button" onClick={() => setEditingTarget(false)} className="h-11 rounded-full border border-[#E2D8CC] bg-white px-4 text-sm font-bold">
-                Annuler
-              </button>
-            </form>
+          editing ? (
+            <GoalEditForm goal={goal} api={api} busy={!!busy[`goal:${goal.id}`]} onDone={() => setEditing(false)} />
           ) : (
             <div className="flex flex-wrap gap-2">
               <button
                 type="button"
-                onClick={() => setEditingTarget(true)}
+                onClick={() => setEditing(true)}
                 className="h-11 cursor-pointer rounded-full border border-[#E2D8CC] bg-white px-4 text-sm font-bold hover:border-[#C96A2E]"
               >
-                Modifier la cible
+                Modifier l’objectif
               </button>
               <span className="flex-1" />
               <button
@@ -199,22 +179,81 @@ export function EvidenceDrawer({
           </div>
         ))}
 
-        {goal.levers.length > 0 && (
-          <div className="mx-4 mt-4 flex flex-col gap-2 rounded-2xl border border-[#EFE6DA] bg-[#FBF7F1] p-3 lg:mx-5">
-            <span className="text-xs font-extrabold uppercase tracking-[0.06em] text-[#C96A2E]">Pour que ce soit inévitable</span>
-            {goal.levers.map((lever) => (
-              <span key={lever.id} className="flex items-center gap-2 text-[13px]">
-                <span className="flex-1 font-bold leading-snug">{lever.title}</span>
-                <span className="whitespace-nowrap text-[#6B625B]">{lever.ownerName} · {lever.done} / {lever.weeklyTarget}</span>
-              </span>
-            ))}
-            <Link href={`/admin/objectifs?objectif=${goal.id}`} className="self-start text-[13px] font-extrabold text-[#8A4924]">
-              Voir les leviers
-            </Link>
-          </div>
-        )}
+        <GoalLevers goal={goal} deps={{ people: data.people, api, busy, canManage }} />
       </div>
     </Drawer>
+  );
+}
+
+/**
+ * « Modifier l’objectif » (founder): title and target together. When the
+ * title still carries a number that is not the target, a one-tap suggestion
+ * offers the corrected title (« Mettre le titre à jour : 5 000 abonnés TikTok »).
+ */
+function GoalEditForm({ goal, api, busy, onDone }: { goal: GoalView; api: GoalsApi; busy: boolean; onDone: () => void }) {
+  const id = useId();
+  const [title, setTitle] = useState(goal.title);
+  const [target, setTarget] = useState(formatCount(goal.target));
+  const [problem, setProblem] = useState<string | null>(null);
+  const n = Number(target.replace(/\s/g, ""));
+  const validTarget = Number.isInteger(n) && n >= 1;
+  const suggestion = validTarget ? suggestTitle(title, goal.target, n) : null;
+  return (
+    <form
+      className="flex flex-col gap-2.5"
+      onSubmit={async (event) => {
+        event.preventDefault();
+        setProblem(null);
+        const cleanTitle = title.trim();
+        if (!cleanTitle || cleanTitle.length > 120) return setProblem("Le titre doit faire de 1 à 120 caractères.");
+        if (!validTarget) return setProblem("La cible doit être un nombre entier positif.");
+        const ok = await api.editGoal(goal.id, cleanTitle, n);
+        if (ok) onDone();
+      }}
+    >
+      <label htmlFor={`${id}-t`} className="flex flex-col gap-1 text-xs font-extrabold uppercase tracking-[0.06em] text-[#6B625B]">
+        Titre
+        <input
+          id={`${id}-t`}
+          value={title}
+          maxLength={120}
+          onChange={(event) => setTitle(event.target.value)}
+          className="h-11 rounded-xl border border-[#E2D8CC] bg-[#FBF7F1] px-3 text-[15px] font-bold normal-case tracking-normal text-[#1F1A16]"
+        />
+      </label>
+      <label htmlFor={`${id}-c`} className="flex flex-col gap-1 text-xs font-extrabold uppercase tracking-[0.06em] text-[#6B625B]">
+        Cible
+        <input
+          id={`${id}-c`}
+          inputMode="numeric"
+          value={target}
+          onChange={(event) => setTarget(event.target.value.replace(/[^\d\s]/g, ""))}
+          className="h-11 w-40 rounded-xl border border-[#E2D8CC] bg-[#FBF7F1] px-3 text-base font-bold normal-case tracking-normal text-[#1F1A16]"
+        />
+      </label>
+      {suggestion && (
+        <button
+          type="button"
+          onClick={() => setTitle(suggestion)}
+          className="self-start rounded-xl bg-[#FCEBDD] px-3 py-2 text-left text-[13px] font-extrabold text-[#8A3F12] hover:bg-[#F9E0CB]"
+        >
+          Mettre le titre à jour : {suggestion}
+        </button>
+      )}
+      {problem && (
+        <p role="alert" className="m-0 text-sm font-semibold text-[#8E2A1E]">
+          {problem}
+        </p>
+      )}
+      <div className="flex flex-wrap gap-2">
+        <button type="submit" disabled={busy} className="h-11 rounded-full bg-[#1F1A16] px-4 text-sm font-extrabold text-white disabled:opacity-60">
+          Enregistrer
+        </button>
+        <button type="button" onClick={onDone} className="h-11 rounded-full border border-[#E2D8CC] bg-white px-4 text-sm font-bold">
+          Annuler
+        </button>
+      </div>
+    </form>
   );
 }
 

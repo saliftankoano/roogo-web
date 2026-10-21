@@ -38,6 +38,7 @@ import {
   listedInWindow,
   pastMonthWindows,
   periodChoices,
+  retitleForTarget,
   readingAt,
   readingPace,
   readingSourceLabel,
@@ -211,6 +212,8 @@ export type GoalView = {
   evidence: EvidenceRow[];
   history: HistoryRow[];
   manual: boolean;
+  /** TikTok goal while TikTok is not connected: the founder gets « Connecter TikTok dans Statistiques ». */
+  needsTikTokConnection: boolean;
   levers: LeverView[];
 };
 
@@ -649,7 +652,7 @@ export async function getGoalTitles(): Promise<Map<string, string>> {
   return new Map((data ?? []).map((row) => [row.id as string, row.title as string]));
 }
 
-/** Everything the goals strip, the drawer and /admin/objectifs need, for this viewer. */
+/** Everything the goals strip, the drawer and the levers on Accueil need, for this viewer. */
 export async function getGoalsPayload(viewer: Viewer, people: Person[], now = new Date()): Promise<GoalsPayload> {
   const todayKey = dayKeyOf(now);
   const { data: goalData, error: goalError } = await supabaseAdmin
@@ -800,6 +803,7 @@ export async function goalsFromRows(
       evidence: metric.evidence,
       history: metric.history,
       manual: def.manual,
+      needsTikTokConnection: goal.metric === "tiktok_followers" && !loaded.tiktokConnected,
       levers: leverViews.filter((l) => l.goalId === goal.id),
     };
   });
@@ -819,7 +823,8 @@ export async function goalsFromRows(
     mineTotals: shareTotals(mine),
     tally: people
       .filter((p) => tallyBy.has(p.id))
-      .map((p) => ({ personId: p.id, name: p.firstName, initials: p.initials, ...tallyBy.get(p.id)! })),
+      .map((p) => ({ personId: p.id, name: p.firstName, initials: p.initials, ...tallyBy.get(p.id)! }))
+      .sort((a, b) => a.name.localeCompare(b.name, "fr")),
     used: views.filter((g) => !g.ended).map((g) => `${g.metric}|${g.period}`),
     failedMetrics: [...new Set(failed)],
   };
@@ -887,6 +892,8 @@ export async function createGoal(viewer: Viewer, people: Person[], input: NewGoa
 export type GoalPatch =
   | { action: "target"; target: number }
   | { action: "title"; title: string }
+  /** « Modifier l’objectif »: title and target together, as the founder wrote them. */
+  | { action: "edit"; title: string; target: number }
   | { action: "archive" }
   | { action: "restore" };
 
@@ -894,7 +901,14 @@ export async function updateGoal(viewer: Viewer, id: string, patch: GoalPatch): 
   const denied = founderOnly(viewer);
   if (denied) return denied;
   let values: Record<string, unknown>;
-  if (patch.action === "target") values = { target: patch.target };
+  if (patch.action === "target") {
+    // The title usually carries the target (« 1 000 abonnés TikTok »): keep it in step.
+    const { data: current, error: readError } = await supabaseAdmin.from("team_goals").select("title, target").eq("id", id).maybeSingle();
+    if (readError) return writeError(readError, "goal target read");
+    if (!current) return fail(404, "Cet objectif n’existe plus.");
+    const title = retitleForTarget(String(current.title ?? ""), Number(current.target), patch.target);
+    values = title && title !== current.title ? { target: patch.target, title } : { target: patch.target };
+  } else if (patch.action === "edit") values = { title: patch.title, target: patch.target };
   else if (patch.action === "title") values = { title: patch.title };
   else if (patch.action === "archive") values = { archived_at: new Date().toISOString(), archived_by: viewer.id };
   else values = { archived_at: null, archived_by: null };
