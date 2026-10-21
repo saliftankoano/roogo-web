@@ -53,7 +53,18 @@ function dayWord(key: string) {
   return shortDate(key).replace(/^./, (c) => c.toUpperCase());
 }
 
-export function SuiviView({ initial, selectedId, people }: { initial: SuiviItem[]; selectedId: string | null; people: PersonMini[] }) {
+export function SuiviView({
+  initial,
+  selectedId,
+  people,
+  canWithdraw = false,
+}: {
+  initial: SuiviItem[];
+  selectedId: string | null;
+  people: PersonMini[];
+  /** Founder only: « Retirer cette fiche » (a test sheet, or the wrong listing). */
+  canWithdraw?: boolean;
+}) {
   const [items, setItems] = useState(initial);
   const [selected, setSelected] = useState<string | null>(selectedId ?? initial[0]?.id ?? null);
   const [detail, setDetail] = useState<FichePayload | null>(null);
@@ -79,12 +90,34 @@ export function SuiviView({ initial, selectedId, people }: { initial: SuiviItem[
   }, []);
 
   useEffect(() => {
-    if (!selected) return;
-    void loadDetail(selected);
     const url = new URL(window.location.href);
+    if (!selected) {
+      setDetail(null);
+      url.searchParams.delete("fiche");
+      window.history.replaceState(null, "", url);
+      return;
+    }
+    void loadDetail(selected);
     url.searchParams.set("fiche", selected);
     window.history.replaceState(null, "", url);
   }, [selected, loadDetail]);
+
+  /** The sheet and its montage tasks leave the list and the briefings; nothing is deleted. */
+  const withdraw = useCallback(async (id: string) => {
+    const res = await fetch(`/api/admin/field-visits/${id}`, {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ action: "withdraw" }),
+    });
+    const body = (await res.json().catch(() => ({}))) as { error?: string };
+    if (!res.ok) throw new Error(body.error ?? `Le retrait a échoué (erreur ${res.status}).`);
+    setItems((current) => current.filter((item) => item.id !== id));
+  }, []);
+
+  // A withdrawn (or vanished) sheet hands the detail to the first one left.
+  useEffect(() => {
+    if (selected && !items.some((item) => item.id === selected)) setSelected(items[0]?.id ?? null);
+  }, [items, selected]);
 
   useEffect(() => {
     if (detail) riseIn(detailRef.current);
@@ -169,7 +202,14 @@ export function SuiviView({ initial, selectedId, people }: { initial: SuiviItem[
               </p>
             )}
             {!detail && !error && <div aria-hidden="true" className="h-64 animate-pulse rounded-[20px] bg-white/70" />}
-            {detail && <Detail ref={detailRef} detail={detail} names={names} />}
+            {detail && (
+              <Detail
+                ref={detailRef}
+                detail={detail}
+                names={names}
+                onWithdraw={canWithdraw ? () => withdraw(detail.fiche.id) : null}
+              />
+            )}
           </main>
         </div>
       )}
@@ -177,7 +217,17 @@ export function SuiviView({ initial, selectedId, people }: { initial: SuiviItem[
   );
 }
 
-function Detail({ detail, names, ref }: { detail: FichePayload; names: Map<string, PersonMini>; ref: React.Ref<HTMLDivElement> }) {
+function Detail({
+  detail,
+  names,
+  ref,
+  onWithdraw,
+}: {
+  detail: FichePayload;
+  names: Map<string, PersonMini>;
+  ref: React.Ref<HTMLDivElement>;
+  onWithdraw: (() => Promise<void>) | null;
+}) {
   const { fiche, property } = detail;
   const team = [fiche.person1Id, fiche.person2Id].filter(Boolean).map((id) => names.get(id!)?.firstName ?? "Membre");
   const pubs = plannedPublications(fiche.visitDate);
@@ -349,7 +399,78 @@ function Detail({ detail, names, ref }: { detail: FichePayload; names: Map<strin
           })}
         </section>
       )}
+
+      {onWithdraw && <WithdrawBlock key={fiche.id} taskCount={detail.tasks.length} onWithdraw={onWithdraw} />}
     </div>
+  );
+}
+
+/**
+ * « Retirer cette fiche », founder only, at the bottom of the detail: for a
+ * test sheet or one started on the wrong listing. Two steps, so a stray tap
+ * does nothing. The sheet is kept, marked abandoned, and its montage tasks
+ * leave every briefing.
+ */
+function WithdrawBlock({ taskCount, onWithdraw }: { taskCount: number; onWithdraw: () => Promise<void> }) {
+  const [confirming, setConfirming] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const tasksText = taskCount > 1 ? `ses ${taskCount} tâches de montage quittent` : taskCount === 1 ? "sa tâche de montage quitte" : "";
+  return (
+    <section aria-label="Retirer la fiche" className="flex flex-col gap-2 rounded-[20px] border border-dashed border-[#E3A79C] bg-white/70 p-4">
+      {!confirming ? (
+        <div className="flex flex-wrap items-center gap-3">
+          <p className="m-0 min-w-0 flex-[1_1_240px] text-[13px] text-[#6B625B]">
+            Fiche de test ou mauvais bien ? Retirez-la du suivi{taskCount ? " et des briefings" : ""}.
+          </p>
+          <button
+            type="button"
+            onClick={() => setConfirming(true)}
+            className="inline-flex h-11 items-center rounded-full border border-[#E8B9B0] bg-white px-4 text-[13px] font-bold text-[#8E2A1E] sm:h-10"
+          >
+            Retirer cette fiche
+          </button>
+        </div>
+      ) : (
+        <div className="flex flex-col gap-2.5">
+          <p className="m-0 text-sm font-semibold text-[#1F1A16]">
+            La fiche quitte le suivi{tasksText ? ` et ${tasksText} les briefings de l’équipe` : ""}. Rien n’est effacé : le dossier Drive reste en place.
+          </p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={async () => {
+                setBusy(true);
+                setError(null);
+                try {
+                  await onWithdraw();
+                } catch (err) {
+                  setError(err instanceof Error ? err.message : "Le retrait a échoué.");
+                  setBusy(false);
+                }
+              }}
+              className="inline-flex h-11 items-center rounded-full bg-[#8E2A1E] px-4 text-[13px] font-extrabold text-white disabled:cursor-wait disabled:opacity-70 sm:h-10"
+            >
+              {busy ? "Retrait…" : "Oui, retirer la fiche"}
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => setConfirming(false)}
+              className="inline-flex h-11 items-center rounded-full border border-[#E2D8CC] bg-white px-4 text-[13px] font-bold text-[#1F1A16] sm:h-10"
+            >
+              Garder la fiche
+            </button>
+          </div>
+          {error && (
+            <p role="alert" className="m-0 rounded-xl bg-[#FBE3DF] px-3 py-2 text-[13px] font-semibold text-[#8E2A1E]">
+              {error}
+            </p>
+          )}
+        </div>
+      )}
+    </section>
   );
 }
 

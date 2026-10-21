@@ -11,13 +11,16 @@ import {
   fetchPropertyBySlug,
   type Property,
 } from "@/lib/data";
-import { getPropertyMetaDescription, isUuid } from "@/lib/property-url";
+import {
+  getPropertyMetaDescription,
+  getPropertySeoTitle,
+  isUuid,
+} from "@/lib/property-url";
 import { isStaffLikeMetadata } from "@/lib/user-types";
 import { isDirectorOrFounder } from "@/lib/team-tasks/core";
 import { getViewer } from "@/lib/team-tasks/server";
 import {
   getPropertyCanonicalUrl,
-  getPropertyDisplayName,
   getPropertyPageSchema,
 } from "@/lib/schemas";
 
@@ -86,7 +89,7 @@ export async function generateMetadata({
     };
   }
 
-  const title = getPropertyDisplayName(property);
+  const title = getPropertySeoTitle(property);
   const description = getPropertyMetaDescription(property);
   const canonical = getPropertyCanonicalUrl(property);
   const image = property.image || property.images?.[0] || "/hero-bg.jpg";

@@ -12,6 +12,8 @@ import type { BoardPayload, BoardViewColumn } from "@/lib/team-tasks/server";
 import { AsksBlock, type AskAction } from "./AsksBlock";
 import { SetupNotice } from "./BriefingView";
 import { TaskComposer } from "./TaskComposer";
+import { DeclareAbsenceButton, DeclareAbsenceDrawer, ReportChipButton, ReportDrawer, WeekReportsSummary } from "./TeamReports";
+import type { TeamDayReports, TeamReportPerson } from "@/lib/team-tasks/day-reports-server";
 import {
   Avatar,
   CreamBackdrop,
@@ -26,17 +28,23 @@ import {
   useEntrance,
 } from "./ui";
 
-export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
+export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel, dayReports = null }: {
   initial: BoardPayload;
   todayKey: string;
   viewerName: string;
   viewerLevelLabel: string;
+  /** « Fin de journée » (migration 099). Null when it could not be loaded. */
+  dayReports?: TeamDayReports | null;
 }) {
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const [composerOpen, setComposerOpen] = useState(false);
   const [tab, setTab] = useState(0);
+  const [reports, setReports] = useState(dayReports);
+  const [reportOf, setReportOf] = useState<string | null>(null);
+  const [declareOpen, setDeclareOpen] = useState(false);
+  const [notice, setNotice] = useState<string | null>(null);
   const rootRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
   useEntrance(rootRef, "[data-col]", []);
@@ -49,6 +57,18 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
       setError(err instanceof Error ? err.message : "Le tableau n’a pas pu se recharger.");
     }
   }, []);
+
+  const refreshReports = useCallback(async () => {
+    try {
+      const body = await callApi<{ team: TeamDayReports }>("/api/admin/day-reports/team");
+      setReports(body.team);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Les comptes rendus n’ont pas pu se recharger.");
+    }
+  }, []);
+  const reportPerson = (personId: string | null | undefined): TeamReportPerson | null =>
+    (personId && reports?.people.find((p) => p.personId === personId)) || null;
+  const openReport = reportPerson(reportOf);
 
   const run = useCallback(async (key: string, request: () => Promise<unknown>) => {
     setError(null);
@@ -87,6 +107,8 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
     todayKey,
     onAsk: (ask, body) =>
       run(`ask:${ask.id}`, () => callApi(`/api/admin/team-tasks/${ask.id}`, { method: "PATCH", body: JSON.stringify(body) })),
+    reportOf: (personId) => reportPerson(personId),
+    onOpenReport: (personId) => setReportOf(personId),
     onTitle: (userId, title) =>
       run(`title:${userId}`, () => callApi("/api/admin/team-tasks/titles", { method: "PUT", body: JSON.stringify({ userId, title }) })),
   };
@@ -107,6 +129,7 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
           </span>
         </div>
         <span className="hidden flex-1 lg:block" />
+        {reports && <DeclareAbsenceButton onClick={() => setDeclareOpen(true)} />}
         <Link
           href="/admin/notes-appels"
           className="inline-flex h-11 items-center gap-1.5 rounded-full border border-[#EDE4D8] bg-white px-3.5 text-sm font-bold text-[#8A4924] hover:text-[#C96A2E] sm:h-9"
@@ -140,6 +163,11 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
       {error && (
         <p role="alert" className="m-0 rounded-2xl bg-[#FBE3DF] px-4 py-3 text-sm font-semibold text-[#8E2A1E]">
           {error}
+        </p>
+      )}
+      {notice && (
+        <p role="status" className="m-0 rounded-2xl bg-[#E3F1E6] px-4 py-3 text-sm font-semibold text-[#245C33]">
+          {notice}
         </p>
       )}
 
@@ -200,6 +228,8 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
         </div>
       </div>
 
+      {reports && <WeekReportsSummary team={reports} onOpen={(person) => setReportOf(person.personId)} />}
+
       <PastWeeks weeks={data.pastWeeks} />
 
       <button
@@ -211,6 +241,37 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel }: {
         <PlusIcon size={18} weight="bold" aria-hidden="true" />
         Tâche
       </button>
+
+      {reports && (
+        <>
+          <ReportDrawer
+            person={openReport}
+            todayLabel={reports.todayLabel}
+            onClose={() => setReportOf(null)}
+            busy={!!busy["absence:clear"]}
+            onClear={(person) =>
+              run("absence:clear", async () => {
+                await callApi("/api/admin/day-reports/absences", {
+                  method: "POST",
+                  body: JSON.stringify({ userId: person.personId, date: reports.todayKey, clear: true }),
+                });
+                setReportOf(null);
+                await refreshReports();
+              })
+            }
+          />
+          <DeclareAbsenceDrawer
+            open={declareOpen}
+            onClose={() => setDeclareOpen(false)}
+            team={reports}
+            onSaved={async (message) => {
+              setDeclareOpen(false);
+              setNotice(message);
+              await refreshReports();
+            }}
+          />
+        </>
+      )}
 
       <TaskComposer
         open={composerOpen}
@@ -236,6 +297,9 @@ type ColumnActions = {
   todayKey: string;
   onAsk: (ask: DemandeView, body: AskAction) => void;
   onTitle: (userId: string, title: StaffTitle) => void;
+  /** « Fin de journée » status of a person today, when the reports are loaded. */
+  reportOf: (personId: string) => TeamReportPerson | null;
+  onOpenReport: (personId: string) => void;
 };
 
 function Column({ column, actions, variant }: { column: BoardViewColumn; actions: ColumnActions; variant: "phone" | "desktop" }) {
@@ -281,6 +345,10 @@ function Column({ column, actions, variant }: { column: BoardViewColumn; actions
         </span>
         {column.flag && <Flag tone={column.flag.tone}>{column.flag.label}</Flag>}
       </div>
+
+      {person && actions.reportOf(person.id) && (
+        <ReportChipButton person={actions.reportOf(person.id)!} onOpen={() => actions.onOpenReport(person.id)} />
+      )}
 
       <div className="grid grid-cols-2 gap-2">
         <div className={cn("flex flex-col rounded-xl px-2.5 py-2", desktop ? "bg-[#FBF7F1]" : "border border-[#EAE1D5] bg-white")}>

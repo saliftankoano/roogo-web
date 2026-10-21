@@ -6,6 +6,20 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-20
+
+- **Test field visit sheets can be withdrawn; clearer empty Mon espace** (web, PR #80, merged 2026-10-20, no migration): on Studio > Visites terrain the founder can « Retirer cette fiche » (also a finished one). The sheet is marked `abandonne` and its six montage tasks leave every briefing and the team board; nothing is deleted. Mon espace shows « Aucune tâche pour aujourd’hui » with an add button, and the add-task confirmation names the day.
+
+## 2026-10-19
+
+- **Studio > Statistiques: Facebook and Instagram numbers** (web, PR #79, merged 2026-10-20, no migration): followers with 30-day change, 28-day reach, views and interactions, the 12 latest posts with reach, views, likes, comments, shares, saves and engagement, and the posting rhythm, read from Meta and refreshed every 6 h by `/api/cron/social-insights`. Needs `read_insights` and `instagram_manage_insights` on `META_GRAPH_TOKEN` for reach and views. [How it works](./SYSTEM.md#studio--statistiques-social-numbers-2026-10-19).
+- **« Fin de journée »: end-of-day report and absences** (web, branch `feat/compte-rendu-fin-de-journee`, PR #81, migration 099 run by Salif on 2026-10-20): on Mon espace from 15:00 Ouagadougou (highlighted from 17:30), each staff member sends what they did (today’s ticked tasks plus free text), 1 to 5 actions for tomorrow that become their tasks, what did not work and how to do better, or declares an absence (maladie, urgence familiale, congé, autre; private note for the Directeur and the Fondateur, no medical details). One report per day, editable until midnight. On L’équipe: a status chip per person, the report behind it, « Déclarer une absence » for the Directeur and the Fondateur (who declared is recorded), and the week’s summary (x/5, absences by category, improvement ideas). [Decision](./DECISIONS.md#end-of-day-report-and-absences-in-the-app--2026-10-19), [system](./SYSTEM.md#how-do-end-of-day-reports-and-absences-work--fin-de-journée-2026-10-19).
+
+## 2026-10-18
+
+- **Listings are linked for Google** (web PR #75, merged and deployed 2026-10-18): /proprietes lists every live listing as plain links (sale listings were only behind the client-side « Acheter » switch), each listing page links six similar ones, /plan-du-site lists all listings and is public (it redirected to sign-in), `?transaction=vendre` opens on sales, and « Publier mon bien » goes to `/mes-proprietes` (`/annonces/creer` no longer exists).
+- **Listing quality minimum and daily Google check** (web, branch `feat/listing-quality-indexing`, not merged, migration 098 not run): 60 words and 5 photos to go live, `/admin/annonces/google`, checklist card on the admin listing page, form hints, search-first titles and H1, « En résumé » paragraph, sitemap lastmod from the real last edit. [Decision](./DECISIONS.md#every-live-listing-meets-a-quality-minimum-and-is-checked-on-google-daily--2026-10-18).
+
 ## 2026-10-17
 
 - **Roogo Sell price approval** (web PR #74 and mobile PR, branch `feat/sale-listing-ladder`, not merged, not deployed, migrations 096 and 097 not run): sales still publish at owner price + 30%. The team decides any price from +10% up. Below +10% only the founder or the Directeur (who ticks « J'en ai discuté avec Salif »); below the owner's own price also « Le propriétaire a accepté ce prix (accord verbal) ». Other staff get 403. Each such price is recorded in `sale_price_approvals` and listed on the staff ladder panel. Owners see only what they receive at each final sale price (+30 %, +20 %, +15 %, +10 %, their price), never the approval rule. Rentals keep their price exactly as set. [Decision](./DECISIONS.md#sales-the-team-decides-from-10-below-10-needs-salif--2026-10-17).
