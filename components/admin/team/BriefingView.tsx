@@ -160,10 +160,15 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
         <Link
           data-anim
           href="/admin/studio/reseaux"
-          className="flex items-center gap-2 rounded-2xl bg-[#FCEBDD] px-4 py-3 text-sm font-semibold text-[#8A3F12] ring-1 ring-inset ring-[#F1C9A6] hover:bg-[#F9E0CB]"
+          className={cn(
+            "flex items-center gap-2 rounded-2xl px-4 py-3 text-sm font-semibold ring-1 ring-inset",
+            socialInbox.overdue > 0
+              ? "bg-[#FBE3DF] text-[#8E2A1E] ring-[#F2C2BA] hover:bg-[#F8D6D0]"
+              : "bg-[#FCEBDD] text-[#8A3F12] ring-[#F1C9A6] hover:bg-[#F9E0CB]",
+          )}
         >
           <ChatsCircleIcon size={18} weight="bold" className="shrink-0" />
-          <span className="min-w-0 flex-1">{waitingSentence(socialInbox)} sur Facebook et Instagram.</span>
+          <span className="min-w-0 flex-1">{waitingSentence(socialInbox, "sur Facebook et Instagram")}.</span>
           <span className="shrink-0 underline underline-offset-2">Répondre</span>
         </Link>
       )}

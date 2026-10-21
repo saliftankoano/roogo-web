@@ -12,20 +12,29 @@ import {
   type InboxPayload,
   type InboxStatus,
   type SourceStateDto,
+  waitingBadgeLabel,
 } from "@/lib/social/inbox";
+import { compareSla, slaState, type ResponseSummary, type SlaState } from "@/lib/social/sla";
 import { notifySocialInboxChanged } from "@/components/admin/useSocialInboxCount";
 import { StudioSwitch } from "../StudioSwitch";
 import { NetworkIcon } from "../calendrier/NetworkIcons";
 import { InboxCard } from "./InboxCard";
+import { ResponseTimes } from "./ResponseTimes";
 import { ago } from "./format";
 
 type NetworkFilter = "tous" | "facebook" | "instagram";
-type StatusFilter = InboxStatus | "tous";
+/** « En retard »: « À répondre » past the 24 business hours deadline. */
+type StatusFilter = InboxStatus | "en_retard" | "tous";
 
-function countsOf(items: InboxItemDto[]): InboxCounts {
-  const comments = items.filter((i) => i.kind === "comment" && i.status === "a_repondre").length;
-  const messages = items.filter((i) => i.kind === "message" && i.status === "a_repondre").length;
-  return { comments, messages, total: comments + messages };
+type Counted = InboxCounts & { overdueComments: number; overdueMessages: number };
+
+function countsOf(items: InboxItemDto[], sla: Map<string, SlaState | null>): Counted {
+  const waiting = items.filter((i) => i.status === "a_repondre");
+  const late = waiting.filter((i) => sla.get(i.id)?.overdue);
+  const comments = waiting.filter((i) => i.kind === "comment").length;
+  const messages = waiting.length - comments;
+  const overdueComments = late.filter((i) => i.kind === "comment").length;
+  return { comments, messages, total: waiting.length, overdue: late.length, overdueComments, overdueMessages: late.length - overdueComments };
 }
 
 type Props = {
@@ -35,30 +44,37 @@ type Props = {
   drafts?: Record<string, string>;
   /** Preview only: a fixed clock. */
   fixedNow?: number;
+  /** « Délai de réponse » of the week: Directeur and Fondateur only (null for others). */
+  responses?: ResponseSummary | null;
+  /** Preview only: the status filter to start with. */
+  initialStatus?: StatusFilter;
 };
 
-export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow }: Props) {
+export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow, responses = null, initialStatus = "a_repondre" }: Props) {
   const [data, setData] = useState<InboxPayload>(initial);
   const [tab, setTab] = useState<InboxKind>(initialTab);
   const [network, setNetwork] = useState<NetworkFilter>("tous");
-  const [status, setStatus] = useState<StatusFilter>("a_repondre");
+  const [status, setStatus] = useState<StatusFilter>(initialStatus);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
   const [now, setNow] = useState(() => fixedNow ?? Date.now());
 
-  // The 24-hour window labels move with the clock.
+  // The deadline chips and Meta's window labels move with the clock.
   useEffect(() => {
     if (fixedNow) return;
     const id = window.setInterval(() => setNow(Date.now()), 60_000);
     return () => window.clearInterval(id);
   }, [fixedNow]);
 
+  // The team's deadline (24 business hours) per item « À répondre ».
+  const sla = useMemo(() => new Map(data.items.map((i) => [i.id, slaState(i, now)] as const)), [data.items, now]);
+
   // The server count can be ahead of the 200 items listed; local changes adjust it.
-  const counts = useMemo(() => {
-    const local = countsOf(data.items);
+  const counts = useMemo((): Counted => {
+    const local = countsOf(data.items, sla);
     const listedAll = data.items.length < 200;
-    return listedAll ? local : data.counts;
-  }, [data]);
+    return listedAll ? local : { ...local, ...data.counts };
+  }, [data, sla]);
 
   async function refresh() {
     setBusy(true);
@@ -88,21 +104,29 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
     notifySocialInboxChanged();
   }
 
-  const list = useMemo(
-    () =>
-      data.items.filter(
-        (i) => i.kind === tab && (network === "tous" || i.network === network) && (status === "tous" || i.status === status),
-      ),
-    [data.items, tab, network, status],
-  );
+  // « À répondre » first, overdue (most late first), then the nearest deadline;
+  // Répondu and Ignoré keep the newest-first order.
+  const list = useMemo(() => {
+    const filtered = data.items.filter(
+      (i) =>
+        i.kind === tab &&
+        (network === "tous" || i.network === network) &&
+        (status === "tous" || (status === "en_retard" ? Boolean(sla.get(i.id)?.overdue) : i.status === status)),
+    );
+    return filtered
+      .map((item, index) => ({ item, index }))
+      .sort((a, b) => compareSla(sla.get(a.item.id) ?? null, sla.get(b.item.id) ?? null) || a.index - b.index)
+      .map((x) => x.item);
+  }, [data.items, tab, network, status, sla]);
 
   const tabCount = tab === "comment" ? counts.comments : counts.messages;
+  const tabOverdue = tab === "comment" ? counts.overdueComments : counts.overdueMessages;
   const failing = data.sources.filter((s) => s.lastError);
 
   return (
     <div className="mx-auto w-full max-w-4xl px-1 pb-16 text-[#1F1A16]">
       <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <StudioSwitch inboxCount={counts.total} />
+        <StudioSwitch inboxCount={{ total: counts.total, overdue: counts.overdue }} />
         <div className="ml-auto flex items-center gap-2">
           {data.ready && <span className="hidden text-[13px] text-neutral-600 sm:inline">Lu {ago(data.lastSyncAt, now)}</span>}
           <button
@@ -140,10 +164,10 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
       <div role="tablist" aria-label="Listes" className="mt-5 grid grid-cols-2 gap-1 rounded-full bg-[rgba(255,255,255,0.7)] p-1">
         {(
           [
-            ["comment", "Commentaires", counts.comments, ChatTextIcon],
-            ["message", "Messages", counts.messages, ChatCircleDotsIcon],
+            ["comment", "Commentaires", counts.comments, counts.overdueComments, ChatTextIcon],
+            ["message", "Messages", counts.messages, counts.overdueMessages, ChatCircleDotsIcon],
           ] as const
-        ).map(([key, label, n, Icon]) => (
+        ).map(([key, label, n, late, Icon]) => (
           <button
             key={key}
             type="button"
@@ -158,7 +182,15 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
             <Icon size={17} weight={tab === key ? "fill" : "bold"} className="hidden shrink-0 sm:block" />
             <span className="truncate">{label}</span>
             {n > 0 && (
-              <span aria-label={`${n} à répondre`} className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#C96A2E] px-1.5 text-[11px] font-bold leading-none text-white">
+              <span
+                role="img"
+                aria-label={waitingBadgeLabel(n, late)}
+                title={waitingBadgeLabel(n, late)}
+                className={cn(
+                  "inline-flex h-5 min-w-5 items-center justify-center rounded-full px-1.5 text-[11px] font-bold leading-none text-white",
+                  late > 0 ? "bg-[#8E2A1E]" : "bg-[#C96A2E]",
+                )}
+              >
                 {n > 99 ? "99+" : n}
               </span>
             )}
@@ -195,6 +227,20 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
             <span className="hidden sm:inline">Bientôt</span>
           </span>
         </div>
+        {tabOverdue > 0 && (
+          <button
+            type="button"
+            aria-pressed={status === "en_retard"}
+            onClick={() => setStatus(status === "en_retard" ? "a_repondre" : "en_retard")}
+            className={cn(
+              "inline-flex h-10 items-center gap-1.5 whitespace-nowrap rounded-full px-3 text-sm font-bold ring-1 ring-inset md:h-9",
+              status === "en_retard" ? "bg-[#8E2A1E] text-white ring-[#8E2A1E]" : "bg-[#FBE3DF] text-[#8E2A1E] ring-[#F2C2BA] hover:bg-[#F8D6D0]",
+            )}
+          >
+            <WarningCircleIcon size={15} weight="bold" className="size-[15px] shrink-0" />
+            {tabOverdue} en retard
+          </button>
+        )}
         <label className="ml-auto inline-flex items-center gap-2 text-sm font-semibold text-neutral-700">
           <span className="sr-only sm:not-sr-only">Statut</span>
           <select
@@ -202,7 +248,9 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
             onChange={(e) => setStatus(e.target.value as StatusFilter)}
             className="h-10 rounded-full border-0 bg-white px-3 pr-8 text-sm font-semibold ring-1 ring-inset ring-[rgba(74,52,36,0.12)] focus:outline-none focus:ring-2 focus:ring-[#C96A2E] md:h-9"
           >
-            {(["a_repondre", "repondu", "ignore"] as const).map((s) => (
+            <option value="a_repondre">{INBOX_STATUS_LABELS.a_repondre}</option>
+            <option value="en_retard">En retard</option>
+            {(["repondu", "ignore"] as const).map((s) => (
               <option key={s} value={s}>
                 {INBOX_STATUS_LABELS[s]}
               </option>
@@ -221,18 +269,22 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
             ? tab === "comment"
               ? "Aucun commentaire n'attend de réponse. Bravo."
               : "Aucun message n'attend de réponse. Bravo."
-            : "Rien à afficher avec ces filtres."}
+            : status === "en_retard"
+              ? "Aucune réponse en retard ici. Bravo."
+              : "Rien à afficher avec ces filtres."}
         </EmptyState>
       ) : (
-        <ul className="mt-3 grid gap-2.5" aria-label={`${tab === "comment" ? "Commentaires" : "Messages"}, ${tabCount} à répondre`}>
+        <ul className="mt-3 grid gap-2.5" aria-label={`${tab === "comment" ? "Commentaires" : "Messages"}, ${waitingBadgeLabel(tabCount, tabOverdue)}`}>
           {list.map((item) => (
-            <InboxCard key={item.id} item={item} now={now} pageId={data.pageId} onChange={onItemChange} initialDraft={drafts?.[item.id]} />
+            <InboxCard key={item.id} item={item} now={now} sla={sla.get(item.id) ?? null} pageId={data.pageId} onChange={onItemChange} initialDraft={drafts?.[item.id]} />
           ))}
         </ul>
       )}
 
+      {data.ready && responses && <ResponseTimes summary={responses} />}
+
       <p className="mt-4 text-[12px] text-neutral-500">
-        {TIKTOK_COMMENTS_NOTE} Les messages privés ne peuvent recevoir une réponse depuis Roogo que dans les 24 heures qui suivent le dernier message de la personne (règle de Meta).
+        Règle de l&apos;équipe : répondre à chaque commentaire et message en 24 heures ouvrées (du lundi au vendredi, heure de Ouagadougou ; le samedi et le dimanche ne comptent pas). {TIKTOK_COMMENTS_NOTE} Les messages privés peuvent recevoir une réponse depuis Roogo pendant 7 jours après le dernier message de la personne : normalement pendant 24 heures, puis en agent humain (règle de Meta).
       </p>
     </div>
   );

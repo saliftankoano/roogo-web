@@ -6,7 +6,8 @@ import { useUser } from "@clerk/nextjs";
 import { CalendarBlankIcon, ChartBarIcon, ChatsCircleIcon, FolderSimpleIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useStudioApprovals } from "@/components/admin/useStudioApprovals";
-import { useSocialInboxCount } from "@/components/admin/useSocialInboxCount";
+import { useSocialInboxCount, type SocialInboxCount } from "@/components/admin/useSocialInboxCount";
+import { InboxBadge } from "@/components/admin/InboxBadge";
 import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
 export const CALENDAR_HREF = "/admin/studio/calendrier";
@@ -22,9 +23,10 @@ export const INBOX_HREF = "/admin/studio/reseaux";
  * messages wait for a reply.
  *
  * On a phone only the current tab keeps its label, so four tabs fit in 358 px.
- * `inboxCount` lets the Réseaux page pass the count it already knows.
+ * `inboxCount` lets the Réseaux page pass the count it already knows (total
+ * and overdue: the badge turns red when a reply is late).
  */
-export function StudioSwitch({ className, inboxCount }: { className?: string; inboxCount?: number }) {
+export function StudioSwitch({ className, inboxCount }: { className?: string; inboxCount?: SocialInboxCount }) {
   const pathname = usePathname() ?? "";
   const { user } = useUser();
   const { can } = useStaffAccess();
@@ -72,22 +74,9 @@ export function StudioSwitch({ className, inboxCount }: { className?: string; in
         <Link href={INBOX_HREF} aria-current={onInbox ? "page" : undefined} className={item(onInbox)}>
           <ChatsCircleIcon size={16} weight={onInbox ? "fill" : "bold"} className="size-4 shrink-0" />
           <span className={label(onInbox)}>Réseaux</span>
-          {toAnswer > 0 && <InboxBadge count={toAnswer} />}
+          {toAnswer.total > 0 && <InboxBadge count={toAnswer.total} overdue={toAnswer.overdue} />}
         </Link>
       )}
     </nav>
-  );
-}
-
-/** Terracotta, distinct from the amber « à valider » badge. */
-export function InboxBadge({ count, className }: { count: number; className?: string }) {
-  if (count <= 0) return null;
-  return (
-    <span
-      aria-label={`${count} à répondre`}
-      className={cn("inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#C96A2E] px-1.5 text-[11px] font-bold leading-none text-white", className)}
-    >
-      {count > 99 ? "99+" : count}
-    </span>
   );
 }

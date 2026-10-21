@@ -68,29 +68,37 @@ export function extractListingReference(...texts: Array<string | null | undefine
   return null;
 }
 
-// --- Meta's 24-hour messaging window -----------------------------------------
+// --- Meta's messaging windows ------------------------------------------------
+// A Page may answer normally for 24 hours after the person's last message, then
+// up to 7 days with the HUMAN_AGENT tag (Human Agent feature on the Roogo Social app).
 
 export const MESSAGING_WINDOW_MS = 24 * 60 * 60 * 1000;
-export const WINDOW_CLOSED_MESSAGE = "Fenêtre de 24 h dépassée : répondez sur Instagram directement";
-export const WINDOW_CLOSED_MESSAGE_FACEBOOK = "Fenêtre de 24 h dépassée : répondez sur Messenger directement";
+export const HUMAN_AGENT_WINDOW_MS = 7 * 24 * 60 * 60 * 1000;
+export const WINDOW_CLOSED_MESSAGE = "Fenêtre de 7 jours dépassée : répondez sur Instagram directement";
+export const WINDOW_CLOSED_MESSAGE_FACEBOOK = "Fenêtre de 7 jours dépassée : répondez sur Messenger directement";
 
-export type MessagingWindow = { open: boolean; closesAt: string | null; remainingMs: number };
+/** humanAgent: past the standard 24 h, the reply goes out with the HUMAN_AGENT tag. remainingMs counts to the end of the current window. */
+export type MessagingWindow = { open: boolean; closesAt: string | null; remainingMs: number; humanAgent: boolean };
 
-/** A Page may answer a person for 24 hours after that person's last message. */
 export function messagingWindow(lastUserMessageAt: string | null | undefined, now: Date): MessagingWindow {
   const t = lastUserMessageAt ? new Date(lastUserMessageAt).getTime() : NaN;
-  if (!Number.isFinite(t)) return { open: false, closesAt: null, remainingMs: 0 };
-  const closes = t + MESSAGING_WINDOW_MS;
-  const remaining = closes - now.getTime();
-  return { open: remaining > 0, closesAt: new Date(closes).toISOString(), remainingMs: Math.max(0, remaining) };
+  if (!Number.isFinite(t)) return { open: false, closesAt: null, remainingMs: 0, humanAgent: false };
+  const standardEnd = t + MESSAGING_WINDOW_MS;
+  const humanEnd = t + HUMAN_AGENT_WINDOW_MS;
+  const nowMs = now.getTime();
+  if (nowMs < standardEnd) return { open: true, closesAt: new Date(standardEnd).toISOString(), remainingMs: standardEnd - nowMs, humanAgent: false };
+  const remaining = humanEnd - nowMs;
+  return { open: remaining > 0, closesAt: new Date(humanEnd).toISOString(), remainingMs: Math.max(0, remaining), humanAgent: remaining > 0 };
 }
 
-/** "Encore 3 h pour répondre", "Encore 25 min pour répondre". */
+/** "Encore 3 h pour répondre", "Encore 25 min pour répondre", or past 24 h "Encore 4 j pour répondre (agent humain)". */
 export function windowLabel(w: MessagingWindow): string | null {
   if (!w.open) return null;
   const min = Math.ceil(w.remainingMs / 60000);
-  if (min < 60) return `Encore ${min} min pour répondre`;
-  return `Encore ${Math.floor(min / 60)} h pour répondre`;
+  const suffix = w.humanAgent ? " (agent humain)" : "";
+  if (min < 60) return `Encore ${min} min pour répondre${suffix}`;
+  if (w.humanAgent && min >= 24 * 60) return `Encore ${Math.floor(min / 1440)} j pour répondre${suffix}`;
+  return `Encore ${Math.floor(min / 60)} h pour répondre${suffix}`;
 }
 
 export type ReplyTarget = {
@@ -447,10 +455,12 @@ export const requests = {
     path: network === "facebook" ? `${commentId}/comments` : `${commentId}/replies`,
     form: { message: text },
   }),
-  sendMessage: (cfg: InboxConfig, recipientId: string, text: string): GraphReq => ({
+  sendMessage: (cfg: InboxConfig, recipientId: string, text: string, humanAgent = false): GraphReq => ({
     method: "POST",
     path: `${cfg.pageId}/messages`,
-    json: { recipient: { id: recipientId }, messaging_type: "RESPONSE", message: { text } },
+    json: humanAgent
+      ? { recipient: { id: recipientId }, messaging_type: "MESSAGE_TAG", tag: "HUMAN_AGENT", message: { text } }
+      : { recipient: { id: recipientId }, messaging_type: "RESPONSE", message: { text } },
   }),
 };
 
@@ -665,7 +675,9 @@ export async function sendReply(
   const action: InboxAction =
     item.kind === "comment" ? (item.network === "facebook" ? "facebook_comment_reply" : "instagram_comment_reply") : item.network === "facebook" ? "facebook_message_send" : "instagram_message_send";
   try {
-    const req = item.kind === "comment" ? requests.replyToComment(item.network, item.externalId, text) : requests.sendMessage(cfg, item.authorId ?? "", text);
+    const humanAgent = item.kind === "message" && messagingWindow(item.lastUserMessageAt, now).humanAgent;
+    const req =
+      item.kind === "comment" ? requests.replyToComment(item.network, item.externalId, text) : requests.sendMessage(cfg, item.authorId ?? "", text, humanAgent);
     const data = await callGraph(fetchImpl, cfg.graphVersion, cfg.pageToken, req);
     return { ok: true, externalId: str(data.id) ?? str(data.message_id) };
   } catch (error) {
@@ -676,16 +688,27 @@ export async function sendReply(
 
 // --- Counts ------------------------------------------------------------------------------
 
-export type InboxCounts = { comments: number; messages: number; total: number };
+/** « À répondre » per list; `overdue` counts those past the 24 business hours deadline (lib/social/sla.ts). */
+export type InboxCounts = { comments: number; messages: number; total: number; overdue: number };
 
-/** « 3 commentaires et 2 messages attendent une réponse », or null when nothing waits. */
-export function waitingSentence(counts: InboxCounts): string | null {
+/**
+ * « 3 commentaires et 2 messages attendent une réponse, dont 2 en retard », or
+ * null when nothing waits. `where` goes before the overdue part
+ * (« ... une réponse sur Facebook et Instagram, dont 2 en retard »).
+ */
+export function waitingSentence(counts: Pick<InboxCounts, "comments" | "messages"> & { overdue?: number }, where?: string): string | null {
   const parts: string[] = [];
   if (counts.comments) parts.push(`${counts.comments} commentaire${counts.comments > 1 ? "s" : ""}`);
   if (counts.messages) parts.push(`${counts.messages} message${counts.messages > 1 ? "s" : ""}`);
   if (!parts.length) return null;
   const total = counts.comments + counts.messages;
-  return `${parts.join(" et ")} ${total > 1 ? "attendent" : "attend"} une réponse`;
+  const late = counts.overdue && counts.overdue > 0 ? `, dont ${Math.min(counts.overdue, total)} en retard` : "";
+  return `${parts.join(" et ")} ${total > 1 ? "attendent" : "attend"} une réponse${where ? ` ${where}` : ""}${late}`;
+}
+
+/** Accessible label of a « Réseaux » badge: « 5 à répondre, dont 2 en retard ». */
+export function waitingBadgeLabel(total: number, overdue: number): string {
+  return `${total} à répondre${overdue > 0 ? `, dont ${overdue} en retard` : ""}`;
 }
 
 // --- What the page receives ------------------------------------------------------------
