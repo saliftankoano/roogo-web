@@ -746,7 +746,7 @@ export const TIKTOK_VIDEO_FIELDS =
 /** Videos read for the rhythm chart (8 weeks) and the 30-day count; 20 per page is TikTok's maximum. */
 export const TIKTOK_MAX_VIDEOS = 60;
 const TIKTOK_PAGE_SIZE = 20;
-export const TIKTOK_NOT_CONNECTED = "TikTok n'est pas encore connecté. Le fondateur le connecte depuis Nos objectifs.";
+export const TIKTOK_NOT_CONNECTED = "TikTok n'est pas encore connecté. Le fondateur le connecte depuis Statistiques.";
 
 /** The shape getFreshTikTokAccess (lib/team-goals/tiktok-store.ts) returns. */
 export type TikTokAccessLike = { ok: true; token: string; scope: string } | { ok: false; error: string; notConnected?: boolean };
@@ -772,11 +772,11 @@ export function frenchTikTokError(error: unknown, what: "compte" | "vidéos"): s
   if (error instanceof TikTokApiError) {
     const c = error.code ?? "";
     if (c === "access_token_invalid" || c === "access_token_expired" || error.httpStatus === 401) {
-      return "Le jeton TikTok a expiré ou a été révoqué. Le fondateur reconnecte TikTok depuis Nos objectifs.";
+      return "Le jeton TikTok a expiré ou a été révoqué. Le fondateur reconnecte TikTok ci-dessous.";
     }
     if (c === "scope_not_authorized" || c === "scope_permission_missed") {
       const scope = what === "compte" ? "user.info.stats" : "video.list";
-      return `Permission TikTok manquante pour lire ${what === "compte" ? "le compte" : "les vidéos"} (${scope}). Le fondateur reconnecte TikTok depuis Nos objectifs.`;
+      return `Permission TikTok manquante pour lire ${what === "compte" ? "le compte" : "les vidéos"} (${scope}). Le fondateur reconnecte TikTok ci-dessous.`;
     }
     if (c === "rate_limit_exceeded" || error.httpStatus === 429) {
       return "TikTok limite les lectures pour le moment. Les chiffres reviendront au prochain rafraîchissement.";

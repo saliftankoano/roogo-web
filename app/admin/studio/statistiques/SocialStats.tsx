@@ -13,6 +13,9 @@ import type { AccountSnapshot, FollowerTrend, Network, PostFormat, SocialPost, S
 import type { SocialHistory } from "@/lib/social/insights-server";
 import { StudioSwitch } from "../StudioSwitch";
 import { NetworkIcon } from "../calendrier/NetworkIcons";
+import { TikTokConnectPanel, TikTokConnectedFooter, type TikTokAdmin } from "./TikTokConnection";
+
+export type { TikTokAdmin };
 
 type Payload = { snapshot: SocialSnapshot; history: SocialHistory };
 
@@ -50,7 +53,7 @@ function daysLabel(days: number | null) {
   return `Dernière publication il y a ${days} jours`;
 }
 
-export function SocialStats({ initial }: { initial: Payload }) {
+export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: TikTokAdmin }) {
   const [data, setData] = useState<Payload>(initial);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -119,7 +122,7 @@ export function SocialStats({ initial }: { initial: Payload }) {
       <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         <AccountCard account={snapshot.facebook} trend={history.facebook} />
         <AccountCard account={snapshot.instagram} trend={history.instagram} />
-        {snapshot.tiktok && <AccountCard account={snapshot.tiktok} trend={history.tiktok ?? EMPTY_TREND} />}
+        {snapshot.tiktok && <AccountCard account={snapshot.tiktok} trend={history.tiktok ?? EMPTY_TREND} tiktokAdmin={tiktok} />}
       </div>
       {history.error && <Banner tone="warn">{history.error}</Banner>}
 
@@ -201,7 +204,7 @@ function Sparkline({ points }: { points: { date: string; value: number }[] }) {
   );
 }
 
-function AccountCard({ account, trend }: { account: AccountSnapshot; trend: FollowerTrend }) {
+function AccountCard({ account, trend, tiktokAdmin }: { account: AccountSnapshot; trend: FollowerTrend; tiktokAdmin?: TikTokAdmin }) {
   const { cadence } = account;
   const maxWeek = Math.max(1, ...cadence.weeks.map((w) => w.count));
   return (
@@ -215,7 +218,11 @@ function AccountCard({ account, trend }: { account: AccountSnapshot; trend: Foll
       </div>
 
       {account.notConnected ? (
-        <p className="mt-4 rounded-2xl bg-[#FBF7F2] px-3 py-3 text-[13px] text-neutral-700">{account.error}</p>
+        tiktokAdmin ? (
+          <TikTokConnectPanel admin={tiktokAdmin} />
+        ) : (
+          <p className="mt-4 rounded-2xl bg-[#FBF7F2] px-3 py-3 text-[13px] text-neutral-700">{account.error}</p>
+        )
       ) : account.error ? (
         <Banner tone="error">{account.error}</Banner>
       ) : (
@@ -286,6 +293,7 @@ function AccountCard({ account, trend }: { account: AccountSnapshot; trend: Foll
           {w}
         </Banner>
       ))}
+      {account.network === "tiktok" && !account.notConnected && tiktokAdmin && <TikTokConnectedFooter admin={tiktokAdmin} />}
     </section>
   );
 }
