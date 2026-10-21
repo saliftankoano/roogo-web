@@ -19,7 +19,7 @@ import {
 } from "@/lib/studio/publishing";
 import { NetworkIcons } from "../calendrier/NetworkIcons";
 import { TONE, readError, type Post } from "../calendrier/calendar-types";
-import { CALENDAR_HREF } from "../StudioSwitch";
+import { CALENDAR_HREF } from "../StudioHeader";
 import { ApprovalPreview } from "./ApprovalPreview";
 import { PlanSheet } from "./PlanSheet";
 import { Toast, type ToastMessage } from "./Toast";

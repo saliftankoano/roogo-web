@@ -16,7 +16,7 @@ import {
 } from "@/lib/social/inbox";
 import { compareSla, slaState, type ResponseSummary, type SlaState } from "@/lib/social/sla";
 import { notifySocialInboxChanged } from "@/components/admin/useSocialInboxCount";
-import { StudioSwitch } from "../StudioSwitch";
+import { StudioHeader } from "../StudioHeader";
 import { NetworkIcon } from "../calendrier/NetworkIcons";
 import { InboxCard } from "./InboxCard";
 import { ResponseTimes } from "./ResponseTimes";
@@ -125,23 +125,25 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
 
   return (
     <div className="mx-auto w-full max-w-4xl px-1 pb-16 text-[#1F1A16]">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
-        <StudioSwitch inboxCount={{ total: counts.total, overdue: counts.overdue }} />
-        <div className="ml-auto flex items-center gap-2">
-          {data.ready && <span className="hidden text-[13px] text-neutral-600 sm:inline">Lu {ago(data.lastSyncAt, now)}</span>}
-          <button
-            type="button"
-            onClick={refresh}
-            disabled={busy || !data.ready}
-            className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#C96A2E] px-4 text-sm font-bold text-white transition-colors hover:bg-[#B85E26] disabled:opacity-60 md:h-10"
-          >
-            <ArrowClockwiseIcon size={15} weight="bold" className={cn("size-[15px]", busy && "animate-spin")} />
-            {busy ? "Lecture…" : "Actualiser"}
-          </button>
-        </div>
-      </div>
+      <StudioHeader
+        inboxCount={{ total: counts.total, overdue: counts.overdue }}
+        actions={
+          <>
+            {data.ready && <span className="hidden text-[13px] text-neutral-600 sm:inline">Lu {ago(data.lastSyncAt, now)}</span>}
+            <button
+              type="button"
+              onClick={refresh}
+              disabled={busy || !data.ready}
+              className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#C96A2E] px-4 text-sm font-bold text-white transition-colors hover:bg-[#B85E26] disabled:opacity-60 md:h-10"
+            >
+              <ArrowClockwiseIcon size={15} weight="bold" className={cn("size-[15px]", busy && "animate-spin")} />
+              {busy ? "Lecture…" : "Actualiser"}
+            </button>
+          </>
+        }
+      />
 
-      <h1 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Réseaux</h1>
+      <h2 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Réseaux</h2>
       <p className="mt-1 max-w-2xl text-[14px] text-neutral-600">
         Les commentaires et les messages privés de Facebook et Instagram, au même endroit. Les réponses partent au nom de Roogo et chacune est enregistrée avec le nom de la personne qui l&apos;envoie.
       </p>

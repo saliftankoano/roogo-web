@@ -11,7 +11,7 @@ import { readTikTokFollowers } from "@/lib/team-goals/tiktok-store";
 // Vercel cron, daily at 02:00 UTC (vercel.json): reads the Facebook page and
 // Instagram account follower counts from the Meta Graph API, and the TikTok
 // follower count of @roogo.226 through TikTok's Display API when the founder
-// has connected TikTok (« Connecter TikTok » on /admin/objectifs; the access
+// has connected TikTok (« Connecter TikTok » in the TikTok card of /admin/studio/statistiques; the access
 // token is refreshed here when needed). Writes one team_goal_readings row per
 // metric and day with source 'automatique'. A day that already has a reading
 // (typed in or automatic) is left alone. Each platform is skipped on its own:

@@ -3,7 +3,7 @@ import { NextResponse } from "next/server";
 import { tokenKey } from "@/lib/team-goals/token-crypto";
 import { buildAuthorizeUrl } from "@/lib/team-goals/tiktok";
 import { getTikTokStatus, tiktokEnvConfig } from "@/lib/team-goals/tiktok-store";
-import { COOKIE_PATH, STATE_COOKIE, backToGoals, requireFounder } from "../_shared";
+import { COOKIE_PATH, STATE_COOKIE, backToStats, requireFounder } from "../_shared";
 
 // GET: founder only. Starts TikTok Login Kit (scope user.info.stats) for the
 // @roogo.226 account: a random state goes into an httpOnly cookie scoped to
@@ -12,14 +12,14 @@ export async function GET(req: Request) {
   const viewer = await requireFounder();
   if (viewer instanceof NextResponse) return viewer;
   const config = tiktokEnvConfig(new URL(req.url).origin);
-  if (!config || !tokenKey(process.env)) return backToGoals(req, "config");
+  if (!config || !tokenKey(process.env)) return backToStats(req, "config");
   try {
     const status = await getTikTokStatus();
-    if (!status.tableReady) return backToGoals(req, "table");
+    if (!status.tableReady) return backToStats(req, "table");
   } catch (error) {
     const e = error as { code?: string; message?: string };
     console.error("[tiktok] status check failed", { code: e?.code, message: e?.message });
-    return backToGoals(req, "erreur");
+    return backToStats(req, "erreur");
   }
   const state = randomBytes(24).toString("base64url");
   const res = NextResponse.redirect(buildAuthorizeUrl(config, state), { status: 303 });

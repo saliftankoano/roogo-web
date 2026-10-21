@@ -17,7 +17,7 @@ import {
   weekStart,
 } from "@/lib/studio/publishing";
 import { glass, initials, avatarTone } from "../studio-ui";
-import { StudioSwitch } from "../StudioSwitch";
+import { StudioHeader } from "../StudioHeader";
 import { ApprovalPreview } from "../publishing/ApprovalPreview";
 import { Toast, type ToastMessage } from "../publishing/Toast";
 import { NetworkIcons } from "./NetworkIcons";
@@ -228,9 +228,9 @@ export function PublishingCalendar() {
       >
         <CaretLeftIcon size={16} weight="bold" />
       </button>
-      <h1 className="min-w-0 truncate text-center text-xl font-bold tracking-tight text-[#1F1A16] md:text-2xl" aria-live="polite">
+      <h2 className="min-w-0 truncate text-center text-xl font-bold tracking-tight text-[#1F1A16] md:text-2xl" aria-live="polite">
         {weekRangeLabel(week)}
-      </h1>
+      </h2>
       <button
         type="button"
         aria-label="Semaine suivante"
@@ -244,52 +244,67 @@ export function PublishingCalendar() {
 
   const loading = data === null && !error;
 
+  // « Seulement mes tâches » and « Par bien / Par jour »: on the header row on large screens, next to the week below that.
+  const viewControls = (
+    <>
+      {data && !isFounder && (
+        <button
+          type="button"
+          aria-pressed={mine}
+          onClick={() => setMine((v) => !v)}
+          className={cn(
+            "inline-flex h-10 items-center rounded-full px-3.5 text-sm font-semibold transition-colors",
+            mine ? "bg-[rgba(201,106,46,0.12)] text-[#A8521D]" : "bg-white/70 text-neutral-600 hover:bg-white",
+          )}
+        >
+          Seulement mes tâches
+        </button>
+      )}
+      <div role="radiogroup" aria-label="Affichage" className="inline-flex rounded-full bg-[rgba(255,255,255,0.7)] p-1">
+        {(
+          [
+            ["property", "Par bien"],
+            ["day", "Par jour"],
+          ] as const
+        ).map(([key, text]) => (
+          <button
+            key={key}
+            type="button"
+            role="radio"
+            aria-checked={view === key}
+            onClick={() => chooseView(key)}
+            className={cn(
+              "h-9 rounded-full px-3.5 text-sm font-semibold transition-colors",
+              view === key ? "bg-white text-[#1F1A16] shadow-sm" : "text-neutral-600 hover:text-[#1F1A16]",
+            )}
+          >
+            {text}
+          </button>
+        ))}
+      </div>
+    </>
+  );
+
   return (
     // Break out of the admin container, like the Studio itself.
     <div className="relative left-1/2 w-[calc(100vw-1rem)] max-w-[1840px] -translate-x-1/2 md:w-[calc(100vw-3rem)]">
-      {/* Toolbar. Phone: switch and Planifier, then the week. Desktop: one line. */}
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 px-1">
-        <StudioSwitch />
-        <div className="ml-auto md:hidden">{planMenu}</div>
-        <div className="flex w-full justify-center md:w-auto md:justify-start">{weekNav}</div>
-        <div className="ml-auto hidden items-center gap-2 md:flex">
-          {data && !isFounder && (
-            <button
-              type="button"
-              aria-pressed={mine}
-              onClick={() => setMine((v) => !v)}
-              className={cn(
-                "inline-flex h-10 items-center rounded-full px-3.5 text-sm font-semibold transition-colors",
-                mine ? "bg-[rgba(201,106,46,0.12)] text-[#A8521D]" : "bg-white/70 text-neutral-600 hover:bg-white",
-              )}
-            >
-              Seulement mes tâches
-            </button>
-          )}
-          <div role="radiogroup" aria-label="Affichage" className="inline-flex rounded-full bg-[rgba(255,255,255,0.7)] p-1">
-            {(
-              [
-                ["property", "Par bien"],
-                ["day", "Par jour"],
-              ] as const
-            ).map(([key, text]) => (
-              <button
-                key={key}
-                type="button"
-                role="radio"
-                aria-checked={view === key}
-                onClick={() => chooseView(key)}
-                className={cn(
-                  "h-9 rounded-full px-3.5 text-sm font-semibold transition-colors",
-                  view === key ? "bg-white text-[#1F1A16] shadow-sm" : "text-neutral-600 hover:text-[#1F1A16]",
-                )}
-              >
-                {text}
-              </button>
-            ))}
-          </div>
-          {planMenu}
-        </div>
+      {/* Studio header (design canvas 2026-10-21). Phone: Planifier above the tabs, then the week.
+          Tablet: the view switches move next to the week. Large screens: everything on the header row. */}
+      <StudioHeader
+        className="mx-1"
+        actions={
+          <>
+            <div className="lg:hidden">{planMenu}</div>
+            <div className="hidden items-center gap-2 lg:flex">
+              {viewControls}
+              {planMenu}
+            </div>
+          </>
+        }
+      />
+      <div className="mt-3 flex items-center gap-2 px-1">
+        <div className="flex min-w-0 flex-1 justify-center md:justify-start">{weekNav}</div>
+        <div className="hidden items-center gap-2 md:flex lg:hidden">{viewControls}</div>
       </div>
 
       {metaOff && (

@@ -100,9 +100,9 @@ export function ProjectView({
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold tracking-tight text-neutral-900">
+          <h2 className="truncate text-lg font-bold tracking-tight text-neutral-900">
             {property?.title ?? detail?.conversation.title ?? "Projet"}
-          </h1>
+          </h2>
           <p className="truncate text-sm text-neutral-600">
             {property ? (
               <>

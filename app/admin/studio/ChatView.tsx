@@ -92,9 +92,9 @@ export function ChatView({
             <HouseLineIcon size={28} weight="bold" className="absolute inset-0 m-auto text-white/80" />
           )}
         </span>
-        <h1 className="text-balance text-xl font-bold tracking-tight text-neutral-900 md:text-[22px]">
+        <h2 className="text-balance text-xl font-bold tracking-tight text-neutral-900 md:text-[22px]">
           {property?.title ?? detail?.conversation.title ?? "Nouveau projet"}
-        </h1>
+        </h2>
         {property && (
           <p className="text-balance text-[15px] text-neutral-700">
             {property.place} · <span className="whitespace-nowrap tabular-nums">{property.price}</span>

@@ -6,12 +6,14 @@ import { NETWORK_LABELS, type Network } from "@/lib/studio/publishing";
 
 /**
  * The networks' own colourful logos (Salif, 2026-10-13: real platform logos,
- * not monochrome glyphs). Drawn inline so they stay sharp at 14 to 20 px.
+ * not monochrome glyphs; Facebook in the current #0866FF since 2026-10-21).
+ * Drawn inline so they stay sharp at 14 to 20 px. The one shared set for the
+ * Studio: reuse these, do not redraw a logo elsewhere.
  */
 function FacebookLogo({ size }: { size: number }) {
   return (
     <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="12" fill="#1877F2" />
+      <circle cx="12" cy="12" r="12" fill="#0866FF" />
       <path
         fill="#fff"
         d="M16.67 15.47 17.2 12h-3.33V9.75c0-.95.47-1.88 1.95-1.88h1.51V4.92s-1.37-.23-2.68-.23c-2.74 0-4.53 1.66-4.53 4.66V12H7.08v3.47h3.04V24a12.1 12.1 0 0 0 3.75 0v-8.53z"
@@ -49,6 +51,46 @@ function TiktokLogo({ size }: { size: number }) {
       <path fill="#FE2C55" d="M16.35 6.93a3.78 3.78 0 0 1-.94-2.5h-.72a3.8 3.8 0 0 0 1.66 2.5zM9.5 12.24a2.35 2.35 0 0 0-1.09 4.43 2.35 2.35 0 0 1 2.89-3.6v-2.47a5.2 5.2 0 0 0-.8-.06h-.12v1.88a2.35 2.35 0 0 0-.88-.18z" />
       <path fill="#fff" d="M18.4 8.3v1.87a6.6 6.6 0 0 1-3.86-1.24v5.62a5.13 5.13 0 0 1-8 4.24 5.13 5.13 0 0 0 8.85-3.52V9.65a6.6 6.6 0 0 0 3.86 1.24V8.4a3.8 3.8 0 0 1-.85-.1zM14.54 13.55V7.93a6.6 6.6 0 0 0 3.86 1.24V8.3a3.8 3.8 0 0 1-2.05-1.37 3.8 3.8 0 0 1-1.66-2.5h-1.98v10.79a2.35 2.35 0 0 1-4.3 1.45 2.35 2.35 0 0 1 2.89-3.6v-1.89a5.13 5.13 0 0 0-3.71 8.66 5.13 5.13 0 0 0 8.95-3.53z" />
     </svg>
+  );
+}
+
+/** Messenger (Facebook private messages in Studio > Réseaux): the gradient bubble with the white lightning. */
+function MessengerLogo({ size }: { size: number }) {
+  const id = useId().replace(/:/g, "");
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <defs>
+        <radialGradient id={`ms-${id}`} cx="0.19" cy="0.99" r="1.09">
+          <stop offset="0" stopColor="#0099FF" />
+          <stop offset="0.61" stopColor="#A033FF" />
+          <stop offset="0.93" stopColor="#FF5280" />
+          <stop offset="1" stopColor="#FF7061" />
+        </radialGradient>
+      </defs>
+      <path
+        fill={`url(#ms-${id})`}
+        d="M12 1C5.8 1 1 5.54 1 11.67c0 3.2 1.31 5.98 3.45 7.89.18.16.29.38.3.62l.06 1.95a.88.88 0 0 0 1.23.78l2.18-.96a.88.88 0 0 1 .59-.04c1 .27 2.07.42 3.19.42 6.2 0 11-4.54 11-10.66S18.2 1 12 1z"
+      />
+      <path
+        fill="#fff"
+        d="M5.4 14.79l3.23-5.13a1.65 1.65 0 0 1 2.39-.44l2.57 1.93a.66.66 0 0 0 .8 0l3.47-2.64c.46-.35 1.07.2.76.69l-3.23 5.13a1.65 1.65 0 0 1-2.39.44l-2.57-1.93a.66.66 0 0 0-.8 0l-3.47 2.64c-.46.35-1.07-.2-.76-.69z"
+      />
+    </svg>
+  );
+}
+
+/** Messenger logo, for Facebook private messages. Same shell as NetworkIcon. */
+export function MessengerIcon({ size = 14, className, label = true }: { size?: number; className?: string; label?: boolean }) {
+  return (
+    <span
+      role={label ? "img" : undefined}
+      aria-label={label ? "Messenger" : undefined}
+      aria-hidden={label ? undefined : true}
+      className={cn("inline-flex shrink-0", className)}
+      style={{ width: size, height: size }}
+    >
+      <MessengerLogo size={size} />
+    </span>
   );
 }
 

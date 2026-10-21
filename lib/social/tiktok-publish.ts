@@ -272,7 +272,7 @@ export function tiktokPublishInfo(input: {
   if (!input.clientKey) return off("TikTok n'est pas configuré sur le serveur (TIKTOK_CLIENT_KEY).");
   if (!input.tokensKey) return off("TikTok n'est pas configuré sur le serveur (SOCIAL_TOKENS_KEY).");
   if (!input.tableReady) return off("La connexion TikTok n'est pas encore installée (migration 100 à lancer).");
-  if (!input.connected) return off("Le compte TikTok n'est pas connecté (Nos objectifs, Connecter TikTok).");
+  if (!input.connected) return off("Le compte TikTok n'est pas connecté (Studio, Statistiques, Connecter TikTok).");
   const scope = requiredScope(input.mode);
   if (!hasScope(input.scope, scope)) return off(`Reconnectez TikTok en autorisant la publication (${scope}).`);
   return { enabled: true, mode: input.mode, reason: null, note };

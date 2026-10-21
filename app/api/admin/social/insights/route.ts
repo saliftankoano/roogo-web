@@ -9,7 +9,7 @@ export const maxDuration = 60;
 /** Below this age a refresh request reuses the snapshot (protects the Meta rate limit). */
 const MIN_REFRESH_MS = 10 * 60 * 1000;
 
-// Studio > Statistiques: the cached Facebook and Instagram snapshot plus the
+// Studio > Statistiques: the cached Facebook, Instagram and TikTok snapshot plus the
 // follower history. Every Studio user can read it.
 export async function GET(req: Request) {
   const staff = await getStaffOrFounder(req, "studio.use");
@@ -19,7 +19,7 @@ export async function GET(req: Request) {
   return NextResponse.json({ snapshot, history });
 }
 
-// « Actualiser »: reads Meta again unless the snapshot is under 10 minutes old.
+// « Actualiser »: reads Meta and TikTok again unless the snapshot is under 10 minutes old.
 export async function POST(req: Request) {
   const staff = await getStaffOrFounder(req, "studio.use");
   if (!staff) return errorResponse("Forbidden", 403, req);

@@ -16,7 +16,6 @@ import type { GoalView, GoalsPayload, LeverView } from "@/lib/team-goals/server"
 import { CreamBackdrop, prefersReducedMotion, useEntrance } from "../ui";
 import { GoalIcon, STATUS_CHIP, STATUS_FILL, TAB_BADGE } from "./GoalIcon";
 import { GoalsOverlays, MyShare, UndoToast, useGoalsUi, type GoalsUi } from "./GoalsStrip";
-import { TikTokConnect } from "./TikTokConnect";
 
 export function GoalsPage({ initial, initialGoalId, founderName }: { initial: GoalsPayload; initialGoalId: string | null; founderName: string }) {
   const ui = useGoalsUi(initial);
@@ -188,7 +187,6 @@ export function GoalsPage({ initial, initialGoalId, founderName }: { initial: Go
                   </p>
                 ))}
             </section>
-            {data.canManage && <TikTokConnect />}
             <section aria-label="Visible par" className="flex items-center gap-2.5 rounded-[20px] border border-[#EAE1D5] bg-white p-4">
               <LockSimpleIcon size={18} aria-hidden="true" className="shrink-0 text-[#6B625B]" />
               <span className="text-[13px] leading-snug text-[#4A4540]">Visible par toute l’équipe. Seul {founderName} crée et modifie les objectifs.</span>

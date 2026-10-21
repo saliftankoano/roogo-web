@@ -3,7 +3,7 @@ import { getTikTokStatus } from "@/lib/team-goals/tiktok-store";
 import { requireFounder } from "../_shared";
 
 // GET: founder only. Whether TikTok is set up and connected, for the card on
-// « Nos objectifs ». No token ever leaves the server.
+// Studio > Statistiques (the TikTok card). No token ever leaves the server.
 export async function GET() {
   const viewer = await requireFounder();
   if (viewer instanceof NextResponse) return viewer;
