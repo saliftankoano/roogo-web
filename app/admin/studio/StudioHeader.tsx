@@ -22,7 +22,9 @@ export const INBOX_HREF = "/admin/studio/reseaux";
  *
  * - Desktop (md+): h1 « Studio », then the tabs with a 16 px icon; the active
  *   tab is terracotta, extra bold, with a 2 px underline over the line.
- * - Phone: no title, text labels only (13 px), all four visible at 390 px; the
+ * - The h1 « Studio » is the page's only h1; page titles are h2. On a phone
+ *   it is visually hidden (sr-only), not removed.
+ * - Phone: no visible title, text labels only (13 px), all four visible at 390 px; the
  *   tab row scrolls sideways if it ever overflows, it never wraps.
  * - `actions` (Actualiser, week navigation...) sits on the same row on the
  *   right, aligned to the bottom; on a phone it goes above the tabs.
@@ -73,7 +75,8 @@ export function StudioHeader({
   return (
     <div className={cn("flex min-w-0 flex-col-reverse gap-y-2 border-b border-[#E3D8CC] md:flex-row md:items-end md:gap-x-4", className)}>
       <div className="flex min-w-0 items-end gap-7">
-        <h1 className="hidden pb-2 text-[26px] font-extrabold leading-none tracking-[-0.015em] text-[#1A1A1A] md:block">Studio</h1>
+        {/* The page's only h1 (page titles below are h2). Visually hidden on a phone, never removed. */}
+        <h1 className="sr-only pb-2 text-[26px] font-extrabold leading-none tracking-[-0.015em] text-[#1A1A1A] md:not-sr-only md:block">Studio</h1>
         <nav
           aria-label="Studio"
           className="-mb-px flex min-w-0 items-end gap-4 overflow-x-auto [scrollbar-width:none] md:gap-6 [&::-webkit-scrollbar]:hidden"

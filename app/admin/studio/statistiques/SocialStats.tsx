@@ -103,7 +103,7 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
         }
       />
 
-      <h1 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Nos réseaux sociaux</h1>
+      <h2 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Nos réseaux sociaux</h2>
       <p className="mt-1 max-w-2xl text-[14px] text-neutral-600">
         Abonnés, publications et rythme de publication de la Page Facebook, du compte Instagram et du compte TikTok. Les chiffres viennent de Meta et de TikTok et sont relus toutes les 6 heures.
       </p>

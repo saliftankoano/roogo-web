@@ -143,7 +143,7 @@ export function ReseauxInbox({ initial, initialTab = "comment", drafts, fixedNow
         }
       />
 
-      <h1 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Réseaux</h1>
+      <h2 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Réseaux</h2>
       <p className="mt-1 max-w-2xl text-[14px] text-neutral-600">
         Les commentaires et les messages privés de Facebook et Instagram, au même endroit. Les réponses partent au nom de Roogo et chacune est enregistrée avec le nom de la personne qui l&apos;envoie.
       </p>

@@ -228,9 +228,9 @@ export function PublishingCalendar() {
       >
         <CaretLeftIcon size={16} weight="bold" />
       </button>
-      <h1 className="min-w-0 truncate text-center text-xl font-bold tracking-tight text-[#1F1A16] md:text-2xl" aria-live="polite">
+      <h2 className="min-w-0 truncate text-center text-xl font-bold tracking-tight text-[#1F1A16] md:text-2xl" aria-live="polite">
         {weekRangeLabel(week)}
-      </h1>
+      </h2>
       <button
         type="button"
         aria-label="Semaine suivante"
