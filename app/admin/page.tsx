@@ -6,7 +6,7 @@ import { urbanist } from "@/components/admin/team/font";
 
 export const dynamic = "force-dynamic";
 
-export const metadata = { title: "Mon briefing" };
+export const metadata = { title: "Accueil" };
 
 // Every staff member lands on their briefing (approved by Salif, 2026-10-14).
 export default async function AdminPage() {

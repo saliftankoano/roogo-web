@@ -1,5 +1,9 @@
 # Database migration execution ledger
 
+## Social account tokens (TikTok followers) — 2026-10-18
+
+- [ ] [100_social_tokens.sql](./100_social_tokens.sql) — **not run.** Service-role table `social_tokens`: one row per connected social account (only `tiktok`), tokens encrypted by the app with `SOCIAL_TOKENS_KEY`. Written by the founder's « Connecter TikTok » callback and the nightly `/api/cron/social-followers`. Safe for every app version. Until it runs, the TikTok card says « La migration 100 n’est pas encore passée » and readings stay manual. Renumbered from 098 (PR #78) because 098 and 099 were taken on main.
+
 ## Listings on Google — 2026-10-18
 
 - [ ] [098_listing_index_checks.sql](./098_listing_index_checks.sql) — **not run.** Service-role table `listing_index_checks`: one row per live listing with Google's latest indexing answer from `/api/cron/listing-index-check`. Safe for every app version. Until it runs, `/admin/annonces/google` shows the quality checklist only and the cron's upsert fails (logged).

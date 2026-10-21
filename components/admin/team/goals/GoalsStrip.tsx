@@ -1,6 +1,6 @@
 "use client";
 
-// « Nos objectifs » on Mon espace (Bureau.dc.html on desktop, Main.dc.html on
+// « Nos objectifs » on Accueil (Bureau.dc.html on desktop, Main.dc.html on
 // the phone): every goal with its icon, current / target, bar, status, period
 // and countdown; period tabs with counts; « Ma part cette semaine ». A goal
 // opens its evidence. The founder adds and removes goals here.

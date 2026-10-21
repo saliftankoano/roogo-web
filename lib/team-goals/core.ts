@@ -116,8 +116,8 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
     unit: ["compte", "comptes"],
     kind: "stock",
     manual: false,
-    source: "Compté en direct",
-    measure: "Comptes Roogo créés sur l’app et le site. Les comptes de l’équipe et les comptes de test ne comptent pas.",
+    source: "Comptes Clerk",
+    measure: "Comptes créés sur l’app et le site, comptés chez Clerk (là où vivent les comptes). Les comptes de l’équipe et les comptes de test ne comptent pas.",
   },
   tiktok_followers: {
     family: "TikTok",
@@ -187,6 +187,24 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
   },
 };
 
+/**
+ * The definition shown for a goal. TikTok joins the nightly automatic
+ * readings only once the founder has connected the account (« Connecter
+ * TikTok », lib/team-goals/tiktok-store.ts); until then it stays manual.
+ * Manual entry stays open as the fallback either way.
+ */
+export function metricDefFor(metric: GoalMetric, opts: { tiktokConnected?: boolean } = {}): MetricDef {
+  const def = METRICS[metric];
+  if (metric === "tiktok_followers" && opts.tiktokConnected) {
+    return {
+      ...def,
+      source: "Lu chaque nuit",
+      measure: "Abonnés du compte TikTok @roogo.226, lus automatiquement chaque nuit chez TikTok. Si la lecture ne passe pas, le chiffre se saisit à la main avec la capture d’écran en preuve.",
+    };
+  }
+  return def;
+}
+
 /** Catalogue order in « Ajouter un objectif » (approved canvas). */
 export const CATALOG_ORDER: GoalMetric[] = [
   "properties_listed_in_period",
@@ -217,7 +235,7 @@ export function unitWord(metric: GoalMetric, n: number) {
 
 export const GOAL_PERIODS = ["month", "recurring_month", "quarter", "year"] as const;
 export type GoalPeriod = (typeof GOAL_PERIODS)[number];
-/** Tabs on Mon espace: Tous / Ce mois / Ce trimestre / Cette année. */
+/** Tabs on Accueil: Tous / Ce mois / Ce trimestre / Cette année. */
 export type PeriodTab = "mois" | "trimestre" | "annee";
 
 export function isGoalPeriod(value: unknown): value is GoalPeriod {
@@ -605,6 +623,7 @@ export type ReadingSource = "manuel" | "automatique";
 const AUTO_PLATFORM: Partial<Record<GoalMetric, string>> = {
   facebook_followers: "Facebook",
   instagram_followers: "Instagram",
+  tiktok_followers: "TikTok",
 };
 
 /** Under a reading in the drawer: « Lu automatiquement sur Facebook » or « Saisi par Salif ». */

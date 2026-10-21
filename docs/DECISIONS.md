@@ -17,6 +17,46 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### One staff bar on every page, five entries with « Plus » — 2026-10-20
+
+**Decision:** A signed-in staff member or founder sees the same bar on public pages (`/`, `/proprietes`…) and in the back office: the public Navbar renders `AdminNavbar` for them, fed by the one list in `lib/navigation/adminNav.ts` and filtered by the level's capabilities. The bar is « Accueil » (count badge), « Annonces », « Messages » (Ventes, Support), « Studio » (approvals badge), « Plus ». « Plus » holds, under small headings: Opérations (Visites, Appels à biens, Candidatures, Modifications, Identités, Documents propriété, RCCM hôtels, Événements hôtels), Pilotage (Analyses, Accès, Finances, Paramètres), Développement (Talent, Parrainage). Empty groups disappear (a Stagiaire has no Messages). Labels show from 1024 px; below that, the phone menu. Guests, renters, owners, agents and hotels keep the public list. Supersedes the six-entry bar of 2026-10-18.
+
+**Why:** Salif (2026-10-20, production screenshots): staff saw a different bar on the home page (no Accueil, no badge, smaller labels without icons) that "expanded" on the way into the back office, and the six entries were still too many. Accueil, Annonces and Messages are daily; Opérations pages are a few times a week and Finances and Paramètres are founder-only and rare, so they move one click away.
+
+**Ruled out:** Keeping a staff variant inside the public Navbar (two lists drift, which is how this happened); icons-only top entries (labels fit from 1024 px once there are five).
+
+**Open:** On public pages there is no server answer for the level, so the bar uses the Clerk metadata with the levels rollout switch off (`useStaffAccess`). While `STAFF_LEVELS_ENFORCED` is off this is identical; once it is on, a staff member without a level would see the legacy items on public pages and the advisor items in the back office. API routes enforce the real level either way.
+
+---
+
+### Admin navbar: Accueil, five entries, avatar only — 2026-10-18
+
+**Decision:** The first admin item is « Accueil » (was « Mon espace »). Talent and Parrainage move from « Développement » into « Pilotage » under a « Développement » heading, so the bar has Accueil, Annonces, Studio, Messages, Opérations, Pilotage. The name and email leave the bar: the avatar opens Clerk's menu, which shows both. From 1024 to 1279 px the bar shows icons with tooltips and screen-reader labels; labels appear from 1280 px.
+
+**Why:** Salif (2026-10-18): the bar was too big, « Mon espace » wrapped and the name and email were truncated. « Accueil » is the shortest label every French speaker reads as "the home of this space", and it covers tasks, goals and demandes; « Aujourd’hui » was rejected because the page is more than today. Développement and Pilotage are the least used groups.
+
+**Ruled out:** « Bureau » (clear but less familiar as a menu word), « Tableau de bord » (too long), « Briefing » (anglicism); a « Plus » menu (hides where things are without saving more width than the merge).
+
+---
+
+### Users goal counts Clerk accounts, Supabase rows are the comparison — 2026-10-18
+
+**Decision:** The « utilisateurs » goal counts Clerk accounts minus staff, founder, admin (`publicMetadata.userType`) and test addresses (`+clerk_test`, `@example.com/.org`). Creation times are cached 10 minutes in Upstash Redis (per-instance memory without Redis). Supabase `users` rows stay as the « Fiches Roogo » line next to « Comptes Clerk » and as the fallback when Clerk does not answer.
+
+**Why:** Salif (2026-10-18): the number did not match reality. A `users` row is created only when a Clerk user first reaches the API (`lib/user-sync.ts`), so accounts that signed up and never came back were missing. Clerk is where accounts live.
+
+**Ruled out:** running a backfill silently (a script is provided, dry run by default, for Salif to run against production); counting Supabase rows and Clerk accounts together.
+
+---
+
+### TikTok followers come from TikTok's official API after one founder authorization — 2026-10-18
+
+**Decision:** The founder connects @roogo.226 once with TikTok Login Kit (scope `user.info.stats`). Access (24 hours) and refresh (365 days) tokens are encrypted with AES-256-GCM (`SOCIAL_TOKENS_KEY`) in `social_tokens`, readable by the service role only. The nightly cron refreshes the access token when it has less than 10 minutes left, keeps TikTok's new refresh token, reads `follower_count` from `/v2/user/info/` and writes a reading with source « automatique ». Without a connection the cron answers `tiktok: "not connected"` and readings stay manual.
+
+**Why:** Salif asked for TikTok to be read like Facebook and Instagram. TikTok's Display API is the only legitimate source; scraping the website is ruled out. Without the encryption key nothing is stored, so tokens never sit in clear in the database.
+
+---
+
 ### Every live listing meets a quality minimum and is checked on Google daily — 2026-10-18
 
 **Decision:** A listing goes live (`en_ligne`) only with a description of at least 60 words and at least 5 photos (`lib/listing-quality.ts`, enforced by `PATCH /api/properties/[id]/status`, code `listing_quality_minimum`; test listings exempt). A daily cron asks the Search Console URL Inspection API whether each live listing is indexed; `/admin/annonces/google` lists every live listing with its quality checklist and Google status, and flags a listing not on Google 7 days after the check first saw it live. Listing pages lead with what people search: title "Terrain à vendre à Roumtinga, Ouagadougou : 8 500 000 FCFA", the same headline as H1, and an « En résumé » paragraph built only from the listing's fields. Approved by Salif on 2026-10-18.
@@ -65,7 +105,7 @@ out. Newest first. For what shipped and when, see
 
 ### Team goals: every number from a record, founder-only changes, sales confirmed by hand — 2026-10-16
 
-**Decision:** « Nos objectifs » (Mon espace and `/admin/objectifs`) shows goals the founder sets, each with a metric, a target and a period (`month`, `recurring_month`, `quarter`, `year`). Numbers are computed at read time from their own records: users (users rows minus staff, founder and test accounts), properties under an active rental agreement, properties put online in the period, and sales. Roogo has no "sold" status, so a sale counts only once the founder confirms it in `team_goal_sales` (property and notary signature date). Follower counts (TikTok, Facebook, Instagram) are manual readings with an optional screenshot in a private bucket, keyed by metric (the count belongs to the account, not to a goal); no server-side Meta Graph token exists, so Facebook is manual too. Status words come from the real pace against the required pace (En bonne voie at 100% or more, À suivre from 60%, Il faut agir below, Atteint, Pas atteint once the period is over); a pace is judged only after a week of measurement. Only the founder creates, archives, retargets goals, edits levers and confirms sales; founder and Directeur enter readings; a lever is ticked by its owner, the Directeur or the founder. All of it is enforced in `lib/team-goals/server.ts`.
+**Decision:** « Nos objectifs » (Mon espace, now Accueil, and `/admin/objectifs`) shows goals the founder sets, each with a metric, a target and a period (`month`, `recurring_month`, `quarter`, `year`). Numbers are computed at read time from their own records: users (users rows minus staff, founder and test accounts), properties under an active rental agreement, properties put online in the period, and sales. Roogo has no "sold" status, so a sale counts only once the founder confirms it in `team_goal_sales` (property and notary signature date). Follower counts (TikTok, Facebook, Instagram) are manual readings with an optional screenshot in a private bucket, keyed by metric (the count belongs to the account, not to a goal); no server-side Meta Graph token exists, so Facebook is manual too. Status words come from the real pace against the required pace (En bonne voie at 100% or more, À suivre from 60%, Il faut agir below, Atteint, Pas atteint once the period is over); a pace is judged only after a week of measurement. Only the founder creates, archives, retargets goals, edits levers and confirms sales; founder and Directeur enter readings; a lever is ticked by its owner, the Directeur or the founder. All of it is enforced in `lib/team-goals/server.ts`.
 
 **Why:** Approved on the design canvas with Salif (2026-10-16): "nothing on this dash is static; every number has its proof". The evidence drawer shows that proof, with counts only for users (no names, emails or phones).
 

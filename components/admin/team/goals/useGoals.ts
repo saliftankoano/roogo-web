@@ -4,7 +4,7 @@ import { useCallback, useState } from "react";
 import type { GoalsPayload } from "@/lib/team-goals/server";
 import { announceTasksChanged, callApi } from "../ui";
 
-/** Goals state shared by the strip on Mon espace and /admin/objectifs. Every action reloads from the server. */
+/** Goals state shared by the strip on Accueil and /admin/objectifs. Every action reloads from the server. */
 export function useGoals(initial: GoalsPayload) {
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState<Record<string, boolean>>({});

@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Nos objectifs" };
 
 // Every staff member reads the goals and the levers; only the founder changes
-// them (checked by /api/admin/goals). Opened from Mon espace.
+// them (checked by /api/admin/goals). Opened from Accueil (the staff home).
 export default async function GoalsRoute({ searchParams }: { searchParams: Promise<{ objectif?: string }> }) {
   const viewer = await getViewer();
   if (!viewer) redirect("/");
