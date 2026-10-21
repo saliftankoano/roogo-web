@@ -9,7 +9,7 @@ import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { MagnifyingGlassIcon, XIcon } from "@phosphor-icons/react";
 import gsap from "gsap";
 import { cn } from "@/lib/utils";
-import { CALL_SUBJECT_LABELS, CALL_SUBJECTS, addDays, type CallSubject } from "@/lib/team-tasks/core";
+import { CALL_SUBJECT_LABELS, CALL_SUBJECTS, addDays, longDayLabel, type CallSubject } from "@/lib/team-tasks/core";
 import type { ComposerPerson, LinkOption } from "@/lib/team-tasks/server";
 import { Avatar, announceTasksChanged, callApi, prefersReducedMotion } from "./ui";
 
@@ -188,12 +188,14 @@ export function TaskComposer({
           leverId,
         }),
       });
+      // Say which day, so a task for later this week is not "lost" (the briefing lists today and tomorrow).
+      const day = dueDate === todayKey ? "aujourd’hui" : `le ${longDayLabel(dueDate)}`;
       setSent(
         isAsk
           ? `${founderName} la verra dans ses demandes.`
           : owner.isMe
-            ? "Ajoutée à votre briefing."
-            : `${owner.firstName} la verra dans son briefing.`,
+            ? `Ajoutée à votre briefing pour ${day}.`
+            : `${owner.firstName} la verra dans son briefing ${day}.`,
       );
       announceTasksChanged();
       onCreated();

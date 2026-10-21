@@ -38,6 +38,7 @@ import {
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
+import { ListingReadinessCard } from "@/components/admin/ListingReadinessCard";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import ImportExistingLeaseWizard from "@/components/admin/ImportExistingLeaseWizard";
 import StaffSaleLadder from "@/components/admin/StaffSaleLadder";
@@ -1343,6 +1344,14 @@ export default function AdminListingDetail({
 
         {/* Sidebar */}
         <div className="space-y-8">
+          <ListingReadinessCard
+            propertyId={listing.id}
+            description={listing.description}
+            photoCount={listing.images.length}
+            isLive={listing.status === "en_ligne"}
+            isTest={Boolean(listing.is_test)}
+          />
+
           {/* Price Card */}
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
             <div className="flex items-center gap-3 mb-4">

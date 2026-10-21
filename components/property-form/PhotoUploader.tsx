@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Image from "next/image";
 import { MAX_LISTING_PHOTOS, MIN_LISTING_PHOTOS } from "@/lib/validations";
+import { LISTING_QUALITY_MIN } from "@/lib/listing-quality";
 
 interface PhotoUploaderProps {
   files: File[];
@@ -120,6 +121,13 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
           <AlertCircle className="w-3 h-3" />
           Veuillez ajouter au moins {min} photos pour valider l&apos;annonce.
         </div>
+      )}
+
+      {!isUnderMin && files.length < LISTING_QUALITY_MIN.photos && (
+        <p className="mt-2 rounded-lg bg-neutral-50 p-2 text-xs text-neutral-600">
+          Pour la mise en ligne, il faut {LISTING_QUALITY_MIN.photos} photos. Ajoutez-en encore{" "}
+          {LISTING_QUALITY_MIN.photos - files.length} : façade, pièces principales, cuisine, salle de bain.
+        </p>
       )}
 
       {onVideoChange && (

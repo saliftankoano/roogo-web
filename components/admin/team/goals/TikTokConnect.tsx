@@ -28,7 +28,7 @@ const OUTCOMES: Record<string, { text: string; good: boolean }> = {
   scope: { text: "Il faut laisser cochée la case des statistiques du compte sur TikTok.", good: false },
   etat: { text: "La connexion a expiré. Recommencez.", good: false },
   config: { text: "Les clés TikTok ne sont pas encore sur le serveur.", good: false },
-  table: { text: "La migration 098 n’est pas encore passée.", good: false },
+  table: { text: "La migration 100 n’est pas encore passée.", good: false },
   erreur: { text: "La connexion a échoué. Réessayez dans un instant.", good: false },
 };
 
@@ -112,7 +112,7 @@ export function TikTokConnect() {
         <p className="m-0 text-xs leading-snug text-[#6B625B]">À ajouter sur Vercel : {status.missing.join(", ")}.</p>
       )}
       {status.configured && !status.tableReady && (
-        <p className="m-0 text-xs leading-snug text-[#6B625B]">La migration 098 n’est pas encore passée.</p>
+        <p className="m-0 text-xs leading-snug text-[#6B625B]">La migration 100 n’est pas encore passée.</p>
       )}
       {message && (
         <p role="status" className={cn("m-0 rounded-xl px-3 py-2 text-[13px] font-semibold leading-snug", message.good ? "bg-[#E6F2EA] text-[#1F5A33]" : "bg-[#FBE3DF] text-[#8E2A1E]")}>

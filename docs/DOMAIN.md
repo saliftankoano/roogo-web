@@ -384,6 +384,16 @@ and review state independently govern what the user may submit or edit.
 
 ## Team goals and calls
 
+### Compte rendu (fin de journée)
+
+**Meaning:** The short report a staff member sends at the end of the day from Mon espace: what they did, their actions for tomorrow (each becomes a task), what did not work and how to do better. One per person per day. An **absence** is recorded on the same day row, with a category (maladie, urgence familiale, congé, autre), declared by the person or by the Directeur or the Fondateur.
+
+**Origin:** 2026-10-19 (Salif), after Moubarak’s absence for a family emergency was known only from a phone call.
+
+**Why it matters for building:** The absence note is private to the Directeur, the Fondateur and its own author; never ask for medical details. The weekly x/5 counts Monday to Friday.
+
+**Evidence:** [Decision](./DECISIONS.md#end-of-day-report-and-absences-in-the-app--2026-10-19).
+
 ### Vendu
 
 **Meaning:** The listing status of a property whose sale deed has been signed at the notary. It carries the signing date, the price and who marked it.

@@ -382,6 +382,12 @@ export default function AdminListingsPage() {
             </button>
           </div>
           <div className="flex items-center gap-3">
+            <Link
+              href="/admin/annonces/google"
+              className="px-5 py-2.5 rounded-full border border-neutral-200 text-sm font-bold text-neutral-700 hover:border-primary/30 hover:text-primary transition-colors"
+            >
+              Sur Google
+            </Link>
             <ExpandableScreen
               layoutId="add-property-staff"
               contentRadius="32px"

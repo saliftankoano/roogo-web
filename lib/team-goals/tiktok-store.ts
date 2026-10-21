@@ -1,5 +1,5 @@
 // Server side of the TikTok connection: the social_tokens row (migration
-// 098), token refresh before each nightly read, and the founder card status.
+// 100), token refresh before each nightly read, and the founder card status.
 // Tokens are sealed with lib/team-goals/token-crypto.ts and never logged.
 
 import { supabaseAdmin } from "@/lib/supabase-admin";

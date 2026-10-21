@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { isUuid } from "@/lib/team-tasks/core";
 import { getTeamPeople } from "@/lib/team-tasks/server";
 import { parseFiche } from "@/lib/field-visits/core";
-import { abandonFiche, getFiche, saveFiche } from "@/lib/field-visits/server";
+import { abandonFiche, getFiche, saveFiche, withdrawFiche } from "@/lib/field-visits/server";
 import { readJson, requireViewer, respond, serverError } from "../_shared";
 
 export const dynamic = "force-dynamic";
@@ -39,14 +39,19 @@ export async function PUT(req: Request, { params }: Params) {
 }
 
 // PATCH {action: "abandon"}: "Recommencer une nouvelle fiche". The old sheet is kept, marked abandoned.
+// PATCH {action: "withdraw"}: "Retirer cette fiche" (founder only), also for a finished sheet: it and
+// its montage tasks leave the follow-up and the briefings. Nothing is deleted.
 export async function PATCH(req: Request, { params }: Params) {
   const viewer = await requireViewer();
   if (viewer instanceof NextResponse) return viewer;
   const { id } = await params;
   const body = await readJson(req);
-  if (!isUuid(id) || body?.action !== "abandon") return NextResponse.json({ error: "Action inconnue." }, { status: 400 });
+  const action = body?.action;
+  if (!isUuid(id) || (action !== "abandon" && action !== "withdraw")) {
+    return NextResponse.json({ error: "Action inconnue." }, { status: 400 });
+  }
   try {
-    return respond(await abandonFiche(viewer, id));
+    return respond(action === "withdraw" ? await withdrawFiche(viewer, id) : await abandonFiche(viewer, id));
   } catch (error) {
     return serverError("PATCH field visit", error);
   }

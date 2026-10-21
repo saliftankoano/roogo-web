@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### End-of-day report and absences in the app — 2026-10-19
+
+**Decision:** Every staff member sends a short end-of-day report from Mon espace (from 15:00 Ouagadougou, highlighted from 17:30): what they did, 1 to 5 actions for tomorrow that become their own tasks, what did not work today, and how we could do better. Absences are declared in the same form, or by the Directeur or the Fondateur on someone’s behalf, with one of four categories and an optional private note. Design from the council recommendation, approved by Salif on 2026-10-19; the four parts were set by Salif the same day.
+
+**Why:** On 2026-10-19 Moubarak was absent for a family emergency and the only trace was Ablassé’s phone call to Salif. Logging days and absences gives data to learn from and plan around, and the two reflection questions turn the report into a daily improvement loop rather than a check-in.
+
+**Ruled out / alternatives:** WhatsApp or SMS reminders (in-app highlight only). Asking for medical details (the category is enough; the form says not to write any). A free-text « Demain » (actions become real tasks instead, so the next day starts from them). Altering `staff_tasks` to link back to the report (the task ids are stored in the new table). Counting Saturday in the weekly x/5 (Monday to Friday only; Saturday reports are kept).
+
+**Status:** Branch `feat/compte-rendu-fin-de-journee`, not merged. Migration `099_staff_day_reports.sql` not run; the app shows « migration 099 à lancer » until then.
+
+---
+
 ### Admin navbar: Accueil, five entries, avatar only — 2026-10-18
 
 **Decision:** The first admin item is « Accueil » (was « Mon espace »). Talent and Parrainage move from « Développement » into « Pilotage » under a « Développement » heading, so the bar has Accueil, Annonces, Studio, Messages, Opérations, Pilotage. The name and email leave the bar: the avatar opens Clerk's menu, which shows both. From 1024 to 1279 px the bar shows icons with tooltips and screen-reader labels; labels appear from 1280 px.
@@ -12,6 +24,8 @@ out. Newest first. For what shipped and when, see
 **Why:** Salif (2026-10-18): the bar was too big, « Mon espace » wrapped and the name and email were truncated. « Accueil » is the shortest label every French speaker reads as "the home of this space", and it covers tasks, goals and demandes; « Aujourd’hui » was rejected because the page is more than today. Développement and Pilotage are the least used groups.
 
 **Ruled out:** « Bureau » (clear but less familiar as a menu word), « Tableau de bord » (too long), « Briefing » (anglicism); a « Plus » menu (hides where things are without saving more width than the merge).
+
+---
 
 ### Users goal counts Clerk accounts, Supabase rows are the comparison — 2026-10-18
 
@@ -21,11 +35,27 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out:** running a backfill silently (a script is provided, dry run by default, for Salif to run against production); counting Supabase rows and Clerk accounts together.
 
+---
+
 ### TikTok followers come from TikTok's official API after one founder authorization — 2026-10-18
 
 **Decision:** The founder connects @roogo.226 once with TikTok Login Kit (scope `user.info.stats`). Access (24 hours) and refresh (365 days) tokens are encrypted with AES-256-GCM (`SOCIAL_TOKENS_KEY`) in `social_tokens`, readable by the service role only. The nightly cron refreshes the access token when it has less than 10 minutes left, keeps TikTok's new refresh token, reads `follower_count` from `/v2/user/info/` and writes a reading with source « automatique ». Without a connection the cron answers `tiktok: "not connected"` and readings stay manual.
 
 **Why:** Salif asked for TikTok to be read like Facebook and Instagram. TikTok's Display API is the only legitimate source; scraping the website is ruled out. Without the encryption key nothing is stored, so tokens never sit in clear in the database.
+
+---
+
+### Every live listing meets a quality minimum and is checked on Google daily — 2026-10-18
+
+**Decision:** A listing goes live (`en_ligne`) only with a description of at least 60 words and at least 5 photos (`lib/listing-quality.ts`, enforced by `PATCH /api/properties/[id]/status`, code `listing_quality_minimum`; test listings exempt). A daily cron asks the Search Console URL Inspection API whether each live listing is indexed; `/admin/annonces/google` lists every live listing with its quality checklist and Google status, and flags a listing not on Google 7 days after the check first saw it live. Listing pages lead with what people search: title "Terrain à vendre à Roumtinga, Ouagadougou : 8 500 000 FCFA", the same headline as H1, and an « En résumé » paragraph built only from the listing's fields. Approved by Salif on 2026-10-18.
+
+**Why:** On 2026-10-18 Search Console showed 12 listing and owner pages "Discovered - currently not indexed", found by chance. The discovery cause (sale listings not linked anywhere) was fixed in PR #75. The audit then showed 27 of 36 live listings under the new minimum, many with one-line descriptions ("Très belle opportunité de ça immobilier"), which Google often declines to index. Listings are the business; indexing cannot be left to chance or to someone opening Search Console.
+
+**Ruled out / alternatives:** Blocking owners at submission (older mobile builds validate 10 characters and 3 photos, and owner acquisition is the main constraint; staff complete a listing before publishing instead). The Google Indexing API (officially for job postings and livestreams only). Manual "Request indexing" as the process (about 10 per day). Unpublishing the 27 incomplete live listings (they stay live; the staff page lists them to complete).
+
+**Status:** Branch `feat/listing-quality-indexing`, not merged. Migration 098 not run. The cron needs `GSC_SERVICE_ACCOUNT_JSON` (a service account added as a user on the `sc-domain:roogobf.com` property); until then it returns `skipped`.
+
+---
 
 ### The access page is /admin/acces — 2026-10-17
 

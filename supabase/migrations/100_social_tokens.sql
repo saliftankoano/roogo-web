@@ -1,5 +1,5 @@
 -- ================================================================
--- 098 Social account tokens (TikTok follower readings, 2026-10-18)
+-- 100 Social account tokens (TikTok follower readings, 2026-10-18)
 -- ================================================================
 --
 -- NOT EXECUTED. Run with the production Supabase login before the founder
@@ -8,9 +8,8 @@
 -- is missing and the nightly cron answers { tiktok: "not connected" }; the
 -- manual TikTok reading keeps working.
 --
--- Number clash to resolve at merge time: open PR #77
--- (feat/listing-quality-indexing) also adds a 098 file. Whichever merges
--- second renumbers to the next free number.
+-- Renumbered from 098 to 100 on 2026-10-20: main already has
+-- 098_listing_index_checks.sql (PR #77) and 099_staff_day_reports.sql (PR #81).
 --
 -- One row per connected social account (only 'tiktok' for now). Written by
 -- the OAuth callback app/api/admin/social/tiktok/callback (founder only) and

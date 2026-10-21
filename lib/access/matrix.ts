@@ -17,7 +17,7 @@
 //
 // No runtime imports: the test loads this file directly with Node.
 
-export const LAST_REVIEWED = "2026-10-18";
+export const LAST_REVIEWED = "2026-10-19";
 
 export type Level = "fondateur" | "directeur" | "assistant" | "conseillere" | "stagiaire";
 
@@ -294,6 +294,44 @@ export const AREAS: Area[] = [
         titleMatters: true,
       },
       {
+        id: "day-report",
+        action: "Envoyer son compte rendu de fin de journée et déclarer sa propre absence",
+        detail: "À partir de 15:00, une fois par jour, modifiable jusqu’à minuit. Les actions pour demain deviennent ses propres tâches.",
+        access: ALL,
+        enforcedBy: ["serveur"],
+        files: ["app/api/admin/day-reports/route.ts", "lib/team-tasks/day-reports-server.ts"],
+        titleMatters: false,
+      },
+      {
+        id: "day-report-read",
+        action: "Lire les comptes rendus de fin de journée",
+        detail: "Le Directeur et le Fondateur voient l’état de chacun sur L’équipe, le résumé de la semaine et les idées pour faire mieux.",
+        access: ALL,
+        notes: { fondateur: "tous", directeur: "tous", assistant: "le sien", conseillere: "le sien", stagiaire: "le sien" },
+        enforcedBy: ["serveur"],
+        files: ["lib/team-tasks/day-reports.ts", "lib/team-tasks/day-reports-server.ts", "app/api/admin/day-reports/team/route.ts"],
+        titleMatters: true,
+      },
+      {
+        id: "absence-note",
+        action: "Lire la note privée d’une absence",
+        detail: "La catégorie (maladie, urgence familiale, congé, autre) suffit. Aucun détail médical n’est demandé.",
+        access: ALL,
+        notes: { fondateur: "toutes", directeur: "toutes", assistant: "celle qu’il a écrite", conseillere: "celle qu’il a écrite", stagiaire: "celle qu’il a écrite" },
+        enforcedBy: ["serveur"],
+        files: ["lib/team-tasks/day-reports.ts", "lib/team-tasks/day-reports-server.ts"],
+        titleMatters: true,
+      },
+      {
+        id: "absence-declare",
+        action: "Déclarer ou retirer une absence pour quelqu’un",
+        detail: "Par exemple quand la personne prévient par téléphone. Le nom de qui déclare est enregistré. Personne ne déclare d’absence pour le Fondateur.",
+        access: DIRECTOR_AND_FOUNDER,
+        enforcedBy: ["serveur"],
+        files: ["lib/team-tasks/day-reports-server.ts", "app/api/admin/day-reports/absences/route.ts", "lib/team-tasks/day-reports.ts"],
+        titleMatters: true,
+      },
+      {
         id: "links-studio",
         action: "Lier une tâche à un projet Studio",
         detail: "Les autres liens (annonce, visite) sont ouverts à tout le personnel.",
@@ -531,6 +569,17 @@ export const AREAS: Area[] = [
           "lib/studio/publishing-server.ts",
         ],
         titleMatters: true,
+      },
+      {
+        id: "social-stats",
+        action: "Voir les statistiques Facebook et Instagram (Studio, Statistiques) et les relire chez Meta",
+        detail:
+          "Abonnés, publications récentes avec portée, vues et interactions, rythme de publication. Lecture seule chez Meta. « Actualiser » ne relit pas Meta si les chiffres ont moins de 10 minutes.",
+        access: ALL,
+        enforcedBy: ["serveur", "page"],
+        files: ["app/api/admin/social/insights/route.ts", "app/admin/studio/layout.tsx", "lib/social/insights-server.ts"],
+        titleMatters: false,
+        capability: "studio.use",
       },
       {
         id: "publish-retry",

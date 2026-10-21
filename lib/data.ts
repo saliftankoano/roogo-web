@@ -39,6 +39,7 @@ export type Property = {
   city?: string;
   quartier?: string;
   created_at?: string;
+  updated_at?: string;
   deposit?: number;
   loyerAvanceMois?: number;
   cautionType?: string;
@@ -97,6 +98,7 @@ interface DBProperty {
   photo_limit: number | null;
   video_included: boolean | null;
   created_at: string;
+  updated_at?: string | null;
   agent_name: string | null;
   agent_phone: string | null;
   agent_email: string | null;
@@ -166,6 +168,7 @@ function mapProperty(p: DBProperty): Property {
     city: p.city,
     quartier: unescapeText(p.quartier),
     created_at: p.created_at,
+    updated_at: p.updated_at || undefined,
     deposit: p.caution_mois ?? p.deposit ?? undefined,
     loyerAvanceMois: p.loyer_avance_mois ?? 1,
     cautionType: p.caution_type || undefined,

@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { getBriefingPayload, getViewer } from "@/lib/team-tasks/server";
+import { getMyDayReport } from "@/lib/team-tasks/day-reports-server";
 import { BriefingView } from "@/components/admin/team/BriefingView";
 import { urbanist } from "@/components/admin/team/font";
 
@@ -12,6 +13,11 @@ export default async function AdminPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/");
   let payload;
+  // « Fin de journée » never blocks the briefing: if it fails, the card is just not shown.
+  const dayReportPromise = getMyDayReport(viewer).catch((error) => {
+    console.error("[day-reports] card failed", { code: error?.code, message: error?.message });
+    return null;
+  });
   try {
     payload = await getBriefingPayload(viewer);
   } catch (error) {
@@ -27,7 +33,7 @@ export default async function AdminPage() {
   }
   return (
     <div className={urbanist.className}>
-      <BriefingView initial={payload} />
+      <BriefingView initial={payload} dayReport={await dayReportPromise} />
     </div>
   );
 }

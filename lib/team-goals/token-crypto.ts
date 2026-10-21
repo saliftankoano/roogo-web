@@ -1,5 +1,5 @@
 // Encryption at rest for social account tokens (table social_tokens,
-// migration 098). AES-256-GCM with SOCIAL_TOKENS_KEY: 32 random bytes, base64
+// migration 100). AES-256-GCM with SOCIAL_TOKENS_KEY: 32 random bytes, base64
 // (generate with `openssl rand -base64 32`). Without the key, nothing is
 // stored: connecting TikTok refuses with a clear message.
 //

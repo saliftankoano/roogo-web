@@ -6,6 +6,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 import { getStaffOrFounder, userCan } from "@/lib/api-auth";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { soldTransition } from "@/lib/property-status";
+import { checkListingQuality, listingQualityError } from "@/lib/listing-quality";
 import { isDirectorOrFounder, levelFor, titleFromStaffLevel } from "@/lib/team-tasks/core";
 
 /** Directeur or Fondateur: the account type for the founder, the staff level otherwise. */
@@ -52,7 +53,7 @@ export async function PATCH(
     const { data: existingProperty, error: propertyError } = await supabaseAdmin
       .from("properties")
       .select(
-        "agent_id, is_boosted, status, is_test, listing_type, property_type, ownership_verification_status",
+        "agent_id, is_boosted, status, is_test, listing_type, property_type, ownership_verification_status, description",
       )
       .eq("id", propertyId)
       .maybeSingle();
@@ -90,6 +91,35 @@ export async function PATCH(
     }
 
     const isGoingLive = status === "en_ligne";
+
+    // Quality minimum (lib/listing-quality.ts): a listing goes live only with
+    // a real description and enough photos. Test listings are exempt.
+    if (
+      isGoingLive &&
+      existingProperty.status !== "en_ligne" &&
+      !existingProperty.is_test
+    ) {
+      const { count: photoCount, error: photoCountError } = await supabaseAdmin
+        .from("property_images")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId);
+      if (photoCountError) {
+        console.error("Error counting photos before publishing:", photoCountError);
+        return NextResponse.json({ error: "Photo count failed" }, { status: 500 });
+      }
+      const qualityError = listingQualityError(
+        checkListingQuality({
+          description: existingProperty.description,
+          photoCount: photoCount ?? 0,
+        }),
+      );
+      if (qualityError) {
+        return NextResponse.json(
+          { code: "listing_quality_minimum", error: qualityError },
+          { status: 409 },
+        );
+      }
+    }
 
     if (
       isGoingLive &&
