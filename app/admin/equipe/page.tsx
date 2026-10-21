@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { dayKey } from "@/lib/team-tasks/core";
 import { getBoardPayload, getViewer } from "@/lib/team-tasks/server";
+import { getTeamDayReports } from "@/lib/team-tasks/day-reports-server";
 import { TeamBoard } from "@/components/admin/team/TeamBoard";
 import { urbanist } from "@/components/admin/team/font";
 
@@ -13,6 +14,13 @@ export default async function TeamPage() {
   const viewer = await getViewer();
   if (!viewer) redirect("/");
   let result;
+  // « Fin de journée » never blocks the board: on failure the chips and the summary are just not shown.
+  const reportsPromise = getTeamDayReports(viewer)
+    .then((r) => (r.ok ? r.value : null))
+    .catch((error) => {
+      console.error("[day-reports] team failed", { code: error?.code, message: error?.message });
+      return null;
+    });
   try {
     result = await getBoardPayload(viewer);
   } catch (error) {
@@ -34,6 +42,7 @@ export default async function TeamPage() {
         todayKey={dayKey(new Date())}
         viewerName={viewer.firstName}
         viewerLevelLabel={viewer.levelLabel}
+        dayReports={await reportsPromise}
       />
     </div>
   );

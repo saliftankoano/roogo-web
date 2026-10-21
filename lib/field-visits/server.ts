@@ -501,6 +501,27 @@ export async function abandonFiche(viewer: Viewer, id: string): Promise<ServiceR
   return { ok: true, value: { id } };
 }
 
+/**
+ * "Retirer cette fiche" (founder only): a test sheet, or one started on the
+ * wrong listing, leaves the follow-up list, the "Sur le terrain" notice and,
+ * with it, its six montage tasks leave every briefing (lib/team-tasks/server.ts
+ * hides tasks whose sheet is abandoned). Nothing is deleted: the sheet is
+ * marked abandonne, the tasks and Drive files stay. completed_at is cleared
+ * because the table ties it to "termine" (090, field_visits_done_has_time).
+ */
+export async function withdrawFiche(viewer: Viewer, id: string): Promise<ServiceResult<{ id: string }>> {
+  if (!viewer.isFounder) return fail(403, "Seul le Fondateur peut retirer une fiche.");
+  const { data, error } = await supabaseAdmin
+    .from("field_visits")
+    .update({ status: "abandonne", completed_at: null, updated_by: viewer.id })
+    .eq("id", id)
+    .in("status", ["en_cours", "termine"])
+    .select("id");
+  if (error) return dbError(error, "withdraw");
+  if (!data?.length) return fail(404, "Cette fiche n’existe plus ou a déjà été retirée.");
+  return { ok: true, value: { id } };
+}
+
 export type CompleteAnswer = FichePayload & { created: number };
 
 /**

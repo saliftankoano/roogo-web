@@ -13,6 +13,8 @@ import type { GoalsPayload } from "@/lib/team-goals/server";
 import { TaskComposer, type ComposerGoal } from "./TaskComposer";
 import { AsksBlock, MyAsksBlock, ReplyCards, type AskAction } from "./AsksBlock";
 import { CallPanel } from "./CallPanel";
+import { EndOfDayCard } from "./DayReport";
+import type { MyDayReportPayload } from "@/lib/team-tasks/day-reports-server";
 import { GoalsOverlays, GoalsStrip, MyShare, useGoalsUi } from "./goals/GoalsStrip";
 import {
   Chip,
@@ -101,7 +103,11 @@ function emptyGoals(data: BriefingPayload): GoalsPayload {
   };
 }
 
-export function BriefingView({ initial }: { initial: BriefingPayload }) {
+export function BriefingView({ initial, dayReport = null }: {
+  initial: BriefingPayload;
+  /** « Fin de journée » (migration 099). Null when it could not be loaded. */
+  dayReport?: MyDayReportPayload | null;
+}) {
   const { data, overrides, busy, error, refresh, run, toggle } = useBriefing(initial);
   const [composerOpen, setComposerOpen] = useState(false);
   const [callTaskId, setCallTaskId] = useState<string | null>(null);
@@ -203,6 +209,7 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
 
       <div className="flex flex-wrap items-start gap-5">
         <main className="flex min-w-0 flex-[999_1_640px] flex-col gap-3">
+          {dayReport && <EndOfDayCard initial={dayReport} onSaved={refreshAll} />}
           {data.fieldNotices.length > 0 && <FieldNotices notices={data.fieldNotices} canSeeTeam={data.canSeeTeam} />}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
             {openLate.map((item) => (
@@ -217,10 +224,14 @@ export function BriefingView({ initial }: { initial: BriefingPayload }) {
             <SectionLabel className="mt-1 lg:m-0 lg:border-b lg:border-[#F0E8DD] lg:px-4 lg:py-3.5">
               <span id="plus-tard">Plus tard aujourd’hui</span>
             </SectionLabel>
-            {rowsFor(data, overrides).length === 0 && (
-              <p className="m-0 rounded-[18px] border border-dashed border-[#D6CBBE] px-4 py-3 text-sm text-[#6B625B] lg:rounded-none lg:border-0">
-                {total === 0 ? "Rien d’autre pour aujourd’hui." : "Rien d’autre après ça."}
-              </p>
+            {total === 0 ? (
+              <EmptyDay canSeeTeam={data.canSeeTeam} onAdd={() => setComposerOpen(true)} />
+            ) : (
+              rowsFor(data, overrides).length === 0 && (
+                <p className="m-0 rounded-[18px] border border-dashed border-[#D6CBBE] px-4 py-3 text-sm text-[#6B625B] lg:rounded-none lg:border-0">
+                  Rien d’autre après ça.
+                </p>
+              )
             )}
             {rowsFor(data, overrides).map((item) => (
               <TaskRow
@@ -329,6 +340,28 @@ function rowsFor(data: BriefingPayload, overrides: Record<string, string>) {
   // A late or current item that was just ticked drops into the list, struck through.
   const extra = [...data.late, ...(data.next ? [data.next] : [])].filter((item) => isDone(item, overrides));
   return [...data.rest, ...extra];
+}
+
+/** No task today: say where tasks come from and offer the one action that fills the day. */
+function EmptyDay({ canSeeTeam, onAdd }: { canSeeTeam: boolean; onAdd: () => void }) {
+  return (
+    <div className="flex flex-col items-start gap-3 rounded-[18px] border border-dashed border-[#D6CBBE] bg-white px-4 py-4 lg:rounded-none lg:border-0 lg:py-5">
+      <div className="flex flex-col gap-1">
+        <span className="text-[15px] font-extrabold">Aucune tâche pour aujourd’hui</span>
+        <span className="max-w-[560px] text-[13px] leading-relaxed text-[#6B625B]">
+          Vos tâches arrivent ici : celles que vous ajoutez, celles qu’on vous donne, et les visites, messages et dossiers qui vous sont attribués.
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={onAdd}
+        className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-full bg-[#C96A2E] px-4 text-sm font-extrabold text-white transition-colors hover:bg-[#8A4924]"
+      >
+        <PlusIcon size={16} weight="bold" aria-hidden="true" />
+        {canSeeTeam ? "Donner une tâche" : "Ajouter une tâche"}
+      </button>
+    </div>
+  );
 }
 
 export function SetupNotice() {
