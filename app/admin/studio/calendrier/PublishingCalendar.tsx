@@ -504,6 +504,7 @@ export function PublishingCalendar() {
             slots={slots}
             team={data.team}
             me={data.me}
+            tiktok={data.tiktok}
             onClose={() => setEditing(null)}
             onSaved={(post, removedId) => {
               merge(post, removedId);
@@ -534,6 +535,7 @@ export function PublishingCalendar() {
           queue={preview.queue}
           startIndex={preview.index}
           daySlots={slots}
+          tiktok={data.tiktok}
           onClose={() => {
             setPreview(null);
             void load(week);

@@ -6,7 +6,6 @@ import gsap from "gsap";
 import { CaretDownIcon, CheckIcon, SparkleIcon, WarningCircleIcon, XIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import {
-  TIKTOK_PENDING_TOOLTIP,
   captionChecks,
   isoToDateAndSlot,
   networksLabel,
@@ -19,6 +18,8 @@ import { NetworkIcon } from "../calendrier/NetworkIcons";
 import { readError, type Post } from "../calendrier/calendar-types";
 import { chipsIn, isPhone, motionOn, riseIn, shimmer } from "./motion";
 import { useDialog } from "./useDialog";
+import { TikTokChoice, TikTokNote } from "./TikTokChoice";
+import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
 
 type Phase = "when" | "describe";
 
@@ -29,6 +30,8 @@ export type PlanSheetProps = {
   slots: SlotOption[];
   daySlots: string[];
   startPhase?: Phase;
+  /** TikTok publishing status from the server (feature flag). */
+  tiktok?: TikTokPublishInfo | null;
   onClose: () => void;
   onDone: (post: Post) => void;
 };
@@ -40,7 +43,7 @@ const label = "text-[13px] font-bold text-[#1F1A16]";
  * a 480 px drawer on the right on a computer. Quand, Où, then the generated
  * description. The send button stays disabled until a description exists.
  */
-export function PlanSheet({ mode, artifactId, publication, slots, daySlots, startPhase, onClose, onDone }: PlanSheetProps) {
+export function PlanSheet({ mode, artifactId, publication, slots, daySlots, startPhase, tiktok, onClose, onDone }: PlanSheetProps) {
   const panelRef = useRef<HTMLDivElement | null>(null);
   const backdropRef = useRef<HTMLDivElement | null>(null);
   const resultRef = useRef<HTMLDivElement | null>(null);
@@ -268,7 +271,7 @@ export function PlanSheet({ mode, artifactId, publication, slots, daySlots, star
       <h3 id="plan-where" className={label}>
         Où
       </h3>
-      <div className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2">
+      <div className={cn("grid gap-2", tiktok?.enabled ? "grid-cols-3" : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]")}>
         {(["facebook", "instagram"] as const).map((n) => {
           const on = networks.includes(n);
           return (
@@ -287,15 +290,14 @@ export function PlanSheet({ mode, artifactId, publication, slots, daySlots, star
             </button>
           );
         })}
-        <span
-          title={TIKTOK_PENDING_TOOLTIP}
-          aria-disabled="true"
-          className="inline-flex h-12 min-w-0 cursor-help items-center justify-center gap-1.5 rounded-2xl border border-dashed border-[rgba(74,52,36,0.18)] px-2.5 text-[13px] font-semibold text-neutral-400 sm:text-sm"
-        >
-          <NetworkIcon network="tiktok" size={18} label={false} className="opacity-50 grayscale" />
-          <span className="truncate">Bientôt</span>
-        </span>
+        <TikTokChoice
+          info={tiktok}
+          on={networks.includes("tiktok")}
+          onToggle={() => setNetworks((cur) => (cur.includes("tiktok") ? cur.filter((x) => x !== "tiktok") : [...cur, "tiktok"]))}
+          className="h-12"
+        />
       </div>
+      <TikTokNote info={tiktok} />
     </section>
   );
 

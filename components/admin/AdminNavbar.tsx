@@ -19,6 +19,7 @@ import { roogoMotion } from "@/lib/motion";
 import { TEAM_TASKS_CHANGED } from "./team/events";
 import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 import { useStudioApprovals } from "./useStudioApprovals";
+import { useSocialInboxCount } from "./useSocialInboxCount";
 
 // The one staff bar (2026-10-20). The admin layout renders it, and the public
 // Navbar renders it too for a signed-in staff member or founder, so the bar
@@ -36,6 +37,22 @@ function ApprovalBadge({ count, className }: { count: number; className?: string
       )}
     >
       {count > 9 ? "9+" : count}
+    </span>
+  );
+}
+
+/** Comments and messages waiting for a reply (Studio > Réseaux), terracotta. */
+function InboxBadge({ count, className }: { count: number; className?: string }) {
+  if (count <= 0) return null;
+  return (
+    <span
+      aria-label={`${count} commentaire${count > 1 ? "s" : ""} ou message${count > 1 ? "s" : ""} à répondre`}
+      className={cn(
+        "inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#C96A2E] px-1.5 text-[11px] font-bold leading-none text-white",
+        className,
+      )}
+    >
+      {count > 99 ? "99+" : count}
     </span>
   );
 }
@@ -252,6 +269,8 @@ export type StaffNavbarViewProps = {
   navItems: AdminNavEntry[];
   todayCount: number | null;
   waitingApprovals: number;
+  /** Comments and messages waiting for a reply in Studio › Réseaux. */
+  inboxToAnswer?: number;
   /** The Clerk avatar button, or null while Clerk loads. */
   account: ReactNode | null;
   /** Name and email, shown as the avatar tooltip. */
@@ -264,6 +283,7 @@ export function StaffNavbarView({
   navItems,
   todayCount,
   waitingApprovals,
+  inboxToAnswer = 0,
   account,
   accountTitle,
 }: StaffNavbarViewProps) {
@@ -313,7 +333,10 @@ export function StaffNavbarView({
     id === todayNavItem.id ? (
       <CountBadge count={todayCount} active={active} />
     ) : id === studioNavItem.id ? (
-      <ApprovalBadge count={waitingApprovals} />
+      <>
+        <ApprovalBadge count={waitingApprovals} />
+        <InboxBadge count={inboxToAnswer} />
+      </>
     ) : null;
 
   return (
@@ -421,7 +444,11 @@ export function StaffNavbarView({
               )}
             >
               <studioNavItem.icon size={22} weight="bold" />
-              <ApprovalBadge count={waitingApprovals} className="absolute -right-1 -top-1" />
+              {waitingApprovals > 0 ? (
+                <ApprovalBadge count={waitingApprovals} className="absolute -right-1 -top-1" />
+              ) : (
+                <InboxBadge count={inboxToAnswer} className="absolute -right-1 -top-1" />
+              )}
             </Link>
           )}
 
@@ -531,10 +558,11 @@ export function StaffNavbarView({
 export function AdminNavbar() {
   const pathname = usePathname();
   const { isLoaded, user } = useUser();
-  const { canAny, level } = useStaffAccess();
+  const { can, canAny, level } = useStaffAccess();
   const navItems = useMemo(() => getAdminNavItems(canAny), [canAny]);
   const todayCount = useTodayCount(isLoaded && !!user);
   const waitingApprovals = useStudioApprovals(level === "founder");
+  const inboxToAnswer = useSocialInboxCount(can("social.inbox"));
 
   return (
     <StaffNavbarView
@@ -542,6 +570,7 @@ export function AdminNavbar() {
       navItems={navItems}
       todayCount={todayCount}
       waitingApprovals={waitingApprovals}
+      inboxToAnswer={inboxToAnswer}
       accountTitle={[user?.fullName, user?.primaryEmailAddress?.emailAddress].filter(Boolean).join(" · ")}
       account={
         isLoaded ? (

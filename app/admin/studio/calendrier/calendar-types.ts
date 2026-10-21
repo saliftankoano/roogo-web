@@ -1,3 +1,4 @@
+import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
 import type {
   CadenceStep,
   MediaType,
@@ -51,6 +52,8 @@ export type CalendarData = {
   posts: Post[];
   slots: string[];
   meta: { facebook: boolean; instagram: boolean; missing: string[] };
+  /** TikTok publishing (feature flag, lib/social/tiktok-token-server.ts). */
+  tiktok?: TikTokPublishInfo | null;
   me: { id: string; role: Role };
   team: TeamMember[];
   /** Founder only: every post waiting for validation, whatever the week. */

@@ -17,7 +17,7 @@
 //
 // No runtime imports: the test loads this file directly with Node.
 
-export const LAST_REVIEWED = "2026-10-19";
+export const LAST_REVIEWED = "2026-10-21";
 
 export type Level = "fondateur" | "directeur" | "assistant" | "conseillere" | "stagiaire";
 
@@ -559,7 +559,7 @@ export const AREAS: Area[] = [
         id: "publish-approve",
         action: "Valider une publication, ou la renvoyer à l’équipe avec un commentaire",
         detail:
-          "Rien ne part sur Facebook ou Instagram sans cette validation. Une publication validée part seule à l’heure prévue. Le nombre de publications à valider n’est montré qu’au Fondateur. TikTok se publie encore à la main.",
+          "Rien ne part sur Facebook, Instagram ou TikTok sans cette validation. Une publication validée part seule à l’heure prévue. Le nombre de publications à valider n’est montré qu’au Fondateur. TikTok (vidéos seulement) reste privé tant que l’application n’est pas validée par TikTok.",
         access: FOUNDER_ONLY,
         enforcedBy: ["serveur"],
         files: [
@@ -580,6 +580,34 @@ export const AREAS: Area[] = [
         files: ["app/api/admin/social/insights/route.ts", "app/admin/studio/layout.tsx", "lib/social/insights-server.ts"],
         titleMatters: false,
         capability: "studio.use",
+      },
+      {
+        id: "social-inbox-read",
+        action: "Voir les commentaires et les messages Facebook et Instagram (Studio, Réseaux) et les relire chez Meta",
+        detail:
+          "Commentaires des publications de la Page et du compte Instagram, messages Messenger et Instagram, avec le statut « À répondre », « Répondu » ou « Ignoré » et qui a répondu. Relu toutes les 10 minutes ; « Actualiser » ne relit pas Meta si la dernière lecture a moins de 2 minutes.",
+        access: UP_TO_ADVISOR,
+        capability: "social.inbox",
+        enforcedBy: ["serveur", "page"],
+        files: [
+          "app/api/admin/social/inbox/route.ts",
+          "app/api/admin/social/inbox/count/route.ts",
+          "app/api/admin/social/inbox/refresh/route.ts",
+          "app/admin/studio/reseaux/layout.tsx",
+          "lib/social/inbox-server.ts",
+        ],
+        titleMatters: true,
+      },
+      {
+        id: "social-inbox-reply",
+        action: "Répondre à un commentaire ou à un message au nom de Roogo, le marquer « Répondu » ou l’ignorer",
+        detail:
+          "La réponse part depuis la Page Roogo ou le compte Instagram, jamais depuis un compte personnel. Chaque réponse est enregistrée avec la personne qui l’a envoyée. Un message ne peut recevoir de réponse que dans les 24 heures qui suivent le dernier message de la personne (règle de Meta).",
+        access: UP_TO_ADVISOR,
+        capability: "social.inbox",
+        enforcedBy: ["serveur"],
+        files: ["app/api/admin/social/inbox/[id]/route.ts", "app/api/admin/social/inbox/[id]/reply/route.ts", "lib/social/inbox-server.ts", "lib/social/inbox.ts"],
+        titleMatters: true,
       },
       {
         id: "publish-retry",

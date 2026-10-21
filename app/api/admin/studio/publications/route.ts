@@ -6,6 +6,7 @@ import { addDays, isIsoDate, weekStart } from "@/lib/studio/publishing";
 import {
   PUBLICATION_COLUMNS,
   metaStatus,
+  tiktokPublishStatus,
   parsePostInput,
   publishSlots,
   roleOf,
@@ -54,6 +55,7 @@ export async function GET(req: Request) {
       posts,
       slots: publishSlots(),
       meta: metaStatus(),
+      tiktok: await tiktokPublishStatus(),
       me: { id: staff.id, role },
       team,
       waiting,

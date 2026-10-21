@@ -128,51 +128,65 @@ async function note(patch: Partial<Row> & Record<string, unknown>) {
   if (error) console.error("[social-followers] TikTok row update failed", { code: error.code, message: error.message });
 }
 
+export type TikTokAccess = { ok: true; token: string; scope: string } | { ok: false; error: string; notConnected?: boolean };
+
 /**
- * The follower count for the nightly cron: refreshes the access token when it
- * has less than 10 minutes left (keeping TikTok's new refresh token), reads
- * /v2/user/info/, and records the result on the row. Never throws on TikTok
- * errors; the reason is returned and stored in last_error.
+ * A usable TikTok access token, refreshed first when it has less than 10
+ * minutes left (TikTok's new refresh token is saved too). Shared by the
+ * nightly follower reading and Studio publishing, so a token is never refused
+ * just because it is older than 24 hours. Never throws on TikTok errors; the
+ * French reason is returned and stored in last_error. The token is never logged.
  */
-export async function readTikTokFollowers(now = new Date(), fetchImpl: typeof fetch = fetch): Promise<TikTokRead> {
+export async function getFreshTikTokAccess(now = new Date(), fetchImpl: typeof fetch = fetch): Promise<TikTokAccess> {
   const { row } = await loadRow();
-  if (!row) return { state: "not connected" };
+  if (!row) return { ok: false, error: "Le compte TikTok n'est pas connecté.", notConnected: true };
   const key = tokenKey(process.env);
   const config = tiktokConfig(process.env, "https://roogobf.com");
   if (!key || !config) {
-    return { state: "failed", error: "TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET ou SOCIAL_TOKENS_KEY manquant" };
+    return { ok: false, error: "TIKTOK_CLIENT_KEY, TIKTOK_CLIENT_SECRET ou SOCIAL_TOKENS_KEY manquant" };
   }
-  let access = openToken(row.access_token_enc, key);
+  const access = openToken(row.access_token_enc, key);
   const refresh = openToken(row.refresh_token_enc, key);
   if (!access || !refresh) {
     const error = "Jetons illisibles (SOCIAL_TOKENS_KEY a changé ?) : reconnecter TikTok";
     await note({ last_error: error });
-    return { state: "failed", error };
+    return { ok: false, error };
   }
 
   const action = tokenAction({ accessExpiresAt: row.access_expires_at, refreshExpiresAt: row.refresh_expires_at }, now);
   if (action === "reconnect") {
     const error = "Autorisation TikTok expirée (365 jours) : reconnecter TikTok";
     await note({ last_error: error });
-    return { state: "failed", error };
+    return { ok: false, error };
   }
   if (action === "refresh") {
     const next = await refreshTokens(config, refresh, fetchImpl, now);
     if (!next.ok) {
       const error = `Rafraîchissement refusé: ${next.error}`;
       await note({ last_error: error });
-      return { state: "failed", error };
+      return { ok: false, error };
     }
-    access = next.accessToken;
     await note({ ...sealed(next, key), refreshed_at: now.toISOString() });
+    return { ok: true, token: next.accessToken, scope: next.scope || row.scope };
   }
+  return { ok: true, token: access, scope: row.scope };
+}
 
-  const profile = await fetchTikTokProfile(access, fetchImpl);
+/**
+ * The follower count for the nightly cron: gets a fresh access token (see
+ * getFreshTikTokAccess), reads /v2/user/info/, and records the result on the
+ * row. Never throws on TikTok errors; the reason is returned and stored in last_error.
+ */
+export async function readTikTokFollowers(now = new Date(), fetchImpl: typeof fetch = fetch): Promise<TikTokRead> {
+  const access = await getFreshTikTokAccess(now, fetchImpl);
+  if (!access.ok) return access.notConnected ? { state: "not connected" } : { state: "failed", error: access.error };
+  const { row } = await loadRow();
+  const profile = await fetchTikTokProfile(access.token, fetchImpl);
   if (!profile.ok) {
     await note({ last_error: profile.error });
     return { state: "failed", error: profile.error };
   }
-  await note({ last_read_at: now.toISOString(), last_error: null, account_name: profile.displayName ?? row.account_name });
+  await note({ last_read_at: now.toISOString(), last_error: null, account_name: profile.displayName ?? row?.account_name ?? null });
   return { state: "ok", value: profile.followerCount };
 }
 

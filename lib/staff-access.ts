@@ -76,6 +76,7 @@ export type StaffCapability =
   | "studio.use"
   | "studio.cloneVoice"
   | "studio.moderateGlossary"
+  | "social.inbox"
   | "team.manage";
 
 type LevelList = readonly EffectiveStaffLevel[];
@@ -118,6 +119,9 @@ export const STAFF_CAPABILITY_MATRIX: Record<StaffCapability, LevelList> = {
   "studio.use": [F, D, A, C, S, L],
   "studio.cloneVoice": [F, D, A, C, L],
   "studio.moderateGlossary": [F, D],
+  // Studio > Réseaux: read and answer comments and direct messages as the Roogo
+  // Page / account (Salif, 2026-10-21: Conseiller and above).
+  "social.inbox": [F, D, A, C, L],
   "team.manage": [F, D],
 };
 
