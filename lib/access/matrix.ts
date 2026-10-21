@@ -556,6 +556,17 @@ export const AREAS: Area[] = [
         titleMatters: true,
       },
       {
+        id: "social-stats",
+        action: "Voir les statistiques Facebook et Instagram (Studio, Statistiques) et les relire chez Meta",
+        detail:
+          "Abonnés, publications récentes avec portée, vues et interactions, rythme de publication. Lecture seule chez Meta. « Actualiser » ne relit pas Meta si les chiffres ont moins de 10 minutes.",
+        access: ALL,
+        enforcedBy: ["serveur", "page"],
+        files: ["app/api/admin/social/insights/route.ts", "app/admin/studio/layout.tsx", "lib/social/insights-server.ts"],
+        titleMatters: false,
+        capability: "studio.use",
+      },
+      {
         id: "publish-retry",
         action: "Relancer une publication en échec",
         detail: "Seulement une publication déjà validée par le Fondateur. Seuls les réseaux en échec sont relancés.",
