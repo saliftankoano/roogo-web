@@ -402,7 +402,7 @@ export function briefingFromSnapshot(
   };
 }
 
-/** Open items for the viewer today (late included) and unread answers on demandes: the numbers on "Mon espace". */
+/** Open items for the viewer today (late included) and unread answers on demandes: the numbers on "Accueil". */
 export async function getOpenCount(viewer: Viewer, now = new Date()): Promise<{ open: number; unread: number }> {
   const snap = await snapshot(viewer, now);
   const { unread } = demandesFor(viewer, snap.rows, namesOf(snap.people), now, snap.messages ?? []);

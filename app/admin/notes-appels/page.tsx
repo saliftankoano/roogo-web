@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 
 export const metadata = { title: "Notes d’appels" };
 
-// Directeur and Fondateur only (the API checks it too); everyone else goes back to Mon espace.
+// Directeur and Fondateur only (the API checks it too); everyone else goes back to Accueil.
 export default async function CallNotesRoute() {
   const viewer = await getViewer();
   if (!viewer) redirect("/");

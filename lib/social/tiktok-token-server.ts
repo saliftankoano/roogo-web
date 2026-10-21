@@ -3,17 +3,11 @@
 // depend on that PR compiling: when the table is missing, TikTok publishing
 // simply stays off with a French reason.
 //
-// TODO(after PR #78 merges): replace openSealedToken with openToken from
-// lib/team-goals/token-crypto.ts, and call the store's refresh helper (the
-// one readTikTokFollowers uses: refreshTokens + sealed, saving TikTok's new
-// refresh token) instead of refusing an expired access token. TikTok access
-// tokens live 24 hours; until then a publish needs a token refreshed by the
-// nightly reading less than 24 hours earlier. Also add video.publish (or
-// video.upload for TIKTOK_POST_MODE=draft) to TIKTOK_SCOPE in
-// lib/team-goals/tiktok.ts and reconnect TikTok once.
+// Publishing gets its access token from getFreshTikTokAccess (lib/team-goals/
+// tiktok-store.ts), which renews it when it is close to its 24-hour expiry.
 
-import { createDecipheriv } from "node:crypto";
 import { supabaseAdmin } from "@/lib/supabase-admin";
+import { getFreshTikTokAccess } from "@/lib/team-goals/tiktok-store";
 import { hasScope, requiredScope, tiktokPostMode, tiktokPublishInfo, type TikTokPublishInfo } from "./tiktok-publish";
 
 type TokenRow = { scope: string | null; access_token_enc: string; access_expires_at: string };
@@ -28,19 +22,6 @@ function tokensKey(): Buffer | null {
   if (!raw) return null;
   const key = Buffer.from(raw, "base64");
   return key.length === 32 ? key : null;
-}
-
-/** Same format as lib/team-goals/token-crypto.ts (PR #78): "v1:<iv>:<tag>:<data>", base64url. Never throws. */
-function openSealedToken(sealed: string, key: Buffer): string | null {
-  const [version, iv, tag, data] = sealed.split(":");
-  if (version !== "v1" || !iv || !tag || !data) return null;
-  try {
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(iv, "base64url"));
-    decipher.setAuthTag(Buffer.from(tag, "base64url"));
-    return Buffer.concat([decipher.update(Buffer.from(data, "base64url")), decipher.final()]).toString("utf8");
-  } catch {
-    return null;
-  }
 }
 
 async function loadRow(): Promise<{ row: TokenRow | null; tableReady: boolean }> {
@@ -71,18 +52,12 @@ export async function tiktokPublishStatus(): Promise<TikTokPublishInfo> {
   return tiktokPublishInfo({ clientKey, tokensKey: Boolean(tokensKey()), tableReady, connected: Boolean(row), scope: row?.scope ?? null, mode });
 }
 
-/** A usable access token for publishing, or the French reason. The token is never logged. */
+/** A usable access token for publishing (renewed when close to expiry), or the French reason. The token is never logged. */
 export async function tiktokAccessToken(now = new Date()): Promise<{ token: string } | { error: string }> {
   const info = await tiktokPublishStatus();
   if (!info.enabled) return { error: info.reason ?? "TikTok n'est pas disponible." };
-  const key = tokensKey();
-  const { row } = await loadRow();
-  if (!key || !row) return { error: "Le compte TikTok n'est pas connecté." };
-  if (!hasScope(row.scope, requiredScope(info.mode))) return { error: info.reason ?? "Permission TikTok manquante." };
-  if (new Date(row.access_expires_at).getTime() - now.getTime() < 2 * 60_000) {
-    return { error: "Le jeton TikTok a expiré : il est renouvelé chaque nuit, réessayez après la prochaine lecture ou reconnectez TikTok." };
-  }
-  const token = openSealedToken(row.access_token_enc, key);
-  if (!token) return { error: "Jeton TikTok illisible (SOCIAL_TOKENS_KEY a changé ?) : reconnectez TikTok." };
-  return { token };
+  const access = await getFreshTikTokAccess(now);
+  if (!access.ok) return { error: access.error };
+  if (!hasScope(access.scope, requiredScope(info.mode))) return { error: info.reason ?? "Permission TikTok manquante." };
+  return { token: access.token };
 }
