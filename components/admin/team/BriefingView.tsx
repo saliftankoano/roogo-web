@@ -16,7 +16,7 @@ import { AsksBlock, MyAsksBlock, ReplyCards, type AskAction } from "./AsksBlock"
 import { CallPanel } from "./CallPanel";
 import { EndOfDayCard } from "./DayReport";
 import type { MyDayReportPayload } from "@/lib/team-tasks/day-reports-server";
-import { GoalsOverlays, GoalsStrip, MyShare, useGoalsUi } from "./goals/GoalsStrip";
+import { GoalsOverlays, GoalsStrip, LeversTally, MyShare, PrincipleBand, useGoalsUi } from "./goals/GoalsStrip";
 import {
   Chip,
   CheckButton,
@@ -203,7 +203,10 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
         </div>
       </header>
 
+      {/* Nos objectifs (merged from /admin/objectifs, 2026-10-21): the principle, the goals, then on the phone the levers tally. */}
+      {initial.goals && <PrincipleBand />}
       {initial.goals && <GoalsStrip ui={goalsUi} />}
+      {initial.goals && <LeversTally tally={goalsUi.data.tally} className="lg:hidden" />}
 
       {error && (
         <p role="alert" className="m-0 rounded-2xl bg-[#FBE3DF] px-4 py-3 text-sm font-semibold text-[#8E2A1E]">
@@ -226,8 +229,8 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
         </div>
       )}
 
-      <div className="flex flex-wrap items-start gap-5">
-        <main className="flex min-w-0 flex-[999_1_640px] flex-col gap-3">
+      <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
+        <main className="flex min-w-0 flex-col gap-3">
           {dayReport && <EndOfDayCard initial={dayReport} onSaved={refreshAll} />}
           {data.fieldNotices.length > 0 && <FieldNotices notices={data.fieldNotices} canSeeTeam={data.canSeeTeam} />}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
@@ -288,7 +291,8 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
           </section>
         </main>
 
-        <aside className="flex min-w-0 flex-[1_1_320px] flex-col gap-3">
+        <aside className="flex min-w-0 flex-col gap-3">
+          <LeversTally tally={goalsUi.data.tally} className="hidden lg:flex" />
           <MyShare mine={goalsUi.data.mine} totals={goalsUi.data.mineTotals} api={goalsUi.api} busy={goalsUi.busy} className="hidden lg:flex" />
           <button
             type="button"

@@ -1,10 +1,10 @@
 "use client";
 
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { GoalsPayload } from "@/lib/team-goals/server";
 import { announceTasksChanged, callApi } from "../ui";
 
-/** Goals state shared by the strip on Accueil and /admin/objectifs. Every action reloads from the server. */
+/** Goals state for « Nos objectifs » on Accueil (and its drawer). Every action reloads from the server. */
 export function useGoals(initial: GoalsPayload) {
   const [data, setData] = useState(initial);
   const [busy, setBusy] = useState<Record<string, boolean>>({});
@@ -17,6 +17,28 @@ export function useGoals(initial: GoalsPayload) {
     } catch (err) {
       setError(err instanceof Error ? err.message : "Les objectifs n’ont pas pu se recharger.");
     }
+  }, []);
+
+  // Another tab or person may have changed a goal: reload when the page comes
+  // back into view or gets the focus, at most once every 15 seconds. The open
+  // drawer reads its goal from `data` (by id), so it follows the reload too.
+  const lastAuto = useRef(Date.now());
+  useEffect(() => {
+    const maybeRefresh = () => {
+      if (document.visibilityState !== "visible") return;
+      if (Date.now() - lastAuto.current < 15_000) return;
+      lastAuto.current = Date.now();
+      // Quiet: a failed background reload keeps the numbers already shown.
+      callApi<{ goals: GoalsPayload }>("/api/admin/goals")
+        .then((body) => setData(body.goals))
+        .catch(() => {});
+    };
+    window.addEventListener("focus", maybeRefresh);
+    document.addEventListener("visibilitychange", maybeRefresh);
+    return () => {
+      window.removeEventListener("focus", maybeRefresh);
+      document.removeEventListener("visibilitychange", maybeRefresh);
+    };
   }, []);
 
   const run = useCallback(
@@ -47,6 +69,8 @@ export function useGoals(initial: GoalsPayload) {
     restore: (id: string) => run(`goal:${id}`, () => callApi(`/api/admin/goals/${id}`, { method: "PATCH", body: JSON.stringify({ action: "restore" }) })),
     setTarget: (id: string, target: number) =>
       run(`goal:${id}`, () => callApi(`/api/admin/goals/${id}`, { method: "PATCH", body: JSON.stringify({ action: "target", target }) })),
+    editGoal: (id: string, title: string, target: number) =>
+      run(`goal:${id}`, () => callApi(`/api/admin/goals/${id}`, { method: "PATCH", body: JSON.stringify({ action: "edit", title, target }) })),
     tick: (leverId: string, action: "tick" | "untick") =>
       run(`lever:${leverId}`, () => callApi(`/api/admin/goals/levers/${leverId}`, { method: "PATCH", body: JSON.stringify({ action }) })),
     addLever: (goalId: string, lever: { ownerId: string; title: string; rhythm: string; weeklyTarget: number }) =>

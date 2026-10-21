@@ -1,21 +1,21 @@
 "use client";
 
-// « Nos objectifs » on Accueil (Bureau.dc.html on desktop, Main.dc.html on
-// the phone): every goal with its icon, current / target, bar, status, period
-// and countdown; period tabs with counts; « Ma part cette semaine ». A goal
-// opens its evidence. The founder adds and removes goals here.
+// « Nos objectifs » on Accueil. Since 2026-10-21 /admin/objectifs is merged
+// in here (approved design): « Le principe Roogo » band under the greeting,
+// the goals as cards (GoalCard) with period filters, the levers tally on the
+// right, and each goal's levers in its drawer (EvidenceDrawer). The founder
+// adds and removes goals and levers here; the server checks it.
 
-import Link from "next/link";
 import gsap from "gsap";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { PlusIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { PRINCIPLE, type PeriodTab } from "@/lib/team-goals/core";
 import type { GoalView, GoalsPayload, LeverView } from "@/lib/team-goals/server";
-import { prefersReducedMotion, SectionLabel } from "../ui";
+import { prefersReducedMotion } from "../ui";
 import { EvidenceDrawer } from "./EvidenceDrawer";
 import { GoalForm } from "./GoalForm";
-import { GoalIcon, STATUS_CHIP, STATUS_FILL, TAB_BADGE } from "./GoalIcon";
+import { GoalCard } from "./GoalCard";
 import { useGoals, type GoalsApi } from "./useGoals";
 
 type Tab = "tous" | PeriodTab;
@@ -31,6 +31,15 @@ export function useGoalsUi(initial: GoalsPayload) {
   const goals = useGoals(initial);
   const [openId, setOpenId] = useState<string | null>(null);
   const [adding, setAdding] = useState(false);
+  // ?objectif=<id> (old /admin/objectifs links redirect here) opens that goal's drawer once.
+  useEffect(() => {
+    const url = new URL(window.location.href);
+    const id = url.searchParams.get("objectif");
+    if (!id) return;
+    setOpenId(id);
+    url.searchParams.delete("objectif");
+    window.history.replaceState(null, "", url.toString());
+  }, []);
   const [undo, setUndo] = useState<GoalView | null>(null);
   const open = goals.data.goals.find((g) => g.id === openId) ?? null;
   return { ...goals, open, setOpenId, adding, setAdding, undo, setUndo };
@@ -96,44 +105,27 @@ export function UndoToast({ ui }: { ui: GoalsUi }) {
   );
 }
 
-function GoalCard({ goal, onOpen }: { goal: GoalView; onOpen: () => void }) {
+/**
+ * « Le principe Roogo » band, right under the greeting on Accueil. The eyebrow
+ * sits on its own line; the quote and (from lg) the side text share a wrapping
+ * row, so the quote keeps one line at 1200 px and at most two at 1024 px.
+ * Phone: eyebrow and quote only.
+ */
+export function PrincipleBand() {
   return (
-    <button
-      type="button"
-      data-goal={goal.id}
-      onClick={onOpen}
-      aria-label={`${goal.title}, ${goal.currentLabel} sur ${goal.targetLabel}, ${goal.statusLabel}. Voir les preuves`}
-      className={cn(
-        "flex cursor-pointer flex-col gap-2 rounded-[14px] border-0 bg-[#FBF7F1] p-3 text-left text-[#1F1A16] shadow-[inset_0_0_0_1px_#EFE6DA] transition-shadow duration-200 hover:shadow-[inset_0_0_0_2px_#C96A2E]",
-        "w-[220px] shrink-0 snap-start lg:w-auto",
-      )}
-    >
-      <span className="flex w-full items-center gap-2.5">
-        <GoalIcon kind={goal.icon} />
-        <span className="min-w-0 flex-1 text-[13px] font-extrabold leading-tight">{goal.title}</span>
-      </span>
-      <span className="flex w-full items-baseline gap-1.5">
-        <span className="text-[22px] font-extrabold leading-none">{goal.currentLabel}</span>
-        <span className="text-xs font-bold text-[#6B625B]">/ {goal.targetLabel}</span>
-        <span className="flex-1" />
-        <span className={cn("inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-full px-[7px] text-[10px] font-extrabold", STATUS_CHIP[goal.tone])}>
-          {goal.statusLabel}
-        </span>
-      </span>
-      <span aria-hidden="true" className="block h-1.5 w-full overflow-hidden rounded-full bg-[#EFE6DA]">
-        <span data-gfill className={cn("block h-full origin-left rounded-full", STATUS_FILL[goal.tone])} style={{ width: `${Math.max(goal.pct, 2)}%` }} />
-      </span>
-      <span className="flex w-full items-center gap-1.5">
-        <span className={cn("inline-flex h-5 shrink-0 items-center whitespace-nowrap rounded-md px-[7px] text-[10px] font-extrabold", TAB_BADGE[goal.tab])}>
-          {goal.periodLabel}
-        </span>
-        <span className="min-w-0 flex-1 truncate text-right text-[11px] font-bold text-[#6B625B]">{goal.countdown}</span>
-      </span>
-    </button>
+    <section data-anim aria-label="Le principe Roogo" className="flex flex-col gap-2 rounded-[20px] bg-[#1F1A16] px-4 py-4 text-white lg:rounded-[24px] lg:px-8 lg:py-6">
+      <span className="text-[11px] font-extrabold uppercase tracking-[0.08em] text-[#E9A23B] lg:text-xs">Le principe Roogo</span>
+      <div className="flex flex-wrap items-end gap-x-10 gap-y-2.5">
+        <p className="m-0 min-w-0 max-w-full flex-auto text-[20px] font-extrabold leading-[1.2] [text-wrap:balance] lg:text-[clamp(22px,2.2vw,28px)]">« {PRINCIPLE} »</p>
+        <p className="m-0 hidden min-w-0 flex-[0_1_340px] text-[15px] leading-normal text-[#D9CFC4] lg:block">
+          Chaque objectif a ses leviers : ce qu’on fait chaque semaine, quoi qu’il arrive.
+        </p>
+      </div>
+    </section>
   );
 }
 
-/** The strip itself. */
+/** « Nos objectifs » on Accueil: period filters, goal cards (grid on desktop, snap row on the phone). */
 export function GoalsStrip({ ui }: { ui: GoalsUi }) {
   const { data } = ui;
   const [tab, setTab] = useState<Tab>("tous");
@@ -174,12 +166,16 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
         : "Aucun objectif sur cette période.";
 
   return (
-    <section ref={rootRef} data-anim aria-labelledby="nos-objectifs" className="flex min-w-0 flex-col gap-3 rounded-[20px] border border-[#EAE1D5] bg-white p-3.5 lg:rounded-[24px] lg:p-4">
-      <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
-        <SectionLabel>
-          <span id="nos-objectifs">Nos objectifs</span>
-        </SectionLabel>
-        <div role="tablist" aria-label="Période" className="order-2 flex w-full gap-0.5 overflow-x-auto rounded-full bg-[#F4EEE6] p-[3px] [scrollbar-width:none] sm:order-none sm:w-auto sm:gap-1">
+    <section ref={rootRef} data-anim aria-labelledby="nos-objectifs" className="flex min-w-0 flex-col gap-3">
+      {/* One wrapping row: title and sub-line (stacked), period filters, new goal. */}
+      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+        <div className="mr-auto flex min-w-0 flex-1 flex-col gap-0.5 sm:flex-none">
+          <h2 id="nos-objectifs" className="m-0 text-[22px] font-extrabold tracking-[-0.01em] lg:text-2xl">
+            Nos objectifs
+          </h2>
+          <p className="m-0 text-sm text-[#4A4540]">Toute l’équipe les voit, avec les leviers de chacun.</p>
+        </div>
+        <div role="tablist" aria-label="Période" className="order-3 flex max-w-full sm:order-none gap-0.5 overflow-x-auto rounded-full bg-[#F4EEE6] p-[3px] [scrollbar-width:none] sm:gap-1">
           {TABS.map(([value, label, short]) => {
             const on = tab === value;
             return (
@@ -190,7 +186,7 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
                 aria-selected={on}
                 onClick={() => setTab(value)}
                 className={cn(
-                  "inline-flex h-9 flex-1 shrink-0 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-extrabold sm:flex-none sm:gap-1.5 sm:pl-3 sm:pr-2.5 lg:h-8",
+                  "inline-flex h-9 shrink-0 cursor-pointer items-center justify-center gap-1 whitespace-nowrap rounded-full px-2 text-xs font-extrabold sm:gap-1.5 sm:pl-3 sm:pr-2.5 lg:h-8",
                   on ? "bg-white text-[#C96A2E] shadow-[0_1px_3px_rgba(31,26,22,0.12)]" : "text-[#6B625B]",
                 )}
               >
@@ -203,44 +199,74 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
             );
           })}
         </div>
-        <span className="hidden flex-[1_1_260px] text-sm font-bold text-[#4A4540] lg:block">« {PRINCIPLE} »</span>
-        <Link href="/admin/objectifs" className="order-1 ml-auto inline-flex min-h-11 items-center whitespace-nowrap text-sm font-extrabold text-[#8A4924] hover:text-[#5A321A] sm:order-none lg:ml-0 lg:min-h-0">
-          Voir les leviers
-        </Link>
-      </div>
-
-      {/* Phone: a row that scrolls inside the card. Desktop: a grid. */}
-      <div role="tabpanel" className="-mx-3.5 flex snap-x gap-2 overflow-x-auto px-3.5 pb-1 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-[repeat(auto-fill,minmax(210px,1fr))] lg:overflow-visible lg:px-0 lg:pb-0">
-        {shown.map((goal) => (
-          <GoalCard key={goal.id} goal={goal} onOpen={() => ui.setOpenId(goal.id)} />
-        ))}
-        {shown.length === 0 && (
-          <div className="flex min-h-[120px] w-full items-center justify-center rounded-[14px] bg-[#FBF7F1] p-3 text-center text-[13px] font-bold text-[#6B625B] lg:min-h-[132px]">
-            {emptyText}
-          </div>
-        )}
         {data.canManage && (
           <button
             type="button"
             onClick={() => ui.setAdding(true)}
-            className="flex min-h-[120px] w-[160px] shrink-0 cursor-pointer snap-start items-center justify-center gap-2 rounded-[14px] border-2 border-dashed border-[#D6CBBE] bg-transparent px-3 text-sm font-extrabold text-[#8A4924] hover:border-[#C96A2E] lg:min-h-[132px] lg:w-auto"
+            aria-label="Nouvel objectif"
+            className="order-2 inline-flex size-11 shrink-0 cursor-pointer items-center justify-center gap-2 whitespace-nowrap rounded-full bg-[#C96A2E] sm:order-none text-[15px] font-extrabold text-white hover:bg-[#8A4924] sm:h-11 sm:w-auto sm:px-5"
           >
             <PlusIcon size={18} weight="bold" aria-hidden="true" />
-            Ajouter un objectif
+            <span className="hidden sm:inline">Nouvel objectif</span>
           </button>
+        )}
+      </div>
+
+      {/* Phone: a snap row of ~280 px cards. Desktop: a grid. */}
+      <div role="tabpanel" className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] md:overflow-visible md:px-0 md:pb-0">
+        {shown.map((goal) => (
+          <GoalCard key={goal.id} goal={goal} onOpen={() => ui.setOpenId(goal.id)} className="w-[280px] shrink-0 snap-start md:w-auto" />
+        ))}
+        {shown.length === 0 && (
+          <div className="flex min-h-[140px] w-full items-center justify-center rounded-[20px] bg-white p-4 text-center text-[13px] font-bold text-[#6B625B] shadow-[inset_0_0_0_1px_#EAE1D5]">
+            {emptyText}
+          </div>
         )}
       </div>
 
       <UndoToast ui={ui} />
       {ui.error && !ui.open && (
-        <p role="alert" className="m-0 rounded-2xl bg-[#FBE3DF] px-3 py-2 text-sm font-semibold text-[#8E2A1E]">{ui.error}</p>
+        <p role="alert" className="m-0 rounded-2xl bg-[#FBE3DF] px-3 py-2 text-sm font-semibold text-[#8E2A1E]">
+          {ui.error}
+        </p>
       )}
       {data.failedMetrics.length > 0 && (
-        <p className="m-0 text-xs font-bold text-[#6E4300]" role="status">Un chiffre n’a pas pu se charger. Rechargez la page dans un instant.</p>
+        <p className="m-0 text-xs font-bold text-[#6E4300]" role="status">
+          Un chiffre n’a pas pu se charger. Rechargez la page dans un instant.
+        </p>
       )}
 
-      {/* Phone: my share, in the same card (Main.dc.html). */}
+      {/* Phone: my share, under the goals. */}
       <MySharePhone mine={data.mine} totals={data.mineTotals} />
+    </section>
+  );
+}
+
+/** « Leviers tenus cette semaine »: each person's ticks against their weekly targets (alphabetical). */
+export function LeversTally({ tally, className }: { tally: GoalsPayload["tally"]; className?: string }) {
+  if (!tally.length) return null;
+  const sorted = [...tally].sort((a, b) => a.name.localeCompare(b.name, "fr"));
+  return (
+    <section aria-label="Leviers tenus cette semaine" className={cn("flex flex-col gap-2.5 rounded-[20px] border border-[#EAE1D5] bg-white p-4", className)}>
+      <h2 className="m-0 text-[13px] font-extrabold uppercase tracking-[0.06em] text-[#6B625B]">Leviers tenus cette semaine</h2>
+      {sorted.map((person) => {
+        const pct = person.target ? Math.round((person.done / person.target) * 100) : 0;
+        return (
+          <div key={person.personId} className="flex items-center gap-3">
+            <span aria-hidden="true" className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[#1F1A16] text-[11px] font-extrabold text-white">
+              {person.initials}
+            </span>
+            <span className="w-[84px] truncate text-sm font-extrabold">{person.name}</span>
+            <span aria-hidden="true" className="block h-2 min-w-0 flex-1 overflow-hidden rounded-full bg-[#F0E8DD]">
+              <span className={cn("block h-full rounded-full", pct >= 80 ? "bg-[#2F7A48]" : "bg-[#C96A2E]")} style={{ width: `${Math.max(pct, 3)}%` }} />
+            </span>
+            <span className="w-16 shrink-0 text-right text-[13px] font-bold text-[#4A4540]">
+              {person.done} / {person.target}
+            </span>
+          </div>
+        );
+      })}
+      <span className="text-xs leading-snug text-[#6B625B]">Chaque levier compte au plus sa cible de la semaine.</span>
     </section>
   );
 }
@@ -258,7 +284,7 @@ function MySharePhone({ mine, totals }: { mine: LeverView[]; totals: { done: num
   );
 }
 
-/** « Ma part cette semaine » (desktop aside, and the goals page for the team). */
+/** « Ma part cette semaine » (desktop aside on Accueil). */
 export function MyShare({ mine, totals, api, busy, className }: {
   mine: LeverView[];
   totals: { done: number; target: number };

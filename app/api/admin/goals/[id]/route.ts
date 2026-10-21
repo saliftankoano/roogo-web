@@ -3,7 +3,8 @@ import { isUuidValue, parseTarget } from "@/lib/team-goals/core";
 import { updateGoal, type GoalPatch } from "@/lib/team-goals/server";
 import { readJson, requireViewer, respond, serverError } from "../../team-tasks/_shared";
 
-// PATCH { action: target, target } | { action: title, title } | { action: archive } | { action: restore }
+// PATCH { action: target, target } (the title follows the new target when it carries the old one)
+//     | { action: title, title } | { action: edit, title, target } | { action: archive } | { action: restore }
 // Founder only (checked in updateGoal). archive is « Retirer l’objectif », restore is « Annuler ».
 export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   const viewer = await requireViewer();
@@ -20,6 +21,12 @@ export async function PATCH(req: Request, { params }: { params: Promise<{ id: st
     const title = typeof body.title === "string" ? body.title.trim() : "";
     if (!title || title.length > 120) return NextResponse.json({ error: "Le titre doit faire de 1 à 120 caractères." }, { status: 400 });
     patch = { action: "title", title };
+  } else if (body?.action === "edit") {
+    const title = typeof body.title === "string" ? body.title.trim() : "";
+    const target = parseTarget(body.target);
+    if (!title || title.length > 120) return NextResponse.json({ error: "Le titre doit faire de 1 à 120 caractères." }, { status: 400 });
+    if (target == null) return NextResponse.json({ error: "La cible doit être un nombre entier positif." }, { status: 400 });
+    patch = { action: "edit", title, target };
   } else if (body?.action === "archive" || body?.action === "restore") {
     patch = { action: body.action };
   } else {

@@ -38,8 +38,8 @@ export const studioNavItem: AdminNavItemLink = {
 };
 
 // "Accueil" (named "Mon espace" until 2026-10-18): the staff home, first item
-// of the staff bar. It is active on /admin itself and on /admin/equipe,
-// /admin/objectifs and /admin/notes-appels (opened from it).
+// of the staff bar. It is active on /admin itself (which holds « Nos objectifs »
+// since 2026-10-21; /admin/objectifs redirects there) and on /admin/equipe and /admin/notes-appels (opened from it).
 export const todayNavItem: AdminNavItemLink = {
   type: "link",
   label: "Accueil",
