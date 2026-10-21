@@ -164,6 +164,7 @@ const isPublicRoute = createRouteMatcher([
   // Sale price ladder — staff only; the handler validates the session or the
   // mobile Bearer JWT and returns 403 to everyone else.
   "/api/properties/(.*)/sale-ladder",
+  "/api/properties/(.*)/owner-sale", // Mobile owner simulator: Bearer JWT, owner-or-staff check in the route
   // Sale chat — mobile authenticates with Bearer JWT
   "/api/sale-chat/(.*)",
   // Hotel operations — the handler validates the mobile Bearer JWT and admin role.

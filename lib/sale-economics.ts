@@ -300,6 +300,98 @@ export function ownerPayoutScenarios(
   return rows;
 }
 
+export type SaleReferrals = { buyerReferred: boolean; sellerReferred: boolean };
+
+export type SaleBreakdown = SaleCommission &
+  SaleRoogoNet & {
+    /** ownerReceives - ownerPrice: above (> 0) or below (< 0) the owner's price. */
+    ownerDelta: number;
+  };
+
+/** The whole split of one final sale price (simulator, 2026-10-18): what the
+ * owner receives, the notary and any referrers Roogo pays from its commission,
+ * and what Roogo keeps. Every part adds up to the final price. */
+export function saleBreakdown(
+  finalPrice: number,
+  ownerPrice: number,
+  pcts: SaleCommissionPcts & SaleFeePcts,
+  referrals: SaleReferrals = { buyerReferred: false, sellerReferred: false },
+): SaleBreakdown {
+  const commission = commissionAt(finalPrice, ownerPrice, pcts);
+  const net = roogoNetAfterFees(commission, pcts, referrals);
+  return {
+    ...commission,
+    ...net,
+    ownerDelta: commission.ownerReceives - ownerPrice,
+  };
+}
+
+export type SaleSimulatorLevel = SaleLadderLevel | "ownerPrice";
+
+export type SaleSimulatorStep = {
+  level: SaleSimulatorLevel;
+  markupPct: number;
+  /** Display price of the step (rungs at 50,000 FCFA, the owner's price as is). */
+  price: number;
+  /** Who may agree this price (staff only; never shown to owners). */
+  approval: SalePriceApproval;
+};
+
+/** Staff simulator: the owner's price and the four rungs, lowest first
+ * (son prix, +10 %, +15 %, +20 %, +30 %). */
+export function staffSimulatorSteps(
+  ownerPrice: number,
+  pcts: SaleLadderPcts,
+): SaleSimulatorStep[] {
+  const { display } = priceLadder(ownerPrice, pcts);
+  const steps: [SaleSimulatorLevel, number, number][] = [
+    ["ownerPrice", 0, ownerPrice],
+    ["teamFloor", pcts.teamFloorMarkupPct, display.teamFloor],
+    ["reference", pcts.referenceMarkupPct, display.reference],
+    ["target", pcts.targetMarkupPct, display.target],
+    ["listing", pcts.listingMarkupPct, display.listing],
+  ];
+  return steps.map(([level, markupPct, price]) => ({
+    level,
+    markupPct,
+    price,
+    approval: salePriceApproval(price, ownerPrice, pcts),
+  }));
+}
+
+export type SaleOwnerSimulatorRow = {
+  level: "listing" | "target" | "teamFloor";
+  price: number;
+  /** Owner view: the notary and both referrers are shown as paid by Roogo. */
+  breakdown: SaleBreakdown;
+};
+
+/** Owner simulator (Vendre avec Roogo, Mes propriétés): Prix affiché (+30 %),
+ * Objectif (+20 %) and Minimum (+10 %), each with the full split assuming an
+ * intermediary and a sponsor, so Roogo's real share is never overstated. */
+export function ownerSimulatorRows(
+  ownerPrice: number,
+  pcts: SaleLadderPcts & SaleCommissionPcts & SaleFeePcts,
+): SaleOwnerSimulatorRow[] {
+  const { display } = priceLadder(ownerPrice, pcts);
+  const levels: SaleOwnerSimulatorRow["level"][] = ["listing", "target", "teamFloor"];
+  return levels.map((level) => ({
+    level,
+    price: display[level],
+    breakdown: saleBreakdown(display[level], ownerPrice, pcts, {
+      buyerReferred: true,
+      sellerReferred: true,
+    }),
+  }));
+}
+
+/** "31,5 M" short form for amounts in FCFA (two decimals at most), so long
+ * amounts fit on one line. */
+export function formatSaleMillions(amount: number) {
+  const millions = Math.round(snap(amount / 1_000_000) * 100) / 100;
+  return `${String(millions).replace(".", ",")} M`;
+}
+
 /** What Roogo is owed when the seller sells to a Roogo-introduced buyer
  * outside Roogo within the bypass window. */
 export function bypassFee(
