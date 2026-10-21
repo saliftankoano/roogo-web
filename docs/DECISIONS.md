@@ -17,6 +17,18 @@ out. Newest first. For what shipped and when, see
 
 ---
 
+### One staff bar on every page, five entries with « Plus » — 2026-10-20
+
+**Decision:** A signed-in staff member or founder sees the same bar on public pages (`/`, `/proprietes`…) and in the back office: the public Navbar renders `AdminNavbar` for them, fed by the one list in `lib/navigation/adminNav.ts` and filtered by the level's capabilities. The bar is « Accueil » (count badge), « Annonces », « Messages » (Ventes, Support), « Studio » (approvals badge), « Plus ». « Plus » holds, under small headings: Opérations (Visites, Appels à biens, Candidatures, Modifications, Identités, Documents propriété, RCCM hôtels, Événements hôtels), Pilotage (Analyses, Accès, Finances, Paramètres), Développement (Talent, Parrainage). Empty groups disappear (a Stagiaire has no Messages). Labels show from 1024 px; below that, the phone menu. Guests, renters, owners, agents and hotels keep the public list. Supersedes the six-entry bar of 2026-10-18.
+
+**Why:** Salif (2026-10-20, production screenshots): staff saw a different bar on the home page (no Accueil, no badge, smaller labels without icons) that "expanded" on the way into the back office, and the six entries were still too many. Accueil, Annonces and Messages are daily; Opérations pages are a few times a week and Finances and Paramètres are founder-only and rare, so they move one click away.
+
+**Ruled out:** Keeping a staff variant inside the public Navbar (two lists drift, which is how this happened); icons-only top entries (labels fit from 1024 px once there are five).
+
+**Open:** On public pages there is no server answer for the level, so the bar uses the Clerk metadata with the levels rollout switch off (`useStaffAccess`). While `STAFF_LEVELS_ENFORCED` is off this is identical; once it is on, a staff member without a level would see the legacy items on public pages and the advisor items in the back office. API routes enforce the real level either way.
+
+---
+
 ### Admin navbar: Accueil, five entries, avatar only — 2026-10-18
 
 **Decision:** The first admin item is « Accueil » (was « Mon espace »). Talent and Parrainage move from « Développement » into « Pilotage » under a « Développement » heading, so the bar has Accueil, Annonces, Studio, Messages, Opérations, Pilotage. The name and email leave the bar: the avatar opens Clerk's menu, which shows both. From 1024 to 1279 px the bar shows icons with tooltips and screen-reader labels; labels appear from 1280 px.

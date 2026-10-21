@@ -14,10 +14,20 @@ import {
   MicrophoneIcon,
   PencilSimpleLineIcon,
   ShieldCheckIcon,
+  FileTextIcon,
+  CalendarStarIcon,
+  UsersThreeIcon,
+  GiftIcon,
+  DotsThreeCircleIcon,
 } from "@phosphor-icons/react";
 
-// Top-level (not inside a group) and pinned in the mobile header too, so the
-// Studio stays within the three-click budget.
+// One list for the staff bar, on admin pages and on public pages alike
+// (components/admin/AdminNavbar.tsx renders it in both places since
+// 2026-10-20). Top level: Accueil, Annonces, Messages, Studio, Plus. The daily
+// pages stay on the bar; « Plus » holds the rest under small headings.
+
+// Top-level and pinned in the mobile header too, so the Studio stays within
+// the three-click budget.
 export const studioNavItem: AdminNavItemLink = {
   type: "link",
   label: "Studio",
@@ -28,9 +38,8 @@ export const studioNavItem: AdminNavItemLink = {
 };
 
 // "Accueil" (named "Mon espace" until 2026-10-18): the staff home, first item
-// of the admin navbar only (the public Navbar keeps its own list). It is
-// active on /admin itself and on /admin/equipe, /admin/objectifs and
-// /admin/notes-appels (opened from it).
+// of the staff bar. It is active on /admin itself and on /admin/equipe,
+// /admin/objectifs and /admin/notes-appels (opened from it).
 export const todayNavItem: AdminNavItemLink = {
   type: "link",
   label: "Accueil",
@@ -81,10 +90,26 @@ const messageNavItems: AdminNavItem[] = [
   },
 ];
 
-const operationsNavItems: AdminNavItem[] = [
+// Inside « Plus ». Every item carries its section so a heading survives when
+// the first item of a section is hidden for a level.
+const OPS = "Opérations";
+const PILOT = "Pilotage";
+const DEV = "Développement";
+
+const moreNavItems: AdminNavItem[] = [
+  {
+    type: "link",
+    label: "Visites",
+    section: OPS,
+    href: "/admin/demandes-de-visite",
+    id: "admin-nav-visit-requests",
+    icon: CalendarCheckIcon,
+    needs: ["applications.view"],
+  },
   {
     type: "link",
     label: "Appels à biens",
+    section: OPS,
     href: "/admin/demandes-de-biens",
     id: "admin-nav-property-requests",
     icon: HouseLineIcon,
@@ -92,15 +117,8 @@ const operationsNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
-    label: "Modifications",
-    href: "/admin/modifications",
-    id: "admin-nav-modifications",
-    icon: PencilSimpleLineIcon,
-    needs: ["pendingEdits.view"],
-  },
-  {
-    type: "link",
     label: "Candidatures",
+    section: OPS,
     href: "/admin/candidatures",
     id: "admin-nav-candidatures",
     icon: ClipboardTextIcon,
@@ -108,7 +126,17 @@ const operationsNavItems: AdminNavItem[] = [
   },
   {
     type: "link",
+    label: "Modifications",
+    section: OPS,
+    href: "/admin/modifications",
+    id: "admin-nav-modifications",
+    icon: PencilSimpleLineIcon,
+    needs: ["pendingEdits.view"],
+  },
+  {
+    type: "link",
     label: "Identités",
+    section: OPS,
     href: "/admin/verifications",
     id: "admin-nav-verifications",
     icon: IdentificationCardIcon,
@@ -117,14 +145,16 @@ const operationsNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Documents propriété",
+    section: OPS,
     href: "/admin/verifications-propriete",
     id: "admin-nav-ownership-verifications",
-    icon: HouseLineIcon,
+    icon: FileTextIcon,
     needs: ["ownership.status"],
   },
   {
     type: "link",
     label: "RCCM hôtels",
+    section: OPS,
     href: "/admin/verifications-hotels",
     id: "admin-nav-hotel-verifications",
     icon: BuildingsIcon,
@@ -133,45 +163,16 @@ const operationsNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Événements hôtels",
+    section: OPS,
     href: "/admin/evenements-hotels",
     id: "admin-nav-hotel-events",
-    icon: CalendarCheckIcon,
+    icon: CalendarStarIcon,
     needs: ["listings.view"],
   },
   {
     type: "link",
-    label: "Visites",
-    href: "/admin/demandes-de-visite",
-    id: "admin-nav-visit-requests",
-    icon: CalendarCheckIcon,
-    needs: ["applications.view"],
-  },
-];
-
-const developmentNavItems: AdminNavItem[] = [
-  {
-    type: "link",
-    label: "Talent",
-    section: "Développement",
-    href: "/admin/talent",
-    id: "admin-nav-talent",
-    icon: ClipboardTextIcon,
-    needs: ["talent.manage"],
-  },
-  {
-    type: "link",
-    label: "Parrainage",
-    href: "/admin/parrainage",
-    id: "admin-nav-parrainage",
-    icon: HandshakeIcon,
-    needs: ["referrals.validate"],
-  },
-];
-
-const pilotageNavItems: AdminNavItem[] = [
-  {
-    type: "link",
     label: "Analyses",
+    section: PILOT,
     href: "/admin/utilisateurs",
     id: "admin-nav-analyses",
     icon: ChartLineUpIcon,
@@ -182,16 +183,15 @@ const pilotageNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Accès",
+    section: PILOT,
     href: "/admin/acces",
     id: "admin-nav-access",
     icon: ShieldCheckIcon,
   },
-];
-
-const founderPilotageNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Finances",
+    section: PILOT,
     href: "/admin/finances",
     id: "admin-nav-finances",
     icon: ReceiptIcon,
@@ -200,10 +200,29 @@ const founderPilotageNavItems: AdminNavItem[] = [
   {
     type: "link",
     label: "Paramètres",
+    section: PILOT,
     href: "/admin/parametres",
     id: "admin-nav-parametres",
     icon: GearIcon,
     needs: ["settings.manage"],
+  },
+  {
+    type: "link",
+    label: "Talent",
+    section: DEV,
+    href: "/admin/talent",
+    id: "admin-nav-talent",
+    icon: UsersThreeIcon,
+    needs: ["talent.manage"],
+  },
+  {
+    type: "link",
+    label: "Parrainage",
+    section: DEV,
+    href: "/admin/parrainage",
+    id: "admin-nav-parrainage",
+    icon: GiftIcon,
+    needs: ["referrals.validate"],
   },
 ];
 
@@ -218,6 +237,7 @@ export function getAdminNavItems(
   canAny: (capabilities: readonly StaffCapability[]) => boolean,
 ): AdminNavEntry[] {
   const entries: AdminNavEntry[] = [
+    todayNavItem,
     {
       type: "link",
       label: "Annonces",
@@ -226,7 +246,6 @@ export function getAdminNavItems(
       icon: BuildingsIcon,
       needs: ["listings.view"],
     },
-    studioNavItem,
     {
       type: "group",
       label: "Messages",
@@ -234,21 +253,15 @@ export function getAdminNavItems(
       icon: ChatCircleTextIcon,
       children: messageNavItems,
     },
+    studioNavItem,
+    // Opérations, Pilotage and Développement live in « Plus » since
+    // 2026-10-20 so the bar keeps five entries at most.
     {
       type: "group",
-      label: "Opérations",
-      id: "admin-nav-operations",
-      icon: ClipboardTextIcon,
-      children: operationsNavItems,
-    },
-    // Développement (Talent, Parrainage) lives inside Pilotage since
-    // 2026-10-18 so the bar keeps five entries after Accueil.
-    {
-      type: "group",
-      label: "Pilotage",
-      id: "admin-nav-pilotage",
-      icon: ChartLineUpIcon,
-      children: [...pilotageNavItems, ...founderPilotageNavItems, ...developmentNavItems],
+      label: "Plus",
+      id: "admin-nav-more",
+      icon: DotsThreeCircleIcon,
+      children: moreNavItems,
     },
   ];
 

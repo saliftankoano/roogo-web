@@ -8,6 +8,7 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-20
 
+- **One staff bar everywhere, five entries** (web, branch `fix/nav-and-goal-metrics`, not merged): signed-in staff and founders get the same bar on public pages and in the back office (the public Navbar renders `AdminNavbar`). Founder bar: Accueil, Annonces, Messages, Studio, Plus; « Plus » has Opérations, Pilotage and Développement under small headings (two columns on desktop when the second column holds three items or more). Other levels see only what they can open. Labels from 1024 px, no wrap or truncation at 1024, 1280, 1440 and 1920 px. [Decision](./DECISIONS.md#one-staff-bar-on-every-page-five-entries-with-plus--2026-10-20).
 - **Test field visit sheets can be withdrawn; clearer empty Mon espace** (web, PR #80, merged 2026-10-20, no migration): on Studio > Visites terrain the founder can « Retirer cette fiche » (also a finished one). The sheet is marked `abandonne` and its six montage tasks leave every briefing and the team board; nothing is deleted. Mon espace shows « Aucune tâche pour aujourd’hui » with an add button, and the add-task confirmation names the day.
 
 ## 2026-10-19
