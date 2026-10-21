@@ -5,6 +5,20 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### Reply to every comment and message within 24 business hours — 2026-10-21
+
+**Decision:** Salif (2026-10-21): the team answers ALL comments and direct messages within 24 business hours. The clock runs all 24 hours of Monday to Friday, Ouagadougou time (UTC, no daylight saving), and pauses on Saturday and Sunday. The start is the comment time, or the person's last message in a conversation. Received Tuesday 10:00 -> due Wednesday 10:00; Friday 18:00 -> Monday 18:00; Saturday 15:00 -> Tuesday 00:00. Studio > Réseaux shows the deadline on every card, the late items first, red badges with « dont N en retard », and for the Directeur and the Fondateur this week's response times.
+
+**Why:** A buyer or an owner who writes on Facebook or Instagram and waits days is lost; a clear, visible deadline makes the inbox a daily duty rather than a when-we-can. Business hours keep the rule fair for a Monday-to-Friday team while still counting the whole working day (messages arrive in the evening).
+
+**How it is built:** Working days are one constant (`BUSINESS_DAYS = [1, 2, 3, 4, 5]` in `lib/social/sla.ts`), so Saturday can be added in one line. The late amount is counted in business time too (a reply due Friday 20:00 is « En retard de 4 h » all weekend). The team deadline is kept separate from Meta's messaging window, which decides only whether the Page may still send. Response times use the columns of migration 101 (no schema change): one reply per item (the last), « Marquer comme répondu » counts at the time it is pressed, and replies made directly in the Meta apps are listed apart because Meta gives neither the time nor the person.
+
+**Ruled out:** A new migration to log every round of a conversation (not needed to start; possible later if per-round times matter). Counting the weekend in the late amount (would show « En retard de 2 j » on Monday morning for a Friday-evening miss). Working hours such as 08:00 to 18:00 (Salif chose the full 24 hours of working days).
+
+**Status:** Branch `feat/studio-reseaux`, PR #82, not merged.
+
+---
+
 ### End-of-day report and absences in the app — 2026-10-19
 
 **Decision:** Every staff member sends a short end-of-day report from Mon espace (from 15:00 Ouagadougou, highlighted from 17:30): what they did, 1 to 5 actions for tomorrow that become their own tasks, what did not work today, and how we could do better. Absences are declared in the same form, or by the Directeur or the Fondateur on someone’s behalf, with one of four categories and an optional private note. Design from the council recommendation, approved by Salif on 2026-10-19; the four parts were set by Salif the same day.

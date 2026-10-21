@@ -36,10 +36,12 @@ import {
   type SyncedItem,
   type ThreadMessage,
 } from "./inbox";
+import { responseSummary, slaState, weekStart, type ResponseRow, type ResponseSummary } from "./sla";
 
 /** « Actualiser » reads Meta again only when the last read is older than this. */
 export const MIN_REFRESH_MS = 2 * 60 * 1000;
 const LIST_LIMIT = 200;
+const WAITING_LIMIT = 2000;
 
 const log = (message: string, detail: Record<string, unknown>) => console.error(message, detail);
 const fetchImpl: InboxFetch = (url, init) => fetch(url, init);
@@ -291,19 +293,70 @@ async function toDtos(rows: ItemRow[]): Promise<InboxItemDto[]> {
   }));
 }
 
-/** « À répondre » per list, for the badges and the briefing. Zero when the tables are missing. */
-export async function inboxCounts(): Promise<InboxCounts & { ready: boolean }> {
-  const count = async (kind: InboxKind) =>
-    supabaseAdmin.from("social_inbox_items").select("id", { count: "exact", head: true }).eq("kind", kind).eq("status", "a_repondre");
-  const [c, m] = await Promise.all([count("comment"), count("message")]);
-  const error = c.error ?? m.error;
+/**
+ * « À répondre » per list, and how many are past the 24 business hours
+ * deadline (lib/social/sla.ts), for the badges and the briefing. Zero when the
+ * tables are missing.
+ */
+export async function inboxCounts(now = new Date()): Promise<InboxCounts & { ready: boolean }> {
+  const { data, error } = await supabaseAdmin
+    .from("social_inbox_items")
+    .select("kind, remote_created_at, last_user_message_at")
+    .eq("status", "a_repondre")
+    .limit(WAITING_LIMIT);
   if (error) {
     if (!isMissingInboxTable(error)) log("[social-inbox] count failed", { code: error.code, message: error.message });
-    return { ready: !isMissingInboxTable(error), comments: 0, messages: 0, total: 0 };
+    return { ready: !isMissingInboxTable(error), comments: 0, messages: 0, total: 0, overdue: 0 };
   }
-  const comments = c.count ?? 0;
-  const messages = m.count ?? 0;
-  return { ready: true, comments, messages, total: comments + messages };
+  let comments = 0;
+  let messages = 0;
+  let overdue = 0;
+  for (const row of data ?? []) {
+    const kind = row.kind as InboxKind;
+    if (kind === "comment") comments += 1;
+    else messages += 1;
+    const sla = slaState({ kind, status: "a_repondre", at: row.remote_created_at as string, lastUserMessageAt: row.last_user_message_at as string | null }, now);
+    if (sla?.overdue) overdue += 1;
+  }
+  return { ready: true, comments, messages, total: comments + messages, overdue };
+}
+
+/**
+ * « Délai de réponse » of the current week (Directeur and Fondateur only, the
+ * page checks). Built from migration 101's columns: replied_at and replied_by
+ * hold the LAST reply of an item, so one reply per item is measured. Null when
+ * the tables are missing or the read fails.
+ */
+export async function loadResponseSummary(now = new Date()): Promise<ResponseSummary | null> {
+  const since = weekStart(now).toISOString();
+  const { data, error } = await supabaseAdmin
+    .from("social_inbox_items")
+    .select("kind, status, remote_created_at, last_user_message_at, replied_at, replied_by, replied_externally, status_changed_at")
+    .eq("status", "repondu")
+    .or(`replied_at.gte.${since},status_changed_at.gte.${since}`)
+    .limit(2000);
+  if (error) {
+    if (!isMissingInboxTable(error)) log("[social-inbox] response times failed", { code: error.code, message: error.message });
+    return null;
+  }
+  const rows = data ?? [];
+  const names = await userNames(rows.map((r) => r.replied_by as string | null));
+  return responseSummary(
+    rows.map(
+      (r): ResponseRow => ({
+        kind: r.kind as InboxKind,
+        status: r.status as InboxStatus,
+        at: r.remote_created_at as string,
+        lastUserMessageAt: r.last_user_message_at as string | null,
+        repliedAt: r.replied_at as string | null,
+        repliedById: r.replied_by as string | null,
+        repliedByName: r.replied_by ? names.get(r.replied_by as string) ?? null : null,
+        repliedExternally: Boolean(r.replied_externally),
+        statusChangedAt: r.status_changed_at as string | null,
+      }),
+    ),
+    now,
+  );
 }
 
 function emptySources(): SourceStateDto[] {
@@ -317,7 +370,7 @@ export async function loadInbox(now = new Date()): Promise<InboxPayload> {
     ready: false,
     notice: null,
     items: [],
-    counts: { comments: 0, messages: 0, total: 0 },
+    counts: { comments: 0, messages: 0, total: 0, overdue: 0 },
     sources: emptySources(),
     missing: env.missing,
     pageId: env.config?.pageId || null,
@@ -332,7 +385,7 @@ export async function loadInbox(now = new Date()): Promise<InboxPayload> {
     }
     const [items, counts, sync] = await Promise.all([
       toDtos((data ?? []) as unknown as ItemRow[]),
-      inboxCounts(),
+      inboxCounts(now),
       supabaseAdmin.from("social_inbox_sync").select("source, last_attempt_at, last_success_at, last_error, item_count"),
     ]);
     const states = new Map((sync.data ?? []).map((s) => [s.source as InboxSource, s]));
@@ -343,7 +396,7 @@ export async function loadInbox(now = new Date()): Promise<InboxPayload> {
         : s;
     });
     const lastSyncAt = sources.map((s) => s.lastAttemptAt).filter((v): v is string => Boolean(v)).sort().at(-1) ?? null;
-    return { ...base, ready: true, items, counts: { comments: counts.comments, messages: counts.messages, total: counts.total }, sources, lastSyncAt };
+    return { ...base, ready: true, items, counts: { comments: counts.comments, messages: counts.messages, total: counts.total, overdue: counts.overdue }, sources, lastSyncAt };
   } catch (error) {
     const e = error as DbError;
     log("[social-inbox] load failed", { code: e?.code, message: e?.message });

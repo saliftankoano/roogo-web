@@ -688,16 +688,27 @@ export async function sendReply(
 
 // --- Counts ------------------------------------------------------------------------------
 
-export type InboxCounts = { comments: number; messages: number; total: number };
+/** « À répondre » per list; `overdue` counts those past the 24 business hours deadline (lib/social/sla.ts). */
+export type InboxCounts = { comments: number; messages: number; total: number; overdue: number };
 
-/** « 3 commentaires et 2 messages attendent une réponse », or null when nothing waits. */
-export function waitingSentence(counts: InboxCounts): string | null {
+/**
+ * « 3 commentaires et 2 messages attendent une réponse, dont 2 en retard », or
+ * null when nothing waits. `where` goes before the overdue part
+ * (« ... une réponse sur Facebook et Instagram, dont 2 en retard »).
+ */
+export function waitingSentence(counts: Pick<InboxCounts, "comments" | "messages"> & { overdue?: number }, where?: string): string | null {
   const parts: string[] = [];
   if (counts.comments) parts.push(`${counts.comments} commentaire${counts.comments > 1 ? "s" : ""}`);
   if (counts.messages) parts.push(`${counts.messages} message${counts.messages > 1 ? "s" : ""}`);
   if (!parts.length) return null;
   const total = counts.comments + counts.messages;
-  return `${parts.join(" et ")} ${total > 1 ? "attendent" : "attend"} une réponse`;
+  const late = counts.overdue && counts.overdue > 0 ? `, dont ${Math.min(counts.overdue, total)} en retard` : "";
+  return `${parts.join(" et ")} ${total > 1 ? "attendent" : "attend"} une réponse${where ? ` ${where}` : ""}${late}`;
+}
+
+/** Accessible label of a « Réseaux » badge: « 5 à répondre, dont 2 en retard ». */
+export function waitingBadgeLabel(total: number, overdue: number): string {
+  return `${total} à répondre${overdue > 0 ? `, dont ${overdue} en retard` : ""}`;
 }
 
 // --- What the page receives ------------------------------------------------------------

@@ -25,6 +25,7 @@ import {
   type InboxStatus,
   type StatusAction,
 } from "@/lib/social/inbox";
+import { slaLabel, type SlaState } from "@/lib/social/sla";
 import { NetworkIcon } from "../calendrier/NetworkIcons";
 import { ouagaTime } from "./format";
 
@@ -33,6 +34,24 @@ const STATUS_TONE: Record<InboxStatus, string> = {
   repondu: "bg-emerald-50 text-emerald-800 ring-emerald-200",
   ignore: "bg-neutral-100 text-neutral-600 ring-neutral-200",
 };
+
+/**
+ * The team's deadline on a card « À répondre » (24 business hours, Mon to Fri,
+ * Ouagadougou time): « À répondre avant lun. 18:00 », or red « En retard de 3 h ».
+ */
+export function SlaChip({ state }: { state: SlaState }) {
+  return (
+    <span
+      className={cn(
+        "inline-flex min-h-6 shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-[12px] font-bold ring-1 ring-inset",
+        state.overdue ? "bg-[#8E2A1E] text-white ring-[#8E2A1E]" : "bg-[#FCEBDD] text-[#8A3F12] ring-[#F1C9A6]",
+      )}
+    >
+      {state.overdue ? <WarningCircleIcon size={13} weight="bold" className="size-[13px] shrink-0" /> : <ClockIcon size={13} weight="bold" className="size-[13px] shrink-0" />}
+      {slaLabel(state)}
+    </span>
+  );
+}
 
 export function InboxStatusChip({ status }: { status: InboxStatus }) {
   return (
@@ -45,13 +64,15 @@ export function InboxStatusChip({ status }: { status: InboxStatus }) {
 type Props = {
   item: InboxItemDto;
   now: number;
+  /** The team's deadline (lib/social/sla.ts); null when not « À répondre ». */
+  sla?: SlaState | null;
   pageId: string | null;
   onChange: (item: InboxItemDto) => void;
   /** Preview only: start with the reply box open and this draft. */
   initialDraft?: string;
 };
 
-export function InboxCard({ item, now, pageId, onChange, initialDraft }: Props) {
+export function InboxCard({ item, now, sla = null, pageId, onChange, initialDraft }: Props) {
   const [draft, setDraft] = useState(initialDraft ?? "");
   const [open, setOpen] = useState(item.status === "a_repondre" || initialDraft !== undefined);
   const [busy, setBusy] = useState<null | "send" | StatusAction>(null);
@@ -103,6 +124,7 @@ export function InboxCard({ item, now, pageId, onChange, initialDraft }: Props) 
       className={cn(
         "min-w-0 rounded-[22px] bg-white/90 p-3.5 ring-1 ring-[rgba(74,52,36,0.08)] md:p-4",
         item.status === "a_repondre" && "ring-[rgba(201,106,46,0.35)]",
+        sla?.overdue && "ring-2 ring-[rgba(142,42,30,0.45)]",
       )}
     >
       {/* Who, where, when */}
@@ -114,8 +136,14 @@ export function InboxCard({ item, now, pageId, onChange, initialDraft }: Props) 
             {item.kind === "comment" ? "Commentaire" : "Message"} {INBOX_NETWORK_LABELS[item.network]} · <span className="whitespace-nowrap">{ouagaTime(item.at)}</span>
           </p>
         </div>
-        <InboxStatusChip status={item.status} />
+        {/* « À répondre » shows as its deadline chip below instead. */}
+        {!sla && <InboxStatusChip status={item.status} />}
       </div>
+      {sla && (
+        <div className="mt-2">
+          <SlaChip state={sla} />
+        </div>
+      )}
 
       {/* Comment: the text, then the post it is on */}
       {item.kind === "comment" && (
