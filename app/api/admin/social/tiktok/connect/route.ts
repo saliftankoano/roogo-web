@@ -5,7 +5,7 @@ import { buildAuthorizeUrl } from "@/lib/team-goals/tiktok";
 import { getTikTokStatus, tiktokEnvConfig } from "@/lib/team-goals/tiktok-store";
 import { COOKIE_PATH, STATE_COOKIE, backToGoals, requireFounder } from "../_shared";
 
-// GET: founder only. Starts TikTok Login Kit (scope user.info.stats) for the
+// GET: founder only. Starts TikTok Login Kit (follower count + posting scopes, see TIKTOK_SCOPE) for the
 // @roogo.226 account: a random state goes into an httpOnly cookie scoped to
 // these routes for 10 minutes, then the browser goes to TikTok's consent page.
 export async function GET(req: Request) {

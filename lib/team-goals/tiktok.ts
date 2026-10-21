@@ -22,7 +22,9 @@ export const TIKTOK_AUTHORIZE_URL = "https://www.tiktok.com/v2/auth/authorize/";
 export const TIKTOK_TOKEN_URL = "https://open.tiktokapis.com/v2/oauth/token/";
 export const TIKTOK_REVOKE_URL = "https://open.tiktokapis.com/v2/oauth/revoke/";
 export const TIKTOK_USER_INFO_URL = "https://open.tiktokapis.com/v2/user/info/";
-export const TIKTOK_SCOPE = "user.info.basic,user.info.stats";
+// user.info.stats reads the follower count; video.list, video.upload and video.publish let the
+// Studio post to TikTok (private until TikTok audits the app). Asked once so nobody reconnects later.
+export const TIKTOK_SCOPE = "user.info.basic,user.info.stats,video.list,video.upload,video.publish";
 export const TIKTOK_CALLBACK_PATH = "/api/admin/social/tiktok/callback";
 /** Refresh the access token when it has less than this left. */
 export const REFRESH_MARGIN_MS = 10 * 60 * 1000;
