@@ -13,9 +13,11 @@ out. Newest first. For what shipped and when, see
 
 **How it is built:** `lib/rental-agreement-pdf/official-lease-fields.ts` maps the agreement to the template blanks (pure, tested by `official-lease-fields.test.mjs`); `official-lease.tsx` renders it; `daily-agreement.tsx` holds the former layout for daily stays. Nom and Prénom come from splitting `users.full_name` (built as « first last » from Clerk). Water and electricity are ticked OUI only when a listing amenity names them; otherwise both boxes stay empty (absence of an amenity does not prove NON).
 
+**Signatures (2026-10-22, Salif):** each party may sign with a drawing made in the app. The PNG stays in a private bucket (`agreement-signatures`, service role only) and is drawn into the PDF under « Lu et approuvé. Signé électroniquement sur Roogo Burkina le JJ/MM/AAAA. ». Signing without a drawing stays accepted so older app versions keep working; their PDF shows the mention only.
+
 **Ruled out:** Several fields sharing one line as in the paper form (Salif asked for atomic fields). Adding structured fields (ID number, issue date, issue place, profession, BP, lot, parcelle, section, secteur, title deed number and date) in the same change: proposed as a follow-up migration instead. Ticking NON when an amenity is missing. Translating the template for daily stays.
 
-**Status:** Branch `feat/contrat-bail-officiel`, not merged, no migration. Not a legal review: wording is Salif's template, typos aside.
+**Status:** Template layout merged in PR #86 on 2026-10-22. Drawn signatures on branch `feat/signature-contrat-bail`, not merged, migration 103 not run. Not a legal review: wording is Salif's template, typos aside.
 
 ---
 

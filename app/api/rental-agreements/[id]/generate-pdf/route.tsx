@@ -9,9 +9,14 @@ import { pdf, type DocumentProps } from "@react-pdf/renderer";
 import { OfficialLeasePdf } from "@/lib/rental-agreement-pdf/official-lease";
 import { DailyAgreementPdf } from "@/lib/rental-agreement-pdf/daily-agreement";
 import { formatLeaseDate } from "@/lib/rental-agreement-pdf/official-lease-fields";
+import {
+  SIGNATURE_BUCKET,
+  parseSignaturePng,
+} from "@/lib/rental-agreement-pdf/signature-image";
 import type {
   AgreementPdfData,
   AgreementPdfProperty,
+  AgreementPdfSignatureImage,
 } from "@/lib/rental-agreement-pdf/types";
 import fs from "fs";
 import path from "path";
@@ -48,6 +53,40 @@ function normalizeAgreementForPdf(
       ? (raw.dos_and_donts as string[])
       : [],
     interdictions: convertIdsToLabels(interdictionIds) ?? [],
+  };
+}
+
+/**
+ * Downloads a drawn signature from the private bucket. Non-fatal: without it
+ * the PDF keeps the text-only signature block.
+ */
+async function loadSignatureImage(
+  path: unknown,
+): Promise<AgreementPdfSignatureImage | null> {
+  if (typeof path !== "string" || !path) return null;
+  const { data, error } = await supabaseAdmin.storage
+    .from(SIGNATURE_BUCKET)
+    .download(path);
+  if (error || !data) {
+    console.error("Agreement PDF: signature download failed:", {
+      path,
+      message: error?.message,
+    });
+    return null;
+  }
+  const bytes = Buffer.from(await data.arrayBuffer());
+  const parsed = parseSignaturePng(bytes.toString("base64"));
+  if (!parsed.ok) {
+    console.error("Agreement PDF: stored signature rejected:", {
+      path,
+      reason: parsed.error,
+    });
+    return null;
+  }
+  return {
+    dataUri: `data:image/png;base64,${bytes.toString("base64")}`,
+    width: parsed.width,
+    height: parsed.height,
   };
 }
 
@@ -145,10 +184,21 @@ export async function POST(
     const amenities = await loadAmenityNames(
       embeddedProperty?.id ?? agreement.property_id,
     );
+    // Columns from migration 102; undefined before it runs.
+    const signaturePaths = agreement as {
+      owner_signature_path?: string | null;
+      renter_signature_path?: string | null;
+    };
+    const [ownerSignature, renterSignature] = await Promise.all([
+      loadSignatureImage(signaturePaths.owner_signature_path),
+      loadSignatureImage(signaturePaths.renter_signature_path),
+    ]);
     const pdfData = normalizeAgreementForPdf(
       {
         ...(agreement as unknown as Record<string, unknown>),
         payment_metadata: paymentMetadata,
+        owner_signature: ownerSignature,
+        renter_signature: renterSignature,
       },
       amenities,
     );

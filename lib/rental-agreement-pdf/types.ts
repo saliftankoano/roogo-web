@@ -23,6 +23,13 @@ export interface AgreementPdfProperty {
   amenities?: string[];
 }
 
+/** A drawn signature already downloaded from the private bucket. */
+export interface AgreementPdfSignatureImage {
+  dataUri: string;
+  width: number;
+  height: number;
+}
+
 export interface AgreementPdfData {
   id: string;
   monthly_rent: number;
@@ -37,6 +44,8 @@ export interface AgreementPdfData {
   terms_text: string | null;
   owner_signed_at: string | null;
   renter_signed_at: string | null;
+  owner_signature?: AgreementPdfSignatureImage | null;
+  renter_signature?: AgreementPdfSignatureImage | null;
   payment_metadata?: Record<string, unknown> | null;
   property?: AgreementPdfProperty | null;
   owner?: AgreementPdfParty | null;
