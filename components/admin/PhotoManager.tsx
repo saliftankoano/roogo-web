@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { useState, useEffect, useRef } from "react";
 import {
   ImageIcon,
@@ -528,6 +529,7 @@ export default function PhotoManager({
       )}
     </div>
     {isFullscreenOpen && fullscreenIndex !== null && (
+      <Portal>
       <div className="fixed inset-0 z-200 bg-black/95 flex items-center justify-center p-4">
         <button
           type="button"
@@ -584,6 +586,7 @@ export default function PhotoManager({
           />
         </div>
       </div>
+      </Portal>
     )}
     </>
   );

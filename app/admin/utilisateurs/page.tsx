@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { useState, useMemo, useEffect } from "react";
 import { UserGridSkeleton } from "@/components/admin/skeletons";
 import { UserSignupMap } from "@/components/admin/UserSignupMap";
@@ -1611,6 +1612,7 @@ export default function AdminUsersPage() {
           const intentStyle = getIntentStyle();
 
           return (
+            <Portal>
             <div className="fixed inset-0 z-100 flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm">
               <motion.div
                 initial={{ opacity: 0, scale: 0.985, y: 8 }}
@@ -2252,6 +2254,7 @@ export default function AdminUsersPage() {
                 </div>
               </motion.div>
             </div>
+            </Portal>
           );
         })()}
       </AnimatePresence>

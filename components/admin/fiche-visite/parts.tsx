@@ -4,9 +4,11 @@
 // progress bar and the resume dialog. Colours follow the approved canvas
 // (brand #C96A2E, clay #8A4924, cream #F6F1EA, ink #1F1A16).
 
+import { Portal } from "@/components/ui/Portal";
 import { useEffect, useRef } from "react";
 import { CheckIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import { urbanist } from "../team/font";
 import { hhmm } from "@/lib/field-visits/core";
 import type { SaveState } from "./useFicheSync";
 import { growSegment, popTick, pulse, riseIn } from "./motion";
@@ -169,7 +171,8 @@ export function ResumeDialog({
     first.current?.focus();
   }, []);
   return (
-    <div className="fixed inset-0 z-[80] flex items-end justify-center lg:items-center">
+    <Portal>
+    <div className={cn(urbanist.className, "fixed inset-0 z-[80] flex items-end justify-center lg:items-center")}>
       <div aria-hidden="true" className="absolute inset-0 bg-[rgba(31,26,22,0.45)]" />
       <div
         ref={ref}
@@ -210,6 +213,7 @@ export function ResumeDialog({
         </button>
       </div>
     </div>
+    </Portal>
   );
 }
 

@@ -2,6 +2,7 @@
 
 export const dynamic = "force-dynamic";
 
+import { Portal } from "@/components/ui/Portal";
 import { useEffect, useState, use } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -438,8 +439,9 @@ export default function AdminLitigeDetailPage({
       )}
 
       {lightbox ? (
+        <Portal>
         <div
-          className="fixed inset-0 bg-black/90 z-50 flex items-center justify-center p-4"
+          className="fixed inset-0 bg-black/90 z-[60] flex items-center justify-center p-4"
           onClick={() => setLightbox(null)}
         >
           {/* eslint-disable-next-line @next/next/no-img-element */}
@@ -449,6 +451,7 @@ export default function AdminLitigeDetailPage({
             className="max-w-full max-h-full object-contain"
           />
         </div>
+        </Portal>
       ) : null}
     </div>
   );

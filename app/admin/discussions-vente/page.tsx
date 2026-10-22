@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { useCallback, useEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
@@ -566,6 +567,7 @@ export default function AdminSaleChatPage() {
       </div>
 
       {showMandate && selected?.kind === "seller" && (
+        <Portal>
         <div className="fixed inset-0 z-100 flex items-center justify-center bg-neutral-950/50 p-4 backdrop-blur-sm">
           <div
             role="dialog"
@@ -680,6 +682,7 @@ export default function AdminSaleChatPage() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

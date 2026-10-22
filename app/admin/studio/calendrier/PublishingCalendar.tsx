@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Image from "next/image";
 import { AnimatePresence } from "framer-motion";
+import { Portal, useBodyScrollLock } from "@/components/ui/Portal";
 import { CaretDownIcon, CaretLeftIcon, CaretRightIcon, MapPinIcon, PlusIcon, WarningCircleIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { notifyApprovalsChanged } from "@/components/admin/useStudioApprovals";
@@ -58,6 +59,7 @@ export function PublishingCalendar() {
   const [editing, setEditing] = useState<EditorTarget | null>(null);
   const [planning, setPlanning] = useState(false);
   const [preview, setPreview] = useState<{ queue: Post[]; index: number } | null>(null);
+  useBodyScrollLock(Boolean(editing) || planning);
   const [day, setDay] = useState<string>(todayIso());
   const [toast, setToast] = useState<ToastMessage | null>(null);
   const clearToast = useCallback(() => setToast(null), []);
@@ -511,6 +513,8 @@ export function PublishingCalendar() {
         )}
       </div>
 
+      {/* Portaled: the admin page frame is a stacking context under the navbar. */}
+      <Portal>
       <AnimatePresence>
         {editing && data && (
           <PostEditor
@@ -545,6 +549,7 @@ export function PublishingCalendar() {
           />
         )}
       </AnimatePresence>
+      </Portal>
       {preview && data && (
         <ApprovalPreview
           queue={preview.queue}

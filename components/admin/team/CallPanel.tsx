@@ -10,6 +10,7 @@ import { LockSimpleIcon, MicrophoneIcon, PhoneIcon } from "@phosphor-icons/react
 import { cn } from "@/lib/utils";
 import { CALL_OUTCOME_LABELS, CALL_OUTCOMES, type CallNextStep, type CallOutcome } from "@/lib/team-tasks/core";
 import type { CallContext } from "@/lib/team-tasks/calls-server";
+import { TimeSelect24h } from "@/components/ui/TimeSelect24h";
 import { CloseButton, Drawer } from "./Drawer";
 import { announceTasksChanged, callApi } from "./ui";
 
@@ -214,14 +215,7 @@ export function CallPanel({ taskId, onClose, onSaved }: { taskId: string | null;
                   className="h-11 rounded-xl border border-[#E2D8CC] bg-white px-3 text-[15px]"
                 />
                 <label htmlFor={`${id}-rt`} className="text-[13px] text-[#6B625B]">à</label>
-                <input
-                  id={`${id}-rt`}
-                  type="time"
-                  step={300}
-                  value={recallTime}
-                  onChange={(event) => setRecallTime(event.target.value)}
-                  className="h-11 w-28 rounded-xl border border-[#E2D8CC] bg-white px-3 text-[15px]"
-                />
+                <TimeSelect24h id={`${id}-rt`} label="Rappeler à" value={recallTime} onChange={setRecallTime} />
               </div>
             )}
             <span className="text-xs text-[#6B625B]" aria-live="polite">{hint}</span>
