@@ -1,3 +1,8 @@
+import { staffLevelCan } from "@/lib/staff-access";
+import {
+  insufficientLevelResponse,
+  staffLevelFromMetadata,
+} from "@/lib/staff-access-server";
 import { auth, currentUser, clerkClient } from "@clerk/nextjs/server";
 import { NextResponse } from "next/server";
 import { getSupabaseClient } from "@/lib/user-sync";
@@ -236,13 +241,15 @@ export async function GET() {
     }
 
     const user = await currentUser();
-    const userType = user?.publicMetadata?.userType;
-    if (!["staff", "founder", "admin"].includes(userType as string)) {
-      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
+    const level = staffLevelFromMetadata(user?.publicMetadata);
+    const seesEveryone = staffLevelCan(level, "users.listAll");
+    // An assistant sees owners and agents, nobody else (approved matrix).
+    if (!seesEveryone && !staffLevelCan(level, "users.listOwnersAgents")) {
+      return insufficientLevelResponse();
     }
 
     const supabase = getSupabaseClient();
-    const { data: rawUsers, error } = await supabase
+    let usersQuery = supabase
       .from("users")
       .select(
         `
@@ -272,8 +279,13 @@ export async function GET() {
         signup_browser_name,
         signup_browser_version
       `,
-      )
-      .order("created_at", { ascending: false });
+      );
+    if (!seesEveryone) {
+      usersQuery = usersQuery.in("user_type", ["owner", "agent"]);
+    }
+    const { data: rawUsers, error } = await usersQuery.order("created_at", {
+      ascending: false,
+    });
 
     if (error) {
       console.error("Error fetching all users:", error);

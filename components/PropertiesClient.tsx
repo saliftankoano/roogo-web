@@ -55,8 +55,10 @@ const isPropertyFurnished = (amenities: string[] = []) =>
 
 function PropertiesPageContent({
   initialProperties,
+  children,
 }: {
   initialProperties: Property[];
+  children?: React.ReactNode;
 }) {
   const { isSignedIn, isLoaded, getToken } = useAuth();
   const { user } = useUser();
@@ -117,6 +119,15 @@ function PropertiesPageContent({
     const category = (searchParams?.get("category") || "").trim();
     if (CATEGORY_FILTER_VALUES.includes(category)) {
       setCategoryFilter(category);
+    }
+  }, [searchParams]);
+
+  // /proprietes?transaction=vendre opens on sale listings (linked from the
+  // "Autres biens à vendre" block on sale listing pages).
+  useEffect(() => {
+    const transaction = (searchParams?.get("transaction") || "").trim();
+    if (transaction === "vendre" || transaction === "louer") {
+      setListingTypeFilter(transaction);
     }
   }, [searchParams]);
 
@@ -677,6 +688,8 @@ function PropertiesPageContent({
         )}
       </main>
 
+      {children}
+
       <Footer />
     </div>
   );
@@ -803,8 +816,10 @@ function FilterSelect({
 
 export function PropertiesClient({
   initialProperties,
+  children,
 }: {
   initialProperties: Property[];
+  children?: React.ReactNode;
 }) {
   return (
     <Suspense
@@ -814,7 +829,9 @@ export function PropertiesClient({
         </div>
       }
     >
-      <PropertiesPageContent initialProperties={initialProperties} />
+      <PropertiesPageContent initialProperties={initialProperties}>
+        {children}
+      </PropertiesPageContent>
     </Suspense>
   );
 }

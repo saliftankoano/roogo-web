@@ -9,7 +9,9 @@ import { createCartesiaClone, transcribeClip } from "@/lib/studio/clone-server";
 import { matchChallenge } from "@/lib/studio/consent";
 import { canOwnAnotherVoice } from "@/lib/studio/voices";
 import {
+  CURRENT_GUEST_TERMS_VERSION,
   CURRENT_TERMS_VERSION,
+  currentGuestTermsHash,
   currentTermsHash,
   deleteCartesiaVoice,
   loadVoices,
@@ -47,10 +49,13 @@ export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
 
-// Creates the person's own voice from a recording in which they read the
-// challenge sentence. One voice per person: refused if they already own one.
+// Creates a voice from a recording in which the speaker reads the challenge
+// sentence. The person's own voice: one per person, refused if they already
+// own one. A guest voice (the challenge was started for a guest): an outside
+// person present with the staff member, who reads the guest sentence and
+// accepts the guest terms; it never uses the staff member's own voice slot.
 export async function POST(req: Request) {
-  const staff = await getStaffOrFounder(req);
+  const staff = await getStaffOrFounder(req, "studio.cloneVoice");
   if (!staff) return errorResponse("Forbidden", 403, req);
   if (!isVoiceCloningEnabled()) {
     return errorResponse("La création de voix n'est pas encore ouverte.", 404, req);
@@ -70,7 +75,8 @@ export async function POST(req: Request) {
   if (form?.get("accepted") !== "true") {
     return errorResponse("Vous devez accepter les conditions.", 400, req);
   }
-  if (form?.get("terms_version") !== CURRENT_TERMS_VERSION) {
+  const termsVersion = form?.get("terms_version");
+  if (termsVersion !== CURRENT_TERMS_VERSION && termsVersion !== CURRENT_GUEST_TERMS_VERSION) {
     return errorResponse(
       "Les conditions ont changé. Rechargez la page et relisez-les.",
       409,
@@ -95,9 +101,25 @@ export async function POST(req: Request) {
     );
   }
 
+  // Who is speaking: the staff member, or a guest named when the challenge started.
+  const { data: started } = await supabaseAdmin
+    .from("studio_voice_challenges")
+    .select("subject, subject_name")
+    .eq("id", challengeId)
+    .eq("user_id", staff.id)
+    .maybeSingle();
+  const guestName = started?.subject === "guest" ? (started.subject_name ?? "").trim() : null;
+  if (started?.subject === "guest" && !guestName) {
+    return errorResponse("Le nom de l'invité manque. Recommencez.", 409, req);
+  }
+  const expectedTerms = guestName ? CURRENT_GUEST_TERMS_VERSION : CURRENT_TERMS_VERSION;
+  if (termsVersion !== expectedTerms) {
+    return errorResponse("Les conditions ont changé. Rechargez la page et relisez-les.", 409, req);
+  }
+
   // One voice per person, checked here and enforced again by the database.
   const voices = await loadVoices();
-  if (!canOwnAnotherVoice(staff.id, voices)) {
+  if (!guestName && !canOwnAnotherVoice(staff.id, voices)) {
     return errorResponse(
       "Vous avez déjà une voix. Retirez-la d'abord pour en créer une nouvelle.",
       409,
@@ -105,7 +127,7 @@ export async function POST(req: Request) {
     );
   }
   // A removed clone must be gone at Cartesia before a new one is made.
-  const { data: oldClones } = await supabaseAdmin
+  const { data: oldClones } = guestName ? { data: [] as { id: string }[] } : await supabaseAdmin
     .from("studio_voices")
     .select("id")
     .eq("owner_user_id", staff.id)
@@ -171,20 +193,23 @@ export async function POST(req: Request) {
     return errorResponse("L'enregistrement n'a pas pu être conservé.", 500, req);
   }
 
-  const fullName = (staff.full_name ?? "").trim();
+  const fullName = guestName ?? (staff.full_name ?? "").trim();
   const firstName = fullName.split(/\s+/)[0] || "Équipe";
   const key = `voix-${slug(firstName)}-${randomBytes(2).toString("hex")}`;
+  const label = guestName ? `Voix de ${fullName} (invité)` : `Voix de ${firstName}`;
 
   // The pending row holds the person's single voice slot while we work.
   const { data: voice, error: voiceError } = await supabaseAdmin
     .from("studio_voices")
     .insert({
       key,
-      label: `Voix de ${firstName}`,
-      description: "Voix clonée dans le Studio",
+      label,
+      description: guestName ? "Voix d'un invité, pour le marketing de Roogo" : "Voix clonée dans le Studio",
       cartesia_voice_id: "pending",
-      kind: "cloned",
-      owner_user_id: staff.id,
+      kind: guestName ? "guest" : "cloned",
+      owner_user_id: guestName ? null : staff.id,
+      guest_name: guestName,
+      added_by: staff.id,
       status: "pending",
     })
     .select("id")
@@ -203,8 +228,10 @@ export async function POST(req: Request) {
     .insert({
       voice_id: voice.id,
       user_id: staff.id,
-      terms_version: CURRENT_TERMS_VERSION,
-      terms_text_hash: currentTermsHash(),
+      terms_version: expectedTerms,
+      terms_text_hash: guestName ? currentGuestTermsHash() : currentTermsHash(),
+      subject: guestName ? "guest" : "self",
+      subject_name: guestName,
       method: "read_aloud",
       challenge_sentence: challenge.sentence,
       challenge_transcript: transcript.slice(0, 2000),
@@ -230,7 +257,7 @@ export async function POST(req: Request) {
 
   const cloned = await createCartesiaClone({
     wav,
-    name: `Studio - ${fullName || firstName}`,
+    name: guestName ? `Studio guest - ${guestName}` : `Studio - ${fullName || firstName}`,
     description: `Cloned in Roogo Studio. Consent record ${consent.id}.`,
   });
   if (!cloned.ok) {
@@ -276,7 +303,7 @@ export async function POST(req: Request) {
   }
 
   return cors(
-    NextResponse.json({ ok: true, voice: { key, label: `Voix de ${firstName}` } }, { status: 201 }),
+    NextResponse.json({ ok: true, voice: { key, label } }, { status: 201 }),
     req,
   );
 }

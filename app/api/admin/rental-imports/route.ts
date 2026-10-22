@@ -24,7 +24,7 @@ export async function OPTIONS(req: Request) {
 }
 
 export async function GET(req: Request) {
-  const staff = await getStaffOrFounder(req);
+  const staff = await getStaffOrFounder(req, "rentalImports.manage");
   if (!staff) return errorResponse("Forbidden", 403, req);
   const url = new URL(req.url);
   const ownerId = url.searchParams.get("owner_id");
@@ -62,7 +62,7 @@ export async function GET(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const staff = await getStaffOrFounder(req);
+  const staff = await getStaffOrFounder(req, "rentalImports.manage");
   if (!staff) return errorResponse("Forbidden", 403, req);
   const body = await req.json().catch(() => null);
   if (!body || typeof body !== "object" || !body.property_id || !body.renter_id) {

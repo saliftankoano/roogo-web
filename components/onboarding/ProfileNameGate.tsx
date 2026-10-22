@@ -14,7 +14,7 @@ import { Button } from "@/components/ui/Button";
 
 function isGateExemptPath(pathname: string) {
   return (
-    pathname.startsWith("/onboarding") ||
+    pathname.startsWith("/bienvenue") ||
     pathname.startsWith("/connexion") ||
     pathname.startsWith("/inscription") ||
     pathname.startsWith("/blog") ||

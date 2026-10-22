@@ -4,13 +4,15 @@
 // banned list is the standing rule (2026-09-21, 2026-09-26): no video models
 // and no lip-sync models from the web Studio.
 
-export type JobTool = "poster" | "greeting" | "cutout" | "captions";
+export type JobTool = "poster" | "greeting" | "cutout" | "captions" | "music";
 
 export const FAL_ENDPOINTS: Record<JobTool, string> = {
   poster: "openai/gpt-image-2/edit",
   greeting: "fal-ai/nano-banana-pro",
   cutout: "fal-ai/bria/background/remove",
   captions: "fal-ai/elevenlabs/speech-to-text/scribe-v2",
+  // Instrumental music for videos (2026-10-11): $0.08 per track of about 90 s.
+  music: "fal-ai/lyria3/pro",
 };
 
 const BANNED_FRAGMENTS = [
@@ -29,8 +31,8 @@ export function isAllowedEndpoint(endpoint: string): boolean {
   return (Object.values(FAL_ENDPOINTS) as string[]).includes(endpoint);
 }
 
-export function toolKind(tool: JobTool): "image" | "transcription" {
-  return tool === "captions" ? "transcription" : "image";
+export function toolKind(tool: JobTool): "image" | "transcription" | "music" {
+  return tool === "captions" ? "transcription" : tool === "music" ? "music" : "image";
 }
 
 /* ---------- formats ---------- */
@@ -63,6 +65,8 @@ const EDIT_INPUT_IMAGES_USD = 0.02;
 const NANO_BANANA_PRO_USD = 0.15;
 const BRIA_CUTOUT_USD = 0.018;
 const SCRIBE_USD_PER_MINUTE = 0.008;
+// Lyria 3 Pro, checked with a real call on 2026-10-11.
+const LYRIA3_PRO_USD = 0.08;
 
 export type PosterQuality = keyof typeof GPT_IMAGE_BASE_USD;
 
@@ -88,6 +92,9 @@ export function estimateJobCostUsd(input: {
       break;
     case "cutout":
       usd = BRIA_CUTOUT_USD;
+      break;
+    case "music":
+      usd = LYRIA3_PRO_USD;
       break;
     case "captions": {
       const minutes = Math.max(1, Math.ceil((input.audioSeconds ?? 60) / 60));

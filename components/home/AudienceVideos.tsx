@@ -35,7 +35,7 @@ const audiences: Record<
     video: "/api/media/vsl-proprietaires",
     poster: marketingAssets.ownerHandoff ?? marketingAssets.ownerWorkflow,
     posterAlt: "Propriétaire remettant les clés d'un bien loué avec Roogo",
-    primary: { href: "/annonces/creer", label: "Publier mon bien" },
+    primary: { href: "/mes-proprietes", label: "Publier mon bien" },
     secondary: { href: "/proprietaires", label: "Voir comment ça marche" },
   },
   renter: {

@@ -76,7 +76,7 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
   const { data: currentRow, error: fetchError } = await supabaseAdmin
     .from("properties")
     .select(
-      "price, caution_mois, loyer_avance_mois, caution_type, caution_valeur, city, quartier, latitude, longitude, property_type, bedrooms, bathrooms, area, parking_spaces, sejour_minimum, capacite_max, description, dos_and_donts, interdictions",
+      "listing_type, price, caution_mois, loyer_avance_mois, caution_type, caution_valeur, city, quartier, latitude, longitude, property_type, bedrooms, bathrooms, area, parking_spaces, sejour_minimum, capacite_max, description, dos_and_donts, interdictions",
     )
     .eq("id", propertyId)
     .maybeSingle();
@@ -102,10 +102,30 @@ export async function POST(req: NextRequest, { params }: RouteContext) {
 
   const body = await req.json().catch(() => ({}));
 
+  const { listing_type: listingType, ...currentFields } = currentRow;
   const validation = validateAndDiffPendingEdit(body, {
-    ...currentRow,
+    ...currentFields,
     amenities: currentAmenityNames,
   });
+
+  // The public price of a sale is set by Roogo from the signed mandate. An owner
+  // who wants a different net price needs a new mandate, not a listing edit.
+  if (
+    listingType === "vendre" &&
+    validation.ok &&
+    validation.payload.price !== undefined
+  ) {
+    return cors(
+      NextResponse.json(
+        {
+          error:
+            "Le prix d'un bien en vente est fixé avec Roogo dans le mandat. Pour changer votre prix, écrivez-nous dans la discussion : nous vous enverrons un nouveau mandat.",
+        },
+        { status: 422 },
+      ),
+      req,
+    );
+  }
 
   if (!validation.ok) {
     // Empty diff is not an error — return 200 so the client can navigate back gracefully.

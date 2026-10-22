@@ -14,8 +14,17 @@ export type ConversationItem = {
   title: string;
   propertyId: string | null;
   voiceKey: string | null;
+  createdAt: string;
   updatedAt: string;
+  /** Who started the project. */
   author: string | null;
+  isMine: boolean;
+  /** "video" arrives with the template render. */
+  kind: "chat" | "visual" | "video";
+  /** Every filter the project matches (a property project can hold visuals too). */
+  contains: Array<"chat" | "visual" | "video">;
+  /** The latest result, for the history line ("Script v3", "Voix off (Sandrine) prête"). */
+  summary: string | null;
 };
 
 export type ChatMessage = {
@@ -27,7 +36,7 @@ export type ChatMessage = {
 
 export type Artifact = {
   id: string;
-  kind: "script" | "voiceover" | "image" | "captions";
+  kind: "script" | "voiceover" | "image" | "captions" | "video";
   title: string;
   text: string;
   voiceKey: string | null;
@@ -63,8 +72,22 @@ export type ConversationDetail = {
   jobs: RunningJob[];
 };
 
+export type SpeechReplacement = { term: string; spoken: string; count: number };
+
+export type Budget = {
+  capUsd: number;
+  usedUsd: number;
+  remainingUsd: number;
+  fcfaPerUsd: number;
+  /** Videos (HeyGen) have their own monthly pot, separate from voices and images. */
+  video?: { capUsd: number; usedUsd: number; remainingUsd: number };
+};
+
 export type Estimate = {
   spokenCharacters: number;
+  /** Exactly what is sent to the voice, after the glossary. */
+  spokenText: string;
+  replacements: SpeechReplacement[];
   maxCharacters: number;
   tooLong: boolean;
   estimateUsd: number;

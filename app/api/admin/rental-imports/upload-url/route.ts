@@ -17,7 +17,7 @@ export async function OPTIONS(req: Request) {
 }
 
 export async function POST(req: Request) {
-  const staff = await getStaffOrFounder(req);
+  const staff = await getStaffOrFounder(req, "rentalImports.manage");
   if (!staff) return errorResponse("Forbidden", 403, req);
 
   const body = await req.json().catch(() => null);

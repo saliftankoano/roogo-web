@@ -4,16 +4,23 @@ import { notFound, permanentRedirect } from "next/navigation";
 import JsonLd from "@/components/JsonLd";
 import AdminListingDetail from "@/components/admin/AdminListingDetail";
 import { PropertyDetailClient } from "@/components/PropertyDetailClient";
+import { pickRelatedListings, RelatedListings } from "@/components/ListingLinks";
 import {
+  fetchAllOnlineProperties,
   fetchPropertyById,
   fetchPropertyBySlug,
   type Property,
 } from "@/lib/data";
-import { getPropertyMetaDescription, isUuid } from "@/lib/property-url";
+import {
+  getPropertyMetaDescription,
+  getPropertySeoTitle,
+  isUuid,
+} from "@/lib/property-url";
 import { isStaffLikeMetadata } from "@/lib/user-types";
+import { isDirectorOrFounder } from "@/lib/team-tasks/core";
+import { getViewer } from "@/lib/team-tasks/server";
 import {
   getPropertyCanonicalUrl,
-  getPropertyDisplayName,
   getPropertyPageSchema,
 } from "@/lib/schemas";
 
@@ -82,7 +89,7 @@ export async function generateMetadata({
     };
   }
 
-  const title = getPropertyDisplayName(property);
+  const title = getPropertySeoTitle(property);
   const description = getPropertyMetaDescription(property);
   const canonical = getPropertyCanonicalUrl(property);
   const image = property.image || property.images?.[0] || "/hero-bg.jpg";
@@ -135,13 +142,28 @@ export default async function PropertyPage({ params }: PropertyPageProps) {
   }
 
   if (viewerIsStaff) {
-    return <AdminListingDetail propertyId={property.id} />;
+    // « Vendu » is offered to the Directeur and the Fondateur; the status
+    // route checks it again.
+    const viewer = await getViewer().catch(() => null);
+    return (
+      <AdminListingDetail
+        propertyId={property.id}
+        canMarkSold={isDirectorOrFounder(viewer?.level)}
+      />
+    );
   }
+
+  // Crawlable links to sibling listings, so every listing is reachable from
+  // another listing and not only from the sitemap.
+  const related = pickRelatedListings(property, await fetchAllOnlineProperties());
 
   return (
     <>
       <JsonLd schema={getPropertyPageSchema(property)} />
       <PropertyDetailClient initialListing={property} propertyId={property.id} />
+      <div className="bg-neutral-50/30">
+        <RelatedListings current={property} related={related} />
+      </div>
     </>
   );
 }

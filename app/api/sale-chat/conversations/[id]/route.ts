@@ -7,6 +7,10 @@ import {
   markSaleConversationRead,
   resolveRole,
 } from "@/lib/sale-chat";
+import {
+  getLatestMandateForProperty,
+  getPrivateAskingPrice,
+} from "@/lib/sale-mandate";
 import { getOrSyncUserByClerkId } from "@/lib/user-sync";
 
 export async function OPTIONS(req: Request) {
@@ -47,12 +51,24 @@ export async function GET(
       console.error("markSaleConversationRead failed:", e),
     );
 
+    // Staff only: the owner's own price, to prefill a new mandate. It is never
+    // properties.price, which is Roogo's ladder price (owner price + 30%).
+    let ownerPrice: number | null = null;
+    if (role === "staff" && conversation.property_id) {
+      const mandate = await getLatestMandateForProperty(conversation.property_id);
+      ownerPrice =
+        mandate?.desired_price != null
+          ? Number(mandate.desired_price)
+          : await getPrivateAskingPrice(conversation.property_id);
+    }
+
     return cors(
       NextResponse.json({
         success: true,
         conversation,
         role,
         messages,
+        ...(role === "staff" ? { owner_price: ownerPrice } : {}),
       }),
       req,
     );

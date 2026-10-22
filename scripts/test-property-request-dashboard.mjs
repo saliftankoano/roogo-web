@@ -14,7 +14,7 @@ let server;
 try {
   await build({
     stdin: {
-      contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import Page from './app/admin/property-requests/page'; createRoot(document.getElementById('root')).render(<Page/>);`,
+      contents: `import React from 'react'; import {createRoot} from 'react-dom/client'; import Page from './app/admin/demandes-de-biens/page'; createRoot(document.getElementById('root')).render(<Page/>);`,
       resolveDir: root,
       loader: "tsx",
     },

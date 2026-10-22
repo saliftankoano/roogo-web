@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import Image from "next/image";
 import {
   ArrowsClockwiseIcon,
@@ -30,8 +30,8 @@ type CommonProps = {
   onRates: (rate: number) => void;
 };
 
-type PanelProps = CommonProps & {
-  artifacts: Artifact[];
+export type CardProps = CommonProps & {
+  artifact: Artifact;
   onCaptions: (artifactId: string) => void;
   getCaptionsLabel: (artifactId: string) => string;
   captionsBusy: boolean;
@@ -65,6 +65,22 @@ function ScriptCard({
   const [generating, setGenerating] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const scriptRef = useRef<HTMLTextAreaElement | null>(null);
+
+  // Grow with the text so the whole script is always visible, also when the
+  // card gets narrower or wider (a side column folding re-wraps the lines).
+  useLayoutEffect(() => {
+    const el = scriptRef.current;
+    if (!el) return;
+    const fit = () => {
+      el.style.height = "auto";
+      el.style.height = `${el.scrollHeight}px`;
+    };
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, [text]);
 
   // Live price for this script in the chosen voice.
   useEffect(() => {
@@ -142,16 +158,21 @@ function ScriptCard({
   return (
     <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+        <h3 className="text-base font-semibold text-neutral-900">
           {artifact.title}
         </h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
       </header>
+      {/* Reads like a message: flowing text, no box, no inner scroll. Still
+          editable in place; a soft tint appears only while editing. */}
       <textarea
+        ref={scriptRef}
         value={text}
         onChange={(e) => setText(e.target.value)}
-        aria-label="Texte du script"
-        className="min-h-40 w-full resize-y rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-base leading-relaxed text-neutral-900 outline-none focus:border-primary"
+        aria-label="Texte du script, modifiable"
+        title="Cliquez pour modifier"
+        rows={1}
+        className="-mx-2 block w-[calc(100%+1rem)] resize-none overflow-hidden rounded-xl border-0 bg-transparent px-2 py-1 text-[17px] leading-[1.7] text-neutral-900 outline-none transition-colors duration-150 hover:bg-neutral-50/70 focus:bg-[#fbf6f0] focus:shadow-[0_0_0_1px_rgba(201,106,46,0.35)]"
       />
       <p className="text-sm font-medium text-neutral-500" aria-live="polite">
         {estimate
@@ -160,43 +181,78 @@ function ScriptCard({
             : `${estimate.spokenCharacters} caractères, environ ${money(estimate.estimateUsd)}. Reste ce mois : ${money(estimate.remainingUsd)}.`
           : "Le prix apparaît dans un instant."}
       </p>
+      {estimate && (
+        <details className="group rounded-2xl border border-neutral-200 bg-neutral-50 px-4 py-3 text-sm">
+          <summary className="cursor-pointer list-none font-semibold text-neutral-700 marker:hidden">
+            <span className="mr-1 inline-block transition-transform group-open:rotate-90">›</span>
+            Texte envoyé à la voix
+            <span className="ml-1 font-medium text-neutral-500">
+              {estimate.replacements.length
+                ? `(${estimate.replacements.reduce((sum, r) => sum + r.count, 0)} mot${estimate.replacements.reduce((sum, r) => sum + r.count, 0) > 1 ? "s" : ""} respelé${estimate.replacements.reduce((sum, r) => sum + r.count, 0) > 1 ? "s" : ""} par le glossaire)`
+                : "(aucun mot du glossaire dans ce script)"}
+            </span>
+          </summary>
+          <p className="mt-2 whitespace-pre-wrap leading-relaxed text-neutral-600">{estimate.spokenText}</p>
+          {estimate.replacements.length > 0 && (
+            <ul className="mt-3 flex flex-wrap gap-1.5">
+              {estimate.replacements.map((r) => (
+                <li
+                  key={`${r.term}-${r.spoken}`}
+                  className="rounded-full border border-neutral-200 bg-white px-2.5 py-0.5 text-xs text-neutral-700"
+                >
+                  <span className="font-semibold">{r.term}</span> se dit « {r.spoken} »
+                  {r.count > 1 ? ` (${r.count} fois)` : ""}
+                </li>
+              ))}
+            </ul>
+          )}
+          <p className="mt-2 text-xs text-neutral-500">
+            Le script garde l&apos;orthographe normale ; seule cette version respelée part vers la voix.
+            Un mot mal prononcé ? Ajoutez-le au glossaire, le texte ci-dessus se met à jour.
+          </p>
+        </details>
+      )}
       {overBudget && (
         <p className="text-sm font-bold text-red-600">
           Plafond mensuel atteint. Demandez à Salif de le relever.
         </p>
       )}
-      <button
-        type="button"
-        onClick={generate}
-        disabled={!canGenerate}
-        className="flex min-h-14 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-base font-bold text-white shadow-lg shadow-primary/20 transition-all active:scale-[0.985] disabled:opacity-40"
-      >
-        {generating ? (
-          <SpinnerGapIcon size={20} className="animate-spin" />
-        ) : (
-          <MicrophoneIcon size={20} weight="bold" />
-        )}
-        {estimate
-          ? `Générer la voix, ${voiceLabel} (environ ${money(estimate.estimateUsd)})`
-          : "Générer la voix"}
-      </button>
-      <div className="flex gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          onClick={copy}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-neutral-100 text-sm font-bold text-neutral-700"
+          onClick={generate}
+          disabled={!canGenerate}
+          className="inline-flex h-11 shrink-0 items-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-primary-hover active:scale-[0.985] disabled:opacity-40"
         >
-          <CopyIcon size={16} weight="bold" />
-          {copied ? "Copié" : "Copier"}
+          {generating ? (
+            <SpinnerGapIcon size={18} className="size-[18px] shrink-0 animate-spin" />
+          ) : (
+            <MicrophoneIcon size={18} weight="bold" className="size-[18px] shrink-0" />
+          )}
+          {generating ? "Génération..." : "Générer la voix"}
         </button>
-        <button
-          type="button"
-          onClick={() => onRework({ ...artifact, text })}
-          className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl bg-neutral-100 text-sm font-bold text-neutral-700"
-        >
-          <ArrowsClockwiseIcon size={16} weight="bold" />
-          Réutiliser
-        </button>
+        <span className="min-w-0 text-xs font-medium tabular-nums text-neutral-500">
+          {voiceLabel}
+          {estimate && !estimate.tooLong ? ` · environ ${money(estimate.estimateUsd)}` : ""}
+        </span>
+        <span className="ml-auto flex shrink-0 gap-1">
+          <button
+            type="button"
+            onClick={copy}
+            className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+          >
+            <CopyIcon size={16} weight="bold" className="size-4 shrink-0" />
+            {copied ? "Copié" : "Copier"}
+          </button>
+          <button
+            type="button"
+            onClick={() => onRework({ ...artifact, text })}
+            className="inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-xl px-3 text-sm font-semibold text-neutral-700 hover:bg-neutral-100"
+          >
+            <ArrowsClockwiseIcon size={16} weight="bold" className="size-4 shrink-0" />
+            Réutiliser
+          </button>
+        </span>
       </div>
       {message && (
         <p className="text-sm font-bold text-red-600" role="alert">
@@ -267,7 +323,7 @@ function VoiceCard({
   return (
     <article className="space-y-3 rounded-3xl border border-primary/30 bg-primary/5 p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-primary">
+        <h3 className="text-base font-semibold text-neutral-900">
           {artifact.title}
         </h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
@@ -349,7 +405,7 @@ function ImageCard({
   return (
     <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+        <h3 className="text-base font-semibold text-neutral-900">
           {artifact.title}
         </h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
@@ -436,7 +492,7 @@ function CaptionsCard({
   return (
     <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
       <header className="flex items-center justify-between gap-2">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">{artifact.title}</h3>
+        <h3 className="text-base font-semibold text-neutral-900">{artifact.title}</h3>
         <CardActions artifact={artifact} onChanged={onChanged} />
       </header>
       <pre className="max-h-40 overflow-y-auto whitespace-pre-wrap rounded-2xl bg-neutral-50 p-3 text-xs leading-relaxed text-neutral-600">
@@ -464,51 +520,71 @@ function CaptionsCard({
   );
 }
 
-export function ArtifactsPanel({
-  artifacts,
+function VideoCard({ artifact, onChanged }: { artifact: Artifact; onChanged: () => void }) {
+  const seconds = typeof artifact.meta.duration_seconds === "number" ? Math.round(artifact.meta.duration_seconds) : null;
+  return (
+    <article className="space-y-3 rounded-3xl border border-neutral-200 bg-white p-4">
+      <header className="flex items-center justify-between gap-2">
+        <h3 className="text-base font-semibold text-neutral-900">
+          {artifact.title}
+          {seconds !== null && <span className="ml-2 text-sm font-normal tabular-nums text-neutral-500">{seconds} s</span>}
+        </h3>
+        <CardActions artifact={artifact} onChanged={onChanged} />
+      </header>
+      {artifact.url ? (
+        <video controls playsInline preload="metadata" src={artifact.url} className="mx-auto aspect-[9/16] max-h-[520px] rounded-2xl bg-neutral-900" />
+      ) : (
+        <p className="text-sm font-medium text-neutral-500">La vidéo n&apos;est plus disponible.</p>
+      )}
+      {artifact.downloadUrl && (
+        <a
+          href={artifact.downloadUrl}
+          className="flex min-h-11 items-center justify-center gap-2 rounded-xl bg-neutral-100 text-sm font-bold text-primary"
+        >
+          <DownloadSimpleIcon size={16} weight="bold" />
+          Télécharger la vidéo
+        </a>
+      )}
+    </article>
+  );
+}
+
+// Pinned first, then newest first.
+export function orderArtifacts(artifacts: Artifact[]): Artifact[] {
+  return [...artifacts].sort((a, b) => {
+    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
+    return b.createdAt.localeCompare(a.createdAt);
+  });
+}
+
+export function ArtifactCard({
+  artifact,
   onCaptions,
   getCaptionsLabel,
   captionsBusy,
   ...common
-}: PanelProps) {
-  // Pinned first, then newest first.
-  const ordered = [...artifacts].sort((a, b) => {
-    if (a.pinned !== b.pinned) return a.pinned ? -1 : 1;
-    return b.createdAt.localeCompare(a.createdAt);
-  });
-
-  if (ordered.length === 0) {
-    return (
-      <p className="rounded-3xl border border-dashed border-neutral-300 p-6 text-center text-sm font-medium text-neutral-500">
-        Les scripts, voix, affiches et sous-titres de cette conversation seront épinglés ici.
-      </p>
-    );
+}: CardProps) {
+  if (artifact.kind === "script") {
+    // The key resets the editable text when another script is shown.
+    return <ScriptCard key={artifact.id} artifact={artifact} {...common} />;
   }
-
+  if (artifact.kind === "image") {
+    return <ImageCard artifact={artifact} onChanged={common.onChanged} />;
+  }
+  if (artifact.kind === "captions") {
+    return <CaptionsCard artifact={artifact} onChanged={common.onChanged} />;
+  }
+  if (artifact.kind === "video") {
+    return <VideoCard artifact={artifact} onChanged={common.onChanged} />;
+  }
   return (
-    <div className="grid items-start gap-4 md:grid-cols-2 xl:grid-cols-3">
-      {ordered.map((artifact) => {
-        if (artifact.kind === "script") {
-          return <ScriptCard key={artifact.id} artifact={artifact} {...common} />;
-        }
-        if (artifact.kind === "image") {
-          return <ImageCard key={artifact.id} artifact={artifact} onChanged={common.onChanged} />;
-        }
-        if (artifact.kind === "captions") {
-          return <CaptionsCard key={artifact.id} artifact={artifact} onChanged={common.onChanged} />;
-        }
-        return (
-          <VoiceCard
-            key={artifact.id}
-            artifact={artifact}
-            onChanged={common.onChanged}
-            onRework={common.onRework}
-            onCaptions={onCaptions}
-            getCaptionsLabel={getCaptionsLabel}
-            captionsBusy={captionsBusy}
-          />
-        );
-      })}
-    </div>
+    <VoiceCard
+      artifact={artifact}
+      onChanged={common.onChanged}
+      onRework={common.onRework}
+      onCaptions={onCaptions}
+      getCaptionsLabel={getCaptionsLabel}
+      captionsBusy={captionsBusy}
+    />
   );
 }

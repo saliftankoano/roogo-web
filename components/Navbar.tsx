@@ -1,5 +1,6 @@
 "use client";
 
+import { AdminNavbar } from "@/components/admin/AdminNavbar";
 import Link from "next/link";
 import Image from "next/image";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -8,14 +9,18 @@ import { usePathname } from "next/navigation";
 import { ListIcon, XIcon, CaretDownIcon, HouseLineIcon, ChatCircleIcon,
   BuildingsIcon, HouseIcon, HandshakeIcon, CubeFocusIcon } from "@phosphor-icons/react";
 import { cn } from "../lib/utils";
-import { getAdminNavItems, type AdminNavEntry } from "../lib/navigation/adminNav";
+import type { AdminNavEntry } from "../lib/navigation/adminNav";
 
 function isLinkActive(pathname: string, href: string) {
   return pathname === href || (href !== "/" && pathname.startsWith(href + "/"));
 }
 
+const isStaffType = (userType?: string) => userType === "staff" || userType === "founder";
+
+// Public list for guests, renters, owners, agents and hotels. Staff and
+// founders never see it: they get the one staff bar (AdminNavbar) on every
+// page, public or admin, since 2026-10-20.
 function navigationFor(isSignedIn: boolean | undefined, userType?: string): AdminNavEntry[] {
-  if (isSignedIn && (userType === "staff" || userType === "founder")) return getAdminNavItems(userType === "founder");
   const owner = isSignedIn && (userType === "owner" || userType === "agent");
   return [
     { type: "link", label: "Accueil", href: "/", icon: HouseLineIcon, id: "nav-accueil" },
@@ -32,8 +37,11 @@ function navigationFor(isSignedIn: boolean | undefined, userType?: string): Admi
 
 export function Navbar() {
   const { isSignedIn, isLoaded, user } = useUser();
+  const userType = (user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined;
+  // Same bar as the back office, with the same items, order, look and badges.
+  if (isLoaded && isSignedIn && isStaffType(userType)) return <AdminNavbar />;
   return <NavbarView isSignedIn={isSignedIn} isLoaded={isLoaded}
-    userType={(user?.publicMetadata?.userType || user?.publicMetadata?.user_type) as string | undefined}
+    userType={userType}
     fullName={user?.fullName} accountButton={<UserButton afterSignOutUrl="/" appearance={{ elements: {
       userButtonAvatarBox: "w-10 h-10 border-2 border-primary/20",
     } }} />} />;
@@ -119,12 +127,12 @@ export function NavbarView({ isSignedIn, isLoaded, userType, fullName, accountBu
 
   return <header ref={headerRef} className="fixed left-1/2 top-4 z-50 mx-auto w-[calc(100%-2rem)] max-w-7xl -translate-x-1/2">
     <div className="flex h-16 items-center justify-between gap-2 rounded-full border border-white/50 bg-white/90 px-4 py-2 shadow-xl backdrop-blur-xl sm:px-5">
-      <Link href="/" aria-label="Roogo — Accueil" className="flex shrink-0 items-center">
+      <Link href="/" aria-label="Roogo, accueil" className="flex shrink-0 items-center">
         <div className="rounded-2xl bg-primary/10 p-2"><Image src="/logo.png?v=2" alt="" width={28} height={28} /></div>
         <span className="ml-3 hidden text-xl font-black sm:block">Roogo</span>
       </Link>
       <nav aria-label="Navigation principale" aria-busy={!isLoaded}
-        className="hidden h-12 w-[700px] shrink-0 grid-cols-5 items-center rounded-full border border-neutral-200/60 bg-[#f5efe6]/80 p-1 xl:grid">
+        className="hidden h-12 w-[760px] shrink-0 auto-cols-fr grid-flow-col items-center rounded-full border border-neutral-200/60 bg-[#f5efe6]/80 p-1 xl:grid">
         {isLoaded ? renderItems(false) : Array.from({ length: 5 }, (_, index) =>
           <span key={index} aria-hidden="true" className="mx-4 h-4 rounded bg-neutral-200/60" />)}
       </nav>

@@ -317,6 +317,7 @@ export default function MyPropertiesPage() {
                 { value: "locked", label: "Réservé" },
                 { value: "finalized", label: "Loué" },
                 { value: "expired", label: "Expiré" },
+                { value: "vendu", label: "Vendu" },
               ]}
               placeholder="Tous les statuts"
             />

@@ -1,6 +1,11 @@
 import { Property } from "./data";
 import { homeFaqItems } from "./home-content";
-import { getPropertyPath, getPropertyTypeLabel } from "./property-url";
+import {
+  getPropertyHeadline,
+  getPropertyPath,
+  getPropertySummary,
+  getPropertyTypeLabel,
+} from "./property-url";
 import { isDailyRental } from "./rental-period";
 import { PRICE_PER_ROOM, formatFCFA } from "./visites-3d";
 
@@ -58,16 +63,19 @@ function propertyUrl(property: Property) {
 }
 
 function propertyName(property: Property) {
-  return `${getPropertyTypeLabel(property.propertyType) || "Propriété"} à ${
-    property.location || property.quartier || property.city || "Ouagadougou"
-  }`;
+  return getPropertyHeadline(property);
 }
 
+// Owner text when it says something; otherwise the factual summary, so the
+// structured data never carries a one-line "Très belle opportunité".
+const MIN_OWNER_DESCRIPTION_WORDS = 20;
+
 function propertyDescription(property: Property) {
-  return (
-    property.description ||
-    `${propertyName(property)} disponible sur Roogo.`
-  );
+  const owner = (property.description || "").trim();
+  const words = owner ? owner.split(/\s+/).length : 0;
+  return words >= MIN_OWNER_DESCRIPTION_WORDS
+    ? owner
+    : getPropertySummary(property);
 }
 
 function numericValue(value?: string | number | null) {

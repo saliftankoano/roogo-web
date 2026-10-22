@@ -13,18 +13,18 @@ owner → agent → staff → founder → guest. Compare `getBoundingClientRect(
 `header`, `[data-nav-auth-slot]`, `nav[aria-label="Navigation principale"]`,
 `[data-layout-anchor]` before and after every transition.
 Expected: identical container rectangles at each fixed viewport width. Links
-intentionally differ by role, using five equal-width desktop slots. Loading
+intentionally differ by role, sharing one fixed-width desktop container equally (five or six slots). Loading
 shows placeholders instead of visitor links. Accueil and Propriétés retain
 their first two positions for visitor, renter, owner, and agent roles.
 
 Also verify:
 
 - Owner primary navigation contains Mes biens and Parrainage.
-- Staff navigation contains Annonces plus four collapsed groups.
-- Founder Pilotage includes Finances and Paramètres; staff Pilotage does not.
-- Escape from a grouped link closes its group and focuses the summary.
+- Staff and founder states render the shared staff bar (`StaffNavbarView`,
+  since 2026-10-20): Accueil, Annonces, Messages, Studio, Plus.
+- Founder « Plus » includes Finances and Paramètres; legacy staff does not.
 - Escape from a mobile link closes its menu and focuses the mobile toggle.
-- Mobile staff groups expand inline, with only one group open at a time.
+- Mobile staff groups expand inline and the menu scrolls when long.
 
 Verified in Chrome on 2026-09-07: all 32 state/viewport combinations retained
 identical measured container geometry. Desktop grouped-menu dismissal and
