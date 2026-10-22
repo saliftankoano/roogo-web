@@ -4,9 +4,9 @@ Moved from `roogo` mobile app at `utils/agreementTemplate.ts` on 2026-04-17. Kep
 
 The mobile app no longer generates its own PDFs — `generateAgreementPdf` delegates entirely to `POST /api/rental-agreements/{id}/generate-pdf` (this repo, at `app/api/rental-agreements/[id]/generate-pdf/route.tsx`). The backend PDF uses `@react-pdf/renderer` instead of HTML. This reference captures the visual decisions (terracotta `#C96A2E` header border, `logoUri` embed at 36px centered, section layout, daily-rental vs monthly-rental variants) so they can be ported to the React-PDF route.
 
-## Pending
+## Status
 
-Mirror the `logoUri` behaviour in the backend PDF: load a hosted (or bundled) Roogo logo and render it at ~36px centered above the `CONTRAT DE BAIL` title, preserving the existing terracotta header border.
+Since 2026-10-21, monthly agreements no longer use this layout: they render on the official Burkina Faso lease template (`docs/contrat-de-bail-modele.pdf`, code in `lib/rental-agreement-pdf/official-lease.tsx`) with a small Roogo header. Daily stays still use this layout (`lib/rental-agreement-pdf/daily-agreement.tsx`), logo included.
 
 ## Source
 
