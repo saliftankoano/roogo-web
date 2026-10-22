@@ -1,24 +1,38 @@
-import * as React from "react"
+import * as React from "react";
 
-import { cn } from "@/lib/utils"
+import { cn } from "@/lib/utils";
 
-export type InputProps = React.InputHTMLAttributes<HTMLInputElement>
+export type InputProps = React.InputHTMLAttributes<HTMLInputElement> & {
+  /** Marks the control as invalid (red border) and sets aria-invalid. */
+  invalid?: boolean;
+};
+
+/**
+ * Shared field surface used by Input, Select and Textarea so every control
+ * reads the same as the team pages (2026-10-22): rounded-2xl, warm line,
+ * 15 px text, terracotta focus, red on error.
+ */
+export const fieldClassName =
+  "w-full rounded-2xl border border-line bg-white text-[15px] text-ink transition-[border-color,box-shadow,background-color] duration-150 placeholder:text-[#8F867E] hover:border-[#D6CBBE] focus:border-primary focus:outline-none focus:ring-2 focus:ring-primary/20 read-only:bg-paper read-only:text-ink-body read-only:focus:ring-0 read-only:focus:border-line disabled:cursor-not-allowed disabled:bg-[#F4EEE6] disabled:text-ink-muted disabled:opacity-70 aria-[invalid=true]:border-danger aria-[invalid=true]:focus:ring-danger/20";
 
 const Input = React.forwardRef<HTMLInputElement, InputProps>(
-  ({ className, type, ...props }, ref) => {
+  ({ className, type, invalid, ...props }, ref) => {
     return (
       <input
         type={type}
+        aria-invalid={invalid || props["aria-invalid"] || undefined}
         className={cn(
-          "flex h-10 w-full rounded-md border border-neutral-200 bg-white px-3 py-2 text-sm ring-offset-white transition-all duration-200 ease-out file:border-0 file:bg-transparent file:text-sm file:font-medium placeholder:text-neutral-500 hover:border-neutral-300 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-neutral-950 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 dark:border-neutral-800 dark:bg-neutral-950 dark:ring-offset-neutral-950 dark:placeholder:text-neutral-400 dark:hover:border-neutral-700 dark:focus-visible:ring-neutral-300",
-          className
+          fieldClassName,
+          "h-11 px-3.5 file:mr-3 file:h-full file:border-0 file:bg-transparent file:text-sm file:font-semibold file:text-primary",
+          type === "search" && "[&::-webkit-search-cancel-button]:appearance-none",
+          className,
         )}
         ref={ref}
         {...props}
       />
-    )
-  }
-)
-Input.displayName = "Input"
+    );
+  },
+);
+Input.displayName = "Input";
 
-export { Input }
+export { Input };
