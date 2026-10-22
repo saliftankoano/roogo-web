@@ -360,13 +360,14 @@ export const AREAS: Area[] = [
       {
         id: "goals-manage",
         action: "Créer, modifier ou retirer un objectif et ses leviers",
-        detail: "Ajouter un objectif, changer la cible, le retirer (avec « Annuler »), ajouter ou modifier un levier. Les ventes se comptent avec le statut « Vendu » de l’annonce.",
+        detail: "Ajouter un objectif, changer la cible, le retirer (avec « Annuler »), ajouter ou modifier un levier, lancer la « Prochaine marche » d’un objectif atteint. Les ventes se comptent avec le statut « Vendu » de l’annonce.",
         access: FOUNDER_ONLY,
         enforcedBy: ["serveur"],
         files: [
           "lib/team-goals/server.ts",
           "app/api/admin/goals/route.ts",
           "app/api/admin/goals/[id]/route.ts",
+          "app/api/admin/goals/[id]/next/route.ts",
           "app/api/admin/goals/levers/route.ts",
         ],
         titleMatters: true,
