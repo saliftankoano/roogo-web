@@ -100,7 +100,7 @@ function isDone(item: ViewItem, overrides: Record<string, string>) {
 function emptyGoals(data: BriefingPayload): GoalsPayload {
   return {
     ready: false, todayKey: data.todayKey, viewerId: data.viewer.id, canManage: false, canEnterReading: false,
-    goals: [], mine: [], mineTotals: { done: 0, target: 0 }, people: [], tally: [], catalog: [], periodChoices: [], used: [], failedMetrics: [],
+    goals: [], mine: [], mineTotals: { done: 0, target: 0 }, people: [], tally: [], catalog: [], periodChoices: [], used: [], failedMetrics: [], wins: [],
   };
 }
 

@@ -819,3 +819,128 @@ export function parseReading(body: unknown, todayKey: string): { error: string }
 export function parseTarget(value: unknown): number | null {
   return intIn(value, 1, 100000000);
 }
+
+// ---------------------------------------------------------------------------
+// « Prochaine marche »: the next target once a goal is reached (2026-10-22)
+// ---------------------------------------------------------------------------
+
+/** When fewer days than this are left, the next step is the next period. */
+export const NEXT_PERIOD_THRESHOLD_DAYS = 14;
+
+/**
+ * A round number to aim for, always rounded up: under 10 the next whole
+ * number, under 100 the next 5, under 1 000 the next 50, then the next 500.
+ */
+export function roundNice(x: number): number {
+  if (!Number.isFinite(x) || x <= 0) return 1;
+  if (x < 10) return Math.ceil(x - 1e-9);
+  const step = x < 100 ? 5 : x < 1000 ? 50 : 500;
+  return Math.ceil(x / step - 1e-9) * step;
+}
+
+/** The same kind of period right after `endKey` (next month, quarter or year). */
+export function nextPeriodBounds(period: GoalPeriod, endKey: string): { start: string; end: string } {
+  const start = plusDays(endKey, 1);
+  if (period === "month" || period === "recurring_month") return monthBounds(start);
+  if (period === "quarter") {
+    const b = quarterBounds(start);
+    return { start: b.start, end: b.end };
+  }
+  return yearBounds(start);
+}
+
+export type NextStepDates = { startDate: string; endDate: string; nextPeriod: boolean; daysLeft: number };
+
+/**
+ * Where the next step lives: the same period while more than 14 days are
+ * left, otherwise (or once it ended) the next one. Null for « Chaque mois »,
+ * whose counter restarts by itself.
+ */
+export function nextStepDates(goal: GoalDates, todayKey: string): NextStepDates | null {
+  if (goal.period === "recurring_month" || !goal.end_date) return null;
+  const ended = todayKey > goal.end_date;
+  const daysLeft = ended ? 0 : daysBetween(todayKey, goal.end_date);
+  if (!ended && daysLeft > NEXT_PERIOD_THRESHOLD_DAYS) {
+    return { startDate: goal.start_date, endDate: goal.end_date, nextPeriod: false, daysLeft };
+  }
+  const b = nextPeriodBounds(goal.period, goal.end_date);
+  return { startDate: b.start, endDate: b.end, nextPeriod: true, daysLeft };
+}
+
+/**
+ * The suggested next target:
+ * roundNice(min(max(current × 1.25, current + pace × days), current × 2)), always above current.
+ * Same period: days = days left. Next period: days = the length of the next
+ * period; a flow metric (sales, listings) starts again from 0 there, so it
+ * aims at max(current × 1.25, pace × days). Without a usable pace: current × 1.5.
+ */
+export function suggestNextTarget(input: {
+  current: number;
+  perDay: number | null;
+  kind: "stock" | "flow";
+  dates: NextStepDates;
+}): number {
+  const { current, kind, dates } = input;
+  const pace = input.perDay != null && Number.isFinite(input.perDay) && input.perDay > 0 ? input.perDay : null;
+  const days = dates.nextPeriod ? daysBetween(dates.startDate, dates.endDate) + 1 : dates.daysLeft;
+  let raw: number;
+  if (pace == null) raw = current * 1.5;
+  else if (dates.nextPeriod && kind === "flow") raw = Math.max(current * 1.25, pace * days);
+  else raw = Math.max(current * 1.25, current + pace * days);
+  let n = roundNice(Math.min(raw, current * 2));
+  if (n <= current) n = roundNice(current + 1);
+  return n;
+}
+
+export type NextStep = {
+  target: number;
+  targetLabel: string;
+  title: string;
+  startDate: string;
+  endDate: string;
+  /** "avant le 31 décembre", "avant le 31 décembre 2027". */
+  endPhrase: string;
+  nextPeriod: boolean;
+};
+
+/**
+ * The founder's « Prochaine marche » for a goal, or null. Only for the
+ * founder (`canManage`), only once the goal is reached or its period ended
+ * (then for the next period), never for « Chaque mois ».
+ */
+export function nextStepFor(input: {
+  canManage: boolean;
+  goal: GoalDates & { title: string; target: number; metric: GoalMetric };
+  current: number | null;
+  reached: boolean;
+  perDay: number | null;
+  todayKey: string;
+}): NextStep | null {
+  const { goal, current, todayKey } = input;
+  if (!input.canManage || current == null) return null;
+  const ended = goal.end_date != null && todayKey > goal.end_date;
+  if (!input.reached && !ended) return null;
+  const dates = nextStepDates(goal, todayKey);
+  if (!dates) return null;
+  const target = suggestNextTarget({ current, perDay: input.perDay, kind: METRICS[goal.metric].kind, dates });
+  return {
+    target,
+    targetLabel: formatCount(target),
+    title: suggestTitle(goal.title, goal.target, target) ?? goal.title,
+    startDate: dates.startDate,
+    endDate: dates.endDate,
+    endPhrase: `avant le ${dayLabel(dates.endDate, todayKey)}`,
+    nextPeriod: dates.nextPeriod,
+  };
+}
+
+/** The levers of a launched goal, copied onto the next one (same owners, rhythm and weekly targets). */
+export function copiedLevers(
+  levers: { owner_id: string; title: string; rhythm: string | null; weekly_target: number; sort_order: number; archived_at?: string | null }[],
+  goalId: string,
+  createdBy: string,
+): { goal_id: string; owner_id: string; title: string; rhythm: string | null; weekly_target: number; sort_order: number; created_by: string }[] {
+  return levers
+    .filter((l) => !l.archived_at)
+    .map((l) => ({ goal_id: goalId, owner_id: l.owner_id, title: l.title, rhythm: l.rhythm, weekly_target: l.weekly_target, sort_order: l.sort_order, created_by: createdBy }));
+}
