@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { MIN_DEPOSIT_AMOUNT } from "@/lib/payment-limits";
 import { useState, useEffect } from "react";
 import { SectionBlocksSkeleton } from "@/components/admin/skeletons";
@@ -919,6 +920,7 @@ export default function AdminSettingsPage() {
 
       {/* Info Modal */}
       {showInfoModal && (
+        <Portal>
         <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-neutral-950/40 backdrop-blur-md animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] shadow-2xl max-w-md w-full overflow-hidden animate-in zoom-in-95 duration-300 border border-neutral-200">
             <div className="p-8 border-b border-neutral-100 flex items-center justify-between bg-neutral-50/50">
@@ -987,6 +989,7 @@ export default function AdminSettingsPage() {
             </div>
           </div>
         </div>
+        </Portal>
       )}
     </div>
   );

@@ -11,6 +11,9 @@ import gsap from "gsap";
 import { cn } from "@/lib/utils";
 import { CALL_SUBJECT_LABELS, CALL_SUBJECTS, addDays, longDayLabel, type CallSubject } from "@/lib/team-tasks/core";
 import type { ComposerPerson, LinkOption } from "@/lib/team-tasks/server";
+import { Portal, useBodyScrollLock } from "@/components/ui/Portal";
+import { TimeSelect24h } from "@/components/ui/TimeSelect24h";
+import { urbanist } from "./font";
 import { Avatar, announceTasksChanged, callApi, prefersReducedMotion } from "./ui";
 
 type LinkType = "property" | "visit" | "request" | "studio";
@@ -78,6 +81,8 @@ export function TaskComposer({
   const isAsk = owner?.mode === "demande";
   const onlyMe = people.length <= 1;
   const founderName = owner?.isFounder ? owner.firstName : "";
+
+  useBodyScrollLock(open);
 
   useEffect(() => {
     if (!open) return;
@@ -208,16 +213,21 @@ export function TaskComposer({
 
   if (!open) return null;
 
+  // Portaled to body: inside the admin page (DashboardMotionFrame is `isolate`)
+  // the dialog painted under the fixed navbar, header and close button hidden.
+  // Phone: full-screen sheet. sm and up: centred card that fits the viewport,
+  // header and send button fixed, only the body scrolls.
   return (
-    <div className="fixed inset-0 z-[60] flex items-stretch justify-center bg-[#1F1A16]/40 sm:items-center sm:p-6" onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
+    <Portal>
+    <div className={cn(urbanist.className, "fixed inset-0 z-[60] flex items-stretch justify-center bg-[#1F1A16]/40 sm:items-center sm:p-6")} onMouseDown={(event) => { if (event.target === event.currentTarget) close(); }}>
       <div
         ref={dialogRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby={titleId}
-        className="flex h-full w-full flex-col overflow-hidden bg-[#F6F1EA] text-[#1F1A16] sm:h-auto sm:max-h-[min(860px,calc(100dvh-3rem))] sm:max-w-lg sm:rounded-[28px] sm:shadow-2xl"
+        className="flex h-[100dvh] w-full flex-col overflow-hidden bg-[#F6F1EA] text-[#1F1A16] sm:h-auto sm:max-h-[calc(100dvh-3rem)] sm:max-w-lg sm:rounded-[28px] sm:shadow-2xl"
       >
-        <header className="flex flex-none items-center gap-2.5 px-4 pb-2 pt-4">
+        <header className="flex flex-none items-center gap-2.5 px-4 pb-2 pt-[max(1rem,env(safe-area-inset-top))] sm:pt-4">
           <button
             type="button"
             onClick={close}
@@ -235,7 +245,7 @@ export function TaskComposer({
         </header>
 
         <form onSubmit={submit} className="flex min-h-0 flex-1 flex-col">
-          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto px-4 pb-4 pt-2">
+          <div className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain px-4 pb-4 pt-2">
             {!onlyMe && (
               <fieldset className="m-0 flex flex-col gap-2 border-0 p-0">
                 <legend className="mb-2 p-0 text-[13px] font-extrabold">Pour qui</legend>
@@ -318,16 +328,9 @@ export function TaskComposer({
                   />
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <label htmlFor={`${titleId}-heure`} className="text-[13px] text-[#6B625B]">Avant</label>
-                <input
-                  id={`${titleId}-heure`}
-                  type="time"
-                  step={300}
-                  value={time}
-                  onChange={(event) => setTime(event.target.value)}
-                  className="h-11 w-32 rounded-xl border border-[#E2D8CC] bg-white px-3 text-[15px]"
-                />
+                <TimeSelect24h id={`${titleId}-heure`} label="Avant" optional value={time} onChange={setTime} />
                 <span className="text-xs text-[#6B625B]">facultatif, heure de Ouagadougou</span>
               </div>
             </fieldset>
@@ -506,7 +509,7 @@ export function TaskComposer({
             )}
           </div>
 
-          <div className="flex-none border-t border-[#EAE1D5] bg-white px-4 pb-6 pt-3 sm:pb-4">
+          <div className="flex-none border-t border-[#EAE1D5] bg-white px-4 pb-[max(1.5rem,env(safe-area-inset-bottom))] pt-3 sm:pb-4">
             {sent ? (
               <div className="flex min-h-[54px] items-center gap-2.5" role="status">
                 <span className="inline-flex size-8 shrink-0 items-center justify-center rounded-full bg-[#2F7A48] text-white">
@@ -535,6 +538,7 @@ export function TaskComposer({
         </form>
       </div>
     </div>
+    </Portal>
   );
 }
 

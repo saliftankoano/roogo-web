@@ -4,7 +4,7 @@ import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
 import { useState, useEffect, useRef } from "react";
 import { PropertyDetailSkeleton } from "@/components/admin/skeletons";
-import { createPortal } from "react-dom";
+import { Portal } from "@/components/ui/Portal";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -67,13 +67,6 @@ import {
   getPriceTitle,
   isDailyRental,
 } from "@/lib/rental-period";
-
-function Portal({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
-  return createPortal(children, document.body);
-}
 
 const ADD_ON_ICONS: Record<string, React.ElementType> = {
   video: VideoCameraIcon,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { createPortal } from "react-dom";
+import { Portal } from "@/components/ui/Portal";
 import {
   ClockIcon,
   CheckCircleIcon,
@@ -15,13 +15,6 @@ import { Button } from "@/components/ui/Button";
 import Link from "next/link";
 import { AnimatePresence, motion } from "framer-motion";
 import { cn } from "@/lib/utils";
-
-function Portal({ children }: { children: React.ReactNode }) {
-  const [mounted, setMounted] = useState(false);
-  useEffect(() => setMounted(true), []);
-  if (!mounted) return null;
-  return createPortal(children, document.body);
-}
 
 type PropertyInfo = {
   id: string;
@@ -190,7 +183,7 @@ export default function AdminModificationsPage() {
       <Portal>
         <AnimatePresence>
           {reviewModal && (
-            <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div className="fixed inset-0 z-[60] flex items-center justify-center p-4">
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
