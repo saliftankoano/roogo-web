@@ -327,10 +327,14 @@ export function StaffNavbarView({
       </>
     ) : null;
 
+  // A page that takes the whole phone screen (the fiche de visite) marks its
+  // root with data-staff-fullscreen. Admin pages sit in DashboardMotionFrame,
+  // whose `isolation: isolate` keeps any z-index inside it under this bar, so
+  // below lg the bar steps aside instead. Pure CSS: hidden from the first paint.
   return (
     <header
       data-staff-navbar
-      className="fixed top-4 left-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-7xl -translate-x-1/2"
+      className="fixed top-4 left-1/2 z-50 mx-auto w-[calc(100%-2rem)] max-w-7xl -translate-x-1/2 max-lg:[body:has([data-staff-fullscreen])_&]:hidden"
     >
       <div className="flex h-16 items-center justify-between gap-3 rounded-full border border-white/40 bg-white/85 px-3 py-2 shadow-lg backdrop-blur-xl sm:px-4">
         <Link href="/" aria-label="Roogo, site public" className="group flex shrink-0 items-center">
