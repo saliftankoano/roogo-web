@@ -372,7 +372,7 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
             <SectionHeader
               kicker="Recherches populaires"
               title="Accédez plus vite aux biens les plus demandés."
-              description="Ces liens renforcent les parcours immobiliers utiles sans créer de pages de quartier qui n'existent pas encore."
+              description="Choisissez le type de logement qui vous intéresse, puis affinez votre recherche par quartier et par prix."
             />
             <div className="grid gap-3 sm:grid-cols-2">
               {popularSearches.map((search) => (
@@ -398,8 +398,8 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
             <SectionHeader
               dark
               kicker="Questions fréquentes"
-              title="Conçu pour réduire l'incertitude, pas ajouter une couche de complexité."
-              description="Roogo garde le parcours immobilier centré sur la confiance, la lisibilité et la prochaine action utile."
+              title="Trouver et visiter un logement à Ouagadougou."
+              description="Des réponses pratiques pour préparer votre recherche et votre prochaine visite."
             />
 
             <div className="grid gap-4">
@@ -412,6 +412,12 @@ export default function HomeClient({ featuredProperties }: HomeClientProps) {
                   <p className="mt-3 text-sm font-medium leading-7 text-white/60">
                     {item.answer}
                   </p>
+                  <Link
+                    href={item.href}
+                    className="mt-4 inline-flex text-sm font-bold text-white underline underline-offset-4 hover:text-white/80"
+                  >
+                    {item.linkLabel}
+                  </Link>
                 </InteractiveCard>
               ))}
             </div>

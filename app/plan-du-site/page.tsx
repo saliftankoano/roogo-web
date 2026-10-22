@@ -1,12 +1,12 @@
 import { Footer } from "../../components/Footer";
-import { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 import Link from "next/link";
 
-export const metadata: Metadata = {
-  title: "Plan du Site",
-  description:
-    "Explorez toutes les pages et sections de Roogo - la plateforme immobilière au Burkina Faso.",
-};
+export const metadata = publicPageMetadata({
+  title: "Plan du site | Roogo",
+  description: "Retrouvez les annonces immobilières, les visites 3D, les conseils, les tutoriels et les informations de contact de Roogo au Burkina Faso.",
+  path: "/plan-du-site",
+});
 
 export default function SitemapPage() {
   return (
@@ -46,6 +46,30 @@ export default function SitemapPage() {
                     className="text-primary-600 hover:text-primary-700 hover:underline"
                   >
                     Visites 3D
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/blog"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Blog et conseils
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/blog/tutoriels"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Tutoriels
+                  </Link>
+                </li>
+                <li>
+                  <Link
+                    href="/carrieres"
+                    className="text-primary-600 hover:text-primary-700 hover:underline"
+                  >
+                    Carrières
                   </Link>
                 </li>
                 <li>

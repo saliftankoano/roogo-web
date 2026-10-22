@@ -1,6 +1,7 @@
+import { HOME_TITLE, HOME_DESCRIPTION } from "./seo";
 import { Property } from "./data";
 import { homeFaqItems } from "./home-content";
-import { getPropertyPath, getPropertyTypeLabel } from "./property-url";
+import { getPropertyPath, getPropertyTypeLabel, getPropertyMetaTitle } from "./property-url";
 import { isDailyRental } from "./rental-period";
 import { PRICE_PER_ROOM, formatFCFA } from "./visites-3d";
 
@@ -58,9 +59,7 @@ function propertyUrl(property: Property) {
 }
 
 function propertyName(property: Property) {
-  return `${getPropertyTypeLabel(property.propertyType) || "Propriété"} à ${
-    property.location || property.quartier || property.city || "Ouagadougou"
-  }`;
+  return getPropertyMetaTitle(property);
 }
 
 function propertyDescription(property: Property) {
@@ -185,6 +184,7 @@ function getWebsiteNode(): JsonLdNode {
     "@type": "WebSite",
     "@id": WEBSITE_ID,
     name: "Roogo",
+    alternateName: "Roogo Burkina",
     url: SITE_URL,
     inLanguage: "fr-BF",
     publisher: { "@id": ORGANIZATION_ID },
@@ -403,9 +403,8 @@ export function getHomePageSchema() {
     getWebPageNode({
       id: `${url}/#webpage`,
       url,
-      name: "Location Appartement et Maison au Burkina Faso | Roogo",
-      description:
-        "Trouvez votre logement idéal à Ouagadougou et au Burkina Faso.",
+      name: HOME_TITLE,
+      description: HOME_DESCRIPTION,
       mainEntity: { "@id": ORGANIZATION_ID },
     }),
     getFaqPageNode(`${url}/#faq`, homeFaqItems),

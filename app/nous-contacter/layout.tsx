@@ -1,10 +1,10 @@
-import { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Contact - Assistance Immobilière Ouagadougou",
-  description: "Besoin d'aide pour trouver un logement à Ouagadougou? Contactez l'équipe Roogo. Assistance rapide par téléphone, email ou WhatsApp.",
-  keywords: ["contact roogo", "agence immobilière ouagadougou", "aide location burkina"],
-};
+export const metadata = publicPageMetadata({
+  title: "Contact et assistance | Roogo",
+  description: "Contactez l'équipe Roogo à Ouagadougou par téléphone, email ou WhatsApp pour votre recherche de logement ou votre annonce immobilière.",
+  path: "/nous-contacter",
+});
 
 export default function ContactLayout({
   children,

@@ -1,7 +1,10 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Search Console's 2026-09-04 crawl retained metadata in the Flight payload
+  // but rendered an empty title and no canonical. Send metadata in <head>
+  // for every user agent so it does not depend on client-side hydration.
+  htmlLimitedBots: /.*/,
   images: {
     remotePatterns: [
       {

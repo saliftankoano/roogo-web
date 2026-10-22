@@ -1,10 +1,10 @@
-import { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 
-export const metadata: Metadata = {
-  title: "Carrières - Rejoignez l'Équipe",
-  description: "Rejoignez Roogo, la startup qui révolutionne l'immobilier au Burkina Faso. Opportunités pour talents ambitieux à Ouagadougou.",
-  keywords: ["emploi burkina faso", "recrutement roogo", "travailler dans l'immobilier ouagadougou"],
-};
+export const metadata = publicPageMetadata({
+  title: "Carrières et recrutement | Roogo",
+  description: "Rejoignez l'équipe Roogo à Ouagadougou. Découvrez les opportunités pour contribuer au développement de l'immobilier au Burkina Faso.",
+  path: "/carrieres",
+});
 
 export default function CareersLayout({
   children,

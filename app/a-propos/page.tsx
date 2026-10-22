@@ -1,5 +1,5 @@
 import { Footer } from "../../components/Footer";
-import { Metadata } from "next";
+import { publicPageMetadata } from "@/lib/seo";
 import Link from "next/link";
 import JsonLd from "../../components/JsonLd";
 import { getAboutPageSchema } from "../../lib/schemas";
@@ -14,11 +14,11 @@ import {
 } from "../../components/marketing/MarketingPrimitives";
 import { marketingAssets } from "../../components/marketing/assets";
 
-export const metadata: Metadata = {
-  title: "À propos - Révolutionner l'Immobilier au Burkina Faso",
-  description:
-    "Découvrez Roogo, la plateforme qui simplifie la location immobilière au Burkina Faso grâce à l'innovation, la transparence et la qualité.",
-};
+export const metadata = publicPageMetadata({
+  title: "À propos de Roogo | Immobilier au Burkina Faso",
+  description: "Découvrez Roogo, la plateforme qui simplifie la location immobilière au Burkina Faso grâce à l'innovation, la transparence et la qualité.",
+  path: "/a-propos",
+});
 
 const principles = [
   {

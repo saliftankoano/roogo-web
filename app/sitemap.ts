@@ -9,41 +9,37 @@ import { getPropertyPath } from "../lib/property-url";
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const baseUrl = "https://www.roogobf.com";
 
+  // Omit lastModified unless a real content update date is known.
+  // Rebuilding the sitemap does not mean these pages changed.
   // Static pages
   const staticPages: MetadataRoute.Sitemap = [
     {
       url: baseUrl,
-      lastModified: new Date(),
       changeFrequency: "daily",
       priority: 1,
     },
     {
       url: `${baseUrl}/proprietes`,
-      lastModified: new Date(),
       changeFrequency: "hourly",
       priority: 0.9,
     },
     {
       url: `${baseUrl}/visites-3d`,
-      lastModified: new Date(),
       changeFrequency: "weekly",
       priority: 0.8,
     },
     {
       url: `${baseUrl}/nous-contacter`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.6,
     },
     {
       url: `${baseUrl}/carrieres`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.5,
     },
     {
       url: `${baseUrl}/a-propos`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.5,
     },
@@ -72,14 +68,17 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       priority: 0.75,
     },
     {
+      url: `${baseUrl}/plan-du-site`,
+      changeFrequency: "monthly",
+      priority: 0.3,
+    },
+    {
       url: `${baseUrl}/conditions-utilisation`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.4,
     },
     {
       url: `${baseUrl}/confidentialite`,
-      lastModified: new Date(),
       changeFrequency: "monthly",
       priority: 0.4,
     },

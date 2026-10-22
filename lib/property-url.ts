@@ -106,7 +106,7 @@ function truncateAtWord(text: string, max: number): string {
   return `${cut.slice(0, lastSpace > 0 ? lastSpace : max - 1).replace(/[,.;:]$/, "")}…`;
 }
 
-export function getPropertyMetaDescription(property: Property): string {
+export function getPropertyMetaTitle(property: Property): string {
   const typeLabel = getPropertyTypeLabel(property.propertyType) || "Propriété";
   const action = property.listingType === "vendre" ? "à vendre" : "à louer";
   const quartier = (property.quartier || "").trim();
@@ -118,13 +118,18 @@ export function getPropertyMetaDescription(property: Property): string {
 
   const lead = [
     typeLabel,
-    property.bedrooms > 0 ? `${property.bedrooms} chambres` : "",
+    property.bedrooms > 0 ? `${property.bedrooms} chambre${property.bedrooms > 1 ? "s" : ""}` : "",
     action,
     place ? `à ${place}` : "",
   ]
     .filter(Boolean)
     .join(" ");
 
+  return lead;
+}
+
+export function getPropertyMetaDescription(property: Property): string {
+  const lead = getPropertyMetaTitle(property);
   const priceValue = Number(property.price);
   let priceSentence = "";
   if (Number.isFinite(priceValue) && priceValue > 0) {

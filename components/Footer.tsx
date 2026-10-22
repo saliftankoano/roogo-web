@@ -76,8 +76,8 @@ export function Footer() {
                 </Link>
               </li>
               <li>
-                <Link href="/proprietes" className="hover:text-white">
-                  Publier une annonce
+                <Link href="/blog/comment-mettre-bien-en-vente-roogo" className="hover:text-white">
+                  Mettre un bien en vente
                 </Link>
               </li>
               <li>
