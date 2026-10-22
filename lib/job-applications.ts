@@ -250,6 +250,24 @@ export function uploadSizeError(kind: UploadKind, size: number): string | null {
   return null;
 }
 
+/** Video test length asked of candidates (seconds), with a small margin for players that round. */
+export const VIDEO_MIN_SECONDS = 60;
+export const VIDEO_MAX_SECONDS = 90;
+const VIDEO_MARGIN_SECONDS = 2;
+
+/** French message when an uploaded video is outside 60 to 90 s; null when it fits or the length is unknown. */
+export function videoDurationError(seconds: number | null | undefined): string | null {
+  if (seconds == null || !Number.isFinite(seconds) || seconds <= 0) return null;
+  const rounded = Math.round(seconds);
+  if (seconds < VIDEO_MIN_SECONDS - VIDEO_MARGIN_SECONDS) {
+    return `Ta vidéo dure ${rounded} secondes. Il faut entre ${VIDEO_MIN_SECONDS} et ${VIDEO_MAX_SECONDS} secondes : refais-la un peu plus longue.`;
+  }
+  if (seconds > VIDEO_MAX_SECONDS + VIDEO_MARGIN_SECONDS) {
+    return `Ta vidéo dure ${rounded} secondes. Il faut entre ${VIDEO_MIN_SECONDS} et ${VIDEO_MAX_SECONDS} secondes : raccourcis-la.`;
+  }
+  return null;
+}
+
 export function buildUploadPath(roleSlug: string, kind: UploadKind, id: string, mime: string): string {
   const ext = UPLOAD_RULES[kind].mimeTypes[mime];
   return `${roleSlug}/${kind}/${id}.${ext}`;

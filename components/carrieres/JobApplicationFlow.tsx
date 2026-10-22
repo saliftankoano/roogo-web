@@ -30,6 +30,7 @@ import {
   stepSalesSchema,
   stepYouSchema,
   uploadSizeError,
+  videoDurationError,
   type UploadKind,
   type VideoTestListing,
 } from "@/lib/job-applications";
@@ -389,7 +390,11 @@ export function JobApplicationFlow({
           ({ blob, type, name } = await prepareCv(file));
         } else {
           if (!type) throw new UploadFailure("Vidéo : MP4, MOV ou WebM seulement. Sinon, colle un lien.", false);
-          void readVideoDuration(file).then(setVideoDuration);
+          // Checked before sending, so a candidate never spends data on a video we refuse.
+          const seconds = await readVideoDuration(file);
+          setVideoDuration(seconds);
+          const durationProblem = videoDurationError(seconds);
+          if (durationProblem) throw new UploadFailure(durationProblem, false);
         }
         const tooBig = uploadSizeError(kind, blob.size);
         if (tooBig) throw new UploadFailure(kind === "video" ? `${tooBig} Compresse-la ou colle un lien.` : tooBig, false);
@@ -448,6 +453,9 @@ export function JobApplicationFlow({
   function nextFromVideo() {
     if (draft.videoMode === "file" && !draft.video) {
       return setError(videoState.status === "uploading" ? "Attends la fin de l'envoi de la vidéo." : "Ajoute ta vidéo, ou colle un lien.");
+    }
+    if (draft.videoMode === "file" && videoDurationError(videoDuration)) {
+      return setError(videoDurationError(videoDuration) as string);
     }
     if (draft.videoMode === "link" && !isAllowedVideoLink(draft.videoUrl)) {
       return setError("Colle un lien TikTok, YouTube, Google Drive ou Facebook.");
@@ -747,11 +755,6 @@ export function JobApplicationFlow({
                   label="la vidéo"
                   emptyText="Choisir la vidéo (MP4, MOV ou WebM, 150 Mo max.)"
                 />
-                {videoDuration && (videoDuration < 45 || videoDuration > 120) ? (
-                  <p className="mt-2 text-sm text-amber-700">
-                    Ta vidéo dure {Math.round(videoDuration)} secondes. On demande 60 à 90 secondes.
-                  </p>
-                ) : null}
                 <p className="mt-2 text-xs text-neutral-500">
                   Connexion lente ? Publie la vidéo sur TikTok, YouTube, Google Drive ou Facebook et colle le lien.
                 </p>
