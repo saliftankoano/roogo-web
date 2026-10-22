@@ -17,7 +17,9 @@ import {
 import { cn } from "@/lib/utils";
 import { ArtifactCard, type CardProps } from "./ArtifactsPanel";
 import { Composer, LiveReply, Message, OldScript } from "./ChatView";
+import { FieldMediaPanel } from "./FieldMediaPanel";
 import { PropertyPicker } from "./PropertyPicker";
+import { PublicationCard } from "./publishing/PublicationCard";
 import type { Artifact, ConversationDetail, PropertySummary } from "./studio-types";
 import type { CenterView } from "./ProjectPanel";
 
@@ -98,9 +100,9 @@ export function ProjectView({
           )}
         </span>
         <div className="min-w-0 flex-1">
-          <h1 className="truncate text-lg font-bold tracking-tight text-neutral-900">
+          <h2 className="truncate text-lg font-bold tracking-tight text-neutral-900">
             {property?.title ?? detail?.conversation.title ?? "Projet"}
-          </h1>
+          </h2>
           <p className="truncate text-sm text-neutral-600">
             {property ? (
               <>
@@ -246,8 +248,22 @@ export function ProjectView({
               </p>
             )}
           </Tile>
+
+          {/* A finished video is planned from here (design 2026-10-13): status, stepper, one action. */}
+          {video?.url && (
+            <div className="min-w-0 @xl:col-span-3 @4xl:col-span-1">
+              <PublicationCard artifactId={video.id} madeBy={startedBy} />
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Field media (2026-10-12): the visit's photos and videos, saved to the shared Drive. */}
+      {property && (
+        <div className="px-4 pb-4 md:px-5">
+          <FieldMediaPanel propertyId={property.id} canWrite={canWrite} />
+        </div>
+      )}
 
       {messages.length > 0 && (
         <div className="px-4 pb-6 md:px-5">

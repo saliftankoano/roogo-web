@@ -1,5 +1,6 @@
 "use client";
 
+import { LISTING_QUALITY_MIN, countWords } from "@/lib/listing-quality";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   CaretDownIcon,
@@ -1651,7 +1652,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             Description <span className="text-red-500">*</span>
           </span>
           <span className="text-xs font-semibold text-neutral-400">
-            {formData.description.length}/1200
+            {countWords(formData.description)} mots · {formData.description.length}/1200
           </span>
         </label>
         <textarea
@@ -1667,6 +1668,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           onChange={(e) => updateField("description", e.target.value)}
         />
         <FieldError message={errors.description} />
+        {countWords(formData.description) < LISTING_QUALITY_MIN.descriptionWords && (
+          <p className="text-xs text-neutral-500">
+            {LISTING_QUALITY_MIN.descriptionWords} mots minimum pour la mise en ligne. Décrivez
+            les pièces, l&apos;état du bien, l&apos;eau et l&apos;électricité, l&apos;accès et ce qu&apos;il y a autour.
+          </p>
+        )}
       </div>
 
       <EquipementsSelector

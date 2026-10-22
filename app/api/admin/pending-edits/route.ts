@@ -7,7 +7,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 // Returns all pending changesets joined with property + owner info.
 // ---------------------------------------------------------------------------
 export async function GET(req: NextRequest) {
-  const user = await getStaffOrFounder(req);
+  const user = await getStaffOrFounder(req, "pendingEdits.view");
   if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }

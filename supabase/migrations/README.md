@@ -1,6 +1,53 @@
 # Database migration execution ledger
 
+## Social account tokens (TikTok followers) — 2026-10-18
+
+- [ ] [100_social_tokens.sql](./100_social_tokens.sql) — **not run.** Service-role table `social_tokens`: one row per connected social account (only `tiktok`), tokens encrypted by the app with `SOCIAL_TOKENS_KEY`. Written by the founder's « Connecter TikTok » callback and the nightly `/api/cron/social-followers`. Safe for every app version. Until it runs, the TikTok card says « La migration 100 n’est pas encore passée » and readings stay manual. Renumbered from 098 (PR #78) because 098 and 099 were taken on main.
+
+## Listings on Google — 2026-10-18
+
+- [ ] [098_listing_index_checks.sql](./098_listing_index_checks.sql) — **not run.** Service-role table `listing_index_checks`: one row per live listing with Google's latest indexing answer from `/api/cron/listing-index-check`. Safe for every app version. Until it runs, `/admin/annonces/google` shows the quality checklist only and the cron's upsert fails (logged).
+
+## Users table exposure (security) — 2026-10-17
+
+- [x] [094_users_table_exposure_executed.sql](./094_users_table_exposure_executed.sql) — **executed 2026-10-17 (confirmed by Salif; read-only check the same day: `staff_users` refused to the public key, listing cards keep `agent_name`, 0 cards expose a renter).** Removes client writes on `users` (table and column grants), closes `staff_users`, and rebuilds `public_property_details` with NULL renter fields and `security_invoker = false`. Safe for all app versions. Preflight and check queries are in the file header.
+- [ ] [095_users_table_read_lock.sql](./095_users_table_read_lock.sql) — **not run; only after 094 and the mobile OTA.** Enables RLS on `users`, drops every existing policy on it, gives `authenticated` its own row and anon no row. Stops by itself if 094 is missing or the view owner cannot bypass RLS. Renumber if 095 is already taken by another branch.
+
 This directory owns the backend's numbered SQL migrations. An executed database prerequisite is **not** a released API or mobile feature. Product behavior and remaining release gates live in [SYSTEM](../../docs/SYSTEM.md#how-do-failed-and-uncertain-customer-payments-recover) and [ROADMAP](../../docs/ROADMAP.md#now).
+
+## Team goals and call notes — 2026-10-16
+
+- [x] [091_team_goals_executed.sql](./091_team_goals_executed.sql) — **executed 2026-10-16 (confirmed by Salif).** Team goals (« Nos objectifs »): `team_goals`, `team_goal_readings`, `team_goal_sales`, `team_goal_levers`, `team_goal_lever_ticks`, `staff_tasks.goal_id` / `lever_id`, the private `team-goal-proofs` bucket, and the seed of the five 2026 goals with the TikTok and Facebook readings of that day. The file header still says "NOT EXECUTED": it is kept byte for byte as applied. `team_goal_sales` is dropped by 093.
+- [x] [092_call_notes_and_demande_replies_executed.sql](./092_call_notes_and_demande_replies_executed.sql) — **executed 2026-10-16 (confirmed by Salif); run after 091.** Call notes (`staff_call_notes`) and demande answers (new `staff_tasks` columns and `staff_task_messages`).
+- [x] [093_property_sold_state_executed.sql](./093_property_sold_state_executed.sql) — **executed 2026-10-17 (confirmed by Salif).** `property_status` gains `vendu`; `properties.sold_at`, `sold_price`, `sold_by`; `team_goal_sales` dropped (empty); `team_goal_readings.source` (`manuel` / `automatique`) with one automatic reading per metric and day; seed of « 500 abonnés Instagram » with the reading of 2026-10-16. The file header still says "NOT EXECUTED": it is kept byte for byte as applied.
+
+## Field media and the field visit sheet — 2026-10-17 record
+
+- [x] [086_studio_field_media_executed.sql](./086_studio_field_media_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `studio_field_media` exists and has rows).** Studio index of field photos and videos uploaded to the shared Drive.
+- [x] [090_field_visits_executed.sql](./090_field_visits_executed.sql) — **executed on Roogo after 086 and 089_staff_tasks (confirmed by Salif; verified read-only on 2026-10-17: `field_visits` exists with rows, `studio_field_media.field_visit_id` and `staff_tasks.field_visit_id` exist).** The in-app Fiche de visite. Its header still says 086 is not applied: that comment is historical and the bytes stay as run.
+
+## Staff briefing and team board — 2026-10-17 record
+
+- [x] [089_staff_tasks_executed.sql](./089_staff_tasks_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `staff_tasks` and `staff_titles` exist, `staff_tasks` has rows).** Staff tasks and demandes for Mon espace and L'équipe. It shares the number 089 with `089_staff_levels_executed.sql` (next entry): two different files, both applied independently, so neither is renumbered and neither may be replayed by number (same situation as 075 and 076). Its `staff_titles` table is no longer read: board titles come from `users.staff_level` (089_staff_levels). Dropping `staff_titles` would need a new, uniquely numbered migration.
+
+## Studio publishing calendar — 2026-10-17 record
+
+- [x] [085_studio_publications_executed.sql](./085_studio_publications_executed.sql) — **executed on Roogo (confirmed by Salif; run on 2026-10-14, the "85" run noted under 088 below).** `studio_publications` (one planned post, founder approval before anything is posted), the cron claim column and per-network results. RLS on, no policies; service role only. The header still says "084 and 086 are reserved by other branches"; bytes kept as applied.
+- [x] [087_studio_publication_review_executed.sql](./087_studio_publication_review_executed.sql) — **executed on Roogo (confirmed by Salif, recorded 2026-10-17; not independently verified).** Run after 085. Hashtags kept apart from the description, which model wrote the first draft, who edited, submitted and sent back a post, with the review comment and tags. The header still says "Not applied anywhere yet"; bytes kept as applied.
+
+## Staff access levels — 2026-10-16
+
+- [x] [089_staff_levels_executed.sql](./089_staff_levels_executed.sql) — **executed 2026-10-16 (confirmed by Salif, "mig ran"; not independently verified).** `users.staff_level`, `staff_invitations` (replaces the shared staff code) and `staff_access_log` (who gave which access). Tested beforehand on a throwaway Supabase Postgres 17.4.
+
+## Property reference codes — 2026-10-14
+
+- [x] [088_property_references_executed.sql](./088_property_references_executed.sql) — **executed 2026-10-14 (confirmed by Salif, then verified read-only through the Roogo API).** Short public codes for listings (`VEN-NNN` for sales, `LOC-NNN` for rentals): `properties.reference`, assigned once at insert by a trigger and refused on update, numbered in creation order for existing rows (49 rows: VEN-001 to VEN-023, LOC-001 to LOC-026), exposed through `property_details` and `public_property_details`. Numbered 088 because 085 to 087 belong to the publishing and field-media branches. Before this run, the column did not exist (checked by the API and in the SQL editor); the "85" run earlier that day was the publishing branch's `085_studio_publications.sql`.
+
+## Sale listing ladder — 2026-10-17 record
+
+- [x] [097_sale_price_approvals_executed.sql](./097_sale_price_approvals_executed.sql) — **executed 2026-10-17 (confirmed by Salif; `sale_price_approvals` exists and is refused to the public key).** Run after 096, before deploying the sale ladder. Creates the service-role table `sale_price_approvals` (one row per sale price set below owner price + 10% by the founder or the Directeur, with the confirmations ticked and the owner's price at the time) and replaces the `sale_closings` hard stop at +10% with "below +10% needs an approval before leaving draft". Until it runs, the API refuses every sale price below +10%.
+- [x] [096_private_seller_asking_price_executed.sql](./096_private_seller_asking_price_executed.sql) — **executed 2026-10-17 (confirmed by Salif; `sale_asking_prices` exists and is refused to the public key). Renumbered from 084 the same day; 084 is `084_studio_guest_voices_executed.sql`.** Moves the owner's sale price out of `properties.seller_asking_price` (readable by anon) into the service-role table `sale_asking_prices`. Required before deploying the sale listing ladder (public price = owner price + 30%, decision of 2026-10-11): run it first, then deploy.
+- [x] [075_sale_guaranteed_price_executed.sql](./075_sale_guaranteed_price_executed.sql) — run by Salif in production on 2026-09-27 from branch `feat/sale-v3-guaranteed-price` (verified the same day: ladder 0.30/0.20/0.15/0.10, mandates on v2). File added to main on 2026-10-11 so the repository matches the database. The guaranteed-net economics it prepared were dropped on 2026-10-11; the sale listing ladder reuses `sale_economics_config` and the mandate ladder columns on v2 mandates. Third file numbered 075; do not replay by number. Re-verified read-only on 2026-10-17: `sale_economics_config` has its default row (0.30/0.20/0.15/0.10, created 2026-09-27 23:11 UTC), `listing_config.sale_bypass_*`, the `property_mandates` v3 columns (every mandate still `v2`) and an empty `sale_closings` exist.
 
 ## Content Studio — 2026-10-06
 
@@ -13,6 +60,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 - [x] [081_studio_ai_tools_executed.sql](./081_studio_ai_tools_executed.sql) — **executed 2026-10-06 (confirmed by Salif).** Studio fal tools: ledger kinds `image` and `transcription`, the `finalizing` status, `provider_request_id`, artifact kinds `image` and `captions` with `meta`, the updated `reserve_studio_spend`, and image types in the `content-studio` bucket.
 - [x] [082_studio_video_renders_executed.sql](./082_studio_video_renders_executed.sql) — **executed 2026-10-10 (confirmed by Salif).** Studio video renders through HeyGen: ledger and artifact kind `video`, the separate monthly video budget (`studio_user_limits.monthly_video_cap_usd`, counted apart from voices and images in `reserve_studio_spend`), and MP4 up to 100 MB in the `content-studio` bucket.
 - [x] [083_studio_music_executed.sql](./083_studio_music_executed.sql) — **executed 2026-10-11 (confirmed by Salif).** Studio music: the team library `studio_music_tracks` (Roogo tracks and tracks generated with fal Lyria 3 Pro), ledger kind `music`, paid from the voices-and-images pot in `reserve_studio_spend`.
+- [x] [084_studio_guest_voices_executed.sql](./084_studio_guest_voices_executed.sql) — **executed 2026-10-14 (confirmed by Salif).** Studio guest voices: kind `guest` with `guest_name` and `added_by`, `subject` / `subject_name` on challenges and consents, and `revoke_studio_voice` allowing the staff member who added a guest voice.
 
 ## Ordered photo galleries — 2026-10-05
 

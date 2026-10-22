@@ -732,10 +732,10 @@ export function videoArtifactTitle(input: { mode?: string; template?: string }):
   return input.template === "presentateur-coin" ? "Vidéo du bien (Présentateur)" : "Vidéo du bien (Visite POV)";
 }
 
-/** A filmed clip as the media route lists it (shared contract with feat/studio-field-media). */
+/** A filmed clip as GET /api/admin/studio/media lists it (FieldMediaDto in lib/studio/field-media.ts). */
 export type FieldClip = {
   id: string;
-  kind: "photo" | "video";
+  kind: "photo" | "video" | "file";
   fileName: string;
   mimeType: string;
   sizeBytes: number;

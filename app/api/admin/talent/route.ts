@@ -4,7 +4,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 
 export async function GET(req: Request) {
   try {
-    const reviewer = await getStaffOrFounder(req);
+    const reviewer = await getStaffOrFounder(req, "talent.manage");
     if (!reviewer) {
       return NextResponse.json({ success: false, error: "Forbidden" }, { status: 403 });
     }

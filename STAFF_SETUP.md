@@ -1,5 +1,7 @@
 # Staff Setup Guide
 
+> **Since 2026-10-16 staff are added by invitation with a level** (`/admin/acces/niveaux`, tab « Niveaux et invitations » of « Accès », founder or director). The shared code below only creates the lowest level (`intern`) and should be switched off by deleting `STAFF_REGISTRATION_SECRET`. When setting `userType` by hand in Clerk, also set `staffLevel` (`director`, `assistant`, `advisor` or `intern`) next to it. See [docs/SYSTEM.md](./docs/SYSTEM.md#how-do-staff-access-levels-work).
+
 To grant a user staff (admin) permissions in Roogo, follow these steps.
 
 ## Method 1: Automatic (Recommended)

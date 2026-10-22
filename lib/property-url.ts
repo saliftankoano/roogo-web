@@ -106,45 +106,153 @@ function truncateAtWord(text: string, max: number): string {
   return `${cut.slice(0, lastSpace > 0 ? lastSpace : max - 1).replace(/[,.;:]$/, "")}…`;
 }
 
-export function getPropertyMetaDescription(property: Property): string {
-  const typeLabel = getPropertyTypeLabel(property.propertyType) || "Propriété";
-  const action = property.listingType === "vendre" ? "à vendre" : "à louer";
+function getPropertyPlace(property: Property): string {
   const quartier = (property.quartier || "").trim();
   const city = getCityLabel(property.city);
-  const place =
-    quartier && city && quartier.toLowerCase() !== city.toLowerCase()
-      ? `${quartier}, ${city}`
-      : quartier || city || property.location;
+  return quartier && city && quartier.toLowerCase() !== city.toLowerCase()
+    ? `${quartier}, ${city}`
+    : quartier || city || property.location;
+}
 
-  const lead = [
+function roomsLabel(count: number, singular: string, plural: string) {
+  return `${count} ${count > 1 ? plural : singular}`;
+}
+
+// "Villa 2 chambres à vendre à Balkuy, Ouagadougou". What people type into
+// Google, so it leads the page title, the H1 and the meta description.
+export function getPropertyHeadline(property: Property): string {
+  const typeLabel = getPropertyTypeLabel(property.propertyType) || "Propriété";
+  const action = property.listingType === "vendre" ? "à vendre" : "à louer";
+  const place = getPropertyPlace(property);
+  return [
     typeLabel,
-    property.bedrooms > 0 ? `${property.bedrooms} chambres` : "",
+    property.bedrooms > 0
+      ? roomsLabel(property.bedrooms, "chambre", "chambres")
+      : "",
     action,
     place ? `à ${place}` : "",
   ]
     .filter(Boolean)
     .join(" ");
+}
 
+// "8 500 000 FCFA", "150 000 FCFA par mois" or "17 500 FCFA par nuit";
+// empty when the price is missing.
+export function getPropertyPriceLabel(property: Property): string {
   const priceValue = Number(property.price);
-  let priceSentence = "";
-  if (Number.isFinite(priceValue) && priceValue > 0) {
-    const amount = `${priceValue.toLocaleString("fr-FR")} FCFA`;
-    if (property.listingType === "vendre") {
-      priceSentence = `${amount}.`;
-    } else if (isDailyRental(property)) {
-      priceSentence = `${amount} par nuit.`;
-    } else {
-      priceSentence = `${amount} par mois.`;
-    }
-  }
+  if (!Number.isFinite(priceValue) || priceValue <= 0) return "";
+  const amount = `${priceValue.toLocaleString("fr-FR")} FCFA`;
+  if (property.listingType === "vendre") return amount;
+  return isDailyRental(property) ? `${amount} par nuit` : `${amount} par mois`;
+}
 
+const SEO_TITLE_MAX = 70;
+
+// <title> before the "| Roogo" suffix: headline plus price when it fits.
+export function getPropertySeoTitle(property: Property): string {
+  const headline = getPropertyHeadline(property);
+  const price = getPropertyPriceLabel(property);
+  const withPrice = price ? `${headline} : ${price}` : headline;
+  return withPrice.length <= SEO_TITLE_MAX ? withPrice : headline;
+}
+
+export function getPropertyMetaDescription(property: Property): string {
+  const price = getPropertyPriceLabel(property);
   const ownerDescription = (property.description || "")
     .replace(/\s+/g, " ")
     .trim();
 
-  const sentence = [`${lead}.`, priceSentence, ownerDescription]
+  const sentence = [
+    `${getPropertyHeadline(property)}.`,
+    price ? `${price}.` : "",
+    ownerDescription,
+  ]
     .filter(Boolean)
     .join(" ");
 
   return truncateAtWord(sentence, META_DESCRIPTION_MAX);
+}
+
+const AMENITY_LABELS: Record<string, string> = {
+  wifi: "Wi-Fi",
+  securite: "sécurité",
+  jardin: "jardin",
+  solaires: "panneaux solaires",
+  piscine: "piscine",
+  meuble: "meublé",
+};
+
+// Demonstrative per property type: "Cette villa", "Cet appartement".
+const TYPE_SUBJECTS: Record<string, string> = {
+  appartement: "Cet appartement",
+  studio: "Ce studio",
+  "célibatorium": "Ce célibatorium",
+  celibatorium: "Ce célibatorium",
+  maison: "Cette maison",
+  villa: "Cette villa",
+  commercial: "Ce local commercial",
+  terrain: "Ce terrain",
+  hotel: "Cet hôtel",
+};
+
+// A factual paragraph built only from the listing's own fields, shown on the
+// page under "En résumé". Owners often write one line ("Très belle
+// opportunité"); this keeps every listing page specific enough for Google
+// and readers without inventing anything.
+export function getPropertySummary(property: Property): string {
+  const typeKey = (property.propertyType || "").trim().toLowerCase();
+  const subject = TYPE_SUBJECTS[typeKey] || "Ce bien";
+  const isSale = property.listingType === "vendre";
+  const area = Number(property.area);
+
+  const features = [
+    property.bedrooms > 0
+      ? roomsLabel(property.bedrooms, "chambre", "chambres")
+      : "",
+    property.bathrooms > 0
+      ? roomsLabel(property.bathrooms, "salle de bain", "salles de bain")
+      : "",
+    Number.isFinite(area) && area > 0 ? `${area.toLocaleString("fr-FR")} m²` : "",
+  ].filter(Boolean);
+
+  const place = getPropertyPlace(property);
+  const price = getPropertyPriceLabel(property);
+  const sentences: string[] = [];
+
+  sentences.push(
+    [
+      subject,
+      features.length ? `(${features.join(", ")})` : "",
+      isSale ? "est à vendre" : "est à louer",
+      place ? `à ${place}${price ? "," : ""}` : "",
+      price ? (isSale ? `au prix de ${price}` : `pour ${price}`) : "",
+    ]
+      .filter(Boolean)
+      .join(" ") + ".",
+  );
+
+  if (property.parking > 0) {
+    sentences.push(
+      `Stationnement : ${roomsLabel(property.parking, "place", "places")}.`,
+    );
+  }
+
+  const amenities = (property.amenities || [])
+    .map((id) => AMENITY_LABELS[id] || id)
+    .filter(Boolean);
+  if (amenities.length) {
+    sentences.push(`Équipements : ${amenities.join(", ")}.`);
+  }
+
+  if (property.reference) {
+    sentences.push(`Référence de l'annonce : ${property.reference}.`);
+  }
+
+  sentences.push(
+    isSale
+      ? "Roogo vérifie les documents de propriété avant la mise en ligne et accompagne l'acheteur jusqu'à la signature chez le notaire."
+      : "Contactez Roogo pour organiser la visite.",
+  );
+
+  return sentences.join(" ");
 }

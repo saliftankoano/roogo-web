@@ -1,6 +1,11 @@
 import { Footer } from "../../components/Footer";
 import { Metadata } from "next";
 import Link from "next/link";
+import { ListingLinkList } from "../../components/ListingLinks";
+import { fetchAllOnlineProperties } from "../../lib/data";
+
+// Listings change hourly; matches the XML sitemap's revalidate.
+export const revalidate = 3600;
 
 export const metadata: Metadata = {
   title: "Plan du Site",
@@ -8,7 +13,11 @@ export const metadata: Metadata = {
     "Explorez toutes les pages et sections de Roogo - la plateforme immobilière au Burkina Faso.",
 };
 
-export default function SitemapPage() {
+export default async function SitemapPage() {
+  const listings = await fetchAllOnlineProperties();
+  const forSale = listings.filter((p) => p.listingType === "vendre");
+  const forRent = listings.filter((p) => p.listingType !== "vendre");
+
   return (
     <div className="min-h-screen bg-white flex flex-col">
       <main className="grow pt-40 pb-16">
@@ -116,6 +125,24 @@ export default function SitemapPage() {
                 </li>
               </ul>
             </section>
+
+            {/* Listings */}
+            {forSale.length > 0 && (
+              <section>
+                <h2 className="text-2xl font-semibold text-neutral-800 mb-4">
+                  Biens à vendre
+                </h2>
+                <ListingLinkList properties={forSale} />
+              </section>
+            )}
+            {forRent.length > 0 && (
+              <section>
+                <h2 className="text-2xl font-semibold text-neutral-800 mb-4">
+                  Biens à louer
+                </h2>
+                <ListingLinkList properties={forRent} />
+              </section>
+            )}
 
             {/* Resources */}
             <section>

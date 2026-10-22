@@ -28,6 +28,7 @@ import { ProjectPanel, type CenterView } from "./ProjectPanel";
 import { PropertyPicker } from "./PropertyPicker";
 import { StudioEditor } from "./StudioEditor";
 import { useJobs } from "./StudioTools";
+import { StudioHeader } from "./StudioHeader";
 import { StudioVisuals } from "./StudioVisuals";
 import { VoiceStudio } from "./VoiceStudio";
 import { VoicePicker, type TermsInfo, type VoiceInfo } from "./VoicePicker";
@@ -163,6 +164,7 @@ export function StudioApp() {
   const [voice, setVoice] = useState("sandrine");
   const [voices, setVoices] = useState<VoiceInfo[]>([]);
   const [terms, setTerms] = useState<TermsInfo | null>(null);
+  const [guestTerms, setGuestTerms] = useState<TermsInfo | null>(null);
   const [cloningEnabled, setCloningEnabled] = useState(false);
 
   const [conversations, setConversations] = useState<ConversationItem[]>([]);
@@ -191,10 +193,11 @@ export function StudioApp() {
     try {
       const res = await fetch("/api/admin/studio/voices");
       if (!res.ok) return;
-      const data = (await res.json()) as { voices: VoiceInfo[]; terms: TermsInfo; cloningEnabled?: boolean };
+      const data = (await res.json()) as { voices: VoiceInfo[]; terms: TermsInfo; guestTerms?: TermsInfo; cloningEnabled?: boolean };
       setCloningEnabled(data.cloningEnabled === true);
       setVoices(data.voices);
       setTerms(data.terms);
+      setGuestTerms(data.guestTerms ?? null);
       setVoice((current) =>
         data.voices.some((v) => v.key === current && v.status === "active") ? current : "sandrine",
       );
@@ -744,7 +747,7 @@ export function StudioApp() {
         )}
         {view === "clone" && cloningEnabled && (
           <div className="mx-auto w-full max-w-2xl p-4 md:p-6">
-            <CloneVoice voices={voices} terms={terms} onChanged={loadVoices} />
+            <CloneVoice voices={voices} terms={terms} guestTerms={guestTerms} onChanged={loadVoices} />
           </div>
         )}
       </div>
@@ -753,6 +756,18 @@ export function StudioApp() {
   return (
     // Break out of the admin container so the Studio uses the whole width.
     <div className="relative left-1/2 w-[calc(100vw-1rem)] max-w-[1840px] -translate-x-1/2 md:w-[calc(100vw-3rem)]">
+      {/* Studio header (design canvas 2026-10-21): title and plain tabs, the open project on the right. */}
+      <StudioHeader
+        className="mb-3"
+        actions={
+          detail ? (
+            <p className="hidden min-w-0 max-w-[42vw] truncate text-sm text-neutral-500 md:block">
+              Projets ›{" "}
+              <span className="text-base font-bold text-[#1F1A16]">{detail.property?.title ?? detail.conversation.title}</span>
+            </p>
+          ) : null
+        }
+      />
       <div className={cn(stage, "p-2.5 md:p-4")}>
         {/* Phone and tablet: history and project open as sheets. */}
         <div className="mb-2.5 flex items-center gap-2 lg:hidden">

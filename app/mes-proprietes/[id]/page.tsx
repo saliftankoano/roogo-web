@@ -26,6 +26,7 @@ import {
 import { roogoMotion } from "@/lib/motion";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
+import OwnerSalePayout from "@/components/sale/OwnerSalePayout";
 import { fetchPropertyById, Property } from "@/lib/data";
 import Image from "next/image";
 import { cn } from "@/lib/utils";
@@ -80,6 +81,8 @@ const getStatusLabel = (status: string) => {
       return "Réservé";
     case "finalized":
       return "Loué";
+    case "vendu":
+      return "Vendu";
     default:
       return status;
   }
@@ -97,6 +100,8 @@ const getStatusColor = (status: string) => {
       return "bg-neutral-900 text-white border-neutral-800";
     case "expired":
       return "bg-neutral-50 text-neutral-600 border-neutral-200";
+    case "vendu":
+      return "bg-[#E4F1F8] text-[#155A78] border-[#B9DCEC]";
     default:
       return "bg-neutral-50 text-neutral-600 border-neutral-200";
   }
@@ -803,6 +808,9 @@ export default function OwnerPropertyDetailPage() {
               </div>
             )}
           </section>
+
+          {/* Sale: what the owner receives at each final price (2026-10-18). */}
+          {isSaleListing && <OwnerSalePayout propertyId={listing.id} />}
 
           {/* Agent Card */}
           {listing.agent && (
