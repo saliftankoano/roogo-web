@@ -16,6 +16,7 @@ import {
   ShieldCheckIcon,
   FileTextIcon,
   CalendarStarIcon,
+  UserPlusIcon,
   UsersThreeIcon,
   GiftIcon,
   DotsThreeCircleIcon,
@@ -124,6 +125,16 @@ const moreNavItems: AdminNavItem[] = [
     id: "admin-nav-candidatures",
     icon: ClipboardTextIcon,
     needs: ["applications.view"],
+  },
+  // Job applications with a deadline (/carrieres/<slug>), since 2026-10-22.
+  {
+    type: "link",
+    label: "Recrutement",
+    section: OPS,
+    href: "/admin/recrutement",
+    id: "admin-nav-recrutement",
+    icon: UserPlusIcon,
+    needs: ["talent.manage"],
   },
   {
     type: "link",

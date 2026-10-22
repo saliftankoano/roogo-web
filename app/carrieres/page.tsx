@@ -27,6 +27,7 @@ import {
 } from "@/components/marketing/MarketingPrimitives";
 import { marketingAssets } from "@/components/marketing/assets";
 import { roogoMotion } from "@/lib/motion";
+import { JOB_ROLES, isApplicationOpen } from "@/lib/job-applications";
 
 const hiringSignals = [
   "Opérations terrain et vérification des biens",
@@ -182,6 +183,42 @@ export default function CareersPage() {
                 solides peuvent déjà se présenter avec une proposition précise.
               </p>
             </motion.div>
+          </div>
+        </section>
+
+        <section id="postes" className="border-b border-black/10 bg-white py-14 md:py-20">
+          <div className="mx-auto w-full max-w-7xl px-6">
+            <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">
+              Postes ouverts
+            </p>
+            <div className="mt-5 divide-y divide-black/10 border-y border-black/10">
+              {Object.values(JOB_ROLES).map((role) => {
+                const open = isApplicationOpen(role);
+                return (
+                  <Link
+                    key={role.slug}
+                    href={`/carrieres/${role.slug}`}
+                    className="group flex flex-col gap-3 py-6 sm:flex-row sm:items-center sm:justify-between"
+                  >
+                    <div>
+                      <h2 className="text-2xl font-black md:text-3xl">{role.title}</h2>
+                      <p className="mt-1 text-sm font-semibold text-neutral-600">
+                        {role.contract}, {role.place}
+                      </p>
+                      <p className="mt-1 text-sm text-neutral-600">
+                        {open
+                          ? `Candidatures ouvertes jusqu'au ${role.deadlineLabel}`
+                          : "Les candidatures sont closes"}
+                      </p>
+                    </div>
+                    <span className="inline-flex items-center gap-2 self-start rounded-full bg-primary px-6 py-3 text-sm font-black text-white transition group-hover:bg-primary-hover sm:self-center">
+                      {open ? "Postuler" : "Voir l'offre"}
+                      <ArrowRightIcon size={18} weight="bold" />
+                    </span>
+                  </Link>
+                );
+              })}
+            </div>
           </div>
         </section>
 

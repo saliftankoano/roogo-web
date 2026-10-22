@@ -1,5 +1,9 @@
 # Database migration execution ledger
 
+## Job applications with a deadline (hiring) — 2026-10-22
+
+- [x] [104_job_applications_executed.sql](./104_job_applications_executed.sql) — **run by Salif on 2026-10-22.** Service-role table `job_applications` (one application per phone number per role: unique `(role_slug, phone)`, status `nouveau` / `retenu` / `entretien` / `refuse`, reviewer notes) and the PRIVATE bucket `candidatures` (PDF, JPEG, PNG, WebP, MP4, MOV, WebM; 150 MB). RLS on, no policy, anon and authenticated revoked; no storage policy. Safe to run twice and for every app version. Also raise the project-wide Storage upload limit to at least 150 MB (Dashboard > Storage > Settings), or videos above it fail with 413. Until it runs, `/carrieres/commercial-immobilier` shows the form but uploads and sending fail, and `/admin/recrutement` says the migration is missing. Numbered 104 because 102 (studio carousels branch) and 103 (lease signatures) are taken.
+
 ## Drawn signatures on rental agreements — 2026-10-22
 
 - [x] [103_agreement_signatures_executed.sql](./103_agreement_signatures_executed.sql) — **run by Salif on 2026-10-22.** `rental_agreements.owner_signature_path` and `renter_signature_path` (nullable TEXT) and the private bucket `agreement-signatures` (PNG only, 200 KB, no storage policy: service role only). Safe for every app version. Until it runs, signing without a drawing works as before, a drawn signature answers 503 « migration 103 à lancer », and the PDF keeps text-only signature blocks. Branch `feat/signature-contrat-bail`.

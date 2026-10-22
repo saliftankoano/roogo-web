@@ -149,8 +149,10 @@ SUPABASE_SERVICE_ROLE_KEY
 NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY
 CLERK_SECRET_KEY
 CLERK_WEBHOOK_SIGNING_SECRET
-UPSTASH_REDIS_REST_URL
-UPSTASH_REDIS_REST_TOKEN
+UPSTASH_REDIS_REST_URL   # optional; falls back to KV_REST_API_URL (lib/redis-env.ts)
+UPSTASH_REDIS_REST_TOKEN # optional; falls back to KV_REST_API_TOKEN
+KV_REST_API_URL          # Vercel KV / Upstash integration (set on Production, Preview, Development): what production uses for rate limiting
+KV_REST_API_TOKEN        # server only, never logged
 PAWAPAY_API_TOKEN
 PAWAPAY_URL
 NEXT_PUBLIC_POSTHOG_KEY

@@ -1,16 +1,20 @@
 import { Ratelimit } from "@upstash/ratelimit";
 import { Redis } from "@upstash/redis";
+import { resolveRedisEnv } from "./redis-env";
 
-const redisUrl = process.env.UPSTASH_REDIS_REST_URL;
-const redisToken = process.env.UPSTASH_REDIS_REST_TOKEN;
-
-const isUpstashConfigured = redisUrl && redisToken;
+// UPSTASH_REDIS_REST_* first, else the Vercel KV integration's KV_REST_API_*
+// (the only ones set on production Vercel). Presence is logged once, never
+// the values.
+const redisEnv = resolveRedisEnv();
 
 let redis: Redis | null = null;
 
-if (isUpstashConfigured) {
-  redis = new Redis({ url: redisUrl!, token: redisToken! });
+if (redisEnv.url && redisEnv.token) {
+  redis = new Redis({ url: redisEnv.url, token: redisEnv.token });
 }
+console.info(
+  `[rate-limit] Redis ${redis ? `configured (from ${redisEnv.source} env vars)` : "not configured, rate limiting off"}`,
+);
 
 export { redis };
 
@@ -96,6 +100,42 @@ export const studioJobLimiter = redis
     })
   : null;
 
+// Public job applications (/carrieres/<slug>). Generous per IP: candidates
+// on mobile data in Burkina often share one carrier IP (CGNAT).
+export const jobApplicationIpLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(30, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:job-application-ip",
+    })
+  : null;
+
+export const jobApplicationPhoneLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(6, "1 d"),
+      analytics: true,
+      prefix: "ratelimit:job-application-phone",
+    })
+  : null;
+
+export const jobApplicationUploadLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(40, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:job-application-upload",
+    })
+  : null;
+
+/** First address of x-forwarded-for (Vercel), else x-real-ip, else "unknown". */
+export function requestIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const first = forwarded?.split(",")[0]?.trim();
+  return first || req.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,
@@ -104,7 +144,7 @@ export async function checkRateLimit(
 
   // If rate limiting is not configured, allow the request
   if (!limiter) {
-    console.warn("Rate limiting not configured - Upstash Redis not available");
+    // Already said once at module load (see the [rate-limit] line above).
     return { success: true, headers };
   }
 
