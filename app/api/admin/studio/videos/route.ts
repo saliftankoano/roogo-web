@@ -14,15 +14,21 @@ import { heygenConfigured, submitRender } from "@/lib/studio/heygen-server";
 import { CONTACT_PHONE, LOGO_URL } from "@/lib/studio/poster-prompt";
 import { toPropertySummary } from "@/lib/studio/property-context";
 import { STUDIO_BUCKET, getVideoCapUsd } from "@/lib/studio/server";
+import { signedFieldMediaUrl } from "@/lib/studio/field-media";
 import {
+  MAX_PRESENTER_SECONDS,
+  MIN_CLIP_SECONDS,
   buildOutroOnly,
+  buildPresenterCorner,
   buildVisitePov,
   clampMusicLevel,
   clampVoiceDelay,
   clampVoiceLevel,
   defaultOutro,
   estimateVideoCostUsd,
+  isVideoTemplateId,
   type OutroText,
+  type VideoTemplateId,
 } from "@/lib/studio/video-templates";
 
 export const maxDuration = 30;
@@ -43,7 +49,80 @@ const OUTRO_FIELDS: (keyof OutroText)[] = [
   "footer",
 ];
 
-type Prepared = { html: string; durationSeconds: number; title: string; mode: "full" | "outro" };
+type Prepared = {
+  html: string;
+  durationSeconds: number;
+  title: string;
+  mode: "full" | "outro";
+  template: VideoTemplateId;
+};
+
+// HeyGen reads the clips once, early; three hours leaves room for its queue.
+const CLIP_URL_SECONDS = 3 * 3600;
+
+type ClipRow = { id: string; property_id: string | null; kind: string; status: string; duration_seconds: number | null };
+
+/**
+ * The two filmed clips of a Présentateur video: both must be ready videos of
+ * this project's property. Returns their signed URLs and lengths.
+ */
+async function loadPresenterClips(
+  body: Record<string, unknown>,
+  propertyId: string,
+): Promise<
+  | { ok: true; walkthrough: { url: string; seconds: number }; presenter: { url: string; seconds: number } }
+  | { ok: false; status: number; error: string }
+> {
+  const walkId = typeof body.walkthroughMediaId === "string" ? body.walkthroughMediaId : "";
+  const presenterId = typeof body.presenterMediaId === "string" ? body.presenterMediaId : "";
+  if (!walkId || !presenterId) {
+    return { ok: false, status: 400, error: "Choisissez la vidéo de visite et la vidéo du présentateur." };
+  }
+  if (walkId === presenterId) return { ok: false, status: 400, error: "Choisissez deux vidéos différentes." };
+
+  const { data, error } = await supabaseAdmin
+    .from("studio_field_media")
+    .select("id, property_id, kind, status, duration_seconds")
+    .in("id", [walkId, presenterId]);
+  if (error) {
+    console.error("Studio: field media lookup failed", error.code, error.message);
+    return { ok: false, status: 503, error: "Les vidéos du terrain ne sont pas encore disponibles." };
+  }
+  const rows = (data ?? []) as ClipRow[];
+  const check = (id: string, what: string): { ok: true; seconds: number } | { ok: false; status: number; error: string } => {
+    const row = rows.find((r) => r.id === id);
+    if (!row || row.property_id !== propertyId) return { ok: false, status: 400, error: `${what} n'appartient pas à ce bien.` };
+    if (row.kind !== "video") return { ok: false, status: 400, error: `${what} doit être une vidéo.` };
+    if (row.status !== "ready") return { ok: false, status: 400, error: `${what} n'est pas encore prête.` };
+    const seconds = Number(row.duration_seconds);
+    if (!Number.isFinite(seconds) || seconds < MIN_CLIP_SECONDS) {
+      return { ok: false, status: 400, error: `${what} est trop courte ou sa durée est inconnue.` };
+    }
+    return { ok: true, seconds };
+  };
+  const walk = check(walkId, "La vidéo de visite");
+  if (!walk.ok) return walk;
+  const presenter = check(presenterId, "La vidéo du présentateur");
+  if (!presenter.ok) return presenter;
+  if (presenter.seconds > MAX_PRESENTER_SECONDS) {
+    return { ok: false, status: 400, error: `La vidéo du présentateur dépasse ${MAX_PRESENTER_SECONDS / 60} minutes. Coupez-la avant.` };
+  }
+
+  try {
+    const [walkUrl, presenterUrl] = await Promise.all([
+      signedFieldMediaUrl(walkId, CLIP_URL_SECONDS),
+      signedFieldMediaUrl(presenterId, CLIP_URL_SECONDS),
+    ]);
+    return {
+      ok: true,
+      walkthrough: { url: walkUrl, seconds: walk.seconds },
+      presenter: { url: presenterUrl, seconds: presenter.seconds },
+    };
+  } catch (err) {
+    console.error("Studio: field media URL failed", err instanceof Error ? err.message : "unknown");
+    return { ok: false, status: 503, error: "Les vidéos du terrain ne sont pas accessibles. Prévenez Salif." };
+  }
+}
 
 // Builds the page for this conversation's property. Only the listing's own photos
 // are accepted, whatever the browser sends.
@@ -86,10 +165,35 @@ async function prepare(
   const voiceLevel = typeof body.voice_level === "number" ? clampVoiceLevel(body.voice_level) : undefined;
 
   const mode = body.mode === "outro" ? "outro" : "full";
+  // Missing means Visite POV, so older editors keep working (2026-10-12).
+  if (body.templateId !== undefined && !isVideoTemplateId(body.templateId)) {
+    return { ok: false, status: 400, error: "Modèle de vidéo inconnu." };
+  }
+  const template: VideoTemplateId = isVideoTemplateId(body.templateId) ? body.templateId : "visite-pov";
   const shortTitle = property.title.split(",").slice(0, 2).join(",");
   if (mode === "outro") {
     const built = buildOutroOnly({ outro, logoUrl: LOGO_URL, musicUrl, musicLevel });
-    return { ok: true, job: { ...built, mode, title: `Fin seule · ${shortTitle}` } };
+    return { ok: true, job: { ...built, mode, template, title: `Fin seule · ${shortTitle}` } };
+  }
+
+  if (template === "presentateur-coin") {
+    const clips = await loadPresenterClips(body, conversation.property_id);
+    if (!clips.ok) return clips;
+    const built = buildPresenterCorner({
+      walkthroughUrl: clips.walkthrough.url,
+      walkthroughSeconds: clips.walkthrough.seconds,
+      presenterUrl: clips.presenter.url,
+      presenterSeconds: clips.presenter.seconds,
+      voiceLevel,
+      musicUrl,
+      musicLevel,
+      logoUrl: LOGO_URL,
+      outro,
+    });
+    return {
+      ok: true,
+      job: { html: built.html, durationSeconds: built.durationSeconds, mode, template, title: `Présentateur · ${shortTitle}` },
+    };
   }
 
   const photos = Array.isArray(body.photos)
@@ -133,7 +237,7 @@ async function prepare(
     musicUrl,
     outro,
   });
-  return { ok: true, job: { html: built.html, durationSeconds: built.durationSeconds, mode, title: `Visite POV · ${shortTitle}` } };
+  return { ok: true, job: { html: built.html, durationSeconds: built.durationSeconds, mode, template, title: `Visite POV · ${shortTitle}` } };
 }
 
 // Starts a render. The price was on the button; pressing it is the confirmation.
@@ -172,7 +276,7 @@ export async function POST(req: Request) {
     p_kind: "video",
     p_voice: null,
     p_model: "heygen-hyperframes",
-    p_input: { mode: job.mode, seconds: job.durationSeconds, title: job.title },
+    p_input: { mode: job.mode, template: job.template, seconds: job.durationSeconds, title: job.title },
     p_est_cost_usd: estimateUsd,
     p_cap_usd: await getVideoCapUsd(staff.id),
     p_month_start: startOfMonthIso(),
@@ -205,7 +309,7 @@ export async function POST(req: Request) {
     .from("studio_generations")
     .update({
       provider_request_id: submitted.renderId,
-      input: { mode: job.mode, seconds: job.durationSeconds, title: job.title, render_id: submitted.renderId },
+      input: { mode: job.mode, template: job.template, seconds: job.durationSeconds, title: job.title, render_id: submitted.renderId },
     })
     .eq("id", id);
 

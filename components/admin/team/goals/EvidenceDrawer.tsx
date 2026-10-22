@@ -29,6 +29,8 @@ export function EvidenceDrawer({
   error,
   onClose,
   onRemoved,
+  adjusting = false,
+  onAdjusting = () => {},
 }: {
   goal: GoalView | null;
   data: GoalsPayload;
@@ -37,6 +39,9 @@ export function EvidenceDrawer({
   error: string | null;
   onClose: () => void;
   onRemoved: (goal: GoalView) => void;
+  /** « Prochaine marche » › « Ajuster »: the prefilled form is open. */
+  adjusting?: boolean;
+  onAdjusting?: (open: boolean) => void;
 }) {
   // The goal itself always comes from the reloaded payload (by id): no local copy.
   const [editing, setEditing] = useState(false);
@@ -75,6 +80,32 @@ export function EvidenceDrawer({
             <strong className="font-extrabold text-[#1F1A16]">Comment c’est compté : </strong>
             {goal.measure}
           </p>
+          {goal.nextStep && canManage && !adjusting && (
+            <div className="flex flex-col gap-2 rounded-2xl bg-[#E6F2EA] px-3.5 py-3">
+              <p className="m-0 text-sm leading-snug text-[#1F5A33]">
+                <strong className="font-extrabold">Prochaine marche : </strong>
+                {goal.nextStep.title} {goal.nextStep.endPhrase}
+              </p>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  disabled={!!busy[`goal:${goal.id}`]}
+                  onClick={() => api.launchNext(goal.id, goal.nextStep!.title, goal.nextStep!.target)}
+                  className="h-10 cursor-pointer rounded-full bg-[#1F1A16] px-4 text-sm font-extrabold text-white disabled:opacity-60"
+                >
+                  Lancer
+                </button>
+                <button
+                  type="button"
+                  disabled={!!busy[`goal:${goal.id}`]}
+                  onClick={() => onAdjusting(true)}
+                  className="h-10 cursor-pointer rounded-full border border-[#C9DDCF] bg-white px-4 text-sm font-bold disabled:opacity-60"
+                >
+                  Ajuster
+                </button>
+              </div>
+            </div>
+          )}
           {goal.needsTikTokConnection && canManage && (
             <Link href="/admin/studio/statistiques" className="self-start text-sm font-extrabold text-[#8A4924] hover:text-[#5A321A]">
               Connecter TikTok dans Statistiques
@@ -84,8 +115,26 @@ export function EvidenceDrawer({
       }
       footer={
         canManage ? (
-          editing ? (
-            <GoalEditForm goal={goal} api={api} busy={!!busy[`goal:${goal.id}`]} onDone={() => setEditing(false)} />
+          adjusting && goal.nextStep ? (
+            <GoalEditForm
+              key={`next-${goal.id}`}
+              initialTitle={goal.nextStep.title}
+              initialTarget={goal.nextStep.target}
+              busy={!!busy[`goal:${goal.id}`]}
+              submitLabel="Lancer"
+              intro={`Prochaine marche, ${goal.nextStep.endPhrase}. L’objectif atteint passe dans « Objectifs atteints », ses leviers suivent.`}
+              onSubmit={(title, target) => api.launchNext(goal.id, title, target)}
+              onDone={() => onAdjusting(false)}
+            />
+          ) : editing ? (
+            <GoalEditForm
+              key={`edit-${goal.id}`}
+              initialTitle={goal.title}
+              initialTarget={goal.target}
+              busy={!!busy[`goal:${goal.id}`]}
+              onSubmit={(title, target) => api.editGoal(goal.id, title, target)}
+              onDone={() => setEditing(false)}
+            />
           ) : (
             <div className="flex flex-wrap gap-2">
               <button
@@ -190,14 +239,30 @@ export function EvidenceDrawer({
  * title still carries a number that is not the target, a one-tap suggestion
  * offers the corrected title (« Mettre le titre à jour : 5 000 abonnés TikTok »).
  */
-function GoalEditForm({ goal, api, busy, onDone }: { goal: GoalView; api: GoalsApi; busy: boolean; onDone: () => void }) {
+function GoalEditForm({
+  initialTitle,
+  initialTarget,
+  busy,
+  submitLabel = "Enregistrer",
+  intro,
+  onSubmit,
+  onDone,
+}: {
+  initialTitle: string;
+  initialTarget: number;
+  busy: boolean;
+  submitLabel?: string;
+  intro?: string;
+  onSubmit: (title: string, target: number) => Promise<unknown>;
+  onDone: () => void;
+}) {
   const id = useId();
-  const [title, setTitle] = useState(goal.title);
-  const [target, setTarget] = useState(formatCount(goal.target));
+  const [title, setTitle] = useState(initialTitle);
+  const [target, setTarget] = useState(formatCount(initialTarget));
   const [problem, setProblem] = useState<string | null>(null);
   const n = Number(target.replace(/\s/g, ""));
   const validTarget = Number.isInteger(n) && n >= 1;
-  const suggestion = validTarget ? suggestTitle(title, goal.target, n) : null;
+  const suggestion = validTarget ? suggestTitle(title, initialTarget, n) : null;
   return (
     <form
       className="flex flex-col gap-2.5"
@@ -207,10 +272,11 @@ function GoalEditForm({ goal, api, busy, onDone }: { goal: GoalView; api: GoalsA
         const cleanTitle = title.trim();
         if (!cleanTitle || cleanTitle.length > 120) return setProblem("Le titre doit faire de 1 à 120 caractères.");
         if (!validTarget) return setProblem("La cible doit être un nombre entier positif.");
-        const ok = await api.editGoal(goal.id, cleanTitle, n);
+        const ok = await onSubmit(cleanTitle, n);
         if (ok) onDone();
       }}
     >
+      {intro && <p className="m-0 text-sm font-extrabold text-[#1F1A16]">{intro}</p>}
       <label htmlFor={`${id}-t`} className="flex flex-col gap-1 text-xs font-extrabold uppercase tracking-[0.06em] text-[#6B625B]">
         Titre
         <input
@@ -247,7 +313,7 @@ function GoalEditForm({ goal, api, busy, onDone }: { goal: GoalView; api: GoalsA
       )}
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={busy} className="h-11 rounded-full bg-[#1F1A16] px-4 text-sm font-extrabold text-white disabled:opacity-60">
-          Enregistrer
+          {submitLabel}
         </button>
         <button type="button" onClick={onDone} className="h-11 rounded-full border border-[#E2D8CC] bg-white px-4 text-sm font-bold">
           Annuler
