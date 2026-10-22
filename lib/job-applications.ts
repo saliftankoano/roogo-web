@@ -54,7 +54,7 @@ export const JOB_ROLES: Record<string, JobRoleConfig> = {
     ],
     plus: "À l'aise devant la caméra.",
     requirement:
-      "Expérience réelle de vente exigée, idéalement en immobilier.",
+      "Expérience réelle de vente exigée, idéalement en immobilier. Les candidatures de femmes sont vivement encouragées.",
     pay: [
       "Premier mois à l'essai : 55 000 FCFA.",
       "Ensuite : 75 000 FCFA par mois.",
