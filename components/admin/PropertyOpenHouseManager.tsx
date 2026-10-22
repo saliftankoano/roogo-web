@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { useState, useEffect, useCallback } from "react";
 import { Calendar } from "@/components/ui/calendar";
 import { motion, AnimatePresence } from "framer-motion";
@@ -462,6 +463,7 @@ export default function PropertyOpenHouseManager({
       </div>
 
       {/* Confirmation Modal */}
+      <Portal>
       <AnimatePresence>
         {showConfirmation && (
           <motion.div
@@ -521,6 +523,7 @@ export default function PropertyOpenHouseManager({
           </motion.div>
         )}
       </AnimatePresence>
+      </Portal>
     </div>
   );
 }

@@ -39,6 +39,10 @@ import {
   pastMonthWindows,
   periodChoices,
   retitleForTarget,
+  copiedLevers,
+  nextStepDates,
+  nextStepFor,
+  type NextStep,
   readingAt,
   readingPace,
   readingSourceLabel,
@@ -214,7 +218,22 @@ export type GoalView = {
   manual: boolean;
   /** TikTok goal while TikTok is not connected: the founder gets « Connecter TikTok dans Statistiques ». */
   needsTikTokConnection: boolean;
+  /** « Prochaine marche » (founder only): the next target once reached, or for the next period once ended. */
+  nextStep: NextStep | null;
   levers: LeverView[];
+};
+
+/** A goal launched past (« Lancer ») and reached: « Objectifs atteints » on Accueil. */
+export type WinView = {
+  id: string;
+  title: string;
+  icon: GoalIcon;
+  family: string;
+  finalLabel: string;
+  targetLabel: string;
+  /** The day it was closed as a win (« Lancer »), « 22 octobre ». */
+  reachedLabel: string;
+  periodLabel: string;
 };
 
 export type GoalsPayload = {
@@ -233,6 +252,8 @@ export type GoalsPayload = {
   /** metric|period pairs already used by an active goal of the current window. */
   used: string[];
   failedMetrics: GoalMetric[];
+  /** Archived goals of this year that reached their target (a removed goal that was not reached never shows). */
+  wins: WinView[];
 };
 
 type MetricResult = {
@@ -640,6 +661,7 @@ function emptyPayload(viewer: Viewer, people: Person[], todayKey: string, ready:
     periodChoices: periodChoices(todayKey),
     used: [],
     failedMetrics: [],
+    wins: [],
   };
 }
 
@@ -668,7 +690,17 @@ export async function getGoalsPayload(viewer: Viewer, people: Person[], now = ne
   }
   const goals = (goalData ?? []) as GoalRow[];
   const base = emptyPayload(viewer, people, todayKey, true);
-  if (!goals.length) return base;
+  // « Objectifs atteints »: goals archived this year; only the reached ones are kept below.
+  const { data: archivedData, error: archivedError } = await supabaseAdmin
+    .from("team_goals")
+    .select("id, title, metric, target, period, start_date, end_date, sort_order, created_by, archived_at, created_at")
+    .not("archived_at", "is", null)
+    .gte("archived_at", `${todayKey.slice(0, 4)}-01-01T00:00:00.000Z`)
+    .order("archived_at", { ascending: false })
+    .limit(40);
+  if (archivedError) console.error("[team-goals] archived goals failed", { code: archivedError.code, message: archivedError.message });
+  const archived = (archivedData ?? []) as GoalRow[];
+  if (!goals.length && !archived.length) return base;
 
   const week = teamWeek(todayKey);
   const goalIds = goals.map((g) => g.id);
@@ -696,6 +728,7 @@ export async function getGoalsPayload(viewer: Viewer, people: Person[], now = ne
   if (linked.error) throw linked.error;
   return goalsFromRows(viewer, people, {
     goals,
+    archived,
     levers,
     ticks: (ticks.data ?? []) as { lever_id: string; ticked_on: string }[],
     linked: (linked.data ?? []) as { lever_id: string; completed_at: string | null }[],
@@ -704,6 +737,8 @@ export async function getGoalsPayload(viewer: Viewer, people: Person[], now = ne
 
 export type GoalRowsInput = {
   goals: GoalRow[];
+  /** Archived goals of this year, for « Objectifs atteints ». */
+  archived?: GoalRow[];
   levers: LeverRow[];
   ticks: { lever_id: string; ticked_on: string }[];
   linked: { lever_id: string; completed_at: string | null }[];
@@ -723,17 +758,18 @@ export async function goalsFromRows(
 ): Promise<GoalsPayload> {
   const todayKey = dayKeyOf(now);
   const { goals, levers } = input;
+  const archived = input.archived ?? [];
   const base = emptyPayload(viewer, people, todayKey, true);
-  if (!goals.length) return base;
+  if (!goals.length && !archived.length) return base;
   const windows = new Map(goals.map((g) => [g.id, goalWindow(g as GoalDates, todayKey)]));
   const since: Ctx["since"] = {};
-  for (const g of goals) {
-    const w = windows.get(g.id)!;
+  for (const g of [...goals, ...archived]) {
+    const w = windows.get(g.id) ?? goalWindow(g as GoalDates, todayKey);
     const earliest = g.period === "recurring_month" ? g.start_date : w.startKey;
     if (!since[g.metric] || earliest < since[g.metric]!) since[g.metric] = earliest;
   }
   const ctx: Ctx = { todayKey, people, since };
-  const { loaded, failed } = await loadMetrics(goals, ctx, readings);
+  const { loaded, failed } = await loadMetrics([...goals, ...archived], ctx, readings);
 
   const titleOf = new Map(goals.map((g) => [g.id, g.title]));
   const leverViews: LeverView[] = levers.map((lever) => {
@@ -804,9 +840,38 @@ export async function goalsFromRows(
       history: metric.history,
       manual: def.manual,
       needsTikTokConnection: goal.metric === "tiktok_followers" && !loaded.tiktokConnected,
+      nextStep: nextStepFor({
+        canManage: base.canManage,
+        goal,
+        current: metric.current,
+        reached: progress.status === "atteint",
+        perDay: progress.actualPerDay,
+        todayKey,
+      }),
       levers: leverViews.filter((l) => l.goalId === goal.id),
     };
   });
+
+  // Reached goals closed this year, measured on the day they were archived.
+  const wins: WinView[] = [];
+  for (const goal of archived) {
+    if (failed.includes(goal.metric) || !goal.archived_at) continue;
+    const closedKey = dayKeyOf(new Date(goal.archived_at));
+    const window = goalWindow(goal as GoalDates, closedKey);
+    const value = metricFor(goal, window, { ...ctx, todayKey: closedKey }, loaded).current;
+    if (value == null || value < goal.target) continue;
+    const def = METRICS[goal.metric];
+    wins.push({
+      id: goal.id,
+      title: goal.title,
+      icon: def.icon,
+      family: def.family,
+      finalLabel: formatCount(value),
+      targetLabel: formatCount(goal.target),
+      reachedLabel: dayLabel(closedKey, todayKey),
+      periodLabel: window.label,
+    });
+  }
 
   const mine = leverViews.filter((l) => l.mine);
   const tallyBy = new Map<string, { done: number; target: number }>();
@@ -827,6 +892,7 @@ export async function goalsFromRows(
       .sort((a, b) => a.name.localeCompare(b.name, "fr")),
     used: views.filter((g) => !g.ended).map((g) => `${g.metric}|${g.period}`),
     failedMetrics: [...new Set(failed)],
+    wins,
   };
 }
 
@@ -916,6 +982,84 @@ export async function updateGoal(viewer: Viewer, id: string, patch: GoalPatch): 
   if (error) return writeError(error, `goal ${patch.action}`);
   if (!data?.length) return fail(404, "Cet objectif n’existe plus.");
   return { ok: true, value: { id } };
+}
+
+/**
+ * « Lancer » the next step of a goal (founder only): create the next goal
+ * (same metric, the period from nextStepDates, the founder's title and
+ * target), copy its levers, then archive the reached goal, which then shows
+ * in « Objectifs atteints ». If a step fails, what was created is removed and
+ * the reached goal stays as it was.
+ */
+export async function launchNextGoal(
+  viewer: Viewer,
+  id: string,
+  input: { title: string; target: number },
+  now = new Date(),
+): Promise<ServiceResult<{ id: string }>> {
+  const denied = founderOnly(viewer);
+  if (denied) return denied;
+  const todayKey = dayKeyOf(now);
+  const { data: goal, error: readError } = await supabaseAdmin
+    .from("team_goals")
+    .select("id, title, metric, target, period, start_date, end_date, sort_order, archived_at")
+    .eq("id", id)
+    .maybeSingle();
+  if (readError) return writeError(readError, "next goal read");
+  if (!goal || goal.archived_at) return fail(404, "Cet objectif n’existe plus.");
+  const dates = nextStepDates(goal as GoalDates, todayKey);
+  if (!dates) return fail(400, "Un objectif « Chaque mois » repart tout seul le 1er : modifiez sa cible à la place.");
+
+  const { data: created, error: createError } = await supabaseAdmin
+    .from("team_goals")
+    .insert({
+      title: input.title,
+      metric: goal.metric,
+      target: input.target,
+      period: goal.period,
+      start_date: dates.startDate,
+      end_date: dates.endDate,
+      sort_order: goal.sort_order,
+      created_by: viewer.id,
+    })
+    .select("id")
+    .single();
+  if (createError || !created) return writeError(createError ?? {}, "next goal create");
+  const newId = created.id as string;
+  const undo = async () => {
+    const { error } = await supabaseAdmin.from("team_goals").delete().eq("id", newId);
+    if (error) console.error("[team-goals] next goal rollback failed", { code: error.code, message: error.message });
+  };
+
+  const { data: leverRows, error: leverReadError } = await supabaseAdmin
+    .from("team_goal_levers")
+    .select("owner_id, title, rhythm, weekly_target, sort_order, archived_at")
+    .eq("goal_id", id)
+    .is("archived_at", null);
+  if (leverReadError) {
+    await undo();
+    return writeError(leverReadError, "next goal levers read");
+  }
+  const copies = copiedLevers((leverRows ?? []) as Parameters<typeof copiedLevers>[0], newId, viewer.id);
+  if (copies.length) {
+    const { error } = await supabaseAdmin.from("team_goal_levers").insert(copies);
+    if (error) {
+      await undo();
+      return writeError(error, "next goal levers copy");
+    }
+  }
+
+  const { data: closed, error: archiveError } = await supabaseAdmin
+    .from("team_goals")
+    .update({ archived_at: now.toISOString(), archived_by: viewer.id })
+    .eq("id", id)
+    .is("archived_at", null)
+    .select("id");
+  if (archiveError || !closed?.length) {
+    await undo();
+    return archiveError ? writeError(archiveError, "next goal archive") : fail(409, "Cet objectif vient d’être modifié. Rechargez la page.");
+  }
+  return { ok: true, value: { id: newId } };
 }
 
 export async function createLever(viewer: Viewer, people: Person[], goalId: string, input: LeverInput): Promise<ServiceResult<{ id: string }>> {

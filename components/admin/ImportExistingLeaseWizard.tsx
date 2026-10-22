@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { useAuth } from "@clerk/nextjs";
 import { useEffect, useMemo, useState } from "react";
 import { XIcon, UploadSimpleIcon, CheckCircleIcon } from "@phosphor-icons/react";
@@ -79,7 +80,7 @@ export default function ImportExistingLeaseWizard({
     finally { setBusy(false); }
   }
 
-  return <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true">
+  return <Portal><div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/55 p-4" role="dialog" aria-modal="true">
     <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl">
       <div className="flex items-start justify-between"><div><p className="text-xs font-bold uppercase tracking-widest text-orange-600">Étape {step} sur 4</p><h2 className="mt-1 text-2xl font-bold">Importer un bail existant</h2></div><button onClick={onClose} aria-label="Fermer"><XIcon size={24}/></button></div>
       <div className="my-5 grid grid-cols-4 gap-2">{[1,2,3,4].map((n) => <div key={n} className={`h-1.5 rounded-full ${n <= step ? "bg-orange-600" : "bg-neutral-200"}`}/>)}</div>
@@ -90,7 +91,7 @@ export default function ImportExistingLeaseWizard({
       {error && <p className="mt-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p>}
       <div className="mt-6 flex justify-between"><button className="rounded-xl border px-5 py-2.5 font-semibold disabled:opacity-40" disabled={step===1||busy} onClick={()=>setStep(s=>s-1)}>Retour</button>{step<4?<button className="rounded-xl bg-neutral-900 px-5 py-2.5 font-semibold text-white" onClick={()=>setStep(s=>s+1)}>Continuer</button>:<button className="rounded-xl bg-orange-600 px-5 py-2.5 font-semibold text-white disabled:opacity-50" disabled={busy} onClick={submit}>{busy?"Import en cours…":"Confirmer l’import"}</button>}</div>
     </div>
-  </div>;
+  </div></Portal>;
 }
 
 function Field({ label, value, onChange, type="text" }: { label:string; value:string; onChange:(value:string)=>void; type?:string }) {

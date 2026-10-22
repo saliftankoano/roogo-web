@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   CalendarIcon,
@@ -541,6 +542,7 @@ export default function OpenHouseSlotManager({
       </AnimatePresence>
 
       {/* Confirmation Modal */}
+      <Portal>
       <AnimatePresence>
         {showConfirmation && (
           <motion.div
@@ -598,6 +600,7 @@ export default function OpenHouseSlotManager({
           </motion.div>
         )}
       </AnimatePresence>
+      </Portal>
     </div>
   );
 }

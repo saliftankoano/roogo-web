@@ -5,6 +5,11 @@ import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getUserByClerkId } from "@/lib/user-sync";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { addMonths, differenceInMonths, format } from "date-fns";
+import {
+  SIGNATURE_BUCKET,
+  parseSignaturePng,
+  signaturePath,
+} from "@/lib/rental-agreement-pdf/signature-image";
 
 interface PropertyLocation {
   quartier: string | null;
@@ -17,7 +22,11 @@ export async function OPTIONS(req: Request) {
 
 /**
  * POST /api/rental-agreements/:id/sign
- * Body: { role: "owner" | "renter" }
+ * Body: { role: "owner" | "renter", signature?: string }
+ * - signature (optional): the drawn signature as a PNG data URL or base64,
+ *   200 KB max. Stored in the private agreement-signatures bucket and its
+ *   path saved on the agreement. Older app versions send { role } only and
+ *   keep working (date-only signature).
  * - Records signature timestamp
  * - When both parties signed: status → 'active', generate 12 rent_schedule rows
  */
@@ -45,10 +54,19 @@ export async function POST(
     if (!user) return errorResponse("User not found", 404, req);
 
     const body = await req.json();
-    const { role } = body as { role: "owner" | "renter" };
+    const { role, signature } = body as {
+      role: "owner" | "renter";
+      signature?: unknown;
+    };
 
     if (!role || !["owner", "renter"].includes(role)) {
       return errorResponse("role must be 'owner' or 'renter'", 400, req);
+    }
+
+    const hasSignature = signature !== undefined && signature !== null;
+    const parsedSignature = hasSignature ? parseSignaturePng(signature) : null;
+    if (parsedSignature && !parsedSignature.ok) {
+      return errorResponse(parsedSignature.error, 400, req);
     }
 
     const { data: agreement, error: fetchError } = await supabaseAdmin
@@ -71,6 +89,45 @@ export async function POST(
 
     const now = new Date().toISOString();
     const updateData: Record<string, string | null> = {};
+
+    // Drawn signature: upload first, so a failed upload never leaves a
+    // signature date without its drawing.
+    if (parsedSignature?.ok) {
+      const alreadySigned =
+        role === "renter"
+          ? !!agreement.renter_signed_at
+          : !!agreement.owner_signed_at;
+      if (alreadySigned) {
+        return errorResponse(
+          role === "renter" ? "Renter already signed" : "Owner already signed",
+          409,
+          req,
+        );
+      }
+      const path = signaturePath(agreementId, role);
+      const { error: uploadError } = await supabaseAdmin.storage
+        .from(SIGNATURE_BUCKET)
+        .upload(path, parsedSignature.bytes, {
+          contentType: "image/png",
+          upsert: true,
+        });
+      if (uploadError) {
+        console.error("Signature upload error:", {
+          agreementId,
+          role,
+          bytes: parsedSignature.bytes.length,
+          message: uploadError.message,
+        });
+        return errorResponse(
+          "Signature storage unavailable (migration 103 à lancer ?)",
+          503,
+          req,
+        );
+      }
+      updateData[
+        role === "renter" ? "renter_signature_path" : "owner_signature_path"
+      ] = path;
+    }
 
     if (role === "renter") {
       if (agreement.renter_signed_at) {
@@ -106,6 +163,14 @@ export async function POST(
 
     if (updateError) {
       console.error("Error updating agreement signature:", updateError);
+      if (parsedSignature?.ok) {
+        // Most likely the signature path columns (migration 103) are missing.
+        return errorResponse(
+          "Failed to record drawn signature (migration 103 à lancer ?)",
+          503,
+          req,
+        );
+      }
       return errorResponse("Failed to record signature", 500, req);
     }
 

@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { SectionBlocksSkeleton } from "@/components/admin/skeletons";
 import { motion, AnimatePresence } from "framer-motion";
@@ -654,13 +655,14 @@ export default function AdminCalendarPage() {
       </div>
 
       {/* Add Slot Modal */}
+      <Portal>
       <AnimatePresence>
         {isModalOpen && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
+            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
           >
             <motion.div
               initial={{ scale: 0.985, opacity: 0, y: 8 }}
@@ -878,15 +880,17 @@ export default function AdminCalendarPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      </Portal>
 
       {/* Confirmation Modal */}
+      <Portal>
       <AnimatePresence>
         {showConfirmation && (
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
-            className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
+            className="fixed inset-0 z-[70] flex items-center justify-center p-4 bg-black/60 backdrop-blur-md"
           >
             <motion.div
               initial={{ scale: 0.985, opacity: 0, y: 8 }}
@@ -940,6 +944,7 @@ export default function AdminCalendarPage() {
           </motion.div>
         )}
       </AnimatePresence>
+      </Portal>
     </motion.div>
   );
 }

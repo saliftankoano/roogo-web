@@ -3,7 +3,7 @@
 // filled string or null; null means "print a dotted line to complete by hand".
 // Kept free of runtime imports so node --test can exercise it directly.
 
-import type { AgreementPdfData } from "./types";
+import type { AgreementPdfData, AgreementPdfSignatureImage } from "./types";
 
 export type LeaseBlank = string | null;
 
@@ -24,6 +24,19 @@ export interface LeasePartyFields {
   porte: LeaseBlank;
   profession: LeaseBlank;
   designation: LeaseBlank;
+}
+
+export interface LeaseSignature {
+  nom: LeaseBlank;
+  signeLe: LeaseBlank;
+  /** Mention printed under the signer's title once signed on Roogo. */
+  mention: LeaseBlank;
+  /** Drawn signature, only shown once the party has signed. */
+  image: AgreementPdfSignatureImage | null;
+}
+
+export function signatureMention(signedOn: string): string {
+  return `Lu et approuvé. Signé électroniquement sur Roogo Burkina le ${signedOn}.`;
 }
 
 export interface OfficialLeaseFields {
@@ -57,8 +70,8 @@ export interface OfficialLeaseFields {
   faitA: LeaseBlank;
   faitLe: LeaseBlank;
   signatures: {
-    bailleur: { nom: LeaseBlank; signeLe: LeaseBlank };
-    preneur: { nom: LeaseBlank; signeLe: LeaseBlank };
+    bailleur: LeaseSignature;
+    preneur: LeaseSignature;
   };
 }
 
@@ -420,11 +433,15 @@ export function buildOfficialLeaseFields(
     signatures: {
       bailleur: {
         nom: clean(data.owner?.full_name),
-        signeLe: ownerSigned && data.owner_signed_at ? ownerSigned : null,
+        signeLe: ownerSigned,
+        mention: ownerSigned ? signatureMention(ownerSigned) : null,
+        image: ownerSigned ? (data.owner_signature ?? null) : null,
       },
       preneur: {
         nom: clean(data.renter?.full_name),
-        signeLe: renterSigned && data.renter_signed_at ? renterSigned : null,
+        signeLe: renterSigned,
+        mention: renterSigned ? signatureMention(renterSigned) : null,
+        image: renterSigned ? (data.renter_signature ?? null) : null,
       },
     },
   };

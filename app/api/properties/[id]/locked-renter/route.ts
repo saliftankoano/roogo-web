@@ -74,7 +74,7 @@ export async function GET(
       }
       const { data: renter } = await supabaseAdmin
         .from("users")
-        .select("id, full_name, phone, email, profile_image_url")
+        .select("id, full_name, phone, email, profile_image_url:avatar_url")
         .eq("id", agreement.renter_id)
         .single();
       return cors(NextResponse.json({ renter, lockTransaction: null, agreement }), req);
@@ -83,7 +83,7 @@ export async function GET(
     // Fetch renter profile
     const { data: renter } = await supabaseAdmin
       .from("users")
-      .select("id, full_name, phone, email, profile_image_url")
+      .select("id, full_name, phone, email, profile_image_url:avatar_url")
       .eq("id", lockTransaction.user_id)
       .single();
 

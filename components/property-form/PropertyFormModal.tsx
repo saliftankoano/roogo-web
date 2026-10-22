@@ -1,5 +1,6 @@
 "use client";
 
+import { Portal } from "@/components/ui/Portal";
 import { LISTING_QUALITY_MIN, countWords } from "@/lib/listing-quality";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
@@ -331,6 +332,7 @@ function UpsellModal({
   };
 
   return (
+    <Portal>
     <div className="fixed inset-0 z-100 flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
       <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
         <div className="mb-5 flex items-start justify-between gap-4">
@@ -417,6 +419,7 @@ function UpsellModal({
         </div>
       </div>
     </div>
+    </Portal>
   );
 }
 
@@ -2571,6 +2574,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       </div>
 
       {showFreeTermsModal && (
+        <Portal>
         <div className="fixed inset-0 z-[100] flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
           <div className="w-full max-w-xl rounded-3xl bg-white p-6 shadow-2xl">
             <h3 className="text-xl font-black text-neutral-950">
@@ -2634,6 +2638,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
             </div>
           </div>
         </div>
+        </Portal>
       )}
 
       {showUpsell && (

@@ -7,6 +7,7 @@ import {
   DownloadSimpleIcon,
   ArrowLeftIcon,
   ArrowRightIcon,
+  CaretDownIcon,
   DotsSixVerticalIcon,
   FastForwardIcon,
   FilmSlateIcon,
@@ -44,6 +45,14 @@ import {
   clampVoiceLevel,
   silentTiming,
   type Shot,
+  type FieldClip,
+  type VideoTemplateId,
+  MAX_PRESENTER_SECONDS,
+  isVideoTemplateId,
+  planPresenterVideo,
+  presenterRect,
+  readyVideoClips,
+  VIDEO_SIZE,
 } from "@/lib/studio/video-templates";
 import { mergeOrder, moveItem } from "@/lib/studio/photo-order";
 import { OutroEditor } from "./OutroEditor";
@@ -184,6 +193,55 @@ function writeMix(conversationId: string | null, mix: Mix) {
   }
 }
 
+// The chosen template and the two filmed clips of a Présentateur video, per project (2026-10-12).
+const TEMPLATE_KEY = (conversationId: string) => `roogo-studio-template:${conversationId}`;
+const CLIPS_KEY = (conversationId: string) => `roogo-studio-presenter-clips:${conversationId}`;
+
+type PresenterClips = { walkthrough: string | null; presenter: string | null };
+const NO_CLIPS: PresenterClips = { walkthrough: null, presenter: null };
+
+function readTemplate(conversationId: string | null): VideoTemplateId {
+  if (!conversationId) return "visite-pov";
+  try {
+    const raw = window.localStorage.getItem(TEMPLATE_KEY(conversationId));
+    return isVideoTemplateId(raw) ? raw : "visite-pov";
+  } catch {
+    return "visite-pov";
+  }
+}
+
+function writeTemplate(conversationId: string | null, id: VideoTemplateId) {
+  if (!conversationId) return;
+  try {
+    window.localStorage.setItem(TEMPLATE_KEY(conversationId), id);
+  } catch {
+    // Not critical: the editor opens on Visite POV.
+  }
+}
+
+function readClips(conversationId: string | null): PresenterClips {
+  if (!conversationId) return NO_CLIPS;
+  try {
+    const raw = window.localStorage.getItem(CLIPS_KEY(conversationId));
+    const saved = raw ? (JSON.parse(raw) as Partial<PresenterClips>) : {};
+    return {
+      walkthrough: typeof saved.walkthrough === "string" ? saved.walkthrough : null,
+      presenter: typeof saved.presenter === "string" ? saved.presenter : null,
+    };
+  } catch {
+    return NO_CLIPS;
+  }
+}
+
+function writeClips(conversationId: string | null, clips: PresenterClips) {
+  if (!conversationId) return;
+  try {
+    window.localStorage.setItem(CLIPS_KEY(conversationId), JSON.stringify(clips));
+  } catch {
+    // Not critical: the team picks the clips again.
+  }
+}
+
 /* ---------- editor ---------- */
 
 /**
@@ -214,7 +272,17 @@ export function StudioEditor({
   /** Opens the Voix off tool, one click from the editor (Salif, 2026-10-11). */
   onAddVoice?: () => void;
 }) {
-  const template = VIDEO_TEMPLATES[0];
+  const [templateId, setTemplateId] = useState<VideoTemplateId>("visite-pov");
+  useEffect(() => setTemplateId(readTemplate(conversationId)), [conversationId]);
+  const chooseTemplate = useCallback(
+    (id: VideoTemplateId) => {
+      setTemplateId(id);
+      writeTemplate(conversationId, id);
+    },
+    [conversationId],
+  );
+  const template = VIDEO_TEMPLATES.find((t) => t.id === templateId) ?? VIDEO_TEMPLATES[0];
+  const isPresenter = templateId === "presentateur-coin";
   // The newest finished video of this project, offered for download in the header.
   const latestVideo = ordered
     .filter((a) => a.kind === "video" && a.downloadUrl)
@@ -264,6 +332,54 @@ export function StudioEditor({
   // "Vidéo complète" builds the whole Visite POV; "Fin seule" makes only the outro,
   // for videos the team filmed in person (Salif, 2026-10-10).
   const [mode, setMode] = useState<"full" | "outro">("full");
+  const presenterMode = isPresenter && mode === "full";
+  const [showPresenterOutro, setShowPresenterOutro] = useState(false);
+
+  /* ---- filmed clips (Présentateur dans le coin) ---- */
+  const [fieldClips, setFieldClips] = useState<
+    { state: "loading" } | { state: "ready"; clips: FieldClip[] } | { state: "unavailable" }
+  >({ state: "loading" });
+  const [clipIds, setClipIds] = useState<PresenterClips>(NO_CLIPS);
+  useEffect(() => setClipIds(readClips(conversationId)), [conversationId]);
+  const propertyId = property?.id ?? null;
+  useEffect(() => {
+    if (!isPresenter || !propertyId) return;
+    let cancelled = false;
+    setFieldClips({ state: "loading" });
+    void fetch(`/api/admin/studio/media?propertyId=${encodeURIComponent(propertyId)}`)
+      .then(async (res) => {
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const data = (await res.json()) as { media?: FieldClip[] };
+        if (!cancelled) setFieldClips({ state: "ready", clips: readyVideoClips(data.media ?? []) });
+      })
+      .catch((error: unknown) => {
+        console.warn("Studio: field clips unavailable", error instanceof Error ? error.message : error);
+        if (!cancelled) setFieldClips({ state: "unavailable" });
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isPresenter, propertyId]);
+  const clips = fieldClips.state === "ready" ? fieldClips.clips : [];
+  const walkClip = clips.find((c) => c.id === clipIds.walkthrough) ?? null;
+  const presenterClip = clips.find((c) => c.id === clipIds.presenter) ?? null;
+  const chooseClip = useCallback(
+    (which: keyof PresenterClips, id: string | null) => {
+      setClipIds((current) => {
+        const next = { ...current, [which]: id };
+        writeClips(conversationId, next);
+        return next;
+      });
+    },
+    [conversationId],
+  );
+  const presenterPlan = useMemo(
+    () =>
+      walkClip?.durationSeconds && presenterClip?.durationSeconds
+        ? planPresenterVideo(walkClip.durationSeconds, presenterClip.durationSeconds)
+        : null,
+    [walkClip?.durationSeconds, presenterClip?.durationSeconds],
+  );
   const listingOutro = useMemo(
     () => (property ? defaultOutro(property, CONTACT_NUMBER) : null),
     [property],
@@ -326,7 +442,7 @@ export function StudioEditor({
     [conversationId],
   );
   const music = tracks.find((t) => t.id === musicId) ?? null;
-  const musicLevel = mix.musicLevel ?? (withVoice ? MUSIC_ALONE : MUSIC_SOLO);
+  const musicLevel = mix.musicLevel ?? (withVoice || isPresenter ? MUSIC_ALONE : MUSIC_SOLO);
   const musicPoints = useMemo(
     () => musicEnvelope(total, withVoice ? { start: voiceDelay, end: voiceDelay + voiceSeconds } : null, musicLevel),
     [total, withVoice, voiceDelay, voiceSeconds, musicLevel],
@@ -518,13 +634,25 @@ export function StudioEditor({
   const shotIndex = inOutro ? -1 : shots.findIndex((s) => time >= s.start && time < s.end);
   const shot = shotIndex >= 0 ? shots[shotIndex] : null;
 
-  const renderSeconds = mode === "outro" ? OUTRO_ONLY_SECONDS : total;
+  const renderSeconds = mode === "outro" ? OUTRO_ONLY_SECONDS : presenterMode ? (presenterPlan?.total ?? 0) : total;
   const estimateUsd = estimateVideoCostUsd(renderSeconds);
+  const presenterBlocker = !presenterMode
+    ? null
+    : !walkClip || !presenterClip
+      ? "Choisissez les deux vidéos"
+      : walkClip.id === presenterClip.id
+        ? "Choisissez deux vidéos différentes"
+        : (presenterClip.durationSeconds ?? 0) > MAX_PRESENTER_SECONDS
+          ? "Présentateur trop long (3 min max)"
+          : null;
+  const needsSound = mode === "full" && !isPresenter && !withVoice && !music && !musicId;
   const blocker = !canWrite
     ? "Lecture seule"
-    : mode === "full" && !withVoice && !music && !musicId
+    : presenterBlocker
+      ? presenterBlocker
+      : needsSound
       ? "Ajoutez une voix off ou une musique"
-      : mode === "full" && photos.length === 0
+      : mode === "full" && !isPresenter && photos.length === 0
         ? "Ce bien n'a pas de photo"
         : videoRemainingUsd !== null && estimateUsd > videoRemainingUsd
           ? "Budget vidéo du mois atteint"
@@ -540,6 +668,8 @@ export function StudioEditor({
         body: JSON.stringify({
           conversation_id: conversationId,
           mode,
+          templateId,
+          ...(presenterMode ? { walkthroughMediaId: walkClip?.id, presenterMediaId: presenterClip?.id } : {}),
           photos,
           voice_delay: voiceDelay,
           use_voice: mix.useVoice,
@@ -587,7 +717,7 @@ export function StudioEditor({
     onCreate: () => void createVideo(),
     // Nothing to hear yet: the button opens the music drawer instead of sitting greyed out.
     fix:
-      canWrite && mode === "full" && !withVoice && !music && !musicId
+      canWrite && needsSound
         ? { label: "Choisir une musique", onClick: () => setMusicOpen(true) }
         : null,
     downloadUrl: latestVideo?.downloadUrl ?? null,
@@ -600,7 +730,7 @@ export function StudioEditor({
 
   if (!property) {
     return (
-      <EditorFrame templateLabel={template.label}>
+      <EditorFrame templateLabel={template.label} templateId={templateId} onTemplate={chooseTemplate}>
         <div className="flex flex-1 flex-col items-center justify-center gap-2 p-8 text-center text-neutral-500">
           <VideoCameraIcon size={28} weight="bold" className="text-neutral-400" />
           <p className="max-w-sm text-sm">
@@ -615,6 +745,8 @@ export function StudioEditor({
   return (
     <EditorFrame
       templateLabel={template.label}
+      templateId={templateId}
+      onTemplate={canWrite ? chooseTemplate : undefined}
       description={mode === "outro" ? `${OUTRO_ONLY_SECONDS} s à ajouter à la fin d'une vidéo filmée sur place.` : template.description}
       mode={mode}
       onMode={setMode}
@@ -644,7 +776,7 @@ export function StudioEditor({
         <aside className="flex flex-col border-neutral-200 p-3 md:border-r">
           {/* Folds instead of disappearing, so switching modes does not make the page jump. */}
           <AnimatePresence initial={false}>
-          {mode === "full" && (
+          {mode === "full" && !isPresenter && (
           <motion.div
             key="full-only"
             initial={{ height: 0, opacity: 0 }}
@@ -722,6 +854,68 @@ export function StudioEditor({
           </div>
           </motion.div>
           )}
+          {presenterMode && (
+          <motion.div
+            key="presenter-only"
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.26, ease: [0.22, 1, 0.36, 1] }}
+            className="overflow-hidden"
+          >
+          <div className="space-y-4 pb-4">
+            {fieldClips.state === "unavailable" ? (
+              <p className="rounded-lg bg-amber-50 px-2 py-2 text-xs text-amber-900">
+                Les vidéos filmées sur place ne sont pas encore disponibles dans le Studio. Ce modèle s&apos;ouvre dès
+                que l&apos;envoi des vidéos du terrain est en ligne.
+              </p>
+            ) : fieldClips.state === "loading" ? (
+              <p className="flex items-center gap-1.5 px-1 text-xs text-neutral-500">
+                <SpinnerGapIcon size={12} className="size-3 shrink-0 animate-spin" />
+                Chargement des vidéos du bien
+              </p>
+            ) : clips.length === 0 ? (
+              <p className="px-1 text-xs text-neutral-500">
+                Aucune vidéo prête pour ce bien. Envoyez d&apos;abord la vidéo de visite et celle du présentateur.
+              </p>
+            ) : (
+              <>
+                <ClipSelect
+                  label="Vidéo de visite (sans parole)"
+                  hint="Plein écran, sans le son."
+                  clips={clips}
+                  value={clipIds.walkthrough}
+                  other={clipIds.presenter}
+                  disabled={!canWrite}
+                  onChange={(id) => chooseClip("walkthrough", id)}
+                />
+                <ClipSelect
+                  label="Vidéo du présentateur"
+                  hint="Dans le coin, avec sa voix."
+                  clips={clips}
+                  value={clipIds.presenter}
+                  other={clipIds.walkthrough}
+                  disabled={!canWrite}
+                  onChange={(id) => chooseClip("presenter", id)}
+                />
+              </>
+            )}
+            {presenterPlan && (
+              <p className="px-1 text-xs text-neutral-500">
+                Durée : {clock(presenterPlan.total)}, dont {OUTRO_ONLY_SECONDS} s de fin.
+                {presenterPlan.looped ? " La visite est plus courte que le présentateur : elle repart du début." : ""}
+              </p>
+            )}
+            <LevelSlider
+              label="Volume du présentateur"
+              value={mix.voiceLevel}
+              max={MAX_VOICE_LEVEL}
+              disabled={!canWrite}
+              onChange={(value) => changeMix({ voiceLevel: value })}
+            />
+          </div>
+          </motion.div>
+          )}
           </AnimatePresence>
 
           <div className="space-y-4">
@@ -749,7 +943,7 @@ export function StudioEditor({
                 max={1}
                 disabled={!canWrite}
                 onChange={(value) => changeMix({ musicLevel: value })}
-                hint={withVoice ? "Baisse toute seule sous la voix." : undefined}
+                hint={withVoice || isPresenter ? "Baisse toute seule sous la voix." : undefined}
               />
             )}
             {musicJob && (
@@ -781,7 +975,9 @@ export function StudioEditor({
           {/* Absolute so the 9:16 frame takes the pane's height, never more. */}
           <div className="absolute inset-4 flex items-center justify-center">
           <div className="relative aspect-[9/16] h-full max-h-[520px] overflow-hidden rounded-2xl bg-neutral-900 shadow-lg">
-            {(mode === "outro" || inOutro) && outro ? (
+            {presenterMode && !showPresenterOutro ? (
+              <PresenterLayoutPreview walkName={walkClip?.fileName ?? null} presenterName={presenterClip?.fileName ?? null} />
+            ) : (mode === "outro" || (presenterMode ? showPresenterOutro : inOutro)) && outro ? (
               <OutroPreview outro={outro} />
             ) : shot ? (
               <ShotPreview shot={shot} time={time} />
@@ -789,7 +985,7 @@ export function StudioEditor({
               <span className="absolute inset-0 flex items-center justify-center text-xs text-neutral-400">Aucune photo</span>
             )}
             {/* The corner watermark steps aside during the outro, which shows the full logo. */}
-            {mode === "full" && !inOutro && (
+            {mode === "full" && !(presenterMode ? showPresenterOutro : inOutro) && (
               <span className="absolute right-2 top-2 flex size-8 items-center justify-center rounded-full bg-white/90 shadow">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img src="/logo.png?v=2" alt="" className="size-5 object-contain" />
@@ -797,11 +993,35 @@ export function StudioEditor({
             )}
           </div>
           </div>
+          {presenterMode && (
+            <div role="tablist" aria-label="Aperçu" className="absolute bottom-3 left-1/2 flex -translate-x-1/2 rounded-xl border border-neutral-200 bg-white p-0.5 shadow-sm">
+              {(
+                [
+                  [false, "Visite"],
+                  [true, "Fin"],
+                ] as const
+              ).map(([value, label]) => (
+                <button
+                  key={label}
+                  type="button"
+                  role="tab"
+                  aria-selected={showPresenterOutro === value}
+                  onClick={() => setShowPresenterOutro(value)}
+                  className={cn(
+                    "h-7 cursor-pointer rounded-[10px] px-3 text-xs font-semibold transition-colors",
+                    showPresenterOutro === value ? "bg-primary/10 text-[#b45a22]" : "text-neutral-500 hover:text-neutral-800",
+                  )}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
       </div>
 
       <AnimatePresence initial={false}>
-      {mode === "full" && (
+      {mode === "full" && !isPresenter && (
       <motion.div
         key="timeline"
         initial={{ height: 0, opacity: 0 }}
@@ -848,6 +1068,8 @@ export function StudioEditor({
 
 function EditorFrame({
   templateLabel,
+  templateId,
+  onTemplate,
   description,
   mode,
   onMode,
@@ -855,6 +1077,8 @@ function EditorFrame({
   children,
 }: {
   templateLabel: string;
+  templateId?: VideoTemplateId;
+  onTemplate?: (id: VideoTemplateId) => void;
   description?: string;
   mode?: "full" | "outro";
   onMode?: (mode: "full" | "outro") => void;
@@ -878,9 +1102,30 @@ function EditorFrame({
       <div className="flex flex-wrap items-center gap-2 border-b border-neutral-200 px-4 py-3">
         <FilmSlateIcon size={18} weight="bold" className="shrink-0 text-primary" />
         <h2 className="text-sm font-semibold text-neutral-900">Éditeur</h2>
-        <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
-          Modèle : {templateLabel}
-        </span>
+        {templateId && onTemplate ? (
+          <label className="relative inline-flex items-center rounded-full bg-primary/10 text-xs font-semibold text-primary">
+            <span className="sr-only">Modèle de vidéo</span>
+            <span aria-hidden className="pl-2.5">Modèle :</span>
+            <select
+              value={templateId}
+              onChange={(event) => {
+                if (isVideoTemplateId(event.target.value)) onTemplate(event.target.value);
+              }}
+              className="cursor-pointer appearance-none bg-transparent py-0.5 pl-1 pr-6 font-semibold text-primary outline-none focus-visible:underline"
+            >
+              {VIDEO_TEMPLATES.map((t) => (
+                <option key={t.id} value={t.id}>
+                  {t.label}
+                </option>
+              ))}
+            </select>
+            <CaretDownIcon size={12} weight="bold" aria-hidden className="pointer-events-none absolute right-2" />
+          </label>
+        ) : (
+          <span className="rounded-full bg-primary/10 px-2.5 py-0.5 text-xs font-semibold text-primary">
+            Modèle : {templateLabel}
+          </span>
+        )}
         {mode && onMode && (
           <div role="tablist" aria-label="Que créer" className="flex rounded-xl border border-neutral-200 bg-white p-0.5">
             {(
@@ -1171,6 +1416,80 @@ function OutroPreview({ outro }: { outro: OutroText }) {
       {outro.footer && (
         <p className="absolute inset-x-0 top-[91.7%] text-center text-[3.15cqw] font-extrabold" style={{ color: dim }}>{outro.footer}</p>
       )}
+    </div>
+  );
+}
+
+/* ---------- Présentateur dans le coin ---------- */
+
+/** One of the property's ready filmed clips; the one chosen in the other slot is marked. */
+function ClipSelect({
+  label,
+  hint,
+  clips,
+  value,
+  other,
+  disabled,
+  onChange,
+}: {
+  label: string;
+  hint: string;
+  clips: FieldClip[];
+  value: string | null;
+  other: string | null;
+  disabled?: boolean;
+  onChange: (id: string | null) => void;
+}) {
+  return (
+    <label className="block space-y-1 px-1">
+      <span className="block text-xs font-semibold text-neutral-500">{label}</span>
+      <select
+        value={value ?? ""}
+        disabled={disabled}
+        onChange={(event) => onChange(event.target.value || null)}
+        className="h-9 w-full cursor-pointer rounded-lg border border-neutral-200 bg-white px-2 text-sm text-neutral-800 disabled:cursor-not-allowed disabled:bg-neutral-50"
+      >
+        <option value="">Choisir une vidéo</option>
+        {clips.map((c) => (
+          <option key={c.id} value={c.id}>
+            {c.fileName} · {clock(c.durationSeconds ?? 0)}
+            {c.id === other ? " (déjà choisie)" : ""}
+          </option>
+        ))}
+      </select>
+      <span className="block text-[11px] text-neutral-400">{hint}</span>
+    </label>
+  );
+}
+
+/**
+ * Where the presenter's window sits, drawn from the same numbers as the render
+ * (presenterRect), in percent of the 1080x1920 frame.
+ */
+function PresenterLayoutPreview({ walkName, presenterName }: { walkName: string | null; presenterName: string | null }) {
+  const box = presenterRect();
+  const pct = (value: number, of: number) => `${(value / of) * 100}%`;
+  return (
+    <div className="absolute inset-0 bg-[linear-gradient(160deg,#4a3f35,#2b241d)] [container-type:inline-size]">
+      <span className="absolute inset-x-[8%] top-[42%] text-center text-[4.4cqw] font-semibold text-white/70">
+        Vidéo de visite
+        <span className="mt-[1cqw] block truncate text-[3.3cqw] font-normal text-white/50">{walkName ?? "à choisir"}</span>
+      </span>
+      <span
+        className="absolute flex flex-col items-center justify-center overflow-hidden bg-[#6b5a4a] text-center shadow-[0_6px_16px_rgba(0,0,0,.4)]"
+        style={{
+          left: pct(box.x, VIDEO_SIZE.width),
+          top: pct(box.y, VIDEO_SIZE.height),
+          width: pct(box.w, VIDEO_SIZE.width),
+          height: pct(box.h, VIDEO_SIZE.height),
+          borderRadius: `${(box.radius / VIDEO_SIZE.width) * 100}cqw`,
+          border: `${(box.border / VIDEO_SIZE.width) * 100}cqw solid #fff`,
+        }}
+      >
+        <VideoCameraIcon weight="bold" className="size-[6cqw] text-white/80" />
+        <span className="mt-[1cqw] px-[1.5cqw] text-[2.8cqw] font-semibold leading-tight text-white/90">Présentateur</span>
+        {presenterName && <span className="w-full truncate px-[1.5cqw] text-[2.4cqw] text-white/60">{presenterName}</span>}
+      </span>
     </div>
   );
 }

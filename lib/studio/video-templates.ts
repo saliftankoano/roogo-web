@@ -5,7 +5,7 @@
 // page, because a HyperFrames composition's length is read from the markup
 // before any script runs. The page is then rendered in the HeyGen cloud.
 
-export type VideoTemplateId = "visite-pov";
+export type VideoTemplateId = "visite-pov" | "presentateur-coin";
 
 export const VIDEO_TEMPLATES: { id: VideoTemplateId; label: string; description: string }[] = [
   {
@@ -14,7 +14,17 @@ export const VIDEO_TEMPLATES: { id: VideoTemplateId; label: string; description:
     description:
       "Les photos du bien comme une visite, la voix off, puis le prix et le numéro à appeler.",
   },
+  {
+    id: "presentateur-coin",
+    label: "Présentateur dans le coin",
+    description:
+      "La vidéo de visite en plein écran, le présentateur qui parle dans un coin, puis le prix et le numéro à appeler.",
+  },
 ];
+
+export function isVideoTemplateId(value: unknown): value is VideoTemplateId {
+  return VIDEO_TEMPLATES.some((t) => t.id === value);
+}
 
 /**
  * HeyGen bills HyperFrames renders by output length. Measured on our account on
@@ -250,11 +260,27 @@ export function buildVisitePov(input: VisitePovInput): {
   return compose(input, { total, outroFrom, shots, delay });
 }
 
+/**
+ * What another template puts under the outro instead of the photos. Absent for
+ * Visite POV and Fin seule, whose pages must stay exactly as they were.
+ */
+type Scene = {
+  id: string;
+  title: string;
+  css: string;
+  html: string;
+  tweens: string;
+  musicPoints: Point[];
+};
+
 function compose(
   input: VisitePovInput,
   plan: { total: number; outroFrom: number; shots: Shot[]; delay: number | null },
+  scene?: Scene,
 ): { html: string; durationSeconds: number; shots: Shot[] } {
   const { total, outroFrom, shots, delay } = plan;
+  const compositionId = scene?.id ?? "visite-pov";
+  const hasScene = shots.length > 0 || Boolean(scene);
   const o = input.outro;
   const XF = CROSSFADE;
   // One or two numbers; two are stacked and a little smaller so the outro keeps its balance.
@@ -298,7 +324,7 @@ function compose(
     delay !== null && input.voiceUrl ? { start: delay, end: delay + input.voiceSeconds } : null;
   const musicLane = JSON.stringify({
     version: 1,
-    lanes: [{ target: "volume", points: musicEnvelope(total, voiceSpan, input.musicLevel) }],
+    lanes: [{ target: "volume", points: scene?.musicPoints ?? musicEnvelope(total, voiceSpan, input.musicLevel) }],
   });
   const voiceGain = round(VOICE_GAIN * clampVoiceLevel(input.voiceLevel ?? 1));
   const music = input.musicUrl
@@ -310,7 +336,7 @@ function compose(
   <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=${VIDEO_SIZE.width}, height=${VIDEO_SIZE.height}">
-    <title>Roogo ${shots.length ? "Visite POV" : "Fin de vidéo"}</title>
+    <title>Roogo ${scene?.title ?? (shots.length ? "Visite POV" : "Fin de vidéo")}</title>
     <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@700;800;900&family=Urbanist:wght@700&display=block" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/gsap@3.14.2/dist/gsap.min.js"></script>
     <style>
@@ -349,13 +375,13 @@ function compose(
       .contact.two .phone-pill { margin-top: 20px; padding: 22px 52px; font-size: 68px; }
       .phone-pill { display: inline-block; margin-top: 26px; background: ${o.backgroundUrl ? "#cb7215" : "#2b241d"}; border-radius: 100px;
         padding: 26px 60px; font-size: 80px; font-weight: 900; color: #fff; letter-spacing: 2px; line-height: 1; }
-      .footer { top: 1760px; font-size: 34px; font-weight: 800; color: ${OUTRO_COLORS.support}; letter-spacing: 1px; }
+      .footer { top: 1760px; font-size: 34px; font-weight: 800; color: ${OUTRO_COLORS.support}; letter-spacing: 1px; }${scene ? `\n${scene.css}` : ""}
     </style>
   </head>
   <body>
-    <div id="root" data-composition-id="visite-pov" data-start="0" data-width="${VIDEO_SIZE.width}" data-height="${VIDEO_SIZE.height}" data-duration="${n(total)}">
-${shotHtml}${
-        shots.length
+    <div id="root" data-composition-id="${compositionId}" data-start="0" data-width="${VIDEO_SIZE.width}" data-height="${VIDEO_SIZE.height}" data-duration="${n(total)}">
+${scene ? scene.html : shotHtml}${
+        hasScene
           ? `\n      <div id="wm" class="clip" data-start="0" data-duration="${n(outroFrom + XF / 2)}">\n        <div class="badge"><img src="${esc(input.logoUrl)}" alt=""></div>\n      </div>`
           : ""
       }
@@ -386,9 +412,9 @@ ${
       }${music}
       <script>
         const tl = gsap.timeline({ paused: true });
-${shotTweens}
+${scene ? scene.tweens : shotTweens}
         const o = ${n(outroAt)};
-        ${shots.length ? `tl.fromTo("#outro", { opacity: 0 }, { opacity: 1, duration: ${XF}, ease: "none" }, o);` : `tl.set("#outro", { opacity: 1 }, 0);`}
+        ${hasScene ? `tl.fromTo("#outro", { opacity: 0 }, { opacity: 1, duration: ${XF}, ease: "none" }, o);` : `tl.set("#outro", { opacity: 1 }, 0);`}
         tl.fromTo("#logo-glow", { opacity: 0, scale: 0.4 }, { opacity: 1, scale: 1, duration: 0.5, ease: "power2.out" }, o + 0.1);
         tl.to("#logo-glow", { opacity: 0, scale: 1.6, duration: 1.0, ease: "power2.out" }, o + 0.65);
         tl.fromTo("#logo-badge", { opacity: 0 }, { opacity: 1, duration: 0.55, ease: "power2.out" }, o + 0.15);
@@ -409,7 +435,7 @@ ${shotTweens}
             : ""
         }
         window.__timelines = window.__timelines || {};
-        window.__timelines["visite-pov"] = tl;
+        window.__timelines["${compositionId}"] = tl;
         tl.seek(0);
       </script>
     </div>
@@ -422,16 +448,22 @@ ${shotTweens}
 
 /**
  * File name for a downloaded studio video, read like a real title:
- * "Roogo - Maison à vendre, Koubri - Visite du bien.mp4" or "... - Fin de vidéo.mp4".
- * `label` is the stored artifact text ("Visite POV · <bien>" or "Fin seule · <bien>").
+ * "Roogo - Maison à vendre, Koubri - Visite du bien.mp4", "... - Fin de vidéo.mp4" or
+ * "... - Visite avec présentateur.mp4". `label` is the stored artifact text
+ * ("Visite POV · <bien>", "Fin seule · <bien>" or "Présentateur · <bien>").
  */
 export function videoDownloadName(label: string, fallbackTitle = ""): string {
   const [kind, ...rest] = label.split("·").map((part) => part.trim());
   const place = rest.join(" ").trim();
-  const what = /^fin/i.test(kind) || /^fin/i.test(fallbackTitle) ? "Fin de vidéo" : "Visite du bien";
+  const what =
+    /^fin/i.test(kind) || /^fin/i.test(fallbackTitle)
+      ? "Fin de vidéo"
+      : /^présentateur/i.test(kind) || /présentateur/i.test(fallbackTitle)
+        ? "Visite avec présentateur"
+        : "Visite du bien";
   const clean = (text: string) =>
     text.replace(/[^\p{L}\p{N} ,'()-]/gu, " ").replace(/\s+/g, " ").trim();
-  const subject = clean(place || (kind && !/^(visite pov|fin seule)$/i.test(kind) ? kind : ""));
+  const subject = clean(place || (kind && !/^(visite pov|fin seule|présentateur)$/i.test(kind) ? kind : ""));
   return subject ? `Roogo - ${subject} - ${what}.mp4` : `Roogo - ${what}.mp4`;
 }
 
@@ -511,4 +543,217 @@ export function musicLevelAt(points: Point[], t: number): number {
     if (t <= b.t) return a.v + ((b.v - a.v) * (t - a.t)) / (b.t - a.t || 1);
   }
   return points[points.length - 1].v;
+}
+
+/* ---------- Présentateur dans le coin (Ablassé, 2026-10-11) ---------- */
+
+export type PresenterCorner = "bottom-right" | "bottom-left" | "top-right" | "top-left";
+
+/**
+ * Where the presenter's window sits. These are DEFAULTS chosen before Ablassé's
+ * example video arrived: change them here once it does. Pixels are on the
+ * 1080x1920 frame.
+ */
+export const PRESENTER_LAYOUT = {
+  corner: "bottom-right" as PresenterCorner,
+  /** Window width as a share of the frame width. */
+  widthRatio: 0.32,
+  /** Height over width: 4:3 portrait shows a phone-filmed presenter head and shoulders. */
+  heightOverWidth: 4 / 3,
+  /** Distance from the side edge. */
+  sideMargin: 48,
+  /** Distance from the bottom edge: clear of captions and the post text on Reels and TikTok. */
+  bottomMargin: 300,
+  /** Distance from the top edge for a top corner, below the Roogo badge. */
+  topMargin: 90,
+  radius: 36,
+  border: 6,
+  /** Where the presenter's face usually is in the clip (CSS object-position). */
+  focus: "50% 30%",
+} as const;
+
+/** The Roogo badge, top-right (same box as the Visite POV watermark). */
+export const BADGE_BOX = { x: 1080 - 68 - 116, y: 90, w: 116, h: 116 } as const;
+const BADGE_CLEARANCE = 32;
+
+export type Rect = { x: number; y: number; w: number; h: number };
+
+/** The window's box on the frame, kept clear of the Roogo badge. */
+export function presenterRect(layout: Partial<typeof PRESENTER_LAYOUT> = {}): Rect & { radius: number; border: number } {
+  const l = { ...PRESENTER_LAYOUT, ...layout };
+  const w = Math.round(VIDEO_SIZE.width * Math.min(0.6, Math.max(0.15, l.widthRatio)));
+  const h = Math.round(w * l.heightOverWidth);
+  const right = l.corner.endsWith("right");
+  const x = right ? VIDEO_SIZE.width - l.sideMargin - w : l.sideMargin;
+  let y = l.corner.startsWith("bottom") ? VIDEO_SIZE.height - l.bottomMargin - h : l.topMargin;
+  // A top-right window would cover the badge: it starts below it.
+  if (right && !l.corner.startsWith("bottom")) y = Math.max(y, BADGE_BOX.y + BADGE_BOX.h + BADGE_CLEARANCE);
+  return { x, y, w, h, radius: l.radius, border: l.border };
+}
+
+export function rectsOverlap(a: Rect, b: Rect): boolean {
+  return a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+}
+
+/** The presenter's window appears this long after the first frame, so the house is seen first. */
+export const PRESENTER_START = 0.3;
+/** Pause after the presenter's last word before the outro. */
+export const PRESENTER_TAIL = 0.4;
+/** Clips shorter or longer than this are refused (a 3-minute presenter costs about $0.37). */
+export const MIN_CLIP_SECONDS = 2;
+export const MAX_PRESENTER_SECONDS = 180;
+
+export type WalkSegment = { start: number; duration: number };
+
+export type PresenterPlan = {
+  total: number;
+  presenterStart: number;
+  presenterEnd: number;
+  outroFrom: number;
+  /** The walkthrough's pieces, back to back: one when it is long enough, a loop otherwise. */
+  walk: WalkSegment[];
+  looped: boolean;
+};
+
+/**
+ * Timing of a Présentateur video. The presenter clip sets the length; the outro
+ * follows it. A walkthrough longer than needed is cut where the outro covers it.
+ * A shorter one LOOPS from its start (chosen over freezing the last frame: a
+ * frozen house reads as a broken video, a loop keeps moving, and HyperFrames can
+ * only hold a final frame with a pre-extracted still, which we cannot make for a
+ * clip that only HeyGen downloads).
+ */
+export function planPresenterVideo(walkthroughSeconds: number, presenterSeconds: number): PresenterPlan {
+  const walkLength = Math.max(MIN_CLIP_SECONDS, walkthroughSeconds);
+  const presenterEnd = round(PRESENTER_START + presenterSeconds);
+  const outroFrom = round(presenterEnd + PRESENTER_TAIL);
+  const total = round(outroFrom + OUTRO_ONLY_SECONDS);
+  // The walkthrough stays under the outro until the crossfade has finished.
+  const needed = round(outroFrom + CROSSFADE / 2);
+  const walk: WalkSegment[] = [];
+  for (let start = 0; start < needed - 0.01; start = round(start + walkLength)) {
+    walk.push({ start, duration: round(Math.min(walkLength, needed - start)) });
+  }
+  return { total, presenterStart: PRESENTER_START, presenterEnd, outroFrom, walk, looped: walk.length > 1 };
+}
+
+/**
+ * The music in a Présentateur video: under the presenter's voice from the first
+ * second (the presenter speaks almost at once), up after the last word, faded out.
+ */
+export function presenterMusicEnvelope(plan: PresenterPlan, level: number = MUSIC_ALONE): Point[] {
+  const alone = clampMusicLevel(level);
+  const under = round(alone * DUCK);
+  const fadeOutAt = Math.max(plan.presenterEnd + RAMP, plan.total - FADE_OUT);
+  const points: Point[] = [
+    { t: 0, v: 0 },
+    { t: FADE_IN, v: under },
+    { t: plan.presenterEnd, v: under },
+    { t: plan.presenterEnd + RAMP, v: alone },
+    { t: fadeOutAt, v: alone },
+    { t: plan.total, v: 0 },
+  ];
+  const out: Point[] = [];
+  for (const p of points) {
+    const t = round(p.t);
+    if (out.length && t <= out[out.length - 1].t) continue;
+    out.push({ t, v: p.v });
+  }
+  return out;
+}
+
+export type PresenterCornerInput = {
+  walkthroughUrl: string;
+  walkthroughSeconds: number;
+  presenterUrl: string;
+  presenterSeconds: number;
+  /** The presenter's level, 1 = as filmed. */
+  voiceLevel?: number;
+  musicUrl?: string | null;
+  musicLevel?: number;
+  logoUrl: string;
+  outro: OutroText;
+  layout?: Partial<typeof PRESENTER_LAYOUT>;
+};
+
+export function buildPresenterCorner(input: PresenterCornerInput): {
+  html: string;
+  durationSeconds: number;
+  plan: PresenterPlan;
+} {
+  const plan = planPresenterVideo(input.walkthroughSeconds, input.presenterSeconds);
+  const box = presenterRect(input.layout);
+  const focus = input.layout?.focus ?? PRESENTER_LAYOUT.focus;
+  const presenterVolume = clampVoiceLevel(input.voiceLevel ?? 1);
+
+  // Each loop of the walkthrough is its own timed <video>, so every frame is
+  // seekable; all read the same file from its start, sound off.
+  const walkHtml = plan.walk
+    .map(
+      (s, i) =>
+        `      <video id="walk-${i}" class="clip walk" src="${esc(input.walkthroughUrl)}" muted playsinline data-start="${n(s.start)}" data-duration="${n(s.duration)}" data-media-start="0" data-track-index="0"></video>`,
+    )
+    .join("\n");
+  // The window is a plain (untimed) box; the timed video sits inside it and
+  // carries the presenter's sound.
+  const html = `${walkHtml}
+      <div id="pip" class="pip">
+        <video id="presenter" class="clip" src="${esc(input.presenterUrl)}" playsinline data-has-audio="true" data-start="${n(plan.presenterStart)}" data-duration="${n(input.presenterSeconds)}" data-media-start="0" data-track-index="5" data-volume="${presenterVolume}"></video>
+      </div>`;
+  const css = `      .walk { width: 100%; height: 100%; object-fit: cover; background: #111; }
+      .pip { position: absolute; left: ${box.x}px; top: ${box.y}px; width: ${box.w}px; height: ${box.h}px; z-index: 40; overflow: hidden;
+        border-radius: ${box.radius}px; border: ${box.border}px solid #fff; background: #222; box-shadow: 0 18px 44px rgba(0,0,0,.38), 0 4px 12px rgba(0,0,0,.25); opacity: 0; }
+      .pip video { width: 100%; height: 100%; object-fit: cover; object-position: ${focus}; }`;
+  const tweens = [
+    `tl.fromTo("#pip", { opacity: 0, scale: 0.86 }, { opacity: 1, scale: 1, duration: 0.45, ease: "back.out(1.6)" }, ${n(plan.presenterStart)});`,
+    `tl.to("#pip", { opacity: 0, scale: 0.94, duration: 0.3, ease: "power2.in" }, ${n(plan.presenterEnd)});`,
+  ]
+    .map((line) => "        " + line)
+    .join("\n");
+
+  const { html: page, durationSeconds } = compose(
+    { ...input, photos: [], voiceUrl: "", voiceSeconds: 0 },
+    { total: plan.total, outroFrom: plan.outroFrom, shots: [], delay: null },
+    {
+      id: "presentateur-coin",
+      title: "Présentateur dans le coin",
+      css,
+      html,
+      tweens,
+      musicPoints: presenterMusicEnvelope(plan, input.musicLevel),
+    },
+  );
+  return { html: page, durationSeconds, plan };
+}
+
+/** The title a finished render gets in the project, from what was rendered. */
+export function videoArtifactTitle(input: { mode?: string; template?: string }): string {
+  if (input.mode === "outro") return "Fin seule";
+  return input.template === "presentateur-coin" ? "Vidéo du bien (Présentateur)" : "Vidéo du bien (Visite POV)";
+}
+
+/** A filmed clip as GET /api/admin/studio/media lists it (FieldMediaDto in lib/studio/field-media.ts). */
+export type FieldClip = {
+  id: string;
+  kind: "photo" | "video" | "file";
+  fileName: string;
+  mimeType: string;
+  sizeBytes: number;
+  durationSeconds: number | null;
+  status: "uploading" | "ready" | "failed";
+  driveFileId: string | null;
+  createdAt: string;
+};
+
+/** The clips a Présentateur video can use: ready videos with a known length, newest first. */
+export function readyVideoClips(media: FieldClip[]): FieldClip[] {
+  return media
+    .filter(
+      (m) =>
+        m.kind === "video" &&
+        m.status === "ready" &&
+        typeof m.durationSeconds === "number" &&
+        m.durationSeconds >= MIN_CLIP_SECONDS,
+    )
+    .sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
