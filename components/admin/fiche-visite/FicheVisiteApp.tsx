@@ -425,7 +425,8 @@ export function FicheVisiteApp({ property, people, viewerId, server, openedById,
     : "";
 
   return (
-    <div className="fixed inset-0 z-[60] flex flex-col bg-[#F6F1EA] text-[#1F1A16] lg:static lg:z-auto lg:grid lg:h-[calc(100dvh-220px)] lg:min-h-[640px] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4 lg:bg-transparent">
+    // data-staff-fullscreen hides the staff navbar below lg (AdminNavbar): this full-screen layer can't paint over it from inside DashboardMotionFrame.
+    <div data-staff-fullscreen className="fixed inset-0 z-[60] flex flex-col bg-[#F6F1EA] text-[#1F1A16] lg:static lg:z-auto lg:grid lg:h-[calc(100dvh-220px)] lg:min-h-[640px] lg:grid-cols-[320px_minmax(0,1fr)] lg:gap-4 lg:bg-transparent">
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 -z-10 hidden bg-[#F6F1EA] lg:block" />
 
       {/* Desktop: property and the stepper (completed steps are clickable). */}
