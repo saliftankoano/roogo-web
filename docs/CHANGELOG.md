@@ -8,6 +8,7 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-22
 
+- **Goal follower numbers follow Statistiques** (web, branch `fix/social-readings-fresh`, not merged, no migration): every fresh Statistiques snapshot (6 h cron, « Actualiser ») and the TikTok connection write today's automatic Facebook, Instagram and TikTok follower readings (insert, or refresh today's automatic value; a manual reading of the day is never overwritten); the nightly cron uses the same rule. The follower sparkline ends on the live count, so the TikTok card draws its line from one stored reading. One shared TikTok logo (`components/admin/TikTokMark.tsx`) for Studio and the goal icons.
 - **Drawn signatures on the lease PDF** (web, branch `feat/signature-contrat-bail`, not merged, migration 103 not run; mobile pad in a separate PR): `POST /api/rental-agreements/[id]/sign` accepts an optional `signature` (PNG data URL or base64, 200 KB max), stores it in the private `agreement-signatures` bucket at `<agreement>/<role>.png` and its path on the agreement; `{ role }` alone still works for current app versions. The monthly PDF shows each drawing (140 x 50 pt box, aspect kept) under « Lu et approuvé. Signé électroniquement sur Roogo Burkina le JJ/MM/AAAA. » and above the signer's name.
 
 ## 2026-10-21

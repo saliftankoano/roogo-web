@@ -2,6 +2,7 @@
 
 import { useId } from "react";
 import { cn } from "@/lib/utils";
+import { TikTokMark } from "@/components/admin/TikTokMark";
 import { NETWORK_LABELS, type Network } from "@/lib/studio/publishing";
 
 /**
@@ -42,16 +43,9 @@ function InstagramLogo({ size }: { size: number }) {
   );
 }
 
+/** Shared with the goal icons on Accueil (components/admin/TikTokMark.tsx), so both look the same. */
 function TiktokLogo({ size }: { size: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
-      <rect width="24" height="24" rx="6" fill="#111" />
-      <path fill="#25F4EE" d="M10.3 10.6v-.8a5.9 5.9 0 0 0-.8-.06 5.2 5.2 0 0 0-2.9 9.5 5.2 5.2 0 0 1 3.7-8.64z" />
-      <path fill="#25F4EE" d="M10.45 17.6a2.35 2.35 0 0 0 2.35-2.27V4.55h1.98a3.8 3.8 0 0 1-.06-.69h-2.7v10.79a2.35 2.35 0 0 1-3.43 2.06 2.35 2.35 0 0 0 1.86.89zM18.4 8.3v-.75a3.7 3.7 0 0 1-2.05-.62 3.8 3.8 0 0 0 2.05 1.37z" />
-      <path fill="#FE2C55" d="M16.35 6.93a3.78 3.78 0 0 1-.94-2.5h-.72a3.8 3.8 0 0 0 1.66 2.5zM9.5 12.24a2.35 2.35 0 0 0-1.09 4.43 2.35 2.35 0 0 1 2.89-3.6v-2.47a5.2 5.2 0 0 0-.8-.06h-.12v1.88a2.35 2.35 0 0 0-.88-.18z" />
-      <path fill="#fff" d="M18.4 8.3v1.87a6.6 6.6 0 0 1-3.86-1.24v5.62a5.13 5.13 0 0 1-8 4.24 5.13 5.13 0 0 0 8.85-3.52V9.65a6.6 6.6 0 0 0 3.86 1.24V8.4a3.8 3.8 0 0 1-.85-.1zM14.54 13.55V7.93a6.6 6.6 0 0 0 3.86 1.24V8.3a3.8 3.8 0 0 1-2.05-1.37 3.8 3.8 0 0 1-1.66-2.5h-1.98v10.79a2.35 2.35 0 0 1-4.3 1.45 2.35 2.35 0 0 1 2.89-3.6v-1.89a5.13 5.13 0 0 0-3.71 8.66 5.13 5.13 0 0 0 8.95-3.53z" />
-    </svg>
-  );
+  return <TikTokMark size={size} />;
 }
 
 /** Messenger (Facebook private messages in Studio > Réseaux): the gradient bubble with the white lightning. */

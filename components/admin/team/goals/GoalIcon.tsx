@@ -4,9 +4,7 @@
 
 import { cn } from "@/lib/utils";
 import type { GoalIcon as GoalIconKind } from "@/lib/team-goals/core";
-
-const TIKTOK_PATH =
-  "M14.3 1h-3.4v13.6a2.9 2.9 0 1 1-2.9-2.9c.3 0 .6 0 .9.1V8.3a6.4 6.4 0 1 0 5.4 6.3V7.8a8 8 0 0 0 4.7 1.5V5.9A4.7 4.7 0 0 1 14.3 1z";
+import { TikTokMark } from "../../TikTokMark";
 
 export function GoalIcon({ kind, size = 36, className }: { kind: GoalIconKind; size?: number; className?: string }) {
   const box = cn("inline-flex shrink-0 items-center justify-center rounded-[10px]", className);
@@ -22,12 +20,9 @@ export function GoalIcon({ kind, size = 36, className }: { kind: GoalIconKind; s
       );
     case "tiktok":
       return (
-        <span aria-hidden="true" style={style} className={cn(box, "bg-black")}>
-          <svg width={inner} height={Math.round(inner * 1.1)} viewBox="0 0 20 22">
-            <path d={TIKTOK_PATH} fill="#25F4EE" transform="translate(-0.9,-0.6)" />
-            <path d={TIKTOK_PATH} fill="#FE2C55" transform="translate(0.9,0.6)" />
-            <path d={TIKTOK_PATH} fill="#FFFFFF" />
-          </svg>
+        // Same drawing as the Studio logo (components/admin/TikTokMark.tsx), clipped by the box corners.
+        <span aria-hidden="true" style={style} className={cn(box, "overflow-hidden bg-black")}>
+          <TikTokMark size={size} rounded={false} />
         </span>
       );
     case "facebook":
