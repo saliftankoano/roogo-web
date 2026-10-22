@@ -27,7 +27,7 @@ const VSL_POSTER_SRC = "/marketing/roogo-owner-handoff.jpg";
 
 const WHATSAPP_URL =
   "https://wa.me/22667006116?text=Bonjour%20Roogo%2C%20je%20suis%20propri%C3%A9taire%20et%20je%20veux%20publier%20mon%20bien.";
-const LISTING_URL = "/annonces/creer";
+const LISTING_URL = "/mes-proprietes";
 
 const pains = [
   {

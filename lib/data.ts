@@ -10,6 +10,7 @@ import { getCityLabel } from "./property-url";
 export type Property = {
   id: string;
   slug?: string | null;
+  reference?: string | null;
   owner_id?: string;
   location: string;
   address: string;
@@ -38,6 +39,7 @@ export type Property = {
   city?: string;
   quartier?: string;
   created_at?: string;
+  updated_at?: string;
   deposit?: number;
   loyerAvanceMois?: number;
   cautionType?: string;
@@ -52,6 +54,9 @@ export type Property = {
   longitude?: number | null;
   listingType?: "louer" | "vendre";
   ownershipVerified?: boolean;
+  /** Status vendu (migration 093): notary signature date and sale price. Admin view only. */
+  soldAt?: string | null;
+  soldPrice?: number | null;
   agent?: {
     full_name: string;
     phone: string;
@@ -68,6 +73,7 @@ export type Property = {
 interface DBProperty {
   id: string;
   slug?: string | null;
+  reference?: string | null;
   owner_id: string | null;
   quartier: string;
   city: string;
@@ -92,6 +98,7 @@ interface DBProperty {
   photo_limit: number | null;
   video_included: boolean | null;
   created_at: string;
+  updated_at?: string | null;
   agent_name: string | null;
   agent_phone: string | null;
   agent_email: string | null;
@@ -131,6 +138,7 @@ function mapProperty(p: DBProperty): Property {
   return {
     id: p.id,
     slug: p.slug || null,
+    reference: p.reference || null,
     owner_id: isSale ? undefined : p.owner_id || undefined,
     location: unescapeText(`${p.quartier}, ${getCityLabel(p.city)}`),
     address: unescapeText(p.address),
@@ -160,6 +168,7 @@ function mapProperty(p: DBProperty): Property {
     city: p.city,
     quartier: unescapeText(p.quartier),
     created_at: p.created_at,
+    updated_at: p.updated_at || undefined,
     deposit: p.caution_mois ?? p.deposit ?? undefined,
     loyerAvanceMois: p.loyer_avance_mois ?? 1,
     cautionType: p.caution_type || undefined,
@@ -509,6 +518,7 @@ const PROPERTY_STATUS_UPDATE_FALLBACK_ERROR =
 export async function updatePropertyStatus(
   id: string,
   status: string,
+  sold?: { soldAt: string; soldPrice: number | null },
 ): Promise<PropertyStatusUpdateResult> {
   try {
     const response = await fetch(`/api/properties/${id}/status`, {
@@ -516,7 +526,7 @@ export async function updatePropertyStatus(
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ status }),
+      body: JSON.stringify(sold ? { status, ...sold } : { status }),
     });
 
     if (!response.ok) {
@@ -567,10 +577,16 @@ export async function deleteProperty(id: string): Promise<boolean> {
 
 export async function updateProperty(
   id: string,
-  updates: Partial<Property>,
+  updates: Partial<Property> & {
+    /** Sale price below +10%: confirmations ticked by the founder or Directeur. */
+    priceConfirmations?: { discussed_with_salif?: boolean; owner_agreed?: boolean };
+  },
 ): Promise<{
   success: boolean;
   error?: string;
+  /** "sale_price_confirmation_required" when confirmations are missing. */
+  code?: string;
+  required?: string[];
   property?: Partial<Property>;
 }> {
   try {
@@ -587,7 +603,12 @@ export async function updateProperty(
       console.error("Error updating property:", text);
       try {
         const payload = JSON.parse(text);
-        return { success: false, error: payload.error };
+        return {
+          success: false,
+          error: payload.error,
+          code: typeof payload.code === "string" ? payload.code : undefined,
+          required: Array.isArray(payload.required) ? payload.required : undefined,
+        };
       } catch {
         return { success: false, error: text };
       }

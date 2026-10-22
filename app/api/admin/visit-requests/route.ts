@@ -5,7 +5,7 @@ import { supabaseAdmin } from "@/lib/supabase-admin";
 // Visit-request queue for the admin calendar. Defaults to pending ("requested").
 export async function GET(req: Request) {
   try {
-    const authResult = await requireStaffSupabaseUser();
+    const authResult = await requireStaffSupabaseUser("applications.view");
     if ("error" in authResult) return authResult.error;
 
     const { searchParams } = new URL(req.url);

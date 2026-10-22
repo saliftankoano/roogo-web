@@ -59,6 +59,7 @@ apply_migration*
 *.mjs
 !scripts/backfill-property-translations.mjs
 !scripts/test-property-requests-db.mjs
+!scripts/upload-studio-music.mjs
 !lib/*.test.mjs
 !lib/**/*.test.mjs
 !components/*.test.mjs

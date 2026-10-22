@@ -3,8 +3,16 @@ import { captureServerEvent } from "@/lib/posthog-server";
 import { notifyRentersOfNewMatchingProperty } from "@/lib/matching-property-notifications";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { getStaffOrFounder } from "@/lib/api-auth";
+import { getStaffOrFounder, userCan } from "@/lib/api-auth";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
+import { soldTransition } from "@/lib/property-status";
+import { checkListingQuality, listingQualityError } from "@/lib/listing-quality";
+import { isDirectorOrFounder, levelFor, titleFromStaffLevel } from "@/lib/team-tasks/core";
+
+/** Directeur or Fondateur: the account type for the founder, the staff level otherwise. */
+function canDecideSale(user: { user_type: string | null; staff_level?: string | null }) {
+  return isDirectorOrFounder(levelFor(user.user_type, titleFromStaffLevel(user.staff_level)));
+}
 
 export async function PATCH(
   request: NextRequest,
@@ -19,21 +27,33 @@ export async function PATCH(
     const { id: propertyId } = await params;
 
     const body = await request.json();
-    const { status } = body;
+    const { status, soldAt, soldPrice } = body as {
+      status?: unknown;
+      soldAt?: unknown;
+      soldPrice?: unknown;
+    };
 
-    if (!status) {
+    if (!status || typeof status !== "string") {
       return NextResponse.json(
         { error: "Missing required fields" },
         { status: 400 }
       );
     }
 
-    const updateData: Record<string, string | boolean | null> = { status };
+    // Putting a listing online is for founder, director and assistant.
+    if (status === "en_ligne" && !userCan(user, "listings.publish")) {
+      return NextResponse.json(
+        { error: "Forbidden", code: "insufficient_staff_level" },
+        { status: 403 },
+      );
+    }
+
+    const updateData: Record<string, string | number | boolean | null> = { status };
 
     const { data: existingProperty, error: propertyError } = await supabaseAdmin
       .from("properties")
       .select(
-        "agent_id, is_boosted, status, is_test, listing_type, property_type, ownership_verification_status",
+        "agent_id, is_boosted, status, is_test, listing_type, property_type, ownership_verification_status, description",
       )
       .eq("id", propertyId)
       .maybeSingle();
@@ -47,7 +67,59 @@ export async function PATCH(
       return NextResponse.json({ error: "Property not found" }, { status: 404 });
     }
 
+    // « Vendu »: Directeur or Fondateur only, sale listings only, with the
+    // notary signature date. Leaving vendu clears the sold fields.
+    if (status === "vendu" || existingProperty.status === "vendu") {
+      const sold = soldTransition({
+        next: status,
+        current: existingProperty.status,
+        listingType: existingProperty.listing_type,
+        isTest: existingProperty.is_test,
+        canDecideSale: canDecideSale(user),
+        soldAt,
+        soldPrice,
+        todayKey: new Date().toISOString().slice(0, 10),
+        actorId: user.id,
+      });
+      if (!sold.ok) {
+        return NextResponse.json(
+          { code: sold.code, error: sold.error },
+          { status: sold.status },
+        );
+      }
+      Object.assign(updateData, sold.fields);
+    }
+
     const isGoingLive = status === "en_ligne";
+
+    // Quality minimum (lib/listing-quality.ts): a listing goes live only with
+    // a real description and enough photos. Test listings are exempt.
+    if (
+      isGoingLive &&
+      existingProperty.status !== "en_ligne" &&
+      !existingProperty.is_test
+    ) {
+      const { count: photoCount, error: photoCountError } = await supabaseAdmin
+        .from("property_images")
+        .select("id", { count: "exact", head: true })
+        .eq("property_id", propertyId);
+      if (photoCountError) {
+        console.error("Error counting photos before publishing:", photoCountError);
+        return NextResponse.json({ error: "Photo count failed" }, { status: 500 });
+      }
+      const qualityError = listingQualityError(
+        checkListingQuality({
+          description: existingProperty.description,
+          photoCount: photoCount ?? 0,
+        }),
+      );
+      if (qualityError) {
+        return NextResponse.json(
+          { code: "listing_quality_minimum", error: qualityError },
+          { status: 409 },
+        );
+      }
+    }
 
     if (
       isGoingLive &&

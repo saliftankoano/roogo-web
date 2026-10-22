@@ -2,7 +2,9 @@ import { getStaffOrFounder } from "@/lib/api-auth";
 import { errorResponse } from "@/lib/api-helpers";
 import { checkRateLimit, studioChatLimiter } from "@/lib/rate-limit";
 import { supabaseAdmin } from "@/lib/supabase-admin";
-import { buildSystemPrompt, extractScript } from "@/lib/studio/chat-prompt";
+import { buildSystemPrompt, extractScript, glossaryPrompt } from "@/lib/studio/chat-prompt";
+import { loadGlossary } from "@/lib/studio/server";
+import { BUILTIN_RESPELLINGS } from "@/lib/studio/tts-prepare";
 import {
   canWriteConversation,
   loadConversation,
@@ -83,7 +85,7 @@ export async function POST(req: Request) {
       model,
       stream: true,
       messages: [
-        { role: "system", content: buildSystemPrompt(facts) },
+        { role: "system", content: buildSystemPrompt(facts, glossaryPrompt([...(await loadGlossary()), ...BUILTIN_RESPELLINGS])) },
         ...priorMessages.map((m) => ({ role: m.role, content: m.content })),
         { role: "user", content: message },
       ],

@@ -1,3 +1,4 @@
+import { userRowCan } from "@/lib/staff-access-server";
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { resolveClerkId } from "@/lib/request-auth";
@@ -19,6 +20,9 @@ export async function GET(req: Request) {
     if (!user) return errorResponse("User not found", 404, req);
     if (!isStaffLikeUserType(user.user_type)) {
       return errorResponse("Staff access only", 403, req);
+    }
+    if (!userRowCan(user, "support.reply")) {
+      return errorResponse("Forbidden", 403, req);
     }
 
     const { data, error } = await supabaseAdmin

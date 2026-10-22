@@ -2,7 +2,18 @@
 
 export const CONTACT_NUMBER = "+226 67 00 61 16";
 
-export function buildSystemPrompt(facts: string | null): string {
+/**
+ * The pronunciation glossary, told to the script model (council option C,
+ * approved 2026-10-10): it writes these words in their normal spelling every
+ * time, so the speech rules always find them. It never writes the phonetic form.
+ */
+export function glossaryPrompt(entries: ReadonlyArray<{ term: string; spoken: string }>): string {
+  if (!entries.length) return "";
+  const lines = entries.map((e) => `- ${e.term} (la voix dira « ${e.spoken} »)`).join("\n");
+  return `Prononciation: la voix corrige automatiquement ces mots. Dans le script, écris-les toujours avec cette orthographe exacte, jamais sous leur forme phonétique:\n${lines}\nÉcris les prix en chiffres suivis de FCFA (exemple: 50 000 000 FCFA) et les numéros de téléphone en chiffres.`;
+}
+
+export function buildSystemPrompt(facts: string | null, glossary = ""): string {
   const rules = `Tu aides l'équipe Roogo à écrire des scripts de voix off en français pour des vidéos immobilières à Ouagadougou.
 
 Règles du script:
@@ -22,7 +33,7 @@ Format de réponse:
     ? `Voici les informations du bien. Elles sont la seule source de faits:\n${facts}`
     : "Aucun bien n'est sélectionné. Demande à l'équipe de choisir un bien ou de te donner les informations.";
 
-  return `${rules}\n\n${property}`;
+  return [rules, glossary, property].filter(Boolean).join("\n\n");
 }
 
 /** Returns the last script block of a reply, or null when there is none. */

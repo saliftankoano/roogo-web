@@ -63,12 +63,32 @@ export async function POST(request: NextRequest) {
       [user.firstName, user.lastName].filter(Boolean).join(" ") ||
       "Staff Member";
 
+    // The shared code is being replaced by invitations (see /admin/acces/niveaux).
+    // Until it is switched off, it can only ever create the lowest level, and
+    // it must never touch a founder or lower someone who already has a level.
+    const currentType = String(user.publicMetadata?.userType ?? "");
+    if (currentType === "founder") {
+      return NextResponse.json({
+        success: true,
+        message: "This account is already the founder account",
+      });
+    }
+    if (currentType === "staff") {
+      return NextResponse.json({
+        success: true,
+        message: "This account is already staff",
+      });
+    }
+    const staffLevel = "intern" as const;
+
     // Update Clerk metadata
     const client = await clerkClient();
     
     await client.users.updateUser(userId, {
       publicMetadata: {
+        ...user.publicMetadata,
         userType: "staff",
+        staffLevel,
       },
       privateMetadata: {
         userType: "staff",
@@ -100,6 +120,7 @@ export async function POST(request: NextRequest) {
         .from("users")
         .update({ 
           user_type: "staff",
+          staff_level: staffLevel,
           clerk_id: userId
         })
         .eq("id", existingUser.id);
@@ -118,6 +139,7 @@ export async function POST(request: NextRequest) {
         full_name: fullName,
         avatar_url: user.imageUrl,
         user_type: "staff",
+        staff_level: staffLevel,
       });
 
       if (insertError) {
@@ -126,6 +148,7 @@ export async function POST(request: NextRequest) {
                 .from("users")
                 .update({ 
                     user_type: "staff",
+                    staff_level: staffLevel,
                     clerk_id: userId 
                 })
                 .match({ email: email });

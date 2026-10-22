@@ -8,7 +8,7 @@ import {
   getUsedThisMonthUsd,
   loadGlossary,
 } from "@/lib/studio/server";
-import { MAX_TTS_CHARACTERS, prepareForSpeech } from "@/lib/studio/tts-prepare";
+import { MAX_TTS_CHARACTERS, prepareForSpeechDetailed } from "@/lib/studio/tts-prepare";
 import { isVoiceUsable } from "@/lib/studio/voices";
 import { loadVoiceByKey } from "@/lib/studio/voices-server";
 
@@ -35,11 +35,13 @@ export async function POST(req: Request) {
     getMonthlyCapUsd(staff.id),
     getUsedThisMonthUsd(staff.id),
   ]);
-  const spoken = prepareForSpeech(text, glossary);
+  const { spoken, replacements } = prepareForSpeechDetailed(text, glossary);
 
   return cors(
     NextResponse.json({
       spokenCharacters: spoken.length,
+      spokenText: spoken,
+      replacements,
       maxCharacters: MAX_TTS_CHARACTERS,
       tooLong: spoken.length > MAX_TTS_CHARACTERS,
       estimateUsd: estimateVoiceoverCostUsd(spoken.length),

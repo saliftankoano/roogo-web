@@ -1,5 +1,6 @@
 "use client";
 import { useAuth, useUser } from "@clerk/nextjs";
+import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 
 import { useState, useEffect, useRef } from "react";
 import { PropertyDetailSkeleton } from "@/components/admin/skeletons";
@@ -17,6 +18,7 @@ import {
   WarningCircleIcon,
   EnvelopeIcon,
   PhoneIcon,
+  HashIcon,
   BuildingsIcon,
   FacebookLogoIcon,
   InfoIcon,
@@ -34,11 +36,18 @@ import {
   MagnifyingGlassIcon,
   FileTextIcon,
   KeyIcon,
+  ClipboardTextIcon,
 } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import PhotoManager from "@/components/admin/PhotoManager";
+import { ListingReadinessCard } from "@/components/admin/ListingReadinessCard";
 import PropertyOpenHouseManager from "@/components/admin/PropertyOpenHouseManager";
 import ImportExistingLeaseWizard from "@/components/admin/ImportExistingLeaseWizard";
+import StaffSaleLadder from "@/components/admin/StaffSaleLadder";
+import {
+  SALE_PRICE_CONFIRMATION_LABELS,
+  type SalePriceConfirmationKey,
+} from "@/lib/sale-price-guard";
 import {
   updatePropertyStatus,
   updateProperty,
@@ -52,6 +61,7 @@ import { cn } from "@/lib/utils";
 import { AnimatePresence, motion } from "framer-motion";
 import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { isStaffLikeMetadata } from "@/lib/user-types";
+import { propertyStatusLabel } from "@/lib/property-status";
 import {
   formatXofAmount,
   getDailyConditionRows,
@@ -206,15 +216,21 @@ const getPropertyTypeLabel = (type?: string) => {
 // this render is gated server-side in the page and client-side below.
 export default function AdminListingDetail({
   propertyId,
+  canMarkSold = false,
 }: {
   propertyId: string;
+  /** Directeur or Fondateur: may set or undo « Vendu » (checked again by the status route). */
+  canMarkSold?: boolean;
 }) {
   const id = propertyId;
   const router = useRouter();
   const [listing, setListing] = useState<Property | null>(null);
   const [saleIntake, setSaleIntake] = useState<SaleIntake | null>(null);
   const [activeLease, setActiveLease] = useState<ActiveLease | null>(null);
-  const [leaseDocuments, setLeaseDocuments] = useState<LeaseDocument[]>([]);
+  // null while the signed links are loading.
+  const [leaseDocuments, setLeaseDocuments] = useState<
+    LeaseDocument[] | null
+  >(null);
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [importLeaseOpen, setImportLeaseOpen] = useState(false);
@@ -236,8 +252,18 @@ export default function AdminListingDetail({
   const [confirmEditModalOpen, setConfirmEditModalOpen] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [editError, setEditError] = useState<string | null>(null);
+  // Sale price below +10% (rule of 2026-10-17): confirmations the server asked
+  // for, and the boxes ticked. The server refuses the save until they are.
+  const [requiredPriceConfirmations, setRequiredPriceConfirmations] = useState<
+    SalePriceConfirmationKey[]
+  >([]);
+  const [priceConfirmations, setPriceConfirmations] = useState<
+    Partial<Record<SalePriceConfirmationKey, boolean>>
+  >({});
 
   const isStaffOrFounder = isStaffLikeMetadata(clerkUser?.publicMetadata);
+  const staffAccess = useStaffAccess();
+  const canViewFinances = staffAccess.can("finances.view");
 
   const startEditing = () => {
     if (!listing) return;
@@ -257,6 +283,8 @@ export default function AdminListingDetail({
       virtualTourUrl: listing.virtualTourUrl,
     });
     setEditError(null);
+    setRequiredPriceConfirmations([]);
+    setPriceConfirmations({});
     setIsEditing(true);
   };
 
@@ -374,10 +402,33 @@ export default function AdminListingDetail({
 
   const confirmSave = async () => {
     if (!listing) return;
+    if (
+      requiredPriceConfirmations.some((key) => priceConfirmations[key] !== true)
+    ) {
+      setConfirmEditModalOpen(false);
+      setEditError("Cochez les confirmations sous le prix pour enregistrer.");
+      return;
+    }
     setIsSaving(true);
-    const result = await updateProperty(listing.id, editForm);
+    const result = await updateProperty(listing.id, {
+      ...editForm,
+      priceConfirmations,
+    });
     setIsSaving(false);
+    if (!result.success && result.code === "sale_price_confirmation_required") {
+      setRequiredPriceConfirmations(
+        (result.required ?? []).filter(
+          (key): key is SalePriceConfirmationKey =>
+            key === "discussed_with_salif" || key === "owner_agreed",
+        ),
+      );
+      setConfirmEditModalOpen(false);
+      setEditError(result.error ?? "Confirmations requises pour ce prix.");
+      return;
+    }
     if (result.success) {
+      setRequiredPriceConfirmations([]);
+      setPriceConfirmations({});
       setListing({
         ...listing,
         ...editForm,
@@ -400,6 +451,9 @@ export default function AdminListingDetail({
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingStatus, setPendingStatus] = useState<string | null>(null);
+  // « Vendu »: notary signature date (default today) and sale price.
+  const [soldDate, setSoldDate] = useState("");
+  const [soldPrice, setSoldPrice] = useState("");
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Pending edit state (admin banner)
@@ -440,13 +494,16 @@ export default function AdminListingDetail({
           setAdminPendingEdit(pendingJson.pendingEdit ?? null);
         }
 
-        // Fetch transactions SECURELY via Server Action
-        const transactionsData = await getSecureTransactions(
-          id,
-          propertyData?.payment_id,
-          propertyData?.transaction_id,
-        );
-        setTransactions(transactionsData);
+        // Payment records are financial data (founder and director). Fetch
+        // them SECURELY via Server Action, and not at all for other levels.
+        if (canViewFinances) {
+          const transactionsData = await getSecureTransactions(
+            id,
+            propertyData?.payment_id,
+            propertyData?.transaction_id,
+          );
+          setTransactions(transactionsData);
+        }
       } catch (error) {
         console.error("Error loading data:", error);
       } finally {
@@ -468,7 +525,7 @@ export default function AdminListingDetail({
     return () => {
       document.removeEventListener("mousedown", handleClickOutside);
     };
-  }, [id, reloadTick]);
+  }, [id, canViewFinances, reloadTick]);
 
   // Signed lease files live in a private bucket; the API hands back
   // short-lived signed links for staff only.
@@ -478,6 +535,7 @@ export default function AdminListingDetail({
       return;
     }
     let cancelled = false;
+    setLeaseDocuments(null);
     (async () => {
       try {
         const token = await getToken();
@@ -485,7 +543,10 @@ export default function AdminListingDetail({
           `/api/rental-agreements/${activeLease.id}/import-documents`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
-        if (!response.ok) return;
+        if (!response.ok) {
+          if (!cancelled) setLeaseDocuments([]);
+          return;
+        }
         const payload = await response.json();
         const documents = Array.isArray(payload?.import?.documents)
           ? (payload.import.documents as LeaseDocument[])
@@ -493,6 +554,7 @@ export default function AdminListingDetail({
         if (!cancelled) setLeaseDocuments(documents);
       } catch (error) {
         console.error("Error loading lease documents:", error);
+        if (!cancelled) setLeaseDocuments([]);
       }
     })();
     return () => {
@@ -575,14 +637,35 @@ export default function AdminListingDetail({
     setIsUpdatingStatus(true);
     setStatusError(null);
     try {
-      const result = await updatePropertyStatus(listing.id, newStatus);
+      let sold: { soldAt: string; soldPrice: number | null } | undefined;
+      if (newStatus === "vendu") {
+        const digits = soldPrice.replace(/\s/g, "");
+        const price = digits ? Number(digits) : null;
+        if (!soldDate) {
+          setStatusError({ message: "Donnez la date de signature chez le notaire." });
+          return false;
+        }
+        if (price != null && (!Number.isFinite(price) || price < 0)) {
+          setStatusError({ message: "Le prix de vente doit être un nombre en FCFA." });
+          return false;
+        }
+        sold = { soldAt: soldDate, soldPrice: price };
+      }
+      const result = await updatePropertyStatus(listing.id, newStatus, sold);
       if (!result.success) {
         setStatusError({ message: result.error, code: result.code });
         return false;
       }
 
       setListing((current) =>
-        current ? { ...current, status: newStatus } : current,
+        current
+          ? {
+              ...current,
+              status: newStatus,
+              soldAt: sold ? `${sold.soldAt}T00:00:00.000Z` : null,
+              soldPrice: sold ? sold.soldPrice : null,
+            }
+          : current,
       );
       return true;
     } finally {
@@ -592,6 +675,12 @@ export default function AdminListingDetail({
 
   const initiateStatusChange = (newStatus: string) => {
     if (newStatus === listing?.status) return;
+    if (newStatus === "vendu") {
+      setSoldDate(new Date().toISOString().slice(0, 10));
+      setSoldPrice(
+        listing?.price ? String(Math.round(Number(listing.price)) || "") : "",
+      );
+    }
     setPendingStatus(newStatus);
     setStatusError(null);
     setIsStatusDropdownOpen(false);
@@ -621,32 +710,12 @@ export default function AdminListingDetail({
         return "En attente (Photo Pro)";
       case "en_ligne":
         return "En ligne (Publiée)";
-      case "expired":
-        return "Expirée (Louée/Vendue)";
-      case "locked":
-        return "Louée (Bail actif)";
-      case "finalized":
-        return "Louée (Finalisée)";
       default:
-        return status;
+        return propertyStatusLabel(status);
     }
   };
 
-  const getCleanStatusLabel = (status: string) => {
-    switch (status) {
-      case "en_attente":
-        return "En attente";
-      case "en_ligne":
-        return "En ligne";
-      case "expired":
-        return "Expirée";
-      case "locked":
-      case "finalized":
-        return "Louée";
-      default:
-        return status;
-    }
-  };
+  const getCleanStatusLabel = (status: string) => propertyStatusLabel(status);
   const getStatusColor = (status: string) => {
     switch (status) {
       case "en_ligne":
@@ -658,6 +727,8 @@ export default function AdminListingDetail({
       case "locked":
       case "finalized":
         return "bg-blue-50 text-blue-800 border-blue-200";
+      case "vendu":
+        return "bg-[#E4F1F8] text-[#155A78] border-[#B9DCEC]";
       default:
         return "bg-neutral-50 text-neutral-600 border-neutral-200";
     }
@@ -729,6 +800,41 @@ export default function AdminListingDetail({
                     ?
                   </p>
 
+                  {pendingStatus === "vendu" && (
+                    <div className="w-full space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left">
+                      <p className="text-xs text-neutral-600">
+                        Le bien compte comme vendu dans Nos objectifs à la date de signature.
+                      </p>
+                      <label className="flex flex-col gap-1 text-xs font-bold text-neutral-700">
+                        Date de signature chez le notaire
+                        <input
+                          type="date"
+                          required
+                          max={new Date().toISOString().slice(0, 10)}
+                          value={soldDate}
+                          onChange={(event) => setSoldDate(event.target.value)}
+                          className="h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900"
+                        />
+                      </label>
+                      <label className="flex flex-col gap-1 text-xs font-bold text-neutral-700">
+                        Prix de vente (FCFA)
+                        <input
+                          inputMode="numeric"
+                          value={soldPrice}
+                          onChange={(event) =>
+                            setSoldPrice(event.target.value.replace(/[^\d\s]/g, ""))
+                          }
+                          className="h-11 rounded-lg border border-neutral-200 bg-white px-3 text-sm font-medium text-neutral-900"
+                        />
+                      </label>
+                    </div>
+                  )}
+                  {listing.status === "vendu" && pendingStatus !== "vendu" && (
+                    <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900">
+                      La date et le prix de vente seront effacés, et le bien ne comptera plus comme vendu.
+                    </p>
+                  )}
+
                   {statusError && (
                     <div
                       role="alert"
@@ -737,7 +843,7 @@ export default function AdminListingDetail({
                       <p>{statusError.message}</p>
                       {statusError.code === "sale_mandate_required" && (
                         <Link
-                          href="/admin/sale-chat"
+                          href="/admin/discussions-vente"
                           className="mt-2 inline-flex font-semibold text-[#A84F1C] underline underline-offset-2"
                         >
                           Ouvrir les conversations ventes
@@ -1014,11 +1120,31 @@ export default function AdminListingDetail({
                 </>
               )}
             </div>
+            {listing.status === "vendu" && listing.soldAt && (
+              <p className="mt-1 text-xs font-bold text-[#155A78]">
+                Vendu, signé chez le notaire le{" "}
+                {new Date(listing.soldAt).toLocaleDateString("fr-FR", {
+                  day: "numeric",
+                  month: "long",
+                  year: "numeric",
+                  timeZone: "UTC",
+                })}
+                {listing.soldPrice != null &&
+                  ` pour ${formatXofAmount(listing.soldPrice)} FCFA`}
+              </p>
+            )}
           </div>
         </div>
-        <div className="flex gap-3 items-center">
+        <div className="flex flex-wrap gap-3 items-center">
           {isStaffOrFounder && (
             <>
+              <Link
+                href={`/admin/fiche-visite?bien=${listing.id}`}
+                className="inline-flex h-10 items-center gap-2 rounded-full bg-primary px-4 text-xs font-bold uppercase tracking-wider text-white transition-colors hover:bg-[#8A4924]"
+              >
+                <ClipboardTextIcon size={16} weight="bold" aria-hidden="true" />
+                Fiche de visite
+              </Link>
               {listing.listingType === "louer" &&
                 !isDailyRental(listing) &&
                 !activeLease && (
@@ -1057,16 +1183,24 @@ export default function AdminListingDetail({
               )}
             </>
           )}
-          <Button
-            variant="ghost"
-            className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
-            onClick={() => setDeleteModalOpen(true)}
-          >
-            Supprimer
-          </Button>
+          {staffAccess.can("listings.delete") && (
+            <Button
+              variant="ghost"
+              className="text-red-600 hover:bg-red-50 text-xs font-bold uppercase tracking-wider"
+              onClick={() => setDeleteModalOpen(true)}
+            >
+              Supprimer
+            </Button>
+          )}
           <div className="relative" ref={dropdownRef}>
             <Button
               onClick={() => setIsStatusDropdownOpen(!isStatusDropdownOpen)}
+              disabled={listing.status === "vendu" && !canMarkSold}
+              title={
+                listing.status === "vendu" && !canMarkSold
+                  ? "Seuls le Directeur et le Fondateur retirent le statut Vendu."
+                  : undefined
+              }
               className={cn(
                 "min-w-[180px] justify-between gap-2 border shadow-sm h-11 px-6 rounded-xl font-bold text-xs uppercase tracking-wider transition-all",
                 getStatusColor(listing.status),
@@ -1103,10 +1237,25 @@ export default function AdminListingDetail({
                     },
                     {
                       id: "expired",
-                      label: "Expirée (Louée/Vendue)",
+                      label: "Expirée",
                       color: "text-neutral-500",
                     },
-                  ].map((status) => (
+                    ...(isSaleListing && canMarkSold && !listing.is_test
+                      ? [
+                          {
+                            id: "vendu",
+                            label: "Vendu",
+                            color: "text-[#155A78]",
+                          },
+                        ]
+                      : []),
+                  ]
+                    .filter(
+                      (status) =>
+                        status.id !== "en_ligne" ||
+                        staffAccess.can("listings.publish"),
+                    )
+                    .map((status) => (
                     <button
                       key={status.id}
                       onClick={() => initiateStatusChange(status.id)}
@@ -1142,7 +1291,11 @@ export default function AdminListingDetail({
                 listing.status,
               )}
               onPhotosUpdated={(isPro) => {
-                if (isPro && listing.status !== "en_ligne") {
+                // A rented listing keeps its status when photos change.
+                if (
+                  isPro &&
+                  !["en_ligne", "locked", "finalized"].includes(listing.status)
+                ) {
                   initiateStatusChange("en_ligne");
                 }
               }}
@@ -1302,6 +1455,14 @@ export default function AdminListingDetail({
 
         {/* Sidebar */}
         <div className="space-y-8">
+          <ListingReadinessCard
+            propertyId={listing.id}
+            description={listing.description}
+            photoCount={listing.images.length}
+            isLive={listing.status === "en_ligne"}
+            isTest={Boolean(listing.is_test)}
+          />
+
           {/* Price Card */}
           <section className="bg-white p-8 rounded-[32px] border border-neutral-100 shadow-sm">
             <div className="flex items-center gap-3 mb-4">
@@ -1331,6 +1492,32 @@ export default function AdminListingDetail({
                   {getPricePeriodLabel(listing)}
                 </span>
               </p>
+            )}
+            {isEditing && isSaleListing && requiredPriceConfirmations.length > 0 && (
+              <fieldset className="mt-4 space-y-2 rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <legend className="px-1 text-xs font-bold text-amber-800">
+                  Prix sous +10 % : confirmations obligatoires
+                </legend>
+                {requiredPriceConfirmations.map((key) => (
+                  <label
+                    key={key}
+                    className="flex items-start gap-2 text-sm font-semibold text-neutral-800"
+                  >
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 h-4 w-4 accent-primary"
+                      checked={priceConfirmations[key] === true}
+                      onChange={(e) =>
+                        setPriceConfirmations((prev) => ({
+                          ...prev,
+                          [key]: e.target.checked,
+                        }))
+                      }
+                    />
+                    {SALE_PRICE_CONFIRMATION_LABELS[key]}
+                  </label>
+                ))}
+              </fieldset>
             )}
             {!isSaleListing && (
               <div className="mt-5 space-y-2 border-t border-neutral-100 pt-4 text-xs font-bold text-neutral-500">
@@ -1363,6 +1550,8 @@ export default function AdminListingDetail({
               </div>
             )}
           </section>
+
+          {isSaleListing && <StaffSaleLadder propertyId={listing.id} />}
 
           {saleIntake?.status === "unlinked" && (
             <section className="rounded-[32px] border border-amber-200 bg-amber-50 p-6">
@@ -1474,6 +1663,19 @@ export default function AdminListingDetail({
               </div>
 
               <div className="space-y-3 pt-2 border-t border-neutral-50">
+                {listing.reference && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
+                      <HashIcon size={16} weight="bold" />
+                    </div>
+                    <span
+                      title="Référence de l'annonce"
+                      className="font-mono font-semibold tracking-wide text-neutral-700"
+                    >
+                      {listing.reference}
+                    </span>
+                  </div>
+                )}
                 {listing.agent?.phone && (
                   <div className="flex items-center gap-3 text-sm">
                     <div className="w-8 h-8 rounded-lg bg-neutral-50 flex items-center justify-center text-neutral-400">
@@ -1614,7 +1816,7 @@ export default function AdminListingDetail({
                       Début du bail
                     </dt>
                     <dd className="mt-0.5 font-bold text-neutral-900">
-                      {formatLeaseDate(activeLease.startDate) ?? "—"}
+                      {formatLeaseDate(activeLease.startDate) ?? "Non précisé"}
                     </dd>
                   </div>
                   <div>
@@ -1666,7 +1868,7 @@ export default function AdminListingDetail({
                           : "text-neutral-900",
                       )}
                     >
-                      {formatLeaseDate(activeLease.rent.nextDueDate) ?? "—"}
+                      {formatLeaseDate(activeLease.rent.nextDueDate) ?? "Aucune"}
                       {isLeaseDueDatePast && (
                         <span className="block text-xs font-medium">
                           Échéance dépassée, paiement non enregistré
@@ -1686,7 +1888,11 @@ export default function AdminListingDetail({
                         </span>
                       )}
                     </p>
-                    {leaseDocuments.length > 0 ? (
+                    {leaseDocuments === null ? (
+                      <p className="mt-2 text-xs font-medium text-neutral-400">
+                        Chargement des documents…
+                      </p>
+                    ) : leaseDocuments.length > 0 ? (
                       <ul className="mt-2 space-y-1.5">
                         {leaseDocuments.map((document, index) => (
                           <li key={document.path}>
@@ -1706,7 +1912,7 @@ export default function AdminListingDetail({
                       </ul>
                     ) : (
                       <p className="mt-2 text-xs font-medium text-neutral-400">
-                        Chargement des documents…
+                        Aucun document joint
                       </p>
                     )}
                   </div>

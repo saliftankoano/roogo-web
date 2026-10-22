@@ -47,6 +47,7 @@ import {
   isDailyRental,
 } from "@/lib/rental-period";
 import { ROOGO_CONTACT } from "@/lib/roogo-contact";
+import { getPropertyHeadline, getPropertySummary } from "@/lib/property-url";
 
 function Portal({ children }: { children: React.ReactNode }) {
   const [mounted, setMounted] = useState(false);
@@ -76,6 +77,7 @@ const getStatusLabel = (status: string) => {
     case "locked": return "Reserve";
     case "finalized": return "Loue";
     case "expired": return "Indisponible";
+    case "vendu": return "Vendu";
     default: return status;
   }
 };
@@ -422,7 +424,7 @@ export function PropertyDetailClient({
                     Premium
                   </span>
                 )}
-                <h1 className="text-2xl font-bold text-neutral-900">{listing.location}</h1>
+                <h1 className="text-2xl font-bold text-neutral-900">{getPropertyHeadline(listing)}</h1>
                 <div className="flex items-center gap-2 text-xs text-neutral-500 mt-1 font-medium flex-wrap">
                   <MapPinIcon size={14} weight="bold" />
                   <span>{listing.location}</span>
@@ -430,6 +432,12 @@ export function PropertyDetailClient({
                     <>
                       <span className="text-neutral-300">|</span>
                       <span className="text-primary font-bold">{getPropertyTypeLabel(listing.propertyType)}</span>
+                    </>
+                  )}
+                  {listing.reference && (
+                    <>
+                      <span className="text-neutral-300">|</span>
+                      <span className="font-mono font-semibold tracking-wide text-neutral-500">Réf. {listing.reference}</span>
                     </>
                   )}
                 </div>
@@ -554,6 +562,10 @@ export function PropertyDetailClient({
                     <p className="text-neutral-600 leading-relaxed whitespace-pre-wrap text-sm">{listing.description}</p>
                   </div>
                 )}
+                <div>
+                  <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-3">En résumé</p>
+                  <p className="text-neutral-600 leading-relaxed text-sm">{getPropertySummary(listing)}</p>
+                </div>
                 {listing.amenities && listing.amenities.length > 0 && (
                   <div className="pt-6 border-t border-neutral-50">
                     <p className="text-[10px] font-bold text-neutral-400 uppercase tracking-widest mb-4">Equipements</p>

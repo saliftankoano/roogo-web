@@ -1,3 +1,4 @@
+import { userRowCan } from "@/lib/staff-access-server";
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { resolveClerkId } from "@/lib/request-auth";
@@ -54,6 +55,11 @@ export async function POST(req: Request) {
       user_type: user.user_type,
     });
     if (!role) return errorResponse("Forbidden", 403, req);
+    // An advisor reads sale threads and hands them to a director; only founder,
+    // director and assistant answer buyers and sellers.
+    if (role === "staff" && !userRowCan(user, "saleChat.reply")) {
+      return errorResponse("Forbidden", 403, req);
+    }
 
     const body = typeof payload.body === "string" ? payload.body.trim() : "";
     const rawAttachments = Array.isArray(payload.attachments)

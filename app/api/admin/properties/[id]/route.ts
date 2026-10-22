@@ -25,6 +25,7 @@ function mapAdminProperty(row: PropertyDetailsRow) {
 
   return {
     id: asString(row.id),
+    reference: asString(row.reference) || null,
     location: [quartier, city].filter(Boolean).join(", ") || asString(row.address),
     address: asString(row.address),
     price: asNumber(row.price),
@@ -185,10 +186,24 @@ export async function GET(
 
     const activeLease = await loadActiveLease(id);
 
+    // « Vendu » (migration 093): the views do not carry the sold columns, so
+    // read them from the table. Before 093 runs they are missing: no sale.
+    const { data: sold, error: soldError } = await supabaseAdmin
+      .from("properties")
+      .select("sold_at, sold_price")
+      .eq("id", id)
+      .maybeSingle();
+    if (soldError && soldError.code !== "42703") {
+      console.error("Error fetching sold fields:", { code: soldError.code, message: soldError.message });
+    }
+    const soldRow = soldError ? null : (sold as { sold_at: string | null; sold_price: number | null } | null);
+
     return cors(
       NextResponse.json({
         property: {
           ...mapAdminProperty(data),
+          soldAt: soldRow?.sold_at ?? null,
+          soldPrice: soldRow?.sold_price == null ? null : Number(soldRow.sold_price),
           saleIntake: intake ?? null,
           activeLease,
         },

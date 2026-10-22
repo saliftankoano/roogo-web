@@ -1,3 +1,9 @@
+import { userRowCan } from "@/lib/staff-access-server";
+import { getSaleLadderConfig } from "@/lib/sale-mandate";
+import {
+  DEFAULT_SALE_ECONOMICS,
+  publicPriceForNewListing,
+} from "@/lib/sale-economics";
 import { verifyToken } from "@clerk/backend";
 import { NextResponse } from "next/server";
 import {
@@ -741,8 +747,11 @@ export async function POST(req: Request) {
     // Hotels always start en_attente regardless of author: room types are created
     // AFTER the property, and a hotel cannot go live with zero bookable rooms
     // (the status route enforces >= 1 active room type at publication).
+    // A staff member whose level cannot publish (an advisor) writes the listing
+    // and an assistant or director puts it online.
+    const staffMayPublish = isStaffOrFounder && userRowCan(user, "listings.publish");
     const propertyStatus =
-      isStaffOrFounder && !isSaleListing && parsedListingData.type !== "hotel"
+      staffMayPublish && !isSaleListing && parsedListingData.type !== "hotel"
         ? "en_ligne"
         : "en_attente";
     const isTestListing = isStaffOrFounder
@@ -815,16 +824,24 @@ export async function POST(req: Request) {
       city: parsedListingData.ville,
     });
 
+    // A sale is published at the top of the price ladder (owner price + 30%,
+    // Salif 2026-10-11), never at the owner's own number. The owner's price is
+    // kept privately in sale_asking_prices (migration 096). Signing the mandate
+    // re-derives the public price from the mandate's desired_price.
+    // Rentals (daily or monthly) keep the entered price exactly as set: no
+    // markup, no approval rule (Salif, 2026-10-17).
+    const publicPrice = publicPriceForNewListing(
+      listingType,
+      parsedListingData.prixMensuel,
+      isSaleListing ? await getSaleLadderConfig() : DEFAULT_SALE_ECONOMICS,
+    );
+
     const propertyData = {
       agent_id: directOwner ? null : parsedListingData.owner_id || user.id,
       hotel_id: hotelId,
       slug: propertySlug,
       description: sanitizeString(parsedListingData.description) || null,
-      // For a sale, the wizard price is the owner's NET asking price; Roogo's public
-      // sale price is set later from the signed mandate. We seed `price` with the
-      // asking as a placeholder (never shown publicly while en_attente).
-      price: parsedListingData.prixMensuel,
-      seller_asking_price: isSaleListing ? parsedListingData.prixMensuel : null,
+      price: publicPrice,
       listing_type: listingType,
       property_type: parsedListingData.type,
       status: propertyStatus as "en_attente" | "en_ligne",
@@ -1004,6 +1021,24 @@ export async function POST(req: Request) {
         console.error("Error creating sale intake:", intakeError);
         await supabase.from("properties").delete().eq("id", propertyId);
         return errorResponse("Failed to create direct sale intake", 500, req);
+      }
+    }
+
+    if (isSaleListing) {
+      const { error: askingError } = await supabase
+        .from("sale_asking_prices")
+        .insert({
+          property_id: propertyId,
+          seller_asking_price: parsedListingData.prixMensuel,
+          source: "listing_wizard",
+        });
+      if (askingError) {
+        // Best effort: the owner's price is agreed in the mandate anyway. Never
+        // log the amount.
+        console.error("Could not store the private sale asking price:", {
+          propertyId,
+          code: askingError.code,
+        });
       }
     }
 

@@ -24,6 +24,12 @@ const nextConfig: NextConfig = {
       },
     ],
   },
+  // The ffmpeg binary is spawned at runtime (Studio video compression), so it
+  // must not be bundled and must ship with the route that uses it.
+  serverExternalPackages: ["ffmpeg-static"],
+  outputFileTracingIncludes: {
+    "/api/admin/studio/videos/[id]": ["./node_modules/ffmpeg-static/ffmpeg"],
+  },
   experimental: {
     serverActions: {
       bodySizeLimit: "25mb", // Increase body size limit for image uploads
@@ -35,6 +41,27 @@ const nextConfig: NextConfig = {
   },
   async redirects() {
     return [
+      // French addresses (Salif, 2026-10-11). Old links, bookmarks and payments
+      // already in progress keep working; query strings are carried over.
+      { source: "/onboarding", destination: "/bienvenue", permanent: true },
+      { source: "/admin/property-requests/:id/responses/:responseId/agreement", destination: "/admin/demandes-de-biens/:id/reponses/:responseId/accord", permanent: true },
+      { source: "/admin/property-requests", destination: "/admin/demandes-de-biens", permanent: true },
+      { source: "/admin/property-requests/:path+", destination: "/admin/demandes-de-biens/:path+", permanent: true },
+      { source: "/admin/visit-requests", destination: "/admin/demandes-de-visite", permanent: true },
+      { source: "/admin/visit-requests/:path+", destination: "/admin/demandes-de-visite/:path+", permanent: true },
+      { source: "/admin/ownership-verifications", destination: "/admin/verifications-propriete", permanent: true },
+      { source: "/admin/ownership-verifications/:path+", destination: "/admin/verifications-propriete/:path+", permanent: true },
+      { source: "/admin/hotel-verifications", destination: "/admin/verifications-hotels", permanent: true },
+      { source: "/admin/hotel-verifications/:path+", destination: "/admin/verifications-hotels/:path+", permanent: true },
+      { source: "/admin/hotel-events", destination: "/admin/evenements-hotels", permanent: true },
+      { source: "/admin/hotel-events/:path+", destination: "/admin/evenements-hotels/:path+", permanent: true },
+      { source: "/admin/sale-chat", destination: "/admin/discussions-vente", permanent: true },
+      { source: "/admin/sale-chat/:path+", destination: "/admin/discussions-vente/:path+", permanent: true },
+      { source: "/admin/support", destination: "/admin/assistance", permanent: true },
+      { source: "/admin/support/:path+", destination: "/admin/assistance/:path+", permanent: true },
+      // Access levels moved to /admin/acces (Salif, 2026-10-17).
+      { source: "/admin/equipe/niveaux", destination: "/admin/acces/niveaux", permanent: false },
+
       {
         source: "/tutoriels",
         destination: "/blog/tutoriels",

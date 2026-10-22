@@ -7,7 +7,7 @@ export const STUDIO_TTS_MODEL = "sonic-3.5";
 export const STUDIO_LANGUAGE = "fr";
 
 export type StudioVoiceStatus = "active" | "locked" | "pending" | "revoked";
-export type StudioVoiceKind = "system" | "cloned";
+export type StudioVoiceKind = "system" | "cloned" | "guest";
 
 export type StudioVoice = {
   id: string;
@@ -18,6 +18,9 @@ export type StudioVoice = {
   kind: StudioVoiceKind;
   ownerUserId: string | null;
   status: StudioVoiceStatus;
+  /** Guest voices: the person's name and the staff member who recorded them. */
+  guestName?: string | null;
+  addedBy?: string | null;
 };
 
 type Viewer = { id: string; user_type: string | null };
@@ -35,13 +38,17 @@ export function canAcceptVoiceTerms(
   return voice.status === "locked" && voice.ownerUserId === viewer.id;
 }
 
-/** The owner or a founder can withdraw a voice that is not already revoked. */
+/**
+ * The owner or a founder can withdraw a voice that is not already revoked.
+ * A guest voice can also be withdrawn by the staff member who recorded it.
+ */
 export function canRevokeVoice(
   viewer: Viewer,
-  voice: Pick<StudioVoice, "ownerUserId" | "status">,
+  voice: Pick<StudioVoice, "ownerUserId" | "status"> & Partial<Pick<StudioVoice, "kind" | "addedBy">>,
 ): boolean {
   if (voice.status === "revoked") return false;
-  return viewer.user_type === "founder" || voice.ownerUserId === viewer.id;
+  if (viewer.user_type === "founder" || voice.ownerUserId === viewer.id) return true;
+  return voice.kind === "guest" && Boolean(voice.addedBy) && voice.addedBy === viewer.id;
 }
 
 /**
