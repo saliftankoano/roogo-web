@@ -19,6 +19,7 @@ import {
   UsersThreeIcon,
   GiftIcon,
   DotsThreeCircleIcon,
+  SwatchesIcon,
 } from "@phosphor-icons/react";
 
 // One list for the staff bar, on admin pages and on public pages alike
@@ -204,6 +205,16 @@ const moreNavItems: AdminNavItem[] = [
     href: "/admin/parametres",
     id: "admin-nav-parametres",
     icon: GearIcon,
+    needs: ["settings.manage"],
+  },
+  // The admin style guide: founder-only, as when it was added (2026-10-08).
+  {
+    type: "link",
+    label: "Guide de style",
+    section: PILOT,
+    href: "/admin/style-guide",
+    id: "admin-nav-style-guide",
+    icon: SwatchesIcon,
     needs: ["settings.manage"],
   },
   {
