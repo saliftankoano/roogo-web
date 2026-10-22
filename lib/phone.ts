@@ -54,6 +54,22 @@ export function parseStoredPhone(
 }
 
 /**
+ * Format a stored E.164 phone number for display, grouped by pairs for
+ * Burkina Faso: "+22667006116" -> "+226 67 00 61 16".
+ * Falls back to the raw value when it cannot be parsed.
+ */
+export function formatPhoneDisplay(e164: string | null | undefined): string {
+  if (!e164) return "";
+  try {
+    const parsed = parsePhoneNumber(e164);
+    if (parsed) return parsed.format("INTERNATIONAL");
+  } catch {
+    // not a valid E.164
+  }
+  return e164;
+}
+
+/**
  * Check whether a stored E.164 phone number is valid for any country.
  */
 export function isValidStoredPhone(value: string | null | undefined): boolean {

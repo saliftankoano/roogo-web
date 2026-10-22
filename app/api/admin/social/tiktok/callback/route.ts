@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { exchangeCode, fetchTikTokProfile, hasStatsScope } from "@/lib/team-goals/tiktok";
 import { saveTikTokConnection, tiktokEnvConfig } from "@/lib/team-goals/tiktok-store";
 import { invalidateSocialSnapshot } from "@/lib/social/insights-server";
+import { writeFollowerReadings } from "@/lib/team-goals/follower-readings-server";
 import { STATE_COOKIE, backToStats, requireFounder } from "../_shared";
 
 function sameState(a: string | null | undefined, b: string | null | undefined) {
@@ -44,6 +45,12 @@ export async function GET(req: Request) {
     const e = error as { code?: string; message?: string };
     console.error("[tiktok] saving the connection failed", { code: e?.code, message: e?.message });
     return backToStats(req, "erreur");
+  }
+  // The TikTok goal updates right away: today's automatic reading from the
+  // first profile read (a manual reading of the day is kept). Non-fatal.
+  if (profile.ok) {
+    const write = await writeFollowerReadings([{ metric: "tiktok_followers", ok: true, value: profile.followerCount }]);
+    if (!write.ok) console.error("[tiktok] first follower reading not written", { error: write.error });
   }
   // The Statistiques snapshot said « not connected »: read again on the next visit.
   invalidateSocialSnapshot();

@@ -12,8 +12,10 @@ import { revalidateTag, unstable_cache } from "next/cache";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { metaConfigFromEnv } from "@/lib/studio/meta-graph";
 import { getFreshTikTokAccess } from "@/lib/team-goals/tiktok-store";
+import { writeFollowerReadings } from "@/lib/team-goals/follower-readings-server";
 import {
   SOCIAL_GRAPH_VERSION,
+  followerReadingsOf,
   followerTrend,
   frenchSocialError,
   graphGet,
@@ -80,7 +82,21 @@ export async function loadSocialSnapshot(): Promise<SocialSnapshot> {
   if (pageTokenWarning && !snapshot.facebook.warnings.includes(pageTokenWarning)) {
     snapshot.facebook.warnings.unshift(pageTokenWarning);
   }
+  await recordFollowerReadings(snapshot);
   return snapshot;
+}
+
+/**
+ * A fresh snapshot (6 h cron, « Actualiser », first visit after the cache
+ * expired) also refreshes today's automatic follower readings, so the goal
+ * cards on Accueil show the same numbers as Statistiques. A manual reading of
+ * the day is never overwritten. Non-fatal: a failure is logged, the snapshot stays.
+ */
+async function recordFollowerReadings(snapshot: SocialSnapshot) {
+  const results = followerReadingsOf(snapshot);
+  if (!results.length) return;
+  const write = await writeFollowerReadings(results);
+  if (!write.ok) log("[social-insights] follower readings write failed", { error: write.error });
 }
 
 class NotCacheable extends Error {

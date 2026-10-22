@@ -16,6 +16,7 @@ import { prefersReducedMotion } from "../ui";
 import { EvidenceDrawer } from "./EvidenceDrawer";
 import { GoalForm } from "./GoalForm";
 import { GoalCard } from "./GoalCard";
+import { GoalIcon } from "./GoalIcon";
 import { useGoals, type GoalsApi } from "./useGoals";
 
 type Tab = "tous" | PeriodTab;
@@ -41,8 +42,14 @@ export function useGoalsUi(initial: GoalsPayload) {
     window.history.replaceState(null, "", url.toString());
   }, []);
   const [undo, setUndo] = useState<GoalView | null>(null);
+  // « Prochaine marche » › « Ajuster »: the drawer opens on the prefilled form.
+  const [adjusting, setAdjusting] = useState(false);
   const open = goals.data.goals.find((g) => g.id === openId) ?? null;
-  return { ...goals, open, setOpenId, adding, setAdding, undo, setUndo };
+  const adjust = (id: string) => {
+    setOpenId(id);
+    setAdjusting(true);
+  };
+  return { ...goals, open, setOpenId, adding, setAdding, undo, setUndo, adjusting, setAdjusting, adjust };
 }
 
 export type GoalsUi = ReturnType<typeof useGoalsUi>;
@@ -57,8 +64,11 @@ export function GoalsOverlays({ ui }: { ui: GoalsUi }) {
         api={ui.api}
         busy={ui.busy}
         error={ui.error}
+        adjusting={ui.adjusting}
+        onAdjusting={ui.setAdjusting}
         onClose={() => {
           ui.setOpenId(null);
+          ui.setAdjusting(false);
           ui.setError(null);
         }}
         onRemoved={(goal) => {
@@ -215,7 +225,15 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
       {/* Phone: a snap row of ~280 px cards. Desktop: a grid. */}
       <div role="tabpanel" className="-mx-4 flex snap-x snap-mandatory scroll-px-4 gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:mx-0 md:grid md:grid-cols-[repeat(auto-fill,minmax(260px,1fr))] md:overflow-visible md:px-0 md:pb-0">
         {shown.map((goal) => (
-          <GoalCard key={goal.id} goal={goal} onOpen={() => ui.setOpenId(goal.id)} className="w-[280px] shrink-0 snap-start md:w-auto" />
+          <GoalCard
+            key={goal.id}
+            goal={goal}
+            onOpen={() => ui.setOpenId(goal.id)}
+            onLaunch={goal.nextStep ? () => ui.api.launchNext(goal.id, goal.nextStep!.title, goal.nextStep!.target) : undefined}
+            onAdjust={goal.nextStep ? () => ui.adjust(goal.id) : undefined}
+            busy={!!ui.busy[`goal:${goal.id}`]}
+            className="w-[280px] shrink-0 snap-start md:w-auto"
+          />
         ))}
         {shown.length === 0 && (
           <div className="flex min-h-[140px] w-full items-center justify-center rounded-[20px] bg-white p-4 text-center text-[13px] font-bold text-[#6B625B] shadow-[inset_0_0_0_1px_#EAE1D5]">
@@ -224,6 +242,7 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
         )}
       </div>
 
+      <WinsList wins={data.wins} />
       <UndoToast ui={ui} />
       {ui.error && !ui.open && (
         <p role="alert" className="m-0 rounded-2xl bg-[#FBE3DF] px-3 py-2 text-sm font-semibold text-[#8E2A1E]">
@@ -239,6 +258,34 @@ export function GoalsStrip({ ui }: { ui: GoalsUi }) {
       {/* Phone: my share, under the goals. */}
       <MySharePhone mine={data.mine} totals={data.mineTotals} />
     </section>
+  );
+}
+
+/** « Objectifs atteints »: goals closed as a win this year, collapsed by default. */
+function WinsList({ wins }: { wins: GoalsPayload["wins"] }) {
+  if (!wins?.length) return null;
+  const n = wins.length;
+  return (
+    <details className="group rounded-[20px] bg-white px-4 py-3 shadow-[inset_0_0_0_1px_#EAE1D5]">
+      <summary className="flex min-h-11 cursor-pointer list-none items-center gap-2 text-sm font-extrabold text-[#1F1A16] [&::-webkit-details-marker]:hidden">
+        <span aria-hidden="true" className="inline-block transition-transform group-open:rotate-90">›</span>
+        {n} {n > 1 ? "objectifs atteints" : "objectif atteint"} cette année
+      </summary>
+      <ul className="m-0 mt-1 flex list-none flex-col p-0">
+        {wins.map((win) => (
+          <li key={win.id} className="flex flex-wrap items-center gap-x-3 gap-y-1 border-t border-[#F0E8DD] py-2.5">
+            <GoalIcon kind={win.icon} size={28} />
+            <span className="min-w-0 flex-[1_1_200px] text-sm font-extrabold leading-snug">{win.title}</span>
+            <span className="text-[13px] font-bold text-[#4A4540]">
+              {win.finalLabel} / {win.targetLabel}
+            </span>
+            <span className="text-xs text-[#6B625B]">
+              {win.periodLabel} · atteint, clos le {win.reachedLabel}
+            </span>
+          </li>
+        ))}
+      </ul>
+    </details>
   );
 }
 

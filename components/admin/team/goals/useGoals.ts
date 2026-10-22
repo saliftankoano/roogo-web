@@ -71,6 +71,9 @@ export function useGoals(initial: GoalsPayload) {
       run(`goal:${id}`, () => callApi(`/api/admin/goals/${id}`, { method: "PATCH", body: JSON.stringify({ action: "target", target }) })),
     editGoal: (id: string, title: string, target: number) =>
       run(`goal:${id}`, () => callApi(`/api/admin/goals/${id}`, { method: "PATCH", body: JSON.stringify({ action: "edit", title, target }) })),
+    /** « Prochaine marche »: « Lancer » or « Ajuster » (founder). */
+    launchNext: (id: string, title: string, target: number) =>
+      run(`goal:${id}`, () => callApi(`/api/admin/goals/${id}/next`, { method: "POST", body: JSON.stringify({ title, target }) })),
     tick: (leverId: string, action: "tick" | "untick") =>
       run(`lever:${leverId}`, () => callApi(`/api/admin/goals/levers/${leverId}`, { method: "PATCH", body: JSON.stringify({ action }) })),
     addLever: (goalId: string, lever: { ownerId: string; title: string; rhythm: string; weeklyTarget: number }) =>
