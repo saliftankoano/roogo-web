@@ -2,7 +2,7 @@
 
 ## Drawn signatures on rental agreements — 2026-10-22
 
-- [ ] [103_agreement_signatures.sql](./103_agreement_signatures.sql) — **not run.** `rental_agreements.owner_signature_path` and `renter_signature_path` (nullable TEXT) and the private bucket `agreement-signatures` (PNG only, 200 KB, no storage policy: service role only). Safe for every app version. Until it runs, signing without a drawing works as before, a drawn signature answers 503 « migration 103 à lancer », and the PDF keeps text-only signature blocks. Branch `feat/signature-contrat-bail`.
+- [x] [103_agreement_signatures_executed.sql](./103_agreement_signatures_executed.sql) — **run by Salif on 2026-10-22.** `rental_agreements.owner_signature_path` and `renter_signature_path` (nullable TEXT) and the private bucket `agreement-signatures` (PNG only, 200 KB, no storage policy: service role only). Safe for every app version. Until it runs, signing without a drawing works as before, a drawn signature answers 503 « migration 103 à lancer », and the PDF keeps text-only signature blocks. Branch `feat/signature-contrat-bail`.
 
 ## Social account tokens (TikTok followers) — 2026-10-18
 

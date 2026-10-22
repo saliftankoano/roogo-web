@@ -17,7 +17,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out:** Several fields sharing one line as in the paper form (Salif asked for atomic fields). Adding structured fields (ID number, issue date, issue place, profession, BP, lot, parcelle, section, secteur, title deed number and date) in the same change: proposed as a follow-up migration instead. Ticking NON when an amenity is missing. Translating the template for daily stays.
 
-**Status:** Template layout merged in PR #86 on 2026-10-22. Drawn signatures on branch `feat/signature-contrat-bail`, not merged, migration 103 not run. Not a legal review: wording is Salif's template, typos aside.
+**Status:** Template layout merged in PR #86 on 2026-10-22. Drawn signatures on branch `feat/signature-contrat-bail`, not merged, migration 103 run by Salif on 2026-10-22. Not a legal review: wording is Salif's template, typos aside.
 
 ---
 
