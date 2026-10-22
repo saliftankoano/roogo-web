@@ -19,7 +19,9 @@ import {
   buildOfficialLeaseFields,
   type LeaseBlank,
   type LeasePartyFields,
+  type LeaseSignature,
 } from "./official-lease-fields";
+import { fitSignature } from "./signature-image";
 
 const BRAND = "#C96A2E";
 const INK = "#1A1A1A";
@@ -159,6 +161,13 @@ const styles = StyleSheet.create({
     borderBottomWidth: 0.8,
     borderBottomStyle: "dotted",
     borderBottomColor: DOTS,
+  },
+  // Fixed height so both columns line up whether or not a drawing exists.
+  sigImageBox: {
+    height: 54,
+    marginTop: 4,
+    alignItems: "center",
+    justifyContent: "center",
   },
   sigDone: {
     marginTop: 8,
@@ -313,26 +322,32 @@ function Article({ title }: { title: string }) {
 
 function SignatureColumn({
   title,
-  name,
-  signedOn,
+  signature,
 }: {
   title: string;
-  name: LeaseBlank;
-  signedOn: LeaseBlank;
+  signature: LeaseSignature;
 }) {
+  const image = signature.image;
+  const size = image ? fitSignature(image.width, image.height) : null;
   return (
     <View style={styles.sigCol}>
       <Text style={styles.sigTitle}>{title}</Text>
       <Text style={styles.sigHint}>(Signature précédée de la mention</Text>
       <Text style={styles.sigHint}>Lu et approuvé)</Text>
-      {signedOn ? (
-        <Text style={styles.sigDone}>
-          {`Lu et approuvé. Signé électroniquement sur Roogo le ${signedOn}.`}
-        </Text>
-      ) : (
+      {signature.mention ? (
+        <Text style={styles.sigDone}>{signature.mention}</Text>
+      ) : null}
+      {image && size ? (
+        <View style={styles.sigImageBox}>
+          {/* eslint-disable-next-line jsx-a11y/alt-text */}
+          <Image src={image.dataUri} style={size} />
+        </View>
+      ) : signature.mention ? null : (
         <View style={styles.sigSpace} />
       )}
-      {name ? <Text style={styles.sigName}>{name}</Text> : null}
+      {signature.nom ? (
+        <Text style={styles.sigName}>{signature.nom}</Text>
+      ) : null}
     </View>
   );
 }
@@ -659,13 +674,11 @@ export function OfficialLeasePdf({
             <View style={styles.sigRow}>
               <SignatureColumn
                 title="Le Preneur"
-                name={f.signatures.preneur.nom}
-                signedOn={f.signatures.preneur.signeLe}
+                signature={f.signatures.preneur}
               />
               <SignatureColumn
                 title="Le Bailleur"
-                name={f.signatures.bailleur.nom}
-                signedOn={f.signatures.bailleur.signeLe}
+                signature={f.signatures.bailleur}
               />
             </View>
           </View>
