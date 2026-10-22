@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-22
+
+- **Goal follower numbers follow Statistiques** (web, branch `fix/social-readings-fresh`, not merged, no migration): every fresh Statistiques snapshot (6 h cron, « Actualiser ») and the TikTok connection write today's automatic Facebook, Instagram and TikTok follower readings (insert, or refresh today's automatic value; a manual reading of the day is never overwritten); the nightly cron uses the same rule. The follower sparkline ends on the live count, so the TikTok card draws its line from one stored reading. One shared TikTok logo (`components/admin/TikTokMark.tsx`) for Studio and the goal icons.
+
 ## 2026-10-21
 
 - **« Nos objectifs » merged into Accueil; goal title follows its target** (web, branch `feat/tiktok-stats`, not merged, no migration): Accueil shows « Le principe Roogo » band under the greeting, the goals as cards with period filters, and « Leviers tenus cette semaine » next to Fin de journée and Plus tard; each goal's levers (and the founder's add/edit) and « Comment c’est compté » are in its drawer. `/admin/objectifs` redirects to Accueil (`?objectif=<id>` opens the drawer). Changing a target also updates the title when it carries the old number; « Modifier l’objectif » edits title and target and offers the corrected title in one tap. Goals reload when the page comes back into view (at most every 15 s). The TikTok goal says whether its number is read every night or typed by hand, with « Connecter TikTok dans Statistiques » for the founder.

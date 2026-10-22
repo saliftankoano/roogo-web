@@ -1,11 +1,10 @@
 import { NextResponse } from "next/server";
-import { supabaseAdmin } from "@/lib/supabase-admin";
 import {
   fetchFollowers,
   followerTargets,
-  readingsToInsert,
   type FollowerResult,
 } from "@/lib/team-goals/meta-followers";
+import { writeFollowerReadings } from "@/lib/team-goals/follower-readings-server";
 import { readTikTokFollowers } from "@/lib/team-goals/tiktok-store";
 
 // Vercel cron, daily at 02:00 UTC (vercel.json): reads the Facebook page and
@@ -13,9 +12,11 @@ import { readTikTokFollowers } from "@/lib/team-goals/tiktok-store";
 // follower count of @roogo.226 through TikTok's Display API when the founder
 // has connected TikTok (« Connecter TikTok » in the TikTok card of /admin/studio/statistiques; the access
 // token is refreshed here when needed). Writes one team_goal_readings row per
-// metric and day with source 'automatique'. A day that already has a reading
-// (typed in or automatic) is left alone. Each platform is skipped on its own:
-// no Meta token does not stop TikTok, and the reverse.
+// metric and day with source 'automatique' (writeFollowerReadings): today's
+// automatic reading is refreshed if it exists, a manual reading of the day is
+// never overwritten. Studio > Statistiques writes the same readings on every
+// fresh snapshot. Each platform is skipped on its own: no Meta token does not
+// stop TikTok, and the reverse.
 
 type TikTokOutcome = "not connected" | "read" | { error: string };
 
@@ -69,38 +70,20 @@ export async function GET(request: Request) {
   }
   if (!results.length) return NextResponse.json({ skipped: true, ...notes });
 
-  const metrics = [...new Set(results.map((r) => r.metric))];
-  const { data: existing, error: existingError } = await supabaseAdmin
-    .from("team_goal_readings")
-    .select("metric, measured_on")
-    .in("metric", metrics)
-    .eq("measured_on", todayKey);
-  if (existingError) {
-    console.error("[social-followers] existing readings check failed", {
-      code: existingError.code,
-      message: existingError.message,
-    });
-    return NextResponse.json({ error: "readings check failed" }, { status: 500 });
+  const write = await writeFollowerReadings(results, todayKey);
+  if (!write.ok) {
+    console.error("[social-followers] readings write failed", { error: write.error });
+    return NextResponse.json({ error: "readings write failed" }, { status: 500 });
   }
-
-  const rows = readingsToInsert(results, existing ?? [], todayKey);
-  if (rows.length) {
-    const { error: insertError } = await supabaseAdmin.from("team_goal_readings").insert(rows);
-    if (insertError) {
-      console.error("[social-followers] insert failed", {
-        code: insertError.code,
-        message: insertError.message,
-      });
-      return NextResponse.json({ error: "insert failed" }, { status: 500 });
-    }
-  }
+  const { plan } = write;
 
   return NextResponse.json({
     success: true,
     date: todayKey,
     ...notes,
-    written: rows.map((r) => ({ metric: r.metric, value: r.value })),
-    skipped: results.filter((r) => r.ok && !rows.some((row) => row.metric === r.metric)).map((r) => r.metric),
+    written: plan.inserts.map((r) => ({ metric: r.metric, value: r.value })),
+    updated: plan.updates.map((r) => ({ metric: r.metric, value: r.value })),
+    keptManual: plan.keptManual,
     failed: results.filter((r) => !r.ok).map((r) => ({ metric: r.metric, error: r.ok ? "" : r.error })),
   });
 }
