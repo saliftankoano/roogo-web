@@ -10,7 +10,9 @@ export type LeaseBlank = string | null;
 export interface LeasePartyFields {
   nom: LeaseBlank;
   prenom: LeaseBlank;
-  pieceIdentite: LeaseBlank;
+  pieceNumero: LeaseBlank;
+  pieceDate: LeaseBlank;
+  pieceLieu: LeaseBlank;
   /** Preneur only: "ou dénomination de la société". */
   denomination: LeaseBlank;
   bp: LeaseBlank;
@@ -38,7 +40,7 @@ export interface OfficialLeaseFields {
     parcelles: LeaseBlank;
     section: LeaseBlank;
     secteurParcellaire: LeaseBlank;
-    titrePropriete: LeaseBlank;
+    titreNumero: LeaseBlank;
     titreDate: LeaseBlank;
     rue: LeaseBlank;
     porte: LeaseBlank;
@@ -264,7 +266,9 @@ function emptyParty(designation: string): LeasePartyFields {
   return {
     nom: null,
     prenom: null,
-    pieceIdentite: null,
+    pieceNumero: null,
+    pieceDate: null,
+    pieceLieu: null,
     denomination: null,
     bp: null,
     lot: null,
@@ -385,7 +389,7 @@ export function buildOfficialLeaseFields(
       parcelles: null,
       section: null,
       secteurParcellaire: null,
-      titrePropriete: null,
+      titreNumero: null,
       titreDate: null,
       rue: null,
       porte: null,

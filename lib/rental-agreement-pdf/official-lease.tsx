@@ -143,8 +143,12 @@ const styles = StyleSheet.create({
   },
   signatureBlock: { marginTop: 14 },
   faitEn: { textAlign: "right", marginBottom: 3 },
-  faitA: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 14 },
-  sigRow: { flexDirection: "row", justifyContent: "space-between" },
+  faitA: { flexDirection: "row", justifyContent: "flex-end", marginBottom: 5 },
+  sigRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginTop: 10,
+  },
   sigCol: { width: "44%", alignItems: "center" },
   sigTitle: { fontFamily: "Helvetica-Bold", marginBottom: 2 },
   sigHint: { fontSize: 8, color: MUTED, textAlign: "center" },
@@ -182,15 +186,25 @@ function Field({
   value,
   flex = 1,
   width,
+  labelWidth,
 }: {
   label?: string;
   value: LeaseBlank;
   flex?: number;
   width?: number;
+  labelWidth?: number;
 }) {
   return (
     <View style={[styles.field, width ? { width } : { flex }]}>
-      {label ? <Text style={styles.label}>{label}</Text> : null}
+      {label ? (
+        <Text
+          style={
+            labelWidth ? [styles.label, { width: labelWidth }] : styles.label
+          }
+        >
+          {label}
+        </Text>
+      ) : null}
       <View style={styles.blank}>
         <Text style={styles.value}>{value ?? " "}</Text>
       </View>
@@ -202,8 +216,24 @@ function Row({ children }: { children: React.ReactNode }) {
   return <View style={styles.row}>{children}</View>;
 }
 
-function Gap() {
-  return <View style={{ width: 10 }} />;
+// One piece of information per labelled line (Salif, 2026-10-22). Labels share
+// one column so the dotted lines start at the same place.
+const LABEL_COLUMN = 175;
+
+function Line({
+  label,
+  value,
+  labelWidth = LABEL_COLUMN,
+}: {
+  label: string;
+  value: LeaseBlank;
+  labelWidth?: number;
+}) {
+  return (
+    <Row>
+      <Field label={label} value={value} labelWidth={labelWidth} />
+    </Row>
+  );
 }
 
 function PartyBlock({
@@ -217,48 +247,23 @@ function PartyBlock({
 }) {
   return (
     <View>
-      <Row>
-        <Field label="Nom :" value={party.nom} />
-        <Gap />
-        <Field label="Prénom :" value={party.prenom} />
-      </Row>
-      <Row>
-        <Field
-          label="N° de la pièce d’identité, date et lieu d’établissement :"
-          value={party.pieceIdentite}
-        />
-      </Row>
+      <Line label="Nom :" value={party.nom} />
+      <Line label="Prénom :" value={party.prenom} />
+      <Line label="N° de la pièce d’identité :" value={party.pieceNumero} />
+      <Line label="Date d’établissement :" value={party.pieceDate} />
+      <Line label="Lieu d’établissement :" value={party.pieceLieu} />
       {withCompany ? (
-        <Row>
-          <Field
-            label="ou dénomination de la société :"
-            value={party.denomination}
-          />
-        </Row>
+        <Line label="Dénomination de la société :" value={party.denomination} />
       ) : null}
-      <Row>
-        <Field label="BP :" value={party.bp} />
-      </Row>
-      <Row>
-        <Field label="Lot :" value={party.lot} />
-        <Gap />
-        <Field label="Parcelles :" value={party.parcelles} />
-        <Gap />
-        <Field label="Section :" value={party.section} />
-        <Gap />
-        <Field label="Secteur :" value={party.secteur} />
-      </Row>
-      <Row>
-        <Field label="Adresse : Rue n°" value={party.rue} />
-        <Gap />
-        <Field label="Porte n°" value={party.porte} />
-      </Row>
-      <Row>
-        <Field label="Profession :" value={party.profession} />
-      </Row>
-      <Row>
-        <Field label={designationLabel} value={party.designation} />
-      </Row>
+      <Line label="BP :" value={party.bp} />
+      <Line label="Lot :" value={party.lot} />
+      <Line label="Parcelles :" value={party.parcelles} />
+      <Line label="Section :" value={party.section} />
+      <Line label="Secteur :" value={party.secteur} />
+      <Line label="Adresse, rue n° :" value={party.rue} />
+      <Line label="Adresse, porte n° :" value={party.porte} />
+      <Line label="Profession :" value={party.profession} />
+      <Line label={designationLabel} value={party.designation} />
     </View>
   );
 }
@@ -395,41 +400,22 @@ export function OfficialLeasePdf({
         <Text style={styles.paragraph}>
           Le bailleur donne en bail à loyer au preneur qui accepte un immeuble à
         </Text>
-        <Row>
-          <Field label="Usage :" value={f.bien.usage} />
-          <Gap />
-          <Field label="Sise à" value={f.bien.siseA} />
-        </Row>
-        <Row>
-          <Field label="Commune de :" value={f.bien.commune} />
-          <Gap />
-          <Field label="Secteur :" value={f.bien.secteur} />
-          <Gap />
-          <Field label="Quartier :" value={f.bien.quartier} flex={1.6} />
-        </Row>
-        <Row>
-          <Field label="Lot :" value={f.bien.lot} />
-          <Gap />
-          <Field label="Parcelles :" value={f.bien.parcelles} />
-          <Gap />
-          <Field label="Section :" value={f.bien.section} />
-          <Gap />
-          <Field label="Secteur :" value={f.bien.secteurParcellaire} />
-        </Row>
-        <Row>
-          <Field
-            label="Titre de propriété :"
-            value={f.bien.titrePropriete}
-            flex={2}
-          />
-          <Gap />
-          <Field label="du" value={f.bien.titreDate} />
-        </Row>
-        <Row>
-          <Field label="Adresse : Rue n°" value={f.bien.rue} />
-          <Gap />
-          <Field label="Porte n°" value={f.bien.porte} />
-        </Row>
+        <Line label="Usage :" value={f.bien.usage} />
+        <Line label="Sise à :" value={f.bien.siseA} />
+        <Line label="Commune de :" value={f.bien.commune} />
+        <Line label="Secteur :" value={f.bien.secteur} />
+        <Line label="Quartier :" value={f.bien.quartier} />
+        <Line label="Lot :" value={f.bien.lot} />
+        <Line label="Parcelles :" value={f.bien.parcelles} />
+        <Line label="Section :" value={f.bien.section} />
+        <Line
+          label="Secteur (parcellaire) :"
+          value={f.bien.secteurParcellaire}
+        />
+        <Line label="N° du titre de propriété :" value={f.bien.titreNumero} />
+        <Line label="Date du titre de propriété :" value={f.bien.titreDate} />
+        <Line label="Adresse, rue n° :" value={f.bien.rue} />
+        <Line label="Adresse, porte n° :" value={f.bien.porte} />
         <Row>
           <Field
             label="d’une superficie totale de"
@@ -462,11 +448,8 @@ export function OfficialLeasePdf({
             value={f.duree.duree}
           />
         </Row>
-        <Row>
-          <Field label="Commençant à courir du" value={f.duree.debut} />
-          <Gap />
-          <Field label="Au" value={f.duree.fin} />
-        </Row>
+        <Line label="Commençant à courir du" value={f.duree.debut} />
+        <Line label="Au" value={f.duree.fin} />
         <Text style={styles.paragraph}>
           et renouvelable par tacite reconduction.
         </Text>
@@ -654,23 +637,24 @@ export function OfficialLeasePdf({
             Pour l’exécution des présentes et leurs suites les parties font
             élection de domicile aux lieux ci-après :
           </Text>
-          <Row>
-            <Field label="Le Bailleur :" value={null} flex={2} />
-            <Gap />
-            <Field label="Tél. :" value={f.domicile.bailleurTelephone} />
-          </Row>
-          <Row>
-            <Field label="Le Preneur :" value={null} flex={2} />
-            <Gap />
-            <Field label="Tél. :" value={f.domicile.preneurTelephone} />
-          </Row>
+          <Line label="Le Bailleur :" value={null} />
+          <Line
+            label="Téléphone du Bailleur :"
+            value={f.domicile.bailleurTelephone}
+          />
+          <Line label="Le Preneur :" value={null} />
+          <Line
+            label="Téléphone du Preneur :"
+            value={f.domicile.preneurTelephone}
+          />
 
           <View style={styles.signatureBlock}>
             <Text style={styles.faitEn}>Fait en quatre (4) exemplaires</Text>
             <View style={styles.faitA}>
-              <Field label="A" value={f.faitA} width={150} />
-              <Gap />
-              <Field label="le" value={f.faitLe} width={110} />
+              <Field label="A" value={f.faitA} width={190} labelWidth={18} />
+            </View>
+            <View style={styles.faitA}>
+              <Field label="le" value={f.faitLe} width={190} labelWidth={18} />
             </View>
             <View style={styles.sigRow}>
               <SignatureColumn
