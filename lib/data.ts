@@ -284,6 +284,31 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
   return property;
 }
 
+/**
+ * The most recent live sale listing that has photos (test listings excluded).
+ * Used by the hiring video test on /carrieres/<slug>: the candidate sells it.
+ */
+export async function fetchLatestSaleListingWithPhotos(): Promise<Property | null> {
+  const { data, error } = await supabase
+    .from("public_property_details")
+    .select("*")
+    .eq("status", "en_ligne")
+    .eq("is_test", false)
+    .eq("listing_type", "vendre")
+    .order("created_at", { ascending: false })
+    .limit(20);
+
+  if (error) {
+    console.error("Error fetching latest sale listing:", error.message, error.code);
+    return null;
+  }
+
+  const withPhotos = ((data as DBProperty[]) || []).find(
+    (p) => Boolean(p.primary_image) || (p.images?.length ?? 0) > 0,
+  );
+  return withPhotos ? mapProperty(withPhotos) : null;
+}
+
 export async function fetchPropertyBySlug(
   slug: string,
 ): Promise<Property | null> {

@@ -103,6 +103,7 @@ const isPublicRoute = createRouteMatcher([
   "/a-propos",
   "/nous-contacter",
   "/carrieres",
+  "/carrieres/(.*)", // Job offers with their application form (anonymous)
   "/confidentialite",
   "/conditions-utilisation",
   "/plan-du-site",
@@ -126,6 +127,8 @@ const isPublicRoute = createRouteMatcher([
   "/louer/commercial",
   "/publier-bien",
   "/api/careers/apply",
+  // Job applications: anonymous, deadline + rate limit checked in the handlers
+  "/api/careers/job-applications(.*)",
   // API routes that need to be public (webhooks, health)
   "/api/health",
   "/api/app-version", // Public: mobile update-available check, no auth

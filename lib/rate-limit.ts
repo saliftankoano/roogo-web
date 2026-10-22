@@ -96,6 +96,42 @@ export const studioJobLimiter = redis
     })
   : null;
 
+// Public job applications (/carrieres/<slug>). Generous per IP: candidates
+// on mobile data in Burkina often share one carrier IP (CGNAT).
+export const jobApplicationIpLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(30, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:job-application-ip",
+    })
+  : null;
+
+export const jobApplicationPhoneLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(6, "1 d"),
+      analytics: true,
+      prefix: "ratelimit:job-application-phone",
+    })
+  : null;
+
+export const jobApplicationUploadLimiter = redis
+  ? new Ratelimit({
+      redis,
+      limiter: Ratelimit.slidingWindow(40, "1 h"),
+      analytics: true,
+      prefix: "ratelimit:job-application-upload",
+    })
+  : null;
+
+/** First address of x-forwarded-for (Vercel), else x-real-ip, else "unknown". */
+export function requestIp(req: Request): string {
+  const forwarded = req.headers.get("x-forwarded-for");
+  const first = forwarded?.split(",")[0]?.trim();
+  return first || req.headers.get("x-real-ip")?.trim() || "unknown";
+}
+
 export async function checkRateLimit(
   limiter: Ratelimit | null,
   identifier: string,

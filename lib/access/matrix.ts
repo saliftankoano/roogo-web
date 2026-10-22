@@ -17,7 +17,7 @@
 //
 // No runtime imports: the test loads this file directly with Node.
 
-export const LAST_REVIEWED = "2026-10-21";
+export const LAST_REVIEWED = "2026-10-22";
 
 export type Level = "fondateur" | "directeur" | "assistant" | "conseillere" | "stagiaire";
 
@@ -873,10 +873,11 @@ export const AREAS: Area[] = [
       {
         id: "talent",
         action: "Voir et traiter les candidatures Talent et les candidatures aux offres",
+        detail: "Recrutement (Plus › Opérations) : candidatures aux offres avec date limite, vidéo, CV, statut et notes.",
         access: DIRECTOR_AND_FOUNDER,
         capability: "talent.manage",
-        enforcedBy: ["serveur", "page"],
-        files: ["app/api/admin/talent/", "app/api/admin/careers/", "app/api/admin/candidatures/spontanees/route.ts", "app/admin/talent/page.tsx"],
+        enforcedBy: ["serveur", "page", "menu"],
+        files: ["app/api/admin/talent/", "app/api/admin/careers/", "app/api/admin/recrutement/", "app/api/admin/candidatures/spontanees/route.ts", "app/admin/talent/page.tsx", "app/admin/recrutement/layout.tsx", "lib/navigation/adminNav.ts"],
         titleMatters: true,
       },
       {
