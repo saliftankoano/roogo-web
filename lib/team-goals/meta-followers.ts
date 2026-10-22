@@ -103,3 +103,38 @@ export function readingsToInsert(
     .filter((r) => !taken.has(r.metric))
     .map((r) => ({ metric: r.metric, value: r.value, measured_on: todayKey, source: "automatique" as const }));
 }
+
+export type ExistingReading = { id: string; metric: string; measured_on: string; source: string | null; value: number };
+
+export type ReadingPlan = {
+  inserts: { metric: FollowerMetric; value: number; measured_on: string; source: "automatique" }[];
+  /** Today's automatic reading of that metric, refreshed to the latest value. */
+  updates: { id: string; metric: FollowerMetric; value: number }[];
+  /** Metrics left alone: someone typed today's number in (a manual reading wins). */
+  keptManual: FollowerMetric[];
+};
+
+/**
+ * Today's automatic follower readings, kept fresh through the day (the 6 h
+ * statistics refresh, « Actualiser », the TikTok connection, the nightly cron):
+ * insert when the day has no reading, update today's automatic reading when
+ * the number moved, and never touch a day that has a manual reading.
+ */
+export function planFollowerReadings(results: FollowerResult[], existing: ExistingReading[], todayKey: string): ReadingPlan {
+  const plan: ReadingPlan = { inserts: [], updates: [], keptManual: [] };
+  const today = existing.filter((r) => r.measured_on === todayKey);
+  const seen = new Set<FollowerMetric>();
+  for (const result of results) {
+    if (!result.ok || seen.has(result.metric)) continue;
+    seen.add(result.metric);
+    const rows = today.filter((r) => r.metric === result.metric);
+    if (rows.some((r) => (r.source ?? "manuel") !== "automatique")) {
+      plan.keptManual.push(result.metric);
+      continue;
+    }
+    const auto = rows[0];
+    if (!auto) plan.inserts.push({ metric: result.metric, value: result.value, measured_on: todayKey, source: "automatique" });
+    else if (Number(auto.value) !== result.value) plan.updates.push({ id: auto.id, metric: result.metric, value: result.value });
+  }
+  return plan;
+}

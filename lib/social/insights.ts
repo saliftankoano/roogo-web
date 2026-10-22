@@ -971,6 +971,24 @@ export async function readSocialSnapshot(
   return { fetchedAt: now.toISOString(), facebook, instagram, tiktok: tiktokAccount, missing };
 }
 
+/**
+ * The follower counts a fresh snapshot read, as readings for « Nos objectifs »
+ * (team_goal_readings, written by lib/team-goals/follower-readings-server.ts).
+ * Only accounts read successfully with a number; nothing else is written.
+ */
+export function followerReadingsOf(
+  snapshot: SocialSnapshot,
+): { metric: "facebook_followers" | "instagram_followers" | "tiktok_followers"; ok: true; value: number }[] {
+  const pairs = [
+    ["facebook_followers", snapshot.facebook],
+    ["instagram_followers", snapshot.instagram],
+    ["tiktok_followers", snapshot.tiktok],
+  ] as const;
+  return pairs
+    .filter(([, account]) => account?.ok && typeof account.followers === "number")
+    .map(([metric, account]) => ({ metric, ok: true as const, value: account.followers as number }));
+}
+
 /** A snapshot worth caching: at least one account was read. */
 export function isCacheable(snapshot: SocialSnapshot): boolean {
   return snapshot.facebook.ok || snapshot.instagram.ok || snapshot.tiktok.ok;
@@ -997,8 +1015,13 @@ export function followerTrend(rows: { measured_on: string; value: number }[], cu
   const points = [...byDay.entries()].map(([date, value]) => ({ date, value })).sort((a, b) => a.date.localeCompare(b.date));
   const latest = current ?? points[points.length - 1]?.value ?? null;
   if (latest === null || !points.length) return { points, delta: null, since: null };
+  const todayKey = now.toISOString().slice(0, 10);
   const target = new Date(now.getTime() - 30 * DAY).toISOString().slice(0, 10);
   const base = [...points].reverse().find((p) => p.date <= target) ?? points[0];
-  if (base.date === now.toISOString().slice(0, 10)) return { points, delta: null, since: null };
-  return { points, delta: latest - base.value, since: base.date };
+  // The line ends on the number shown on the card: today's point is the live
+  // count. So one stored reading plus today already draws a line (TikTok had
+  // a single manual reading when it was connected).
+  const line = current === null ? points : [...points.filter((p) => p.date !== todayKey), { date: todayKey, value: current }];
+  if (base.date === todayKey) return { points: line, delta: null, since: null };
+  return { points: line, delta: latest - base.value, since: base.date };
 }

@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-22
+
+- **Goal follower numbers follow Statistiques** (web, branch `fix/social-readings-fresh`, not merged, no migration): every fresh Statistiques snapshot (6 h cron, « Actualiser ») and the TikTok connection write today's automatic Facebook, Instagram and TikTok follower readings (insert, or refresh today's automatic value; a manual reading of the day is never overwritten); the nightly cron uses the same rule. The follower sparkline ends on the live count, so the TikTok card draws its line from one stored reading. One shared TikTok logo (`components/admin/TikTokMark.tsx`) for Studio and the goal icons.
+
 ## 2026-10-21
 
 - **Monthly lease PDF on the official Burkina Faso template** (web, branch `feat/contrat-bail-officiel`, not merged, no migration): the generated contract for a monthly rental now follows `docs/contrat-de-bail-modele.pdf` article by article, filled from the agreement (names, city, quartier, usage, surface, equipment, dates, duration, rent and deposit in words and digits, phones, electronic signature dates) with dotted lines for what Roogo does not store (ID, BP, lot, parcelle, section, secteur, profession, titre de propriété). Interdictions, owner rules and the 7% collection terms are in Article 4 III. Daily stays keep the short-stay layout. [Decision](./DECISIONS.md#monthly-lease-pdfs-follow-the-official-burkina-faso-lease-template--2026-10-21).
