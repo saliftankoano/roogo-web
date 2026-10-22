@@ -24,14 +24,14 @@ const brandTokens: Token[] = [
     variable: "--color-roogo-primary-500",
     hex: "#c96a2e",
     alias: "primary",
-    usage: "Action principale, liens, accents",
+    usage: "Bouton principal, compteur Accueil, focus",
   },
   {
     name: "Clay Brown",
     variable: "--color-roogo-primary-600",
     hex: "#8a4924",
     alias: "primary-hover",
-    usage: "Survol du bouton principal, texte sur fond sable",
+    usage: "Surtitre d'Accueil, texte de la pastille terracotta",
   },
   {
     name: "Earth Umber",
@@ -44,7 +44,7 @@ const brandTokens: Token[] = [
     variable: "--color-roogo-secondary-100",
     hex: "#f4e8d7",
     alias: "secondary",
-    usage: "Bouton secondaire, surfaces chaudes, survol de ligne",
+    usage: "Bouton sable du site public",
   },
   {
     name: "Warm Linen",
@@ -104,91 +104,31 @@ const neutralTokens: Token[] = [
   },
 ];
 
+// The admin palette as main renders it (components/admin/team/ui.tsx, Studio,
+// the staff bar). Main writes them as hex literals; the tokens name them.
+const adminTokens: Token[] = [
+  { name: "Encre", variable: "--color-roogo-ink", hex: "#1f1a16", alias: "ink", usage: "Titres et texte principal, bouton encre, toast" },
+  { name: "Texte courant", variable: "--color-roogo-ink-body", hex: "#4a4540", alias: "ink-body", usage: "Paragraphes, phrase du briefing, pastille grise" },
+  { name: "Texte discret", variable: "--color-roogo-ink-muted", hex: "#6b625b", alias: "ink-muted", usage: "Libellés, titres de section en capitales" },
+  { name: "Terracotta texte", variable: "--color-roogo-brand-text", hex: "#a8521d", alias: "brand-text", usage: "Onglet actif du Studio, lien survolé" },
+  { name: "Terracotta survol", variable: "--color-roogo-brand-hover", hex: "#b85e26", alias: "brand-hover", usage: "Survol du bouton principal" },
+  { name: "Filet", variable: "--color-roogo-line", hex: "#e2d8cc", alias: "line", usage: "Bordure des champs et des boutons contour" },
+  { name: "Filet doux", variable: "--color-roogo-line-soft", hex: "#eae1d5", alias: "line-soft", usage: "Séparateurs dans un panneau" },
+  { name: "Crème", variable: "--color-roogo-cream", hex: "#f6f1ea", alias: "cream", usage: "Fond de page d'Accueil et de L'équipe" },
+  { name: "Papier", variable: "--color-roogo-paper", hex: "#fbf7f1", alias: "paper", usage: "Surface chaude dans un panneau blanc" },
+];
+
 const statusTokens: Token[] = [
-  {
-    name: "Acacia Green",
-    variable: "--color-roogo-success-500",
-    hex: "#2f8f5b",
-    alias: "success",
-    usage: "Succès, en ligne, payé",
-  },
-  {
-    name: "Acacia Mist",
-    variable: "--color-roogo-success-100",
-    hex: "#e3f3ea",
-    alias: "success-soft",
-    usage: "Fond des badges et alertes de succès",
-  },
-  {
-    name: "Acacia Deep",
-    variable: "--color-roogo-success-700",
-    hex: "#1f6440",
-    alias: "success-strong",
-    usage: "Texte sur fond succès",
-  },
-  {
-    name: "Shea Amber",
-    variable: "--color-roogo-warning-500",
-    hex: "#c47a12",
-    alias: "warning",
-    usage: "Attention, en attente, à traiter",
-  },
-  {
-    name: "Shea Cream",
-    variable: "--color-roogo-warning-100",
-    hex: "#fbefd9",
-    alias: "warning-soft",
-    usage: "Fond des badges et alertes d'attention",
-  },
-  {
-    name: "Shea Deep",
-    variable: "--color-roogo-warning-700",
-    hex: "#8a550c",
-    alias: "warning-strong",
-    usage: "Texte sur fond attention",
-  },
-  {
-    name: "Laterite Red",
-    variable: "--color-roogo-danger-500",
-    hex: "#c93b2e",
-    alias: "danger",
-    usage: "Erreur, suppression, refus",
-  },
-  {
-    name: "Laterite Blush",
-    variable: "--color-roogo-danger-100",
-    hex: "#fae4e1",
-    alias: "danger-soft",
-    usage: "Fond des badges et alertes d'erreur",
-  },
-  {
-    name: "Laterite Deep",
-    variable: "--color-roogo-danger-700",
-    hex: "#8a2820",
-    alias: "danger-strong",
-    usage: "Texte sur fond erreur",
-  },
-  {
-    name: "Deep Oasis",
-    variable: "--color-roogo-info-500",
-    hex: "#1f7ca5",
-    alias: "info",
-    usage: "Information, nouveau",
-  },
-  {
-    name: "Oasis Mist",
-    variable: "--color-roogo-info-100",
-    hex: "#e3f2fa",
-    alias: "info-soft",
-    usage: "Fond des badges et alertes d'information",
-  },
-  {
-    name: "Oasis Deep",
-    variable: "--color-roogo-info-700",
-    hex: "#155a7a",
-    alias: "info-strong",
-    usage: "Texte sur fond information",
-  },
+  { name: "Vert plein", variable: "--color-roogo-success-500", hex: "#2f7a48", alias: "success", usage: "Coche faite, progression terminée" },
+  { name: "Vert doux", variable: "--color-roogo-success-100", hex: "#e3f1e6", alias: "success-soft", usage: "Fond de la pastille verte" },
+  { name: "Vert profond", variable: "--color-roogo-success-700", hex: "#245c33", alias: "success-strong", usage: "Texte sur fond vert" },
+  { name: "Ambre plein", variable: "--color-roogo-warning-500", hex: "#e9a23b", alias: "warning", usage: "Badge « à valider », texte encre dessus" },
+  { name: "Ambre doux", variable: "--color-roogo-warning-100", hex: "#fcefd4", alias: "warning-soft", usage: "Fond des avis d'attention" },
+  { name: "Ambre profond", variable: "--color-roogo-warning-700", hex: "#6e4300", alias: "warning-strong", usage: "Texte sur fond ambre" },
+  { name: "Rouge", variable: "--color-roogo-danger-500", hex: "#8e2a1e", alias: "danger", usage: "Badge en retard, texte destructif" },
+  { name: "Rouge doux", variable: "--color-roogo-danger-100", hex: "#fbe3df", alias: "danger-soft", usage: "Fond des avis d'erreur, bouton Retirer" },
+  { name: "Bleu", variable: "--color-roogo-info-500", hex: "#1f5f80", alias: "info", usage: "Texte d'information" },
+  { name: "Bleu doux", variable: "--color-roogo-info-100", hex: "#e1eff8", alias: "info-soft", usage: "Fond de la pastille bleue" },
 ];
 
 type Pair = {
@@ -202,32 +142,32 @@ type Pair = {
 
 const WHITE = "#ffffff";
 
+const CREAM = "#f6f1ea";
+
 const pairs: Pair[] = [
-  { label: "Titre", fg: "#1a1a1a", bg: WHITE, fgName: "neutral-900", bgName: "white", where: "Titres et texte principal" },
-  { label: "Texte courant", fg: "#323232", bg: WHITE, fgName: "neutral-700", bgName: "white", where: "Paragraphes, cellules" },
-  { label: "Texte secondaire", fg: "#6a6a6a", bg: WHITE, fgName: "neutral-500", bgName: "white", where: "Libellés, aide" },
-  { label: "Surtitre", fg: "#a1a1a1", bg: WHITE, fgName: "neutral-400", bgName: "white", where: "En-têtes de tableau, surtitres" },
-  { label: "Lien", fg: "#c96a2e", bg: WHITE, fgName: "primary", bgName: "white", where: "Liens, bouton contour" },
-  { label: "Bouton principal", fg: WHITE, bg: "#c96a2e", fgName: "white", bgName: "primary", where: "Bouton principal, chip réservée" },
-  { label: "Bouton principal survolé", fg: WHITE, bg: "#8a4924", fgName: "white", bgName: "primary-hover", where: "Survol du bouton principal" },
-  { label: "Bouton secondaire", fg: "#1a1a1a", bg: "#f4e8d7", fgName: "neutral-900", bgName: "secondary", where: "Bouton secondaire" },
-  { label: "Accent sur sable", fg: "#c96a2e", bg: "#f4e8d7", fgName: "primary", bgName: "secondary", where: "Icônes sur fond sable" },
-  { label: "Badge marque", fg: "#8a4924", bg: "#f4e8d7", fgName: "primary-hover", bgName: "secondary", where: "Badge primary, chip réservée" },
-  { label: "Toast", fg: WHITE, bg: "#1a1a1a", fgName: "white", bgName: "neutral-900", where: "Toast, badge par défaut, chip louée" },
-  { label: "Succès plein", fg: WHITE, bg: "#2f8f5b", fgName: "white", bgName: "success", where: "Icônes pleines, points" },
-  { label: "Succès doux", fg: "#1f6440", bg: "#e3f3ea", fgName: "success-strong", bgName: "success-soft", where: "Badge et alerte succès" },
-  { label: "Attention plein", fg: WHITE, bg: "#c47a12", fgName: "white", bgName: "warning", where: "Icônes pleines, points" },
-  { label: "Attention doux", fg: "#8a550c", bg: "#fbefd9", fgName: "warning-strong", bgName: "warning-soft", where: "Badge et alerte attention" },
-  { label: "Erreur plein", fg: WHITE, bg: "#c93b2e", fgName: "white", bgName: "danger", where: "Bouton destructif" },
-  { label: "Erreur doux", fg: "#8a2820", bg: "#fae4e1", fgName: "danger-strong", bgName: "danger-soft", where: "Badge et alerte erreur" },
-  { label: "Info plein", fg: WHITE, bg: "#1f7ca5", fgName: "white", bgName: "info", where: "Icônes pleines" },
-  { label: "Info doux", fg: "#155a7a", bg: "#e3f2fa", fgName: "info-strong", bgName: "info-soft", where: "Badge et alerte info" },
+  { label: "Titre", fg: "#1f1a16", bg: WHITE, fgName: "ink", bgName: "white", where: "Titres et texte principal" },
+  { label: "Titre sur crème", fg: "#1f1a16", bg: CREAM, fgName: "ink", bgName: "cream", where: "Accueil, L'équipe" },
+  { label: "Texte courant", fg: "#4a4540", bg: WHITE, fgName: "ink-body", bgName: "white", where: "Paragraphes, cellules" },
+  { label: "Texte discret", fg: "#6b625b", bg: WHITE, fgName: "ink-muted", bgName: "white", where: "Libellés, titres de section" },
+  { label: "Texte discret sur crème", fg: "#6b625b", bg: CREAM, fgName: "ink-muted", bgName: "cream", where: "Titres de section d'Accueil" },
+  { label: "Surtitre argile", fg: "#8a4924", bg: CREAM, fgName: "[#8A4924]", bgName: "cream", where: "Date et niveau au-dessus de « Bonjour »" },
+  { label: "Onglet actif", fg: "#a8521d", bg: WHITE, fgName: "brand-text", bgName: "white", where: "Onglet du Studio, entrée active" },
+  { label: "Bouton principal", fg: WHITE, bg: "#c96a2e", fgName: "white", bgName: "primary", where: "Bouton terracotta, compteur Accueil" },
+  { label: "Bouton principal survolé", fg: WHITE, bg: "#b85e26", fgName: "white", bgName: "brand-hover", where: "Survol du bouton terracotta" },
+  { label: "Bouton encre", fg: WHITE, bg: "#1f1a16", fgName: "white", bgName: "ink", where: "Valider dans un panneau, toast" },
+  { label: "Pastille terracotta", fg: "#8a4924", bg: "#f7e4d3", fgName: "[#8A4924]", bgName: "[#F7E4D3]", where: 'Chip tone="orange"' },
+  { label: "Vert doux", fg: "#245c33", bg: "#e3f1e6", fgName: "success-strong", bgName: "success-soft", where: 'Chip tone="green", Flag vert' },
+  { label: "Ambre plein", fg: "#1f1a16", bg: "#e9a23b", fgName: "ink", bgName: "warning", where: "Badge « à valider »" },
+  { label: "Ambre doux", fg: "#6e4300", bg: "#fcefd4", fgName: "warning-strong", bgName: "warning-soft", where: "Flag ambre, avis d'attention" },
+  { label: "Rouge plein", fg: WHITE, bg: "#8e2a1e", fgName: "white", bgName: "danger", where: "Badge en retard" },
+  { label: "Rouge doux", fg: "#8e2a1e", bg: "#fbe3df", fgName: "danger-strong", bgName: "danger-soft", where: "Chip rouge, bouton Retirer, erreur" },
+  { label: "Bleu doux", fg: "#1f5f80", bg: "#e1eff8", fgName: "info-strong", bgName: "info-soft", where: 'Chip tone="blue"' },
   { label: "Ciel du Sahel", fg: WHITE, bg: "#3fa6d9", fgName: "white", bgName: "accent", where: "À éviter pour du texte" },
 ];
 
 function Swatch({ token }: { token: Token }) {
   return (
-    <div className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+    <div className="flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-white">
       <div
         className="h-16 w-full border-b border-black/5"
         style={{ backgroundColor: token.hex }}
@@ -235,23 +175,23 @@ function Swatch({ token }: { token: Token }) {
       />
       <div className="space-y-1 p-3">
         <div className="flex items-start justify-between gap-2">
-          <p className="min-w-0 truncate text-sm font-bold text-neutral-900">
+          <p className="min-w-0 truncate text-sm font-bold text-ink">
             {token.name}
           </p>
           <CopyButton value={token.hex} label={`Copier ${token.hex}`} />
         </div>
-        <p className="font-mono text-xs uppercase text-neutral-700">
+        <p className="font-mono text-xs uppercase text-ink-body">
           {token.hex}
         </p>
-        <p className="truncate font-mono text-[11px] text-neutral-400">
+        <p className="truncate font-mono text-[11px] text-[#8F867E]">
           {token.variable}
         </p>
         {token.alias && (
-          <p className="text-[11px] text-neutral-500">
+          <p className="text-[11px] text-ink-muted">
             Classe <Mono>bg-{token.alias}</Mono> <Mono>text-{token.alias}</Mono>
           </p>
         )}
-        <p className="text-xs leading-snug text-neutral-500">{token.usage}</p>
+        <p className="text-xs leading-snug text-ink-muted">{token.usage}</p>
       </div>
     </div>
   );
@@ -273,7 +213,7 @@ function ContrastCard({ pair }: { pair: Pair }) {
   const ratio = contrastRatio(pair.fg, pair.bg);
   const level = wcagLevel(ratio);
   return (
-    <div className="flex min-w-0 overflow-hidden rounded-2xl border border-neutral-200 bg-white">
+    <div className="flex min-w-0 overflow-hidden rounded-2xl border border-line bg-white">
       <div
         className="flex w-24 shrink-0 flex-col items-center justify-center gap-0.5 border-r border-black/5"
         style={{ backgroundColor: pair.bg, color: pair.fg }}
@@ -284,7 +224,7 @@ function ContrastCard({ pair }: { pair: Pair }) {
       </div>
       <div className="min-w-0 flex-1 space-y-1 p-3">
         <div className="flex items-center justify-between gap-2">
-          <p className="min-w-0 truncate text-sm font-bold text-neutral-900">
+          <p className="min-w-0 truncate text-sm font-bold text-ink">
             {pair.label}
           </p>
           <span
@@ -296,13 +236,13 @@ function ContrastCard({ pair }: { pair: Pair }) {
             {level}
           </span>
         </div>
-        <p className="font-mono text-sm font-semibold tabular-nums text-neutral-900">
+        <p className="font-mono text-sm font-semibold tabular-nums text-ink">
           {formatRatio(ratio)}
         </p>
-        <p className="truncate font-mono text-[11px] text-neutral-500">
+        <p className="truncate font-mono text-[11px] text-ink-muted">
           text-{pair.fgName} / bg-{pair.bgName}
         </p>
-        <p className="text-xs text-neutral-500">{pair.where}</p>
+        <p className="text-xs text-ink-muted">{pair.where}</p>
       </div>
     </div>
   );
@@ -314,7 +254,7 @@ export function ColorsSection() {
       id="couleurs"
       number="01"
       title="Couleurs"
-      intro="La palette vient de app/globals.css. Les tons chauds portent la marque, les neutres portent le texte, les quatre couleurs d'état disent où en est une chose. Jamais de thème sombre."
+      intro="La palette vient de app/globals.css et reprend les valeurs que l'admin affiche aujourd'hui. Le terracotta porte l'action, l'encre et les gris chauds portent le texte, la crème sert de fond, quatre couleurs d'état disent où en est une chose. Thème clair uniquement."
     >
       <GuideSubsection
         title="Marque"
@@ -328,8 +268,19 @@ export function ColorsSection() {
       </GuideSubsection>
 
       <GuideSubsection
-        title="Neutres"
-        note="Les autres crans (200, 300, 400, 600) viennent de Tailwind."
+        title="Palette de l'admin"
+        note="Les tons chauds de l'équipe et du Studio, à utiliser pour tout nouvel écran admin."
+      >
+        <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
+          {adminTokens.map((token) => (
+            <Swatch key={token.variable} token={token} />
+          ))}
+        </div>
+      </GuideSubsection>
+
+      <GuideSubsection
+        title="Neutres froids"
+        note="Gardés pour le site public et les pages admin plus anciennes. Les autres crans viennent de Tailwind."
       >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-4">
           {neutralTokens.map((token) => (
@@ -340,7 +291,7 @@ export function ColorsSection() {
 
       <GuideSubsection
         title="États"
-        note="Trois crans par état: plein (500), doux (100) pour les fonds, profond (700) pour le texte posé sur le doux."
+        note="Les couleurs des pastilles de l'équipe: plein pour un badge ou une coche, doux pour un fond, profond pour le texte posé sur le doux."
       >
         <div className="grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-4">
           {statusTokens.map((token) => (
@@ -358,10 +309,11 @@ export function ColorsSection() {
             <ContrastCard key={pair.label} pair={pair} />
           ))}
         </div>
-        <p className="text-xs leading-relaxed text-neutral-500">
-          Lecture honnête: le blanc sur terracotta et le surtitre neutral-400
-          passent seulement en AA large. Ils restent réservés aux boutons en gras
-          et aux surtitres en capitales, jamais à un paragraphe.
+        <p className="text-xs leading-relaxed text-ink-muted">
+          Lecture honnête: le blanc sur terracotta passe seulement en AA large
+          et le blanc sur ciel échoue. Le terracotta reste réservé aux boutons et aux
+          compteurs en gras, jamais à un paragraphe; l&apos;ambre plein se lit
+          avec du texte encre, pas blanc.
         </p>
       </GuideSubsection>
     </GuideSection>

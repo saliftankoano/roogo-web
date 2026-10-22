@@ -84,22 +84,22 @@ export function FileDropzone({
         className={cn(
           "flex flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed px-6 py-8 text-center transition-[border-color,background-color] duration-150 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2",
           disabled
-            ? "cursor-not-allowed border-neutral-200 bg-neutral-100 opacity-70"
-            : "cursor-pointer border-neutral-300 bg-white hover:border-primary/60 hover:bg-secondary/40",
-          dragging && "border-primary bg-secondary/60",
+            ? "cursor-not-allowed border-line bg-[#F4EEE6] opacity-70"
+            : "cursor-pointer border-[#D6CBBE] bg-white hover:border-primary/60 hover:bg-cream",
+          dragging && "border-primary bg-cream",
           invalid && "border-danger",
         )}
       >
         <span
           className={cn(
-            "flex h-11 w-11 items-center justify-center rounded-full bg-secondary text-primary transition-transform duration-150",
+            "flex h-11 w-11 items-center justify-center rounded-full bg-[#F7E4D3] text-primary transition-transform duration-150",
             dragging && "-translate-y-0.5",
           )}
         >
           <CloudArrowUpIcon size={22} weight="bold" aria-hidden="true" />
         </span>
-        <span className="text-sm font-semibold text-neutral-900">{title}</span>
-        <span className="text-xs text-neutral-500">{hint}</span>
+        <span className="text-sm font-semibold text-ink">{title}</span>
+        <span className="text-xs text-ink-muted">{hint}</span>
         <input
           ref={inputRef}
           type="file"
@@ -116,24 +116,24 @@ export function FileDropzone({
       </div>
 
       {files.length > 0 && (
-        <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white">
+        <ul className="divide-y divide-line-soft rounded-2xl border border-line bg-white">
           {files.map((file, index) => (
             <li
               key={`${file.name}-${index}`}
               className="flex items-center justify-between gap-3 px-3.5 py-2 text-sm"
             >
-              <span className="min-w-0 truncate font-medium text-neutral-900">
+              <span className="min-w-0 truncate font-medium text-ink">
                 {file.name}
               </span>
               <span className="flex shrink-0 items-center gap-3">
-                <span className="text-xs tabular-nums text-neutral-500">
+                <span className="text-xs tabular-nums text-ink-muted">
                   {formatSize(file.size)}
                 </span>
                 <button
                   type="button"
                   onClick={() => remove(index)}
                   aria-label={`Retirer ${file.name}`}
-                  className="rounded-full p-1 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+                  className="rounded-full p-1 text-[#8F867E] transition-colors hover:bg-[#F4EEE6] hover:text-ink"
                 >
                   <XIcon size={14} weight="bold" />
                 </button>

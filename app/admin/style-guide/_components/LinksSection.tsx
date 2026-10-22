@@ -11,21 +11,21 @@ export function LinksSection() {
   return (
     <GuideSection
       id="liens"
-      number="05"
+      number="06"
       title="Liens et survol"
       intro="Un lien se reconnaît sans sa couleur: soulignement léger au repos, plein au survol. Le focus clavier est l'anneau terracotta global défini dans globals.css, le même sur tous les éléments interactifs."
     >
       <GuideSubsection title="Variantes" note="Survolez et tabulez pour voir les états.">
         <SpecimenGrid columns={3}>
           <Specimen label="Lien principal" code={textLinkVariants.primary}>
-            <p className="text-sm text-neutral-700">
+            <p className="text-sm text-ink-body">
               Consultez la{" "}
               <TextLink href="/admin/annonces">liste des annonces</TextLink>{" "}
               avant de valider.
             </p>
           </Specimen>
           <Specimen label="Lien discret" code={textLinkVariants.muted}>
-            <p className="text-sm text-neutral-700">
+            <p className="text-sm text-ink-body">
               Déjà traité ?{" "}
               <TextLink href="/admin/modifications" variant="muted">
                 Voir l&apos;historique
@@ -33,7 +33,7 @@ export function LinksSection() {
             </p>
           </Specimen>
           <Specimen label="Lien externe" code={textLinkVariants.external}>
-            <p className="text-sm text-neutral-700">
+            <p className="text-sm text-ink-body">
               Fiche publique sur{" "}
               <TextLink href="https://www.roogobf.com" variant="external">
                 roogobf.com
@@ -61,7 +61,7 @@ export function LinksSection() {
               </a>
               <button
                 type="button"
-                className="rounded-full border border-neutral-200 px-4 py-2 text-sm font-semibold text-neutral-700"
+                className="rounded-full border border-line px-4 py-2 text-sm font-semibold text-ink-body"
               >
                 puis ici
               </button>
@@ -69,14 +69,14 @@ export function LinksSection() {
           </Specimen>
           <Specimen
             label="Survol de ligne"
-            code="hover:bg-secondary/40 transition-colors duration-100"
+            code="hover:bg-cream transition-colors duration-100"
           >
-            <ul className="divide-y divide-neutral-100 overflow-hidden rounded-xl border border-neutral-200">
+            <ul className="divide-y divide-line-soft overflow-hidden rounded-xl border border-line">
               {["Villa à Ouaga 2000", "Studio à Pissy", "Boutique à Gounghin"].map(
                 (item) => (
                   <li
                     key={item}
-                    className="cursor-pointer px-4 py-2.5 text-sm text-neutral-700 transition-colors duration-100 hover:bg-secondary/40"
+                    className="cursor-pointer px-4 py-2.5 text-sm text-ink-body transition-colors duration-100 hover:bg-cream"
                   >
                     {item}
                   </li>
@@ -85,7 +85,7 @@ export function LinksSection() {
             </ul>
           </Specimen>
         </SpecimenGrid>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-ink-muted">
           Les boutons gardent en plus leur anneau{" "}
           <Mono>focus:ring-2 focus:ring-offset-2</Mono> coloré selon la variante.
         </p>

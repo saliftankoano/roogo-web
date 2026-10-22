@@ -9,11 +9,23 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { StatusBadge, type ListingStatus } from "@/components/ui/status-badge";
+import { Chip } from "@/components/admin/team/ui";
+import type { TaskTone } from "@/lib/team-tasks/core";
 import { EmptyState } from "@/components/ui/empty-state";
 import { Button } from "@/components/ui/Button";
 import { formatNumber } from "@/lib/format";
 import { GuideSection, GuideSubsection, Mono } from "./primitives";
+
+type ListingStatus = "en_ligne" | "en_attente" | "expired" | "locked" | "finalized";
+
+// Listing statuses as Chips, one colour per meaning (see Badges et statuts).
+const STATUS_CHIP: Record<ListingStatus, { label: string; tone: TaskTone }> = {
+  en_ligne: { label: "En ligne", tone: "green" },
+  en_attente: { label: "En attente", tone: "orange" },
+  expired: { label: "Expirée", tone: "grey" },
+  locked: { label: "Réservée", tone: "blue" },
+  finalized: { label: "Louée", tone: "dark" },
+};
 
 type Row = {
   ref: string;
@@ -37,14 +49,14 @@ function ListingRows({ data }: { data: Row[] }) {
     <>
       {data.map((row) => (
         <TableRow key={row.ref}>
-          <TableCell className="font-mono text-xs text-neutral-500">{row.ref}</TableCell>
-          <TableCell className="font-semibold text-neutral-900">{row.title}</TableCell>
+          <TableCell className="font-mono text-xs text-ink-muted">{row.ref}</TableCell>
+          <TableCell className="font-semibold text-ink">{row.title}</TableCell>
           <TableCell>{row.zone}</TableCell>
           <TableCell numeric>{formatNumber(row.rent)} F</TableCell>
           <TableCell>
-            <StatusBadge status={row.status} />
+            <Chip tone={STATUS_CHIP[row.status].tone}>{STATUS_CHIP[row.status].label}</Chip>
           </TableCell>
-          <TableCell className="text-neutral-500">{row.updated}</TableCell>
+          <TableCell className="text-ink-muted">{row.updated}</TableCell>
         </TableRow>
       ))}
     </>
@@ -70,13 +82,13 @@ export function TablesSection() {
   return (
     <GuideSection
       id="tableaux"
-      number="08"
+      number="09"
       title="Tableaux"
-      intro="components/ui/table.tsx: en-tête en surtitre, lignes séparées par un filet neutral-100, survol sable. Les montants sont alignés à droite avec des chiffres tabulaires, les statuts sont des chips, et le tableau défile horizontalement sur mobile au lieu de casser la page."
+      intro="components/ui/table.tsx: en-tête en surtitre, lignes séparées par un filet chaud, survol crème. Les montants sont alignés à droite avec des chiffres tabulaires, les statuts sont des Chip, et le tableau défile horizontalement sur mobile au lieu de casser la page."
     >
       <GuideSubsection
         title="Standard avec zébrage"
-        note="zebra alterne un fond neutral-50 une ligne sur deux. Survolez une ligne."
+        note="zebra alterne un fond papier une ligne sur deux. Survolez une ligne."
       >
         <Table zebra>
           <Head />
@@ -84,7 +96,7 @@ export function TablesSection() {
             <ListingRows data={rows} />
           </TableBody>
         </Table>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-ink-muted">
           Colonne numérique: <Mono>{"<TableCell numeric>"}</Mono> ajoute{" "}
           <Mono>text-right font-semibold tabular-nums</Mono>.
         </p>
@@ -110,7 +122,7 @@ export function TablesSection() {
                 title="Aucune annonce ne correspond"
                 description="Élargissez la zone ou retirez le filtre de statut."
                 action={
-                  <Button variant="secondary" size="sm">
+                  <Button variant="outline" size="sm">
                     Réinitialiser les filtres
                   </Button>
                 }

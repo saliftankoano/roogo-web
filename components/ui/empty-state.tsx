@@ -29,19 +29,19 @@ export function EmptyState({
         "flex flex-col items-center gap-3 text-center",
         compact
           ? "py-8"
-          : "rounded-[32px] border border-neutral-100 bg-white px-6 py-16",
+          : "rounded-[32px] border border-line-soft bg-white px-6 py-16",
         className,
       )}
     >
       {icon && (
-        <span className="text-neutral-200" aria-hidden="true">
+        <span className="text-[#D6CBBE]" aria-hidden="true">
           {icon}
         </span>
       )}
       <div className="space-y-1">
-        <p className="text-sm font-bold text-neutral-700">{title}</p>
+        <p className="text-sm font-bold text-ink-body">{title}</p>
         {description && (
-          <p className="mx-auto max-w-sm text-sm text-neutral-500">
+          <p className="mx-auto max-w-sm text-sm text-ink-muted">
             {description}
           </p>
         )}

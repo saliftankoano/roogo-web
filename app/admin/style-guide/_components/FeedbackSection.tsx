@@ -6,7 +6,8 @@ import { ChatCircleTextIcon, TrashIcon } from "@phosphor-icons/react";
 import { Button } from "@/components/ui/Button";
 import { Dialog } from "@/components/ui/dialog";
 import { Alert, type AlertTone } from "@/components/ui/alert";
-import { Toast, useToast } from "@/components/ui/toast";
+import { Toast, type ToastMessage } from "@/app/admin/studio/publishing/Toast";
+import { Drawer, CloseButton } from "@/components/admin/team/Drawer";
 import { Skeleton } from "@/components/ui/skeleton";
 import { EmptyState } from "@/components/ui/empty-state";
 import {
@@ -29,24 +30,28 @@ export function FeedbackSection() {
   const [confirmOpen, setConfirmOpen] = React.useState(false);
   const [infoOpen, setInfoOpen] = React.useState(false);
   const [deleting, setDeleting] = React.useState(false);
-  const [toastOpen, showToast] = useToast();
-  const [deletedToast, showDeletedToast] = useToast();
+  const [drawerOpen, setDrawerOpen] = React.useState(false);
+  // Main's Studio toast: one message at a time, it hides itself after 4 s.
+  const [toast, setToast] = React.useState<ToastMessage | null>(null);
+  const showToast = (text: string, tone: ToastMessage["tone"] = "ok") =>
+    setToast({ id: Date.now(), text, tone });
+  const clearToast = React.useCallback(() => setToast(null), []);
 
   const confirmDelete = () => {
     setDeleting(true);
     setTimeout(() => {
       setDeleting(false);
       setConfirmOpen(false);
-      showDeletedToast();
+      showToast("Annonce supprimée");
     }, 1200);
   };
 
   return (
     <GuideSection
       id="dialogues"
-      number="10"
+      number="11"
       title="Dialogues et retours"
-      intro="Ce que l'écran répond à une action: un dialogue pour confirmer, une alerte pour contextualiser, un toast pour acquitter, un squelette pendant l'attente, un état vide quand il n'y a rien. Chaque retour est spécifique et dit quoi faire ensuite."
+      intro="Ce que l'écran répond à une action: un dialogue pour confirmer, une alerte pour contextualiser, un panneau latéral pour le détail, un toast pour acquitter, un squelette pendant l'attente, un état vide quand il n'y a rien. Chaque retour est spécifique et dit quoi faire ensuite."
     >
       <GuideSubsection title="Dialogue" note="<Dialog open onClose title description actions>. Échap et clic sur le fond ferment; feuille basse sur mobile.">
         <SpecimenGrid columns={2}>
@@ -56,7 +61,7 @@ export function FeedbackSection() {
             </Button>
           </Specimen>
           <Specimen label="Contenu long" code='<Dialog size="lg">...</Dialog> (le corps défile, le titre et les actions restent)'>
-            <Button variant="secondary" onClick={() => setInfoOpen(true)}>
+            <Button variant="outline" onClick={() => setInfoOpen(true)}>
               Ouvrir le détail
             </Button>
           </Specimen>
@@ -143,35 +148,67 @@ export function FeedbackSection() {
             Le propriétaire n&apos;a pas répondu depuis 5 jours.
           </Alert>
         </div>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-ink-muted">
           Code: <Mono>{'<Alert tone="success" title="Paiement reçu">…</Alert>'}</Mono>
         </p>
       </GuideSubsection>
 
-      <GuideSubsection title="Toast" note="Pilule sombre en bas d'écran, 2,2 s, pour acquitter une action courte (copie, sauvegarde).">
+      <GuideSubsection title="Panneau latéral" note="<Drawer> de components/admin/team/Drawer.tsx: à droite sur ordinateur, plein écran sur téléphone. Échap ferme, le focus reste dedans.">
+        <Specimen label="Notes de l'appel, preuves d'un objectif" code='<Drawer open onClose label header={...} footer={...}>'>
+          <Button variant="outline" onClick={() => setDrawerOpen(true)}>
+            Ouvrir le panneau
+          </Button>
+        </Specimen>
+        <Drawer
+          open={drawerOpen}
+          onClose={() => setDrawerOpen(false)}
+          label="Notes de l'appel"
+          header={
+            <div className="flex items-start gap-3">
+              <div className="min-w-0 flex-1">
+                <p className="m-0 text-xs font-extrabold uppercase tracking-[0.08em] text-[#8A4924]">
+                  Appel
+                </p>
+                <p className="m-0 text-lg font-extrabold text-ink">Notes de l&apos;appel</p>
+              </div>
+              <CloseButton onClose={() => setDrawerOpen(false)} />
+            </div>
+          }
+          footer={
+            <Button variant="dark" fullWidth onClick={() => setDrawerOpen(false)}>
+              Enregistrer
+            </Button>
+          }
+        >
+          <div className="space-y-3 px-4 py-4 text-sm text-ink-body lg:px-5">
+            <p data-drawer-row className="m-0">
+              Le propriétaire rappelle jeudi matin pour confirmer la visite.
+            </p>
+            <p data-drawer-row className="m-0">
+              Il souhaite publier deux autres maisons à Balkuy.
+            </p>
+          </div>
+        </Drawer>
+      </GuideSubsection>
+
+      <GuideSubsection title="Toast" note="<Toast> de app/admin/studio/publishing/Toast.tsx: pilule encre en haut, sous la barre, 4 s. Pour acquitter une action courte.">
         <SpecimenGrid columns={2}>
-          <Specimen label="Déclencher" code="const [open, show] = useToast(); <Toast open={open}>Numéro copié</Toast>">
-            <Button variant="secondary" onClick={showToast}>
+          <Specimen label="Succès" code='<Toast toast={{ id, text, tone: "ok" }} onDone={clear} />'>
+            <Button variant="outline" onClick={() => showToast("Numéro copié dans le presse-papiers")}>
               Afficher le toast
             </Button>
           </Specimen>
-          <Specimen label="Aperçu statique" code='<Toast open position="inline" tone="success">'>
-            <div className="flex flex-wrap gap-2">
-              <Toast open position="inline">
-                Numéro copié dans le presse-papiers
-              </Toast>
-              <Toast open position="inline" tone="danger">
-                Envoi impossible, réessayez
-              </Toast>
-            </div>
+          <Specimen label="Attention" code='tone: "warn"'>
+            <Button variant="outline" onClick={() => showToast("Publication reportée, Meta ne répond pas", "warn")}>
+              Afficher l&apos;alerte
+            </Button>
           </Specimen>
         </SpecimenGrid>
-        <Toast open={toastOpen}>Numéro copié dans le presse-papiers</Toast>
-        <Toast open={deletedToast}>Annonce supprimée</Toast>
+        <Toast toast={toast} onDone={clearToast} />
       </GuideSubsection>
 
       <GuideSubsection title="Squelette" note="<Skeleton /> (components/ui/skeleton.tsx) reproduit la forme du contenu attendu, pas un spinner.">
-        <SpecimenGrid columns={2}>
+        <SpecimenGrid columns={3}>
           <Specimen label="Carte d'annonce" code='<Skeleton className="h-40 rounded-xl" /> puis des lignes h-4'>
             <div className="space-y-3">
               <Skeleton className="h-40 w-full rounded-xl" />
@@ -181,6 +218,13 @@ export function FeedbackSection() {
                 <Skeleton className="h-6 w-16 rounded-full" />
                 <Skeleton className="h-6 w-20 rounded-full" />
               </div>
+            </div>
+          </Specimen>
+          <Specimen label="Studio (balayage clair)" code='<div className="studio-skeleton h-24 rounded-2xl" />'>
+            <div className="space-y-3">
+              <div className="studio-skeleton h-24 w-full rounded-2xl" />
+              <div className="studio-skeleton h-4 w-2/3 rounded-full" />
+              <div className="studio-skeleton h-3 w-1/3 rounded-full" />
             </div>
           </Specimen>
           <Specimen label="Ligne de liste" code='<Skeleton className="h-12 w-12 rounded-full" /> + deux lignes'>

@@ -29,17 +29,44 @@ import {
 } from "./primitives";
 
 const variants: { id: ButtonVariant; label: string; when: string }[] = [
-  { id: "primary", label: "Principal", when: "L'action attendue de la page, une seule fois." },
-  { id: "secondary", label: "Secondaire", when: "Action utile mais pas prioritaire." },
-  { id: "outline", label: "Contour", when: "Action alternative à côté du principal." },
-  { id: "ghost", label: "Fantôme", when: "Actions de barre d'outils, fermer, annuler." },
-  { id: "destructive", label: "Destructif", when: "Supprimer, refuser, résilier. Toujours derrière une confirmation." },
+  { id: "primary", label: "Principal", when: "L'action attendue de la page, une seule fois. Terracotta, survol #B85E26." },
+  { id: "dark", label: "Encre", when: "Valider dans un panneau ou un dialogue: Enregistrer, Envoyer." },
+  { id: "outline", label: "Contour", when: "Toutes les autres actions: blanc sur filet chaud, survol terracotta." },
+  { id: "ghost", label: "Fantôme", when: "Annuler, fermer, actions de barre d'outils." },
+  { id: "destructive", label: "Destructif", when: "Supprimer, retirer, refuser. Rouge doux, toujours derrière une confirmation." },
+  { id: "secondary", label: "Sable (site public)", when: "Gardé pour le site public; pas dans l'admin." },
 ];
 
 const sizes: { id: ButtonSize; label: string }[] = [
   { id: "sm", label: "Petit" },
   { id: "md", label: "Moyen" },
   { id: "lg", label: "Grand" },
+];
+
+// Copied from main as rendered on 2026-10-22 (Studio header actions, team
+// TaskComposer, GoalForm, DayReport).
+const liveAdminButtons: { label: string; text: string; classes: string }[] = [
+  {
+    label: "Action principale (Studio)",
+    text: "Nouveau projet",
+    classes:
+      "inline-flex h-11 items-center gap-1.5 whitespace-nowrap rounded-full bg-[#C96A2E] px-4 text-sm font-bold text-white transition-colors hover:bg-[#B85E26] disabled:opacity-60 md:h-10",
+  },
+  {
+    label: "Valider dans un panneau",
+    text: "Enregistrer",
+    classes: "h-11 rounded-full bg-[#1F1A16] px-4 text-sm font-extrabold text-white disabled:opacity-60",
+  },
+  {
+    label: "Action secondaire",
+    text: "Plus tard",
+    classes: "h-11 rounded-full border border-[#E2D8CC] bg-white px-4 text-sm font-bold",
+  },
+  {
+    label: "Retirer",
+    text: "Retirer la tâche",
+    classes: "h-11 rounded-full bg-[#FBE3DF] px-4 text-sm font-extrabold text-[#8E2A1E] disabled:opacity-60",
+  },
 ];
 
 const responsiveRules: { ok: boolean; text: string }[] = [
@@ -61,44 +88,44 @@ export function ButtonsSection() {
   return (
     <GuideSection
       id="boutons"
-      number="06"
+      number="07"
       title="Boutons"
-      intro="Un composant, components/ui/Button.tsx, cinq variantes, trois tailles plus une taille icône. Pilule, gras, légère pression au clic (scale 0,985). Un seul bouton principal par écran."
+      intro="Un composant, components/ui/Button.tsx, six variantes, trois tailles plus une taille icône. Pilule, gras, libellé sur une seule ligne, légère pression au clic (scale 0,985). Un seul bouton terracotta par écran. Les pages de l'équipe et du Studio dessinent les mêmes pilules: 44 px de haut sur téléphone, 40 px sur ordinateur, texte de 14 px."
     >
       <GuideSubsection title="Variantes et tailles" note="Chaque ligne est une variante, chaque colonne une taille.">
-        <div className="overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+        <div className="overflow-x-auto rounded-2xl border border-line bg-white">
           <table className="w-full text-sm">
-            <thead className="border-b border-neutral-200 bg-neutral-50/50">
+            <thead className="border-b border-line bg-paper">
               <tr>
-                <th className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+                <th className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-muted">
                   Variante
                 </th>
                 {sizes.map((size) => (
                   <th
                     key={size.id}
-                    className="px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wider text-neutral-400"
+                    className="px-4 py-3 text-left text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-muted"
                   >
                     {size.label} <span className="font-mono normal-case">{size.id}</span>
                   </th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-neutral-100">
+            <tbody className="divide-y divide-line-soft">
               {variants.map((variant) => (
                 <tr key={variant.id}>
                   <td className="px-4 py-3 align-top">
-                    <p className="font-bold text-neutral-900">{variant.label}</p>
-                    <p className="mt-0.5 max-w-[200px] text-xs text-neutral-500">
+                    <p className="font-bold text-ink">{variant.label}</p>
+                    <p className="mt-0.5 max-w-[200px] text-xs text-ink-muted">
                       {variant.when}
                     </p>
-                    <code className="mt-1 block font-mono text-[11px] text-neutral-400">
+                    <code className="mt-1 block font-mono text-[11px] text-[#8F867E]">
                       variant=&quot;{variant.id}&quot;
                     </code>
                   </td>
                   {sizes.map((size) => (
                     <td key={size.id} className="px-4 py-3 align-middle">
                       <Button variant={variant.id} size={size.id}>
-                        {variant.id === "destructive" ? "Supprimer" : "Enregistrer"}
+                        {variant.id === "destructive" ? "Supprimer" : variant.id === "dark" ? "Envoyer" : "Enregistrer"}
                       </Button>
                     </td>
                   ))}
@@ -107,19 +134,19 @@ export function ButtonsSection() {
             </tbody>
           </table>
         </div>
-        <details className="group rounded-2xl border border-neutral-200 bg-white">
-          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-neutral-700 transition-colors hover:text-neutral-900">
+        <details className="group rounded-2xl border border-line bg-white">
+          <summary className="cursor-pointer select-none px-4 py-3 text-sm font-semibold text-ink-body transition-colors hover:text-ink">
             Classes générées par variante et taille
           </summary>
-          <div className="space-y-2 border-t border-neutral-100 px-4 py-3">
+          <div className="space-y-2 border-t border-line-soft px-4 py-3">
             {Object.entries(buttonVariants).map(([name, classes]) => (
-              <p key={name} className="font-mono text-[11px] leading-5 text-neutral-600">
-                <span className="font-bold text-neutral-900">{name}</span>: {classes}
+              <p key={name} className="font-mono text-[11px] leading-5 text-ink-body">
+                <span className="font-bold text-ink">{name}</span>: {classes}
               </p>
             ))}
             {Object.entries(buttonSizes).map(([name, classes]) => (
-              <p key={name} className="font-mono text-[11px] leading-5 text-neutral-600">
-                <span className="font-bold text-neutral-900">size {name}</span>: {classes}
+              <p key={name} className="font-mono text-[11px] leading-5 text-ink-body">
+                <span className="font-bold text-ink">size {name}</span>: {classes}
               </p>
             ))}
           </div>
@@ -131,16 +158,16 @@ export function ButtonsSection() {
         note="Survol et focus se voient en direct. Les autres sont forcés par props."
       >
         <SpecimenGrid columns={3}>
-          <Specimen label="Survol et pression" code="hover:bg-primary-hover enabled:active:scale-[0.985]">
+          <Specimen label="Survol et pression" code="hover:bg-brand-hover enabled:active:scale-[0.985]">
             <Button>Survolez puis cliquez</Button>
           </Specimen>
-          <Specimen label="Focus clavier" code="focus:ring-2 focus:ring-offset-2 focus:ring-primary">
+          <Specimen label="Focus clavier" code="focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-primary">
             <Button variant="outline">Tabulez jusqu&apos;ici</Button>
           </Specimen>
           <Specimen label="Désactivé" code="disabled (opacity-50 cursor-not-allowed)">
             <div className="flex flex-wrap gap-2">
               <Button disabled>Enregistrer</Button>
-              <Button variant="secondary" disabled>
+              <Button variant="outline" disabled>
                 Annuler
               </Button>
             </div>
@@ -150,11 +177,11 @@ export function ButtonsSection() {
               <Button loading={loading} onClick={simulate} leftIcon={<FloppyDiskIcon size={18} weight="bold" />}>
                 {loading ? "Enregistrement" : "Enregistrer"}
               </Button>
-              <span className="text-xs text-neutral-500">Cliquez pour simuler 1,8 s.</span>
+              <span className="text-xs text-ink-muted">Cliquez pour simuler 1,8 s.</span>
             </div>
           </Specimen>
           <Specimen label="Icône à gauche" code="leftIcon={<PlusIcon size={18} weight='bold' />}">
-            <Button variant="secondary" leftIcon={<PlusIcon size={18} weight="bold" />}>
+            <Button variant="outline" leftIcon={<PlusIcon size={18} weight="bold" />}>
               Nouvelle annonce
             </Button>
           </Specimen>
@@ -185,13 +212,28 @@ export function ButtonsSection() {
             </Button>
           </Specimen>
         </SpecimenGrid>
-        <p className="text-xs leading-relaxed text-neutral-500">
+        <p className="text-xs leading-relaxed text-ink-muted">
           Les icônes viennent de <Mono>@phosphor-icons/react</Mono> en graisse{" "}
           <Mono>bold</Mono>. Le bouton impose leur taille (16 px en petit, 18 px
           en moyen, 20 px en grand et en icône seule), quelle que soit la prop{" "}
           <Mono>size</Mono> passée à l&apos;icône. Une icône seule a toujours un{" "}
           <Mono>aria-label</Mono>.
         </p>
+      </GuideSubsection>
+
+      <GuideSubsection
+        title="Pilules des pages équipe et Studio"
+        note="Accueil, L'équipe et le Studio écrivent ces classes à la main. Un nouveau bouton prend le composant Button; ces chaînes servent de référence visuelle."
+      >
+        <SpecimenGrid columns={2}>
+          {liveAdminButtons.map((item) => (
+            <Specimen key={item.label} label={item.label} code={item.classes}>
+              <button type="button" className={item.classes}>
+                {item.text}
+              </button>
+            </Specimen>
+          ))}
+        </SpecimenGrid>
       </GuideSubsection>
 
       <GuideSubsection
@@ -215,15 +257,15 @@ export function ButtonsSection() {
                 formatValue={(value) => `${value} px`}
               />
               <div
-                className="max-w-full space-y-3 rounded-2xl border border-dashed border-neutral-300 bg-neutral-50/60 p-3"
+                className="max-w-full space-y-3 rounded-2xl border border-dashed border-[#D6CBBE] bg-paper p-3"
                 style={{ width: demoWidth }}
               >
                 <div className="flex items-center justify-between gap-3 rounded-xl bg-white p-3">
                   <div className="min-w-0">
-                    <p className="truncate text-sm font-bold tabular-nums text-neutral-900">
+                    <p className="truncate text-sm font-bold tabular-nums text-ink">
                       {formatCurrency(50000)} / mois
                     </p>
-                    <p className="truncate text-xs text-neutral-500">
+                    <p className="truncate text-xs text-ink-muted">
                       Studio meublé, Pissy
                     </p>
                   </div>
@@ -250,7 +292,7 @@ export function ButtonsSection() {
                   </Button>
                 </div>
               </div>
-              <p className="text-xs leading-relaxed text-neutral-500">
+              <p className="text-xs leading-relaxed text-ink-muted">
                 Réduisez à 160 px: le prix se tronque avant le bouton, le bouton
                 pleine largeur coupe son libellé avec une ellipse (survolez-le pour
                 lire le titre), les deux actions passent à la ligne ensemble. Aucune
@@ -259,15 +301,15 @@ export function ButtonsSection() {
             </div>
           </Specimen>
 
-          <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+          <div className="space-y-3 rounded-2xl border border-line bg-white p-4">
+            <p className="text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-muted">
               Règles
             </p>
             <ul className="space-y-2.5">
               {responsiveRules.map((rule) => (
                 <li
                   key={rule.text}
-                  className="flex items-start gap-2 text-sm leading-relaxed text-neutral-700"
+                  className="flex items-start gap-2 text-sm leading-relaxed text-ink-body"
                 >
                   {rule.ok ? (
                     <CheckCircleIcon
@@ -288,7 +330,7 @@ export function ButtonsSection() {
                 </li>
               ))}
             </ul>
-            <p className="text-xs leading-relaxed text-neutral-500">
+            <p className="text-xs leading-relaxed text-ink-muted">
               Le libellé tronqué reste lisible grâce à <Mono>title</Mono>, ajouté
               automatiquement quand <Mono>truncate</Mono> reçoit un texte simple.
             </p>

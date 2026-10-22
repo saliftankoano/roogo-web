@@ -27,7 +27,7 @@ const Select = React.forwardRef<HTMLSelectElement, SelectProps>(
         size={16}
         weight="bold"
         aria-hidden="true"
-        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-neutral-400"
+        className="pointer-events-none absolute right-3.5 top-1/2 -translate-y-1/2 text-[#8F867E]"
       />
     </div>
   ),

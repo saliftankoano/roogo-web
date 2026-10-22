@@ -23,8 +23,8 @@ export interface AlertProps
 
 const toneStyles: Record<AlertTone, { box: string; icon: string }> = {
   neutral: {
-    box: "border-neutral-200 bg-neutral-50 text-neutral-700",
-    icon: "text-neutral-500",
+    box: "border-line-soft bg-paper text-ink-body",
+    icon: "text-ink-muted",
   },
   info: {
     box: "border-info/20 bg-info-soft text-info-strong",
@@ -36,7 +36,7 @@ const toneStyles: Record<AlertTone, { box: string; icon: string }> = {
   },
   warning: {
     box: "border-warning/25 bg-warning-soft text-warning-strong",
-    icon: "text-warning",
+    icon: "text-warning-strong",
   },
   danger: {
     box: "border-danger/20 bg-danger-soft text-danger-strong",

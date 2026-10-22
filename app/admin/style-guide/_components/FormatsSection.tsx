@@ -190,7 +190,7 @@ export function FormatsSection() {
   return (
     <GuideSection
       id="chiffres"
-      number="04"
+      number="05"
       title="Chiffres et formats"
       intro="Chaque valeur ci-dessous sort des vraies fonctions du dépôt: lib/format.ts pour les nombres et les montants, lib/studio/currency.ts pour les coûts Studio, lib/phone.ts pour les téléphones, et l'API Intl en fr-FR pour les dates. Si le rendu change ici, il change partout."
     >
@@ -208,22 +208,22 @@ export function FormatsSection() {
 
       {groups.map((group) => (
         <GuideSubsection key={group.title} title={group.title} note={group.note}>
-          <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-            <ul className="divide-y divide-neutral-100">
+          <div className="overflow-hidden rounded-2xl border border-line bg-white">
+            <ul className="divide-y divide-line-soft">
               {group.rows.map((row) => (
                 <li
                   key={row.rule}
                   className="grid gap-2 px-4 py-3 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-center md:gap-6 md:px-5"
                 >
-                  <p className="text-sm font-semibold text-neutral-900">
+                  <p className="text-sm font-semibold text-ink">
                     {row.rule}
                   </p>
-                  <code className="min-w-0 break-words font-mono text-[11px] leading-5 text-neutral-500">
+                  <code className="min-w-0 break-words font-mono text-[11px] leading-5 text-ink-muted">
                     {row.code}
                   </code>
                   <p
                     suppressHydrationWarning
-                    className="text-base font-bold tabular-nums text-neutral-900 md:text-right"
+                    className="text-base font-bold tabular-nums text-ink md:text-right"
                   >
                     {row.output}
                   </p>

@@ -33,7 +33,7 @@ const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
             type="radio"
             disabled={disabled}
             data-invalid={invalid || undefined}
-            className="peer absolute inset-0 h-full w-full cursor-[inherit] appearance-none rounded-full border border-neutral-300 bg-white transition-colors duration-150 group-hover:border-neutral-400 checked:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 data-[invalid=true]:border-danger"
+            className="peer absolute inset-0 h-full w-full cursor-[inherit] appearance-none rounded-full border border-[#D6CBBE] bg-white transition-colors duration-150 group-hover:border-primary checked:border-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 focus-visible:ring-offset-2 data-[invalid=true]:border-danger"
             {...props}
           />
           <span
@@ -44,12 +44,12 @@ const Radio = React.forwardRef<HTMLInputElement, RadioProps>(
         {(label || description) && (
           <span className="flex flex-col gap-0.5">
             {label && (
-              <span className="text-sm font-medium leading-5 text-neutral-900">
+              <span className="text-sm font-medium leading-5 text-ink">
                 {label}
               </span>
             )}
             {description && (
-              <span className="text-xs text-neutral-500">{description}</span>
+              <span className="text-xs text-ink-muted">{description}</span>
             )}
           </span>
         )}

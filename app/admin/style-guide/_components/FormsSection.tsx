@@ -42,7 +42,7 @@ function TextStates({
   }) => React.ReactNode;
 }) {
   return (
-    <div className="grid gap-4 sm:grid-cols-2">
+    <div className="grid max-w-xl gap-4">
       <FormField label="Par défaut" htmlFor={`${id}-default`}>
         {render({ id: `${id}-default` })}
       </FormField>
@@ -101,19 +101,33 @@ export function FormsSection() {
   return (
     <GuideSection
       id="formulaires"
-      number="07"
+      number="08"
       title="Formulaires"
-      intro="Tous les champs partagent la même surface: coins rounded-xl, bordure neutral-200, bordure terracotta et halo léger au focus, rouge latérite en erreur. Le libellé est en capitales au-dessus, l'aide ou l'erreur en dessous, jamais à la place de l'indication."
+      intro="Tous les champs partagent la surface des pages de l'équipe: coins rounded-2xl, filet chaud #E2D8CC, texte de 15 px, bordure terracotta et halo léger au focus, rouge en erreur. Un champ par ligne, toujours: le libellé en capitales au-dessus, l'aide ou l'erreur en dessous, jamais à la place de l'indication."
     >
       <GuideSubsection
         title="Surface commune"
         note="Exportée par components/ui/input.tsx sous le nom fieldClassName."
       >
         <Specimen code={fieldClassName}>
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-ink-body">
             Input, Select et Textarea réutilisent exactement cette chaîne. Les
             enveloppes composites (téléphone, fichier, zone de dépôt) reprennent
             les mêmes couleurs de bordure et de focus.
+          </p>
+        </Specimen>
+      </GuideSubsection>
+
+      <GuideSubsection
+        title="Un champ par ligne"
+        note="Règle de la maison: aucun formulaire ne met deux champs côte à côte, même sur ordinateur."
+      >
+        <Specimen code='<form className="grid max-w-xl gap-4"> un <FormField> par ligne </form>'>
+          <p className="text-sm text-ink-body">
+            Sur un téléphone comme sur un grand écran, on lit et on remplit de
+            haut en bas. Deux champs sur une même ligne se lisent dans le
+            mauvais ordre et se tassent sur mobile. Les exemples ci-dessous
+            suivent la règle.
           </p>
         </Specimen>
       </GuideSubsection>
@@ -123,7 +137,7 @@ export function FormsSection() {
       </GuideSubsection>
 
       <GuideSubsection title="Types natifs" note="Mêmes classes, le navigateur fournit le clavier et le sélecteur.">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid max-w-xl gap-4">
           <FormField label="E-mail" htmlFor="email" help="Jamais obligatoire au Burkina.">
             <Input id="email" type="email" placeholder="nom@exemple.bf" autoComplete="email" />
           </FormField>
@@ -140,7 +154,7 @@ export function FormsSection() {
       </GuideSubsection>
 
       <GuideSubsection title="Liste déroulante" note="<Select /> natif, caret Phosphor à droite.">
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+        <div className="grid max-w-xl gap-4">
           <FormField label="Par défaut" htmlFor="select-default">
             <Select id="select-default" defaultValue="">
               <option value="" disabled>
@@ -175,7 +189,7 @@ export function FormsSection() {
       </GuideSubsection>
 
       <GuideSubsection title="Zone de texte" note="<Textarea rows={4} />, redimensionnable en hauteur seulement.">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid max-w-xl gap-4">
           <FormField
             label="Description"
             htmlFor="textarea-default"
@@ -200,7 +214,7 @@ export function FormsSection() {
       </GuideSubsection>
 
       <GuideSubsection title="Fichiers" note="<FileInput /> pour un document, <FileDropzone /> pour des photos.">
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className="grid max-w-xl gap-4">
           <div className="space-y-4">
             <FormField label="Pièce d'identité" htmlFor="file-default" help="PDF ou image, 10 Mo maximum.">
               <FileInput id="file-default" accept="image/*,.pdf" />
@@ -224,7 +238,7 @@ export function FormsSection() {
       </GuideSubsection>
 
       <GuideSubsection title="Curseur" note="<RangeInput /> avec piste remplie en terracotta et valeur formatée.">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid max-w-xl gap-4">
           <FormField label="Budget mensuel" htmlFor="range-live" help="Glissez pour changer la valeur.">
             <RangeInput
               id="range-live"
@@ -247,15 +261,15 @@ export function FormsSection() {
         <SpecimenGrid columns={3}>
           <Specimen label="Interrupteur" code='<Switch checked onCheckedChange /> (components/ui/switch.tsx)'>
             <div className="space-y-3">
-              <label className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-900">
+              <label className="flex items-center justify-between gap-3 text-sm font-medium text-ink">
                 Notifications WhatsApp
                 <Switch checked={notify} onCheckedChange={setNotify} aria-label="Notifications WhatsApp" />
               </label>
-              <label className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-500">
+              <label className="flex items-center justify-between gap-3 text-sm font-medium text-ink-muted">
                 Désactivé
                 <Switch disabled aria-label="Désactivé" />
               </label>
-              <label className="flex items-center justify-between gap-3 text-sm font-medium text-neutral-500">
+              <label className="flex items-center justify-between gap-3 text-sm font-medium text-ink-muted">
                 Désactivé, actif
                 <Switch disabled checked aria-label="Désactivé et actif" />
               </label>
@@ -283,7 +297,7 @@ export function FormsSection() {
       </GuideSubsection>
 
       <GuideSubsection title="Téléphone" note="<PhoneNumberInput /> gère l'indicatif, les chiffres seuls et l'erreur.">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid max-w-xl gap-4">
           <PhoneNumberInput
             label="Numéro WhatsApp"
             iso={iso}
@@ -313,7 +327,7 @@ export function FormsSection() {
       </GuideSubsection>
 
       <GuideSubsection title="Heure" note="<TimeInput24h /> en 24 h par pas de 5 minutes, avec bornes min et max.">
-        <div className="grid gap-4 sm:grid-cols-2">
+        <div className="grid max-w-xl gap-4">
           <FormField label="Heure de visite" help="Entre 08:00 et 18:00.">
             <TimeInput24h
               value={time}
@@ -323,11 +337,11 @@ export function FormsSection() {
               maxTime="18:00"
             />
           </FormField>
-          <div className="rounded-2xl border border-dashed border-neutral-200 p-4 text-sm text-neutral-500">
-            Valeur courante: <Mono>{time}</Mono>. Ce composant garde son style
-            rounded-2xl d&apos;origine (calendrier des visites); à aligner sur la
-            surface commune lors d&apos;une prochaine passe.
-          </div>
+          <p className="text-sm text-ink-muted">
+            Valeur courante: <Mono>{time}</Mono>. Ce composant a déjà les coins
+            rounded-2xl de la surface commune; ses couleurs restent celles du
+            calendrier des visites.
+          </p>
         </div>
       </GuideSubsection>
     </GuideSection>

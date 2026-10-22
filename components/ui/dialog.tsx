@@ -24,8 +24,9 @@ export interface DialogProps {
 const sizes = { sm: "max-w-sm", md: "max-w-md", lg: "max-w-2xl" };
 
 /**
- * Modal dialog matching the admin review modals: dimmed blurred backdrop,
- * white rounded card, Escape and backdrop click to close, focus moved inside.
+ * Modal dialog matching the admin panels: ink veil at 30% (no blur, like the
+ * team Drawer), white rounded card, Escape and backdrop click to close, focus
+ * moved inside.
  * On phones it docks to the bottom like a sheet.
  */
 export function Dialog({
@@ -74,7 +75,7 @@ export function Dialog({
             animate={{ opacity: 1 }}
             exit={{ opacity: 0 }}
             transition={roogoMotion.standard}
-            className="absolute inset-0 bg-black/40 backdrop-blur-sm"
+            className="absolute inset-0 bg-ink/30"
             onClick={onClose}
             aria-hidden="true"
           />
@@ -102,12 +103,12 @@ export function Dialog({
               <div className="min-w-0 flex-1">
                 <h2
                   id={titleId}
-                  className="text-lg font-black tracking-tight text-neutral-900"
+                  className="text-lg font-extrabold tracking-tight text-ink"
                 >
                   {title}
                 </h2>
                 {description && (
-                  <p id={descriptionId} className="mt-1 text-sm text-neutral-500">
+                  <p id={descriptionId} className="mt-1 text-sm text-ink-muted">
                     {description}
                   </p>
                 )}
@@ -116,18 +117,18 @@ export function Dialog({
                 type="button"
                 onClick={onClose}
                 aria-label="Fermer"
-                className="-mr-2 -mt-2 rounded-full p-2 text-neutral-400 transition-colors hover:bg-neutral-100 hover:text-neutral-900"
+                className="-mr-2 -mt-2 inline-flex size-11 shrink-0 items-center justify-center rounded-full bg-[#F4EEE6] text-ink transition-colors hover:bg-[#EDE4D8] lg:size-10"
               >
                 <XIcon size={18} weight="bold" />
               </button>
             </div>
             {children && (
-              <div className="min-h-0 overflow-y-auto px-6 py-4 text-sm text-neutral-700">
+              <div className="min-h-0 overflow-y-auto px-6 py-4 text-sm text-ink-body">
                 {children}
               </div>
             )}
             {actions && (
-              <div className="flex flex-col-reverse gap-2 border-t border-neutral-100 px-6 py-4 sm:flex-row sm:justify-end">
+              <div className="flex flex-col-reverse gap-2 border-t border-[#F0E8DD] px-6 py-4 sm:flex-row sm:justify-end">
                 {actions}
               </div>
             )}

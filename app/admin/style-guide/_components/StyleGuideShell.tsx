@@ -44,7 +44,7 @@ export function StyleGuideShell({
         aria-label="Sommaire du guide"
         className="mb-8 -mx-6 overflow-x-auto px-6 lg:sticky lg:top-32 lg:mx-0 lg:mb-0 lg:self-start lg:overflow-visible lg:px-0"
       >
-        <p className="mb-3 hidden text-xs font-black uppercase tracking-[0.2em] text-neutral-400 lg:block">
+        <p className="mb-3 hidden text-[13px] font-extrabold uppercase tracking-[0.06em] text-ink-muted lg:block">
           Sommaire
         </p>
         <ol className="flex gap-1.5 lg:flex-col lg:gap-0.5">
@@ -56,16 +56,16 @@ export function StyleGuideShell({
                   href={`#${entry.id}`}
                   aria-current={active ? "location" : undefined}
                   className={cn(
-                    "flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold transition-colors duration-150 lg:rounded-xl",
+                    "flex items-center gap-2 whitespace-nowrap rounded-full px-3 py-1.5 text-sm font-semibold transition-colors duration-150",
                     active
-                      ? "bg-white text-primary shadow-sm lg:bg-secondary/70 lg:shadow-none"
-                      : "text-neutral-500 hover:bg-white hover:text-neutral-900 lg:hover:bg-neutral-100",
+                      ? "bg-[#C96A2E]/12 font-bold text-brand-text"
+                      : "text-ink-muted hover:bg-white hover:text-ink lg:hover:bg-[#F4EEE6]",
                   )}
                 >
                   <span
                     className={cn(
                       "font-mono text-[11px] tabular-nums",
-                      active ? "text-primary" : "text-neutral-400",
+                      active ? "text-primary" : "text-[#8F867E]",
                     )}
                   >
                     {entry.number}

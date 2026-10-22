@@ -42,21 +42,21 @@ const FileInput = React.forwardRef<HTMLInputElement, FileInputProps>(
     return (
       <label
         className={cn(
-          "flex h-11 w-full items-center overflow-hidden rounded-xl border border-neutral-200 bg-white text-sm transition-[border-color,box-shadow] duration-150 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20",
-          !disabled && "cursor-pointer hover:border-neutral-300",
-          disabled && "cursor-not-allowed bg-neutral-100 opacity-70",
+          "flex h-11 w-full items-center overflow-hidden rounded-2xl border border-line bg-white text-sm transition-[border-color,box-shadow] duration-150 focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/20",
+          !disabled && "cursor-pointer hover:border-[#D6CBBE]",
+          disabled && "cursor-not-allowed bg-[#F4EEE6] opacity-70",
           invalid && "border-danger focus-within:ring-danger/20",
           className,
         )}
       >
-        <span className="flex h-full shrink-0 items-center gap-2 border-r border-neutral-200 bg-neutral-50 px-3.5 font-semibold text-neutral-700">
+        <span className="flex h-full shrink-0 items-center gap-2 border-r border-line bg-paper px-3.5 font-semibold text-ink-body">
           <PaperclipIcon size={16} weight="bold" aria-hidden="true" />
           {buttonLabel}
         </span>
         <span
           className={cn(
             "truncate px-3.5",
-            fileNames.length ? "text-neutral-900" : "text-neutral-400",
+            fileNames.length ? "text-ink" : "text-[#8F867E]",
           )}
         >
           {fileNames.length ? fileNames.join(", ") : placeholder}

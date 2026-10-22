@@ -26,16 +26,16 @@ export function GuideSection({
       className="scroll-mt-32 space-y-6"
     >
       <header className="space-y-2">
-        <p className="text-xs font-black uppercase tracking-[0.2em] text-primary">
+        <p className="font-mono text-xs font-bold tabular-nums text-primary">
           {number}
         </p>
         <h2
           id={`${id}-title`}
-          className="text-2xl font-black tracking-tight text-neutral-900"
+          className="text-2xl font-extrabold tracking-[-0.01em] text-ink"
         >
           {title}
         </h2>
-        <p className="max-w-prose text-sm leading-relaxed text-neutral-500">
+        <p className="max-w-prose text-[15px] leading-[1.45] text-ink-body">
           {intro}
         </p>
       </header>
@@ -57,10 +57,10 @@ export function GuideSubsection({
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-bold uppercase tracking-wider text-neutral-500">
+        <h3 className="text-[13px] font-extrabold uppercase tracking-[0.06em] text-ink-muted">
           {title}
         </h3>
-        {note && <p className="text-xs text-neutral-400">{note}</p>}
+        {note && <p className="text-xs text-ink-muted">{note}</p>}
       </div>
       {children}
     </div>
@@ -88,7 +88,7 @@ export function CopyButton({ value, label }: { value: string; label: string }) {
       aria-label={copied ? "Copié" : label}
       title={copied ? "Copié" : label}
       className={cn(
-        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-neutral-400 transition-colors duration-100 hover:bg-neutral-100 hover:text-neutral-900",
+        "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-[#8F867E] transition-colors duration-100 hover:bg-[#F4EEE6] hover:text-ink",
         copied && "text-success hover:text-success",
       )}
     >
@@ -121,12 +121,12 @@ export function Specimen({
   return (
     <div
       className={cn(
-        "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-neutral-200 bg-white",
+        "flex min-w-0 flex-col overflow-hidden rounded-2xl border border-line bg-white",
         className,
       )}
     >
       {label && (
-        <p className="border-b border-neutral-100 px-4 py-2 text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+        <p className="border-b border-line-soft px-4 py-2 text-[11px] font-extrabold uppercase tracking-[0.06em] text-ink-muted">
           {label}
         </p>
       )}
@@ -134,8 +134,8 @@ export function Specimen({
         {children}
       </div>
       {code && (
-        <div className="flex items-start gap-2 border-t border-neutral-100 bg-neutral-50/70 px-4 py-2">
-          <code className="min-w-0 flex-1 break-words font-mono text-[11px] leading-5 text-neutral-600">
+        <div className="flex items-start gap-2 border-t border-line-soft bg-paper px-4 py-2">
+          <code className="min-w-0 flex-1 break-words font-mono text-[11px] leading-5 text-ink-body">
             {code}
           </code>
           <CopyButton value={code} label="Copier les classes" />
@@ -165,7 +165,7 @@ export function SpecimenGrid({
 /** Inline mono chip for a class name or a value. */
 export function Mono({ children }: { children: React.ReactNode }) {
   return (
-    <code className="rounded bg-neutral-100 px-1.5 py-0.5 font-mono text-[11px] text-neutral-700">
+    <code className="rounded bg-[#F4EEE6] px-1.5 py-0.5 font-mono text-[11px] text-ink-body">
       {children}
     </code>
   );

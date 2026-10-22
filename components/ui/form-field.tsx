@@ -39,7 +39,7 @@ export function FormField({
       {label && (
         <label
           htmlFor={htmlFor}
-          className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-wider text-neutral-500"
+          className="flex items-center gap-1.5 text-xs font-extrabold uppercase tracking-[0.06em] text-ink-muted"
         >
           {label}
           {required && (
@@ -65,7 +65,7 @@ export function FormField({
           <span>{error}</span>
         </p>
       ) : help ? (
-        <p id={helpId} className="text-xs text-neutral-500">
+        <p id={helpId} className="text-xs text-ink-muted">
           {help}
         </p>
       ) : null}

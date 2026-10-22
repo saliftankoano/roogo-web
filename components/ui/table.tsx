@@ -22,12 +22,12 @@ export interface TableProps extends React.TableHTMLAttributes<HTMLTableElement> 
 const Table = React.forwardRef<HTMLTableElement, TableProps>(
   ({ className, density = "default", zebra = false, ...props }, ref) => (
     <DensityContext.Provider value={density}>
-      <div className="w-full overflow-x-auto rounded-2xl border border-neutral-200 bg-white">
+      <div className="w-full overflow-x-auto rounded-2xl border border-line bg-white">
         <table
           ref={ref}
           className={cn(
             "w-full caption-bottom text-sm",
-            zebra && "[&_tbody_tr:nth-child(even)]:bg-neutral-50/60",
+            zebra && "[&_tbody_tr:nth-child(even)]:bg-paper",
             className,
           )}
           {...props}
@@ -44,7 +44,7 @@ const TableHeader = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <thead
     ref={ref}
-    className={cn("border-b border-neutral-200 bg-neutral-50/50", className)}
+    className={cn("border-b border-line bg-paper", className)}
     {...props}
   />
 ));
@@ -56,7 +56,7 @@ const TableBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <tbody
     ref={ref}
-    className={cn("divide-y divide-neutral-100", className)}
+    className={cn("divide-y divide-line-soft", className)}
     {...props}
   />
 ));
@@ -69,7 +69,7 @@ const TableFooter = React.forwardRef<
   <tfoot
     ref={ref}
     className={cn(
-      "border-t border-neutral-200 bg-neutral-50/50 font-semibold",
+      "border-t border-line bg-paper font-semibold",
       className,
     )}
     {...props}
@@ -84,7 +84,7 @@ const TableRow = React.forwardRef<
   <tr
     ref={ref}
     className={cn(
-      "transition-colors duration-100 hover:bg-secondary/40 data-[state=selected]:bg-secondary/60",
+      "transition-colors duration-100 hover:bg-cream data-[state=selected]:bg-cream",
       className,
     )}
     {...props}
@@ -106,7 +106,7 @@ const TableHead = React.forwardRef<HTMLTableCellElement, TableCellProps>(
         ref={ref}
         scope="col"
         className={cn(
-          "text-left align-middle text-xs font-bold uppercase tracking-widest text-neutral-400",
+          "text-left align-middle text-xs font-extrabold uppercase tracking-[0.06em] text-ink-muted",
           density === "compact" ? "px-3 py-2" : "px-5 py-3.5",
           numeric && "text-right",
           className,
@@ -125,9 +125,9 @@ const TableCell = React.forwardRef<HTMLTableCellElement, TableCellProps>(
       <td
         ref={ref}
         className={cn(
-          "align-middle text-neutral-700",
+          "align-middle text-ink-body",
           density === "compact" ? "px-3 py-2" : "px-5 py-3.5",
-          numeric && "text-right font-semibold tabular-nums text-neutral-900",
+          numeric && "text-right font-semibold tabular-nums text-ink",
           className,
         )}
         {...props}

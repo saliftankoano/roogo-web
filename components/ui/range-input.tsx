@@ -47,7 +47,7 @@ const RangeInput = React.forwardRef<HTMLInputElement, RangeInputProps>(
           defaultValue={defaultValue}
           disabled={disabled}
           style={{
-            background: `linear-gradient(to right, var(--color-primary) ${percent}%, var(--color-roogo-secondary-200) ${percent}%)`,
+            background: `linear-gradient(to right, var(--color-primary) ${percent}%, var(--color-roogo-line) ${percent}%)`,
           }}
           className={cn(
             "h-2 w-full cursor-pointer appearance-none rounded-full outline-none transition-opacity",
@@ -59,7 +59,7 @@ const RangeInput = React.forwardRef<HTMLInputElement, RangeInputProps>(
           {...props}
         />
         {showValue && (
-          <output className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-neutral-700">
+          <output className="w-24 shrink-0 text-right text-sm font-semibold tabular-nums text-ink-body">
             {formatValue ? formatValue(current) : current}
           </output>
         )}

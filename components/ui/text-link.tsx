@@ -16,7 +16,7 @@ export const textLinkVariants: Record<TextLinkVariant, string> = {
   primary:
     "font-semibold text-primary underline decoration-primary/30 underline-offset-4 hover:text-primary-hover hover:decoration-primary-hover",
   muted:
-    "font-medium text-neutral-500 underline decoration-neutral-300 underline-offset-4 hover:text-neutral-900 hover:decoration-neutral-900",
+    "font-medium text-ink-muted underline decoration-[#D6CBBE] underline-offset-4 hover:text-ink hover:decoration-ink",
   external:
     "inline-flex items-center gap-1 font-semibold text-primary underline decoration-primary/30 underline-offset-4 hover:text-primary-hover hover:decoration-primary-hover",
 };

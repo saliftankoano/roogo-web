@@ -78,8 +78,8 @@ const engines = [
   },
   {
     name: "GSAP",
-    status: "Prévu",
-    use: "Moteur retenu pour les animations orchestrées: séquences, timelines, scrubbing, chorégraphies à plusieurs éléments. Pas encore dans package.json; à ajouter quand le premier cas réel arrive.",
+    status: "En place",
+    use: "Moteur des pages de l'équipe et du Studio depuis octobre: entrées en cascade (useEntrance), coche qui se dessine, panneau latéral, toast (components/admin/team/ui.tsx, app/admin/studio/publishing/motion.ts). Petits gestes: échelle 0,98, déplacement de 8 à 12 px, power2 ou power3.out, jamais de rebond, rien avec prefers-reduced-motion.",
   },
 ];
 
@@ -162,7 +162,7 @@ export function MotionSection() {
   return (
     <GuideSection
       id="mouvement"
-      number="03"
+      number="04"
       title="Mouvement"
       intro="Chaque changement de vue ou d'état est animé: simplement, élégamment, sans à-coup. Le mouvement oriente (d'où ça vient), confirme (l'action est reçue) ou guide (où regarder ensuite). S'il ne fait aucun des trois, on l'enlève."
     >
@@ -170,23 +170,23 @@ export function MotionSection() {
         title="Jetons"
         note="Définis dans app/globals.css et repris dans lib/motion.ts pour Framer Motion."
       >
-        <div className="overflow-hidden rounded-2xl border border-neutral-200 bg-white">
-          <ul className="divide-y divide-neutral-100">
+        <div className="overflow-hidden rounded-2xl border border-line bg-white">
+          <ul className="divide-y divide-line-soft">
             {tokens.map((token) => (
               <li
                 key={token.variable}
                 className="grid gap-2 px-4 py-3 md:grid-cols-[120px_minmax(0,1fr)_minmax(0,1.4fr)] md:items-center md:gap-6 md:px-5"
               >
-                <p className="text-sm font-bold text-neutral-900">{token.name}</p>
+                <p className="text-sm font-bold text-ink">{token.name}</p>
                 <div className="min-w-0">
-                  <p className="font-mono text-sm font-semibold tabular-nums text-neutral-900">
+                  <p className="font-mono text-sm font-semibold tabular-nums text-ink">
                     {token.value}
                   </p>
-                  <p className="truncate font-mono text-[11px] text-neutral-400">
+                  <p className="truncate font-mono text-[11px] text-[#8F867E]">
                     {token.variable} · {token.js}
                   </p>
                 </div>
-                <p className="text-xs leading-relaxed text-neutral-500">{token.when}</p>
+                <p className="text-xs leading-relaxed text-ink-muted">{token.when}</p>
               </li>
             ))}
           </ul>
@@ -198,10 +198,10 @@ export function MotionSection() {
           {engines.map((engine) => (
             <div
               key={engine.name}
-              className="space-y-2 rounded-2xl border border-neutral-200 bg-white p-4"
+              className="space-y-2 rounded-2xl border border-line bg-white p-4"
             >
               <div className="flex items-center justify-between gap-2">
-                <p className="text-sm font-bold text-neutral-900">{engine.name}</p>
+                <p className="text-sm font-bold text-ink">{engine.name}</p>
                 <span
                   className={cn(
                     "rounded-full px-2 py-0.5 text-[10px] font-bold uppercase tracking-wider",
@@ -213,7 +213,7 @@ export function MotionSection() {
                   {engine.status}
                 </span>
               </div>
-              <p className="text-xs leading-relaxed text-neutral-500">{engine.use}</p>
+              <p className="text-xs leading-relaxed text-ink-muted">{engine.use}</p>
             </div>
           ))}
         </div>
@@ -224,7 +224,7 @@ export function MotionSection() {
         note="Quand le système demande moins d'animation, tout passe à 1 ms."
       >
         <Specimen code="@media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation-duration: 1ms !important; transition-duration: 1ms !important; } }  +  <MotionConfig reducedMotion='user'>">
-          <p className="text-sm text-neutral-600">
+          <p className="text-sm text-ink-body">
             Deux garde-fous: la règle CSS globale dans globals.css, et{" "}
             <Mono>MotionConfig reducedMotion=&quot;user&quot;</Mono> dans
             AppMotionProvider pour Framer Motion. Les démos ci-dessous suivent
@@ -242,7 +242,7 @@ export function MotionSection() {
           >
             <div className="flex flex-wrap items-center gap-3">
               <Button>Maintenez le clic</Button>
-              <Button variant="secondary">Puis celui-ci</Button>
+              <Button variant="outline">Puis celui-ci</Button>
             </div>
           </Specimen>
 
@@ -257,14 +257,14 @@ export function MotionSection() {
                   initial={reduceMotion ? false : { opacity: 0, y: 8 }}
                   animate={{ opacity: 1, y: 0 }}
                   transition={roogoMotion.standard}
-                  className="flex h-full items-center gap-3 rounded-xl border border-neutral-200 bg-white p-3 shadow-sm"
+                  className="flex h-full items-center gap-3 rounded-xl border border-line bg-white p-3 shadow-sm"
                 >
-                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-secondary text-primary">
+                  <span className="flex h-10 w-10 items-center justify-center rounded-full bg-[#F7E4D3] text-primary">
                     <HouseLineIcon size={20} weight="bold" />
                   </span>
                   <div>
-                    <p className="text-sm font-bold text-neutral-900">Nouvelle annonce</p>
-                    <p className="text-xs text-neutral-500">Villa 4 pièces, Ouaga 2000</p>
+                    <p className="text-sm font-bold text-ink">Nouvelle annonce</p>
+                    <p className="text-xs text-ink-muted">Villa 4 pièces, Ouaga 2000</p>
                   </div>
                 </motion.div>
               </div>
@@ -284,14 +284,14 @@ export function MotionSection() {
             code='<AnimatePresence mode="wait" initial={false}> initial={{ opacity: 0, x: 8 }} animate={{ opacity: 1, x: 0 }} exit={{ opacity: 0, x: -8 }}'
           >
             <div className="space-y-3">
-              <div className="inline-flex rounded-full bg-neutral-100 p-1">
+              <div className="inline-flex rounded-full bg-[#F4EEE6] p-1">
                 {(Object.keys(panels) as PanelKey[]).map((key) => (
                   <button
                     key={key}
                     type="button"
                     onClick={() => setPanel(key)}
                     aria-pressed={panel === key}
-                    className="relative rounded-full px-4 py-1.5 text-sm font-semibold text-neutral-600 transition-colors duration-150 aria-pressed:text-primary"
+                    className="relative rounded-full px-4 py-1.5 text-sm font-semibold text-ink-body transition-colors duration-150 aria-pressed:text-primary"
                   >
                     {panel === key && (
                       <motion.span
@@ -304,7 +304,7 @@ export function MotionSection() {
                   </button>
                 ))}
               </div>
-              <div className="min-h-28 overflow-hidden rounded-xl border border-neutral-200 bg-white">
+              <div className="min-h-28 overflow-hidden rounded-xl border border-line bg-white">
                 <AnimatePresence mode="wait" initial={false}>
                   <motion.ul
                     key={panel}
@@ -312,10 +312,10 @@ export function MotionSection() {
                     animate={{ opacity: 1, x: 0 }}
                     exit={reduceMotion ? { opacity: 0 } : { opacity: 0, x: -8 }}
                     transition={roogoMotion.standard}
-                    className="divide-y divide-neutral-100"
+                    className="divide-y divide-line-soft"
                   >
                     {panels[panel].rows.map((row) => (
-                      <li key={row} className="px-3 py-2 text-sm text-neutral-700">
+                      <li key={row} className="px-3 py-2 text-sm text-ink-body">
                         {row}
                       </li>
                     ))}
@@ -336,9 +336,9 @@ export function MotionSection() {
                     key={item.id}
                     layout
                     transition={reduceMotion ? { duration: 0 } : roogoMotion.spring}
-                    className="flex items-center gap-3 rounded-xl border border-neutral-200 bg-white px-3 py-2 text-sm text-neutral-700"
+                    className="flex items-center gap-3 rounded-xl border border-line bg-white px-3 py-2 text-sm text-ink-body"
                   >
-                    <span className="w-5 font-mono text-[11px] tabular-nums text-neutral-400">
+                    <span className="w-5 font-mono text-[11px] tabular-nums text-[#8F867E]">
                       {index + 1}
                     </span>
                     {item.label}
@@ -367,12 +367,12 @@ export function MotionSection() {
             label="Sans réserve: le texte autour bouge"
             code="(à ne pas faire) le badge et le montant prennent la largeur de leur contenu"
           >
-            <p className="text-sm text-neutral-700">
+            <p className="text-sm text-ink-body">
               Coût{" "}
-              <span className="rounded-full bg-neutral-100 px-2 py-0.5 text-xs font-bold text-neutral-700">
+              <span className="rounded-full bg-[#F4EEE6] px-2 py-0.5 text-xs font-bold text-ink-body">
                 {currency}
               </span>{" "}
-              estimé à <span className="font-bold text-neutral-900">{shown}</span>{" "}
+              estimé à <span className="font-bold text-ink">{shown}</span>{" "}
               pour cette génération.
             </p>
           </Specimen>
@@ -380,13 +380,13 @@ export function MotionSection() {
             label="Avec réserve: rien ne bouge"
             code="badge w-14 text-center · montant inline-block min-w-[9ch] text-right tabular-nums"
           >
-            <p className="text-sm text-neutral-700">
+            <p className="text-sm text-ink-body">
               Coût{" "}
-              <span className="inline-block w-14 rounded-full bg-neutral-100 px-2 py-0.5 text-center text-xs font-bold text-neutral-700">
+              <span className="inline-block w-14 rounded-full bg-[#F4EEE6] px-2 py-0.5 text-center text-xs font-bold text-ink-body">
                 {currency}
               </span>{" "}
               estimé à{" "}
-              <span className="inline-block min-w-[9ch] text-right font-bold tabular-nums text-neutral-900">
+              <span className="inline-block min-w-[9ch] text-right font-bold tabular-nums text-ink">
                 {shown}
               </span>{" "}
               pour cette génération.
@@ -396,7 +396,7 @@ export function MotionSection() {
         <div className="flex flex-wrap gap-2">
           <Button
             size="sm"
-            variant="secondary"
+            variant="outline"
             onClick={() => setCurrency((c) => (c === "FCFA" ? "USD" : "FCFA"))}
           >
             Basculer FCFA / $
@@ -409,7 +409,7 @@ export function MotionSection() {
             Changer le montant
           </Button>
         </div>
-        <ul className="space-y-1.5 text-sm text-neutral-700">
+        <ul className="space-y-1.5 text-sm text-ink-body">
           {[
             "Réserver la largeur de la valeur la plus longue (w-*, min-w-[Nch]).",
             "tabular-nums sur tout nombre qui change: compteur, montant, horloge.",
@@ -422,7 +422,7 @@ export function MotionSection() {
             </li>
           ))}
         </ul>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-ink-muted">
           Exemple réel: {formatCurrency(1250000)} et 2 083,33 $ n&apos;ont pas la même
           longueur; sans réserve, la phrase saute à chaque bascule.
         </p>
@@ -438,19 +438,19 @@ export function MotionSection() {
             code="aucun h-* ni max-h-* sur le panneau, pas d'overflow-y-auto"
           >
             <div className="space-y-3">
-              <ul className="divide-y divide-neutral-100 rounded-xl border border-neutral-200 bg-white">
+              <ul className="divide-y divide-line-soft rounded-xl border border-line bg-white">
                 {Array.from({ length: rowCount }, (_, index) => (
                   <motion.li
                     key={index}
                     initial={reduceMotion || index < 3 ? false : { opacity: 0, y: 4 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={roogoMotion.standard}
-                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-neutral-700"
+                    className="flex items-center justify-between gap-3 px-3 py-2 text-sm text-ink-body"
                   >
                     <span className="min-w-0 truncate">
                       {growRows[index % growRows.length]}
                     </span>
-                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-neutral-400">
+                    <span className="shrink-0 font-mono text-[11px] tabular-nums text-[#8F867E]">
                       {index + 1}
                     </span>
                   </motion.li>
@@ -459,7 +459,7 @@ export function MotionSection() {
               <div className="flex flex-wrap gap-2">
                 <Button
                   size="sm"
-                  variant="secondary"
+                  variant="outline"
                   onClick={() => setRowCount((count) => count + 1)}
                   leftIcon={<PlusIcon weight="bold" />}
                 >
@@ -481,9 +481,9 @@ export function MotionSection() {
             code="h-32 overflow-y-auto (contre-exemple, à ne pas copier)"
           >
             <div className="space-y-2">
-              <ul className="h-32 divide-y divide-neutral-100 overflow-y-auto rounded-xl border border-danger/40 bg-white">
+              <ul className="h-32 divide-y divide-line-soft overflow-y-auto rounded-xl border border-danger/40 bg-white">
                 {growRows.map((row) => (
-                  <li key={row} className="px-3 py-2 text-sm text-neutral-700">
+                  <li key={row} className="px-3 py-2 text-sm text-ink-body">
                     {row}
                   </li>
                 ))}
@@ -499,11 +499,11 @@ export function MotionSection() {
         </SpecimenGrid>
 
         <div className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2 rounded-2xl border border-neutral-200 bg-white p-4">
-            <p className="text-[11px] font-bold uppercase tracking-wider text-neutral-400">
+          <div className="space-y-2 rounded-2xl border border-line bg-white p-4">
+            <p className="text-[11px] font-bold uppercase tracking-wider text-[#8F867E]">
               Seules exceptions
             </p>
-            <ul className="space-y-1.5 text-sm text-neutral-700">
+            <ul className="space-y-1.5 text-sm text-ink-body">
               {scrollExceptions.map((item) => (
                 <li key={item} className="flex items-start gap-2">
                   <CheckCircleIcon size={16} weight="fill" className="mt-0.5 shrink-0 text-success" aria-hidden="true" />
@@ -516,7 +516,7 @@ export function MotionSection() {
             label="Écran de discussion: le champ colle en bas"
             code="sticky bottom-3 sur le champ de saisie, la liste des messages n'a pas de hauteur fixe"
           >
-            <div className="rounded-2xl border border-neutral-200 bg-neutral-50/60">
+            <div className="rounded-2xl border border-line bg-paper">
               <ul className="space-y-2 p-3">
                 {messages.map((message) => (
                   <li
@@ -525,7 +525,7 @@ export function MotionSection() {
                       "w-fit max-w-[85%] rounded-2xl px-3 py-2 text-sm",
                       message.mine
                         ? "ml-auto bg-primary text-white"
-                        : "bg-white text-neutral-800 shadow-sm",
+                        : "bg-white text-ink shadow-sm",
                     )}
                   >
                     {message.text}
@@ -534,7 +534,7 @@ export function MotionSection() {
               </ul>
               <form
                 onSubmit={sendMessage}
-                className="sticky bottom-3 mx-3 mb-3 flex items-center gap-2 rounded-full border border-neutral-200 bg-white p-1 pl-2 shadow-lg"
+                className="sticky bottom-3 mx-3 mb-3 flex items-center gap-2 rounded-full border border-line bg-white p-1 pl-2 shadow-lg"
               >
                 <Input
                   value={draft}
@@ -556,7 +556,7 @@ export function MotionSection() {
             </div>
           </Specimen>
         </div>
-        <p className="text-xs leading-relaxed text-neutral-500">
+        <p className="text-xs leading-relaxed text-ink-muted">
           Envoyez quelques messages puis faites défiler la page: la conversation
           grandit, le champ reste à 12 px du bas de l&apos;écran tant que la
           carte est visible.
@@ -581,7 +581,7 @@ export function MotionSection() {
             </li>
           </ul>
         </Alert>
-        <p className="text-xs text-neutral-500">
+        <p className="text-xs text-ink-muted">
           Le script <Mono>npm run motion:audit</Mono> bloque le build sur les écarts les
           plus fréquents (déplacements de 20 px et plus, scale sous 98 %, durées au-delà
           de 500 ms, rebonds).

@@ -4,6 +4,7 @@ import { cn } from "@/lib/utils";
 
 export type ButtonVariant =
   | "primary"
+  | "dark"
   | "secondary"
   | "outline"
   | "ghost"
@@ -28,15 +29,21 @@ export interface ButtonProps
   truncate?: boolean;
 }
 
+// The admin look of 2026-10-22 (Accueil, L'équipe, Studio): terracotta pill
+// for the main action, ink pill to confirm in a panel, white pill on the warm
+// line for the rest, soft red to remove. "secondary" (sand) stays for the
+// public site.
 export const buttonVariants: Record<ButtonVariant, string> = {
-  primary: "bg-primary text-white hover:bg-primary-hover focus:ring-primary",
+  primary: "bg-primary text-white hover:bg-brand-hover focus-visible:ring-primary",
+  dark: "bg-ink text-white hover:bg-ink-body focus-visible:ring-ink",
   secondary:
-    "bg-secondary text-neutral-900 hover:bg-secondary/80 focus:ring-secondary",
+    "bg-secondary text-neutral-900 hover:bg-secondary/80 focus-visible:ring-secondary",
   outline:
-    "border border-neutral-200 bg-transparent text-primary hover:bg-neutral-50 focus:ring-primary",
+    "border border-line bg-white text-ink hover:border-primary hover:text-brand-text focus-visible:ring-primary",
   ghost:
-    "bg-transparent text-neutral-700 hover:bg-neutral-100 hover:text-neutral-900 focus:ring-neutral-500",
-  destructive: "bg-danger text-white hover:bg-danger-strong focus:ring-danger",
+    "bg-transparent text-ink-muted hover:bg-cream hover:text-ink focus-visible:ring-ink-muted",
+  destructive:
+    "bg-danger-soft text-danger-strong hover:bg-[#F8D6D0] focus-visible:ring-danger",
 };
 
 /** Fixed heights, never vertical padding: a button can't grow taller. */
@@ -77,7 +84,7 @@ export const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
     ref,
   ) => {
     const baseStyles =
-      "inline-flex items-center justify-center whitespace-nowrap rounded-full font-semibold transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] enabled:active:scale-[0.985] motion-reduce:transform-none focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
+      "inline-flex items-center justify-center whitespace-nowrap rounded-full font-bold transition-[color,background-color,border-color,box-shadow,transform] duration-150 ease-[cubic-bezier(0.22,1,0.36,1)] enabled:active:scale-[0.985] motion-reduce:transform-none focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50";
 
     const isDisabled = disabled || loading;
     const iconClass = cn(iconBox, buttonIconSizes[size]);
