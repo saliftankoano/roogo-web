@@ -10,6 +10,13 @@ import {
   XIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
+import {
+  SUBJECT_LABELS,
+  STYLE_FAMILIES,
+  familiesFor,
+  fitGreetingText,
+  inferSubject,
+} from "@/lib/studio/poster-prompt";
 import type { JobTool, PropertySummary, RunningJob } from "./studio-types";
 
 type Money = (usd: number) => string;
@@ -122,7 +129,7 @@ type Estimate = {
   } | null;
 };
 
-async function fetchEstimate(
+export async function fetchEstimate(
   tool: JobTool,
   conversationId: string,
   params: Record<string, unknown> = {},
@@ -166,7 +173,7 @@ type Props = {
 
 const TOOL_LABEL: Record<JobTool, string> = {
   poster: "Affiche en cours",
-  greeting: "Affiche de voeux en cours",
+  greeting: "Affiche libre en cours",
   cutout: "Détourage en cours",
   captions: "Sous-titres en cours",
 };
@@ -436,13 +443,6 @@ function PosterForm({
   );
 }
 
-const SCENES = [
-  ["sunrise", "Lever de soleil"],
-  ["sunset", "Coucher de soleil"],
-  ["rain", "Après la pluie"],
-  ["calm", "Calme"],
-] as const;
-
 function GreetingForm({
   conversationId,
   money,
@@ -456,7 +456,7 @@ function GreetingForm({
 }) {
   const [headline, setHeadline] = useState("");
   const [subline, setSubline] = useState("Roogo vous accompagne");
-  const [scene, setScene] = useState<(typeof SCENES)[number][0]>("sunrise");
+  const [style, setStyle] = useState<string>("surprise");
   const [format, setFormat] = useState<(typeof FORMATS)[number][0]>("4x5");
   const [usd, setUsd] = useState<number | null>(null);
 
@@ -470,8 +470,17 @@ function GreetingForm({
     };
   }, [conversationId, format]);
 
+  // Same fit as the server: shown before generating, never a surprise after.
+  const fitted = fitGreetingText({ headline, subline });
+  const subject = headline.trim() ? inferSubject(headline, subline) : null;
+  const suited = subject ? familiesFor(subject).map((f) => f.label) : [];
+
   return (
     <div className="space-y-3 rounded-2xl bg-neutral-50 p-3">
+      <p className="text-xs font-medium text-neutral-500">
+        Pour tout message : voeux, annonce, terrain, recrutement. Pour un bien en ligne avec sa vraie photo, utilisez
+        « Affiche du bien ».
+      </p>
       <input
         className={fieldClass}
         placeholder="Message principal (ex : Bon mois de novembre)"
@@ -486,12 +495,37 @@ function GreetingForm({
         onChange={(e) => setSubline(e.target.value)}
         aria-label="Deuxième ligne"
       />
-      <div className="flex flex-wrap gap-2">
-        {SCENES.map(([key, label]) => (
-          <button key={key} type="button" onClick={() => setScene(key)} className={chip(scene === key)}>
-            {label}
-          </button>
-        ))}
+      {fitted.notices.length > 0 && (
+        <ul className="space-y-1 rounded-xl bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900" role="status">
+          {fitted.notices.map((notice) => (
+            <li key={notice}>{notice}</li>
+          ))}
+        </ul>
+      )}
+      <div className="space-y-1.5">
+        <p className="text-xs font-bold text-neutral-500">Style</p>
+        <div className="flex flex-wrap gap-1.5">
+          {[{ id: "surprise", label: "Surprise" }, ...STYLE_FAMILIES].map((family) => (
+            <button
+              key={family.id}
+              type="button"
+              onClick={() => setStyle(family.id)}
+              aria-pressed={style === family.id}
+              className={cn(
+                "min-h-9 rounded-full px-3 text-xs font-bold transition-colors",
+                style === family.id ? "bg-primary text-white" : "bg-white text-neutral-600 ring-1 ring-neutral-200",
+              )}
+            >
+              {family.label}
+            </button>
+          ))}
+        </div>
+        {style === "surprise" && subject && (
+          <p className="text-xs text-neutral-500">
+            Sujet : {SUBJECT_LABELS[subject].toLowerCase()}. Surprise choisit parmi {suited.join(", ")}, jamais le même
+            style deux fois de suite.
+          </p>
+        )}
       </div>
       <div className="flex flex-wrap gap-2">
         {FORMATS.map(([key, label]) => (
@@ -502,8 +536,8 @@ function GreetingForm({
       </div>
       <button
         type="button"
-        disabled={busy || usd === null || !headline.trim()}
-        onClick={() => usd !== null && onSubmit({ headline, subline, scene, format }, usd)}
+        disabled={busy || usd === null || !fitted.headline.text}
+        onClick={() => usd !== null && onSubmit({ headline, subline, style, format }, usd)}
         className="flex min-h-12 w-full items-center justify-center gap-2 rounded-2xl bg-primary px-6 text-sm font-bold text-white disabled:opacity-40"
       >
         {busy && <SpinnerGapIcon size={18} className="animate-spin" />}

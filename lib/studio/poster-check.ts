@@ -7,7 +7,13 @@ export type ExpectedText = {
   price?: string | number;
   phone?: string;
   place?: string;
-  lines?: string[];
+  /**
+   * Free text lines. A plain string is what was typed and sent. For the free
+   * poster, `typed` is what the person typed and `sent` what went to the model
+   * (cleaned, maybe shortened): the check is against `typed`, so a shortened
+   * or altered text is always flagged.
+   */
+  lines?: Array<string | { typed: string; sent: string }>;
 };
 
 export type FieldCheck = {
@@ -15,6 +21,8 @@ export type FieldCheck = {
   label: string;
   expected: string;
   found: boolean;
+  /** Extra French explanation shown under the field. */
+  note?: string;
 };
 
 export type PosterCheck = { ok: boolean; fields: FieldCheck[] };
@@ -69,13 +77,25 @@ export function comparePosterText(
   }
 
   for (const line of expected.lines ?? []) {
-    const wanted = fold(line);
-    if (!wanted) continue;
+    const typed = typeof line === "string" ? line : line.typed;
+    const sent = typeof line === "string" ? line : line.sent;
+    const wantedTyped = fold(typed);
+    if (!wantedTyped) continue;
+    const wantedSent = fold(sent);
+    const sentFound = wantedSent.length > 0 && joinedFolded.includes(wantedSent);
+    if (wantedSent === wantedTyped) {
+      fields.push({ key: "line", label: "Texte", expected: typed, found: sentFound });
+      continue;
+    }
+    // The text was shortened or changed before generating: never "verified".
     fields.push({
       key: "line",
-      label: "Texte",
-      expected: line,
-      found: joinedFolded.includes(wanted),
+      label: "Texte raccourci",
+      expected: typed,
+      found: joinedFolded.includes(wantedTyped),
+      note: sentFound
+        ? `L'image affiche « ${sent} », pas le texte saisi en entier.`
+        : "L'image n'affiche pas le texte saisi.",
     });
   }
 

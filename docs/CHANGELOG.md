@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-10-23
+
+- **Studio > Visuels: « Affiche libre » no longer always the same sunrise** (web, branch `fix/studio-visuals-variety`, not merged, no migration): the free poster (was « Affiche de voeux ») picks from 11 art-direction families (Typo, Nuit, Ouaga, Parcelle, Façade, Dan Fani, Papier découpé, Paysage, Deux blocs, Bureau, Clés) by the subject read from the text (terrain, maison, fête, recrutement, général), never the project's previous family, with random layout, illustration scale and background across the Roogo palette; « Style » choice (« Surprise » by default) in the form and « Une autre version » under a free poster. Headline up to 90 characters on at most 2 lines, cut only at a word boundary with a notice before generating, emoji stripped; the text check compares the image with what was typed and flags a shortened text. Property-poster lines are also cut at a word boundary. Same price per image. [Decision](./DECISIONS.md#free-posters-vary-their-art-direction-by-subject--2026-10-23).
+
 ## 2026-10-22
 
 - **Rate limiting turned on in production** (web, same branch `feat/candidature-commercial`): `lib/rate-limit.ts` reads `UPSTASH_REDIS_REST_URL` / `_TOKEN` and falls back to the Vercel KV integration's `KV_REST_API_URL` / `_TOKEN` (`lib/redis-env.ts`). Production only had the KV names, so every limiter (payments, listings, auth, Studio, job applications) was silently off. Presence is logged once at startup, never the values.

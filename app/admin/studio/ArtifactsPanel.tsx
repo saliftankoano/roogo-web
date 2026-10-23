@@ -389,7 +389,14 @@ function checkSummary(meta: Record<string, unknown>): {
   }
   const wrong = (check.fields ?? []).filter((f) => !f.found);
   if (check.ok || wrong.length === 0) {
-    return { tone: "ok", text: "Texte vérifié : prix, téléphone et quartier lus correctement.", fields: [] };
+    return {
+      tone: "ok",
+      text:
+        meta.tool === "greeting"
+          ? "Texte vérifié : identique au texte saisi."
+          : "Texte vérifié : prix, téléphone et quartier lus correctement.",
+      fields: [],
+    };
   }
   return { tone: "warn", text: "À vérifier avant de publier :", fields: wrong };
 }
@@ -439,6 +446,7 @@ function ImageCard({
                 {check.fields.map((field, i) => (
                   <li key={`${field.key}-${i}`}>
                     {field.label} : attendu « {field.expected} »
+                    {field.note && <span className="block font-normal">{field.note}</span>}
                   </li>
                 ))}
               </ul>
