@@ -113,10 +113,13 @@ export function cleanPosterLine(value: string, max = MAX_LINE): string {
 export function wrapHeadline(text: string, oneLineMax = 28): string[] {
   if (text.length <= oneLineMax || !text.includes(" ")) return [text];
   const middle = text.length / 2;
-  // Closest space to the middle; a line never ends on "à", "de", "la"...
+  // Closest space to the middle; a line never ends on "à", "de", "la"... and
+  // a number stays with its unit ("300 m²", "25 000 000 FCFA").
   const cost = (i: number) => {
     const before = text.slice(0, i).split(" ").pop()?.toLowerCase() ?? "";
-    return Math.abs(i - middle) + (DANGLING.has(before) ? 1000 : 0);
+    const after = text.slice(i + 1).split(" ")[0]?.toLowerCase() ?? "";
+    const splitsNumber = /\d$/.test(before) && /^(\d|m²|m2|fcfa|f|ha|%|km)/.test(after);
+    return Math.abs(i - middle) + (DANGLING.has(before) ? 1000 : 0) + (splitsNumber ? 1000 : 0);
   };
   let best = -1;
   for (let i = text.indexOf(" "); i !== -1; i = text.indexOf(" ", i + 1)) {
