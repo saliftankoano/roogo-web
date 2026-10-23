@@ -420,7 +420,10 @@ function ImageCard({
       {artifact.url ? (
         <div
           className="relative w-full overflow-hidden rounded-2xl bg-[repeating-conic-gradient(#eee_0%_25%,#fff_0%_50%)] bg-[length:20px_20px]"
-          style={{ aspectRatio: artifact.title.includes("9:16") ? "9 / 16" : artifact.title.includes("Carré") ? "1 / 1" : "4 / 5" }}
+          style={{
+            // "Carré" only for squares made before 2026-10-23.
+            aspectRatio: artifact.title.includes("9:16") ? "9 / 16" : artifact.title.includes("Carré") ? "1 / 1" : "4 / 5",
+          }}
         >
           <Image src={artifact.url} alt={artifact.title} fill sizes="360px" unoptimized className="object-contain" />
         </div>

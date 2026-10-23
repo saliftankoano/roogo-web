@@ -5,6 +5,24 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### Studio visuals are social short formats only — 2026-10-23
+
+Salif (2026-10-23): visuals are built for social media short formats, nothing
+else. 9:16 is the default (Story, Reels, TikTok, WhatsApp Status, 1080x1920),
+4:5 the second choice (Instagram and Facebook feed, 1080x1350). The square was
+removed; no other part of the app depended on it. Formats are labelled by where
+they go, not by ratio alone.
+
+- Safe zones are written into every prompt: on 9:16 the platform UI covers the
+  top ~14% (profile row), the bottom ~20% (caption, buttons) and the right
+  ~12% (reactions), so text and key graphics stay out of them; 4:5 keeps a ~6%
+  margin. The random text position of free posters is limited to the safe
+  middle band on 9:16.
+- Phone first: few words, very large high-contrast text, one focal point,
+  nothing that only reads on a desktop.
+- Generation sizes stay multiples of 16 (1024x1792, 1024x1280) at the exact
+  delivery ratio; the one-tap property poster costs a little more in 9:16.
+
 ### Free posters vary their art direction by subject — 2026-10-23
 
 Salif (2026-10-23): every « Affiche de voeux » came out as the same painted

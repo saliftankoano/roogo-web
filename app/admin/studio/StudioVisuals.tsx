@@ -166,7 +166,8 @@ function AnotherVersion({
   const [sent, setSent] = useState(false);
   const design = artifact.meta?.design as { family?: string } | null | undefined;
   const familyLabel = typeof artifact.meta?.family_label === "string" ? artifact.meta.family_label : null;
-  const format = typeof artifact.meta?.format === "string" ? artifact.meta.format : "4x5";
+  // Older free posters may be square or have no format: they come back in 9:16.
+  const format = artifact.meta?.format === "4x5" ? "4x5" : "9x16";
 
   useEffect(() => {
     let cancelled = false;

@@ -10,7 +10,24 @@
 // illustration scale and palette. Pure module (no imports) so the browser
 // form and the node tests share it.
 
-export type PosterRatio = "4:5" | "9:16" | "1:1";
+// Social short formats only (2026-10-23): 9:16 (Story, Reels, TikTok,
+// WhatsApp Status) and 4:5 (Instagram and Facebook feed).
+export type PosterRatio = "9:16" | "4:5";
+
+/**
+ * Where the platform UI covers the image. 9:16: profile row on top, caption
+ * and buttons at the bottom, reaction buttons on the right. 4:5: a margin.
+ * Every prompt states it, so text and key graphics stay readable.
+ */
+export function safeZoneText(ratio: PosterRatio): string {
+  return ratio === "9:16"
+    ? "Vertical 9:16 for Story, Reels, TikTok and WhatsApp Status (1080x1920). Safe zones: keep all text and key graphics out of the top 14% and the bottom 20% of the canvas (platform profile row, captions and buttons) and out of the right 12% (reaction buttons); only plain background or illustration may run into those areas."
+    : "Portrait 4:5 for the Instagram and Facebook feed (1080x1350). Safe zones: keep all text and key graphics inside a 6% margin on every side.";
+}
+
+/** Readability on a phone at arm's length, in every prompt. */
+export const PHONE_READABILITY =
+  "Made to be read on a phone at arm's length: few words, very large high-contrast text, one clear focal point, no small or detailed elements that only work on a big screen.";
 
 export const BRAND = {
   terracotta: "#C96A2E",
@@ -167,9 +184,11 @@ export function buildPosterPrompt(lines: PosterLines, ratio: PosterRatio): strin
   };
   return [
     `Poster for a property listing, ${ratio}.`,
+    safeZoneText(ratio),
+    PHONE_READABILITY,
     "Keep the property exactly as it appears in the first photo: same building, same colors, nothing added, nothing removed.",
     `Flat terracotta (${BRAND.terracotta}) background field with the photo placed inside a rounded frame.`,
-    "Use the second image as the Roogo logo, top-left, unchanged.",
+    "Use the second image as the Roogo logo, top-left inside the safe zone, unchanged.",
     `One big single-line headline in white: "${l.headline}".`,
     `Under it, a smaller line in dark brown (${BRAND.night}): "${l.place}".`,
     `A dark brown rounded price band with white text: "${l.price}".`,
@@ -446,6 +465,19 @@ const LAYOUT_TEXT: Record<Layout, string> = {
   center: "the words are centred in the middle, the illustration frames them around the edges",
 };
 
+// 9:16: the words stay in the safe middle band (between 14% from the top and
+// 20% from the bottom), so "top" and "bottom" mean the two halves of that band.
+const LAYOUT_TEXT_STORY: Record<Layout, string> = {
+  top: "the words sit in the upper half of the safe middle band, starting just below the top 14%, the illustration below them",
+  bottom: "the illustration sits in the upper part of the safe band, the words in the lower half of the safe middle band, ending above the bottom 20%",
+  left: "the words are centred in the safe middle band, the illustration around them",
+  center: "the words are centred in the safe middle band, the illustration frames them",
+};
+
+export function layoutText(layout: Layout, ratio: PosterRatio): string {
+  return (ratio === "9:16" ? LAYOUT_TEXT_STORY : LAYOUT_TEXT)[layout];
+}
+
 const SCALE_TEXT: Record<Scale, string> = {
   accent: "the illustration is small, about a quarter of the canvas, with generous empty space",
   half: "the illustration takes about half of the canvas",
@@ -483,9 +515,11 @@ export function buildGreetingPrompt(
       : `on two lines, line 1: "${headLines[0]}", line 2: "${headLines[1]}"`;
   return [
     `Social media poster, ${ratio}.`,
+    safeZoneText(ratio),
     `Art direction: ${family.visual}.`,
     `Main colour ${color(design.background)}, accent colour ${color(design.accent)}; use only the Roogo palette: terracotta ${BRAND.terracotta}, sand ${BRAND.sand}, night brown ${BRAND.night}, cream ${BRAND.cream}, plus natural tones inside the illustration.`,
-    `Composition: ${LAYOUT_TEXT[design.layout]}; ${SCALE_TEXT[design.scale]}.`,
+    `Composition: ${layoutText(design.layout, ratio)}; ${SCALE_TEXT[design.scale]}.`,
+    PHONE_READABILITY,
     `Big bold modern sans-serif headline in ${color(colors.headline)}, ${headline}.`,
     fitted.subline.text
       ? `Under it, a smaller line in ${color(colors.subline)}: "${fitted.subline.text}".`

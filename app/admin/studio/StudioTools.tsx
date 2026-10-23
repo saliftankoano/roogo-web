@@ -155,10 +155,10 @@ const chip = (active: boolean) =>
 const fieldClass =
   "w-full rounded-2xl border border-neutral-200 bg-white px-4 py-3 text-base text-neutral-900 outline-none transition-colors placeholder:text-neutral-400 focus:border-primary";
 
+// Social short formats only; 9:16 first and by default.
 const FORMATS = [
-  ["4x5", "Publication 4:5"],
-  ["9x16", "Story 9:16"],
-  ["1x1", "Carré"],
+  ["9x16", "Story, Reels, TikTok, Statut (9:16)"],
+  ["4x5", "Fil Instagram et Facebook (4:5)"],
 ] as const;
 
 type Props = {
@@ -242,7 +242,7 @@ export function ToolsPanel({
           disabled={!posterOk || busy !== null}
           onClick={() => {
             const usd = estimates.poster?.estimateUsd;
-            if (usd != null) void run("poster", { format: "4x5" }, usd);
+            if (usd != null) void run("poster", { format: "9x16" }, usd);
           }}
           className="flex h-11 items-center justify-center gap-2 whitespace-nowrap rounded-xl bg-primary px-4 text-sm font-semibold text-white transition-[background-color,transform] duration-150 hover:bg-primary-hover active:scale-[0.985] disabled:opacity-40"
         >
@@ -381,7 +381,7 @@ function PosterForm({
   const [headline, setHeadline] = useState(defaults.headline);
   const [place, setPlace] = useState(defaults.place);
   const [price, setPrice] = useState(defaults.price);
-  const [format, setFormat] = useState<(typeof FORMATS)[number][0]>("4x5");
+  const [format, setFormat] = useState<(typeof FORMATS)[number][0]>("9x16");
   const [photoIndex, setPhotoIndex] = useState(0);
   const [usd, setUsd] = useState<number | null>(null);
 
@@ -420,7 +420,7 @@ function PosterForm({
       <p className="text-xs font-medium text-neutral-500">
         Le numéro de téléphone de Roogo est ajouté automatiquement.
       </p>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2">
         {FORMATS.map(([key, label]) => (
           <button key={key} type="button" onClick={() => setFormat(key)} className={chip(format === key)}>
             {label}
@@ -457,7 +457,7 @@ function GreetingForm({
   const [headline, setHeadline] = useState("");
   const [subline, setSubline] = useState("Roogo vous accompagne");
   const [style, setStyle] = useState<string>("surprise");
-  const [format, setFormat] = useState<(typeof FORMATS)[number][0]>("4x5");
+  const [format, setFormat] = useState<(typeof FORMATS)[number][0]>("9x16");
   const [usd, setUsd] = useState<number | null>(null);
 
   useEffect(() => {
@@ -527,7 +527,7 @@ function GreetingForm({
           </p>
         )}
       </div>
-      <div className="flex flex-wrap gap-2">
+      <div className="grid gap-2">
         {FORMATS.map(([key, label]) => (
           <button key={key} type="button" onClick={() => setFormat(key)} className={chip(format === key)}>
             {label}

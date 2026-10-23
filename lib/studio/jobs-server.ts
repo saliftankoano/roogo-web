@@ -4,7 +4,7 @@ import {
   FAL_ENDPOINTS,
   POSTER_FORMATS,
   estimateJobCostUsd,
-  isPosterFormat,
+  pickPosterFormat,
   type JobTool,
   type PosterFormat,
   type PosterQuality,
@@ -129,7 +129,7 @@ export async function prepareJob(
       };
     }
 
-    const format: PosterFormat = isPosterFormat(params.format) ? params.format : "4x5";
+    const format: PosterFormat = pickPosterFormat(params.format);
     const quality = pickQuality(params.quality);
     const defaults = posterDefaults(row);
     const given = (params.lines ?? {}) as Record<string, unknown>;
@@ -166,7 +166,7 @@ export async function prepareJob(
   }
 
   if (tool === "greeting") {
-    const format: PosterFormat = isPosterFormat(params.format) ? params.format : "4x5";
+    const format: PosterFormat = pickPosterFormat(params.format);
     // Generous limits: the text is fitted (word boundary, no emoji) below, and
     // the form shows the same fit before anyone presses the button.
     const typedHeadline = normalizeScript(asString(params.headline, 400));
@@ -484,8 +484,8 @@ export async function finishJob(
 
   const lines = (context.lines ?? {}) as Record<string, string>;
   const titles: Record<string, string> = {
-    poster: `Affiche (${POSTER_FORMATS[(context.format as PosterFormat) ?? "4x5"].label})`,
-    greeting: `Affiche libre (${POSTER_FORMATS[(context.format as PosterFormat) ?? "4x5"].label})`,
+    poster: `Affiche (${POSTER_FORMATS[pickPosterFormat(context.format)].label})`,
+    greeting: `Affiche libre (${POSTER_FORMATS[pickPosterFormat(context.format)].label})`,
     cutout: "Photo détourée",
   };
   const shown =
