@@ -53,6 +53,7 @@ import {
   teamWeek,
   unitWord,
   weeklyCounts,
+  displayTitle,
   type GoalDates,
   type GoalIcon,
   type GoalMetric,
@@ -666,12 +667,12 @@ function emptyPayload(viewer: Viewer, people: Person[], todayKey: string, ready:
 }
 
 export async function getGoalTitles(): Promise<Map<string, string>> {
-  const { data, error } = await supabaseAdmin.from("team_goals").select("id, title").limit(500);
+  const { data, error } = await supabaseAdmin.from("team_goals").select("id, title, target").limit(500);
   if (error) {
     if (!isMissingTable(error)) console.error("[team-goals] titles failed", { code: error.code });
     return new Map();
   }
-  return new Map((data ?? []).map((row) => [row.id as string, row.title as string]));
+  return new Map((data ?? []).map((row) => [row.id as string, displayTitle(row.title as string, Number(row.target))]));
 }
 
 /** Everything the goals strip, the drawer and the levers on Accueil need, for this viewer. */
@@ -771,7 +772,7 @@ export async function goalsFromRows(
   const ctx: Ctx = { todayKey, people, since };
   const { loaded, failed } = await loadMetrics([...goals, ...archived], ctx, readings);
 
-  const titleOf = new Map(goals.map((g) => [g.id, g.title]));
+  const titleOf = new Map(goals.map((g) => [g.id, displayTitle(g.title, g.target)]));
   const leverViews: LeverView[] = levers.map((lever) => {
     const owner = people.find((p) => p.id === lever.owner_id);
     return {
@@ -812,7 +813,7 @@ export async function goalsFromRows(
     const needSentence = progress.status === "atteint" || progress.status === "pas_atteint" ? "" : ` Il en faut ${progress.need}.`;
     return {
       id: goal.id,
-      title: goal.title,
+      title: displayTitle(goal.title, goal.target),
       metric: goal.metric,
       icon: def.icon,
       family: def.family,
@@ -863,7 +864,7 @@ export async function goalsFromRows(
     const def = METRICS[goal.metric];
     wins.push({
       id: goal.id,
-      title: goal.title,
+      title: displayTitle(goal.title, goal.target),
       icon: def.icon,
       family: def.family,
       finalLabel: formatCount(value),
