@@ -7,7 +7,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { UserButton, useUser } from "@clerk/nextjs";
 import { usePathname } from "next/navigation";
 import { ListIcon, XIcon, CaretDownIcon, HouseLineIcon, ChatCircleIcon,
-  BuildingsIcon, HouseIcon, HandshakeIcon, CubeFocusIcon } from "@phosphor-icons/react";
+  BuildingsIcon, HouseIcon, HandshakeIcon, CubeFocusIcon, BriefcaseIcon } from "@phosphor-icons/react";
 import { cn } from "../lib/utils";
 import type { AdminNavEntry } from "../lib/navigation/adminNav";
 
@@ -32,6 +32,9 @@ function navigationFor(isSignedIn: boolean | undefined, userType?: string): Admi
       ? { type: "link", label: "Parrainage", href: "/parrainage", icon: HandshakeIcon, id: "nav-parrainage" }
       : { type: "link", label: "À propos", href: "/a-propos", icon: HandshakeIcon, id: "nav-a-propos" },
     { type: "link", label: "Contact", href: "/nous-contacter", icon: ChatCircleIcon, id: "nav-contact" },
+    // Since 2026-10-22: recruitment videos send candidates to the « rubrique
+    // Carrières », and most of them are on a phone, where the footer is far.
+    { type: "link", label: "Carrières", href: "/carrieres", icon: BriefcaseIcon, id: "nav-carrieres" },
   ];
 }
 
@@ -133,7 +136,7 @@ export function NavbarView({ isSignedIn, isLoaded, userType, fullName, accountBu
       </Link>
       <nav aria-label="Navigation principale" aria-busy={!isLoaded}
         className="hidden h-12 w-[760px] shrink-0 auto-cols-fr grid-flow-col items-center rounded-full border border-neutral-200/60 bg-[#f5efe6]/80 p-1 xl:grid">
-        {isLoaded ? renderItems(false) : Array.from({ length: 5 }, (_, index) =>
+        {isLoaded ? renderItems(false) : Array.from({ length: items.length }, (_, index) =>
           <span key={index} aria-hidden="true" className="mx-4 h-4 rounded bg-neutral-200/60" />)}
       </nav>
       <div className="flex shrink-0 items-center gap-2">

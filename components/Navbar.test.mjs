@@ -66,20 +66,39 @@ test('loading reserves the same navigation and account dimensions without guest 
   assert.doesNotMatch(render(loading, true), /href="\/(connexion|inscription|proprietes)"/);
 });
 
-test('public roles have five tailored slots and the same destinations on mobile', () => {
+test('public roles have six tailored slots and the same destinations on mobile', () => {
   for (const state of [guest, signedIn('renter'), signedIn('owner'), signedIn('agent')]) {
     const html = render(state, true);
     const primary = nav(html, 'Navigation principale');
     const mobile = html.match(/aria-label="Navigation mobile"[^>]*>([\s\S]*?)<\/nav>/)[1];
     const hrefs = section => [...section.matchAll(/href="([^"]+)"/g)].map(match => match[1]);
-    assert.equal(hrefs(primary).length, 5);
-    assert.deepEqual(hrefs(mobile).slice(0, 5), hrefs(primary));
+    assert.equal(hrefs(primary).length, 6);
+    assert.deepEqual(hrefs(mobile).slice(0, 6), hrefs(primary));
     assert.deepEqual(hrefs(primary).slice(0, 2), ['/', '/proprietes']);
+    assert.deepEqual(hrefs(primary).slice(4), ['/nous-contacter', '/carrieres']);
   }
   assert.match(nav(render(signedIn('owner')), 'Navigation principale'), /Mes biens/);
   assert.match(nav(render(signedIn('agent')), 'Navigation principale'), /Mes biens/);
   assert.match(nav(render(signedIn('renter')), 'Navigation principale'), /Visites 3D/);
   assert.match(nav(render(guest), 'Navigation principale'), /À propos/);
+});
+
+const mobileNav = (html) => html.match(/aria-label="Navigation mobile"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+
+test('Carrières is one tap away in the phone menu for every public visitor', () => {
+  for (const state of [guest, signedIn('renter'), signedIn('owner'), signedIn('agent')]) {
+    const mobile = mobileNav(render(state, true));
+    assert.match(mobile, /<a href="\/carrieres"[^>]*data-id="nav-carrieres"[^>]*>[\s\S]*?Carrières<\/span><\/a>/);
+  }
+  // Nothing else left the public list: every earlier entry is still there.
+  const guestMobile = mobileNav(render(guest, true));
+  for (const label of ['Accueil', 'Propriétés', 'Visites 3D', 'À propos', 'Contact', 'Connexion']) {
+    assert.match(guestMobile, new RegExp(`>${label}<`));
+  }
+  const ownerMobile = mobileNav(render(signedIn('owner'), true));
+  for (const label of ['Mes biens', 'Parrainage']) assert.match(ownerMobile, new RegExp(`>${label}<`));
+  // The loading skeleton keeps one placeholder per slot so the bar does not jump.
+  assert.equal((nav(render(loading), 'Navigation principale').match(/<span aria-hidden="true"/g) || []).length, 6);
 });
 
 test('staff and founders get the one staff bar on public pages, never the public list', () => {
