@@ -24,6 +24,7 @@ import {
   listingBaseSchema,
   listingSchema,
   requireListingFieldsByType,
+  getListingTypeCapabilities,
   PROPERTY_TYPES,
   CITY_OPTIONS,
   type CityId,
@@ -198,6 +199,17 @@ function getVirtualTourError(value: string): string | undefined {
       ? error.message
       : "Le lien Kuula est invalide.";
   }
+}
+
+/**
+ * The room counters show « 1 » while their field is still empty. Validation and
+ * the saved listing must use that same number, or a house left at the shown 1
+ * fails « Au moins 1 chambre requise » with no visible error (support report,
+ * 2026-10-23). Types without rooms keep 0.
+ */
+function shownRoomCount(value: string, type: string): string {
+  if (value !== "") return value;
+  return getListingTypeCapabilities(type).roomsApply ? "1" : "0";
 }
 
 function FieldError({ message }: { message?: string }) {
@@ -455,6 +467,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [referralError, setReferralError] = useState<string | null>(null);
   const [validatingReferral, setValidatingReferral] = useState(false);
   const [errors, setErrors] = useState<Record<string, string>>({});
+  const [stepBlocked, setStepBlocked] = useState(false);
   const [formData, setFormData] = useState<PropertyFormData>(DEFAULT_FORM_DATA);
   const [photos, setPhotos] = useState<File[]>([]);
   const [videoFile, setVideoFile] = useState<File | null>(null);
@@ -767,8 +780,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       ...formData,
       frequence: isSaleListing ? undefined : formData.frequence,
       prixMensuel: Number(formData.prixMensuel),
-      chambres: Number(formData.chambres),
-      sdb: Number(formData.sdb),
+      chambres: Number(shownRoomCount(formData.chambres, formData.type)),
+      sdb: Number(shownRoomCount(formData.sdb, formData.type)),
       superficie: optionalNumber(formData.superficie),
       vehicules: Number(formData.vehicules),
       cautionMois: isDaily ? undefined : Number(formData.cautionMois),
@@ -923,8 +936,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       // counter ("" → 0) sails through and only errors at publish time.
       const typeIssue = requireListingFieldsByType({
         type: formData.type,
-        chambres: Number(formData.chambres),
-        sdb: Number(formData.sdb),
+        chambres: Number(shownRoomCount(formData.chambres, formData.type)),
+        sdb: Number(shownRoomCount(formData.sdb, formData.type)),
         superficie: optionalNumber(formData.superficie),
       });
       if (typeIssue && !nextErrors[typeIssue.path]) {
@@ -973,12 +986,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   };
 
   const goNext = () => {
-    if (!validateStep(currentStep)) return;
+    if (!validateStep(currentStep)) {
+      setStepBlocked(true);
+      return;
+    }
+    setStepBlocked(false);
     setErrors({});
     setCurrentStep((step) => Math.min(3, step + 1));
   };
 
   const goBack = () => {
+    setStepBlocked(false);
     setErrors({});
     setCurrentStep((step) => Math.max(1, step - 1));
   };
@@ -1617,6 +1635,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           max={20}
           onChange={(value) => updateField("chambres", value)}
         />
+        <FieldError message={errors.chambres} />
         <CounterField
           label="Douches"
           value={formData.sdb || "1"}
@@ -1624,6 +1643,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           max={20}
           onChange={(value) => updateField("sdb", value)}
         />
+        <FieldError message={errors.sdb} />
         <div className="space-y-2">
           <label className="text-sm font-extrabold text-neutral-800">
             Superficie (m²)
@@ -2088,7 +2108,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           <div className="rounded-2xl bg-neutral-50 p-3">
             <p className="font-bold text-neutral-400">Chambres</p>
             <p className="font-extrabold text-neutral-950">
-              {formData.chambres || "0"}
+              {shownRoomCount(formData.chambres, formData.type)}
             </p>
           </div>
           <div className="rounded-2xl bg-neutral-50 p-3">
@@ -2535,6 +2555,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       </div>
 
       <div className="sticky bottom-0 z-20 -mx-4 mt-8 border-t border-neutral-100 bg-white/95 px-4 py-4 backdrop-blur md:mx-0 md:rounded-t-3xl md:border md:px-5">
+        {stepBlocked && Object.values(errors).some(Boolean) && (
+          <p role="alert" className="mx-auto mb-3 max-w-5xl rounded-2xl bg-red-50 px-4 py-3 text-sm font-semibold text-red-700">
+            Il reste à corriger : {Object.values(errors).filter(Boolean).join(" ; ")}
+          </p>
+        )}
         <div className="mx-auto flex max-w-5xl gap-3">
           <button
             type="button"
