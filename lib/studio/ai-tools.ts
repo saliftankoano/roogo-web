@@ -37,19 +37,49 @@ export function toolKind(tool: JobTool): "image" | "transcription" | "music" {
 
 /* ---------- formats ---------- */
 
-export type PosterFormat = "4x5" | "9x16" | "1x1";
+// Visuals are made for social short formats only (Salif, 2026-10-23):
+// 9:16 for Story, Reels, TikTok and WhatsApp Status (delivered 1080x1920),
+// 4:5 for the Instagram and Facebook feed (1080x1350). The square format was
+// removed; nothing else in the app used it. Generation sizes stay multiples of
+// 16 (model constraint) with the exact delivery ratio.
+export type PosterFormat = "9x16" | "4x5";
+
+export const DEFAULT_POSTER_FORMAT: PosterFormat = "9x16";
 
 export const POSTER_FORMATS: Record<
   PosterFormat,
-  { width: number; height: number; ratio: "4:5" | "9:16" | "1:1"; label: string }
+  {
+    width: number;
+    height: number;
+    ratio: "9:16" | "4:5";
+    label: string;
+    /** Size the platforms expect. */
+    delivery: { width: number; height: number };
+  }
 > = {
-  "4x5": { width: 1024, height: 1280, ratio: "4:5", label: "Publication (4:5)" },
-  "9x16": { width: 1024, height: 1792, ratio: "9:16", label: "Story (9:16)" },
-  "1x1": { width: 1024, height: 1024, ratio: "1:1", label: "Carré (1:1)" },
+  "9x16": {
+    width: 1024,
+    height: 1792,
+    ratio: "9:16",
+    label: "Story, Reels, TikTok, Statut (9:16)",
+    delivery: { width: 1080, height: 1920 },
+  },
+  "4x5": {
+    width: 1024,
+    height: 1280,
+    ratio: "4:5",
+    label: "Fil Instagram et Facebook (4:5)",
+    delivery: { width: 1080, height: 1350 },
+  },
 };
 
 export function isPosterFormat(value: unknown): value is PosterFormat {
-  return typeof value === "string" && value in POSTER_FORMATS;
+  return typeof value === "string" && Object.prototype.hasOwnProperty.call(POSTER_FORMATS, value);
+}
+
+/** The format to use: an allowed one, else the 9:16 default. */
+export function pickPosterFormat(value: unknown): PosterFormat {
+  return isPosterFormat(value) ? value : DEFAULT_POSTER_FORMAT;
 }
 
 /* ---------- pricing (USD) ---------- */
@@ -79,7 +109,7 @@ export function estimateJobCostUsd(input: {
   let usd: number;
   switch (input.tool) {
     case "poster": {
-      const format = POSTER_FORMATS[input.format ?? "4x5"];
+      const format = POSTER_FORMATS[input.format ?? DEFAULT_POSTER_FORMAT];
       // Price is quoted for 1024x1536; scale by pixels for other sizes.
       const pixelFactor = (format.width * format.height) / (1024 * 1536);
       usd =

@@ -4,7 +4,7 @@ import {
   FAL_ENDPOINTS,
   POSTER_FORMATS,
   estimateJobCostUsd,
-  isPosterFormat,
+  pickPosterFormat,
   type JobTool,
   type PosterFormat,
   type PosterQuality,
@@ -24,8 +24,13 @@ import {
   LOGO_URL,
   buildGreetingPrompt,
   buildPosterPrompt,
+  chooseDesign,
   cleanPosterLine,
-  sceneKeys,
+  familyById,
+  fitGreetingText,
+  inferSubject,
+  isStyleFamily,
+  type PastDesign,
 } from "./poster-prompt";
 import { propertyTitle, toPropertySummary, type PropertyRow } from "./property-context";
 import { STUDIO_BUCKET } from "./server";
@@ -73,6 +78,29 @@ async function liveProperty(conversation: ConversationRow) {
   return row && row.status === "en_ligne" ? row : null;
 }
 
+/** Art direction of this project's latest free posters, newest first. */
+async function recentFreePosterDesigns(conversationId: string): Promise<PastDesign[]> {
+  const { data, error } = await supabaseAdmin
+    .from("studio_artifacts")
+    .select("meta")
+    .eq("conversation_id", conversationId)
+    .eq("kind", "image")
+    .order("created_at", { ascending: false })
+    .limit(6);
+  if (error) {
+    console.error("Studio: recent poster designs read failed", error.code);
+    return [];
+  }
+  const designs: PastDesign[] = [];
+  for (const row of data ?? []) {
+    const meta = (row.meta ?? {}) as { tool?: string; design?: { family?: string; background?: string } };
+    if (meta.tool === "greeting" && meta.design?.family) {
+      designs.push({ family: meta.design.family, background: meta.design.background ?? null });
+    }
+  }
+  return designs;
+}
+
 export async function prepareJob(
   tool: JobTool,
   params: Record<string, unknown>,
@@ -101,14 +129,14 @@ export async function prepareJob(
       };
     }
 
-    const format: PosterFormat = isPosterFormat(params.format) ? params.format : "4x5";
+    const format: PosterFormat = pickPosterFormat(params.format);
     const quality = pickQuality(params.quality);
     const defaults = posterDefaults(row);
     const given = (params.lines ?? {}) as Record<string, unknown>;
     const lines = {
-      headline: cleanPosterLine(normalizeScript(asString(given.headline, 60) || defaults.headline)),
-      place: cleanPosterLine(normalizeScript(asString(given.place, 60) || defaults.place)),
-      price: cleanPosterLine(normalizeScript(asString(given.price, 60) || defaults.price)),
+      headline: cleanPosterLine(normalizeScript(asString(given.headline, 200) || defaults.headline)),
+      place: cleanPosterLine(normalizeScript(asString(given.place, 200) || defaults.place)),
+      price: cleanPosterLine(normalizeScript(asString(given.price, 200) || defaults.price)),
       phone: CONTACT_PHONE,
     };
     if (!lines.headline || !lines.price) return fail(400, "Le titre et le prix sont obligatoires.");
@@ -138,27 +166,55 @@ export async function prepareJob(
   }
 
   if (tool === "greeting") {
-    const format: PosterFormat = isPosterFormat(params.format) ? params.format : "4x5";
-    const headline = cleanPosterLine(normalizeScript(asString(params.headline, 60)));
-    const subline = cleanPosterLine(normalizeScript(asString(params.subline, 60)));
-    if (!headline) return fail(400, "Écrivez le message principal.");
-    const scene = sceneKeys().includes(String(params.scene)) ? String(params.scene) : "sunrise";
+    const format: PosterFormat = pickPosterFormat(params.format);
+    // Generous limits: the text is fitted (word boundary, no emoji) below, and
+    // the form shows the same fit before anyone presses the button.
+    const typedHeadline = normalizeScript(asString(params.headline, 400));
+    const typedSubline = normalizeScript(asString(params.subline, 300));
+    const fitted = fitGreetingText({ headline: typedHeadline, subline: typedSubline });
+    if (!fitted.headline.text) return fail(400, "Écrivez le message principal.");
     const size = POSTER_FORMATS[format];
-    const expected: ExpectedText = { lines: [headline, ...(subline ? [subline] : [])] };
+    const subject = inferSubject(typedHeadline, typedSubline);
+    const avoid = Array.isArray(params.avoid) ? params.avoid.filter(isStyleFamily) : [];
+    const design = chooseDesign({
+      subject,
+      ratio: size.ratio,
+      recent: await recentFreePosterDesigns(conversation.id),
+      avoid,
+      requested: isStyleFamily(params.style) ? params.style : null,
+    });
+    const headline = fitted.headline.text;
+    const subline = fitted.subline.text;
+    // The check compares the image with what was TYPED, not the fitted text.
+    const expected: ExpectedText = {
+      lines: [
+        { typed: typedHeadline, sent: headline },
+        ...(typedSubline.trim() ? [{ typed: typedSubline, sent: subline }] : []),
+      ],
+    };
     return {
       ok: true,
       job: {
         tool,
         endpoint,
         input: {
-          prompt: buildGreetingPrompt({ headline, subline }, size.ratio, scene),
+          prompt: buildGreetingPrompt({ headline, subline }, size.ratio, design),
           aspect_ratio: size.ratio,
           resolution: "1K",
           num_images: 1,
           output_format: "png",
         },
         estimateUsd: estimateJobCostUsd({ tool }),
-        context: { tool, format, scene, lines: { headline, subline }, expected },
+        context: {
+          tool,
+          format,
+          design,
+          subject,
+          lines: { headline, subline },
+          typed: { headline: typedHeadline, subline: typedSubline },
+          shortened: fitted.headline.shortened || fitted.subline.shortened,
+          expected,
+        },
       },
     };
   }
@@ -428,8 +484,8 @@ export async function finishJob(
 
   const lines = (context.lines ?? {}) as Record<string, string>;
   const titles: Record<string, string> = {
-    poster: `Affiche (${POSTER_FORMATS[(context.format as PosterFormat) ?? "4x5"].label})`,
-    greeting: "Affiche de voeux",
+    poster: `Affiche (${POSTER_FORMATS[pickPosterFormat(context.format)].label})`,
+    greeting: `Affiche libre (${POSTER_FORMATS[pickPosterFormat(context.format)].label})`,
     cutout: "Photo détourée",
   };
   const shown =
@@ -439,6 +495,21 @@ export async function finishJob(
         ? [lines.headline, lines.subline].filter(Boolean).join(" · ")
         : "Fond retiré, PNG transparent";
 
+  const design = (context.design ?? null) as { family?: string } | null;
+  const baseMeta: Record<string, unknown> = {
+    tool,
+    format: context.format ?? null,
+    check: null,
+    ...(tool === "greeting"
+      ? {
+          design,
+          family_label: design?.family ? (familyById(design.family)?.label ?? null) : null,
+          subject: context.subject ?? null,
+          typed: context.typed ?? null,
+          shortened: Boolean(context.shortened),
+        }
+      : {}),
+  };
   const { data: inserted } = await supabaseAdmin
     .from("studio_artifacts")
     .insert({
@@ -449,7 +520,7 @@ export async function finishJob(
       generation_id: gen.id,
       output_path: path,
       pinned: true,
-      meta: { tool, format: context.format ?? null, check: null },
+      meta: baseMeta,
     })
     .select("id")
     .single();
@@ -463,7 +534,7 @@ export async function finishJob(
       : { status: "unavailable" };
     await supabaseAdmin
       .from("studio_artifacts")
-      .update({ meta: { tool, format: context.format ?? null, check } })
+      .update({ meta: { ...baseMeta, check } })
       .eq("id", inserted.id);
   }
 

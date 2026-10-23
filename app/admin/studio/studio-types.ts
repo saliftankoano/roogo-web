@@ -56,6 +56,7 @@ export type PosterCheckField = {
   label: string;
   expected: string;
   found: boolean;
+  note?: string;
 };
 
 export type ConversationDetail = {

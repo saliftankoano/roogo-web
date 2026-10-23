@@ -1,11 +1,11 @@
 "use client";
 
 import Image from "next/image";
-import { useState } from "react";
-import { ImageSquareIcon, PlusIcon, PushPinIcon } from "@phosphor-icons/react";
+import { useEffect, useState } from "react";
+import { ArrowsClockwiseIcon, ImageSquareIcon, PlusIcon, PushPinIcon, SpinnerGapIcon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { ArtifactCard, type CardProps } from "./ArtifactsPanel";
-import { ToolsPanel } from "./StudioTools";
+import { ToolsPanel, fetchEstimate } from "./StudioTools";
 import type { Artifact, ConversationDetail, JobTool, RunningJob } from "./studio-types";
 
 type Money = (usd: number) => string;
@@ -83,7 +83,7 @@ export function StudioVisuals({
           )}
           {!detail?.property && detail && canWrite && (
             <p className="px-1 text-xs text-neutral-500">
-              Sans bien choisi, seules les affiches libres (voeux, annonces) sont proposées. Choisissez un bien en haut de
+              Sans bien choisi, seules les affiches libres (voeux, annonces, terrains, recrutement) sont proposées. Choisissez un bien en haut de
               la page pour l&apos;affiche du bien et le détourage.
             </p>
           )}
@@ -118,6 +118,15 @@ export function StudioVisuals({
           {current ? (
             <div className="mx-auto max-w-md">
               <ArtifactCard artifact={current} {...card} />
+              {current.meta?.tool === "greeting" && detail && canWrite && (
+                <AnotherVersion
+                  key={current.id}
+                  artifact={current}
+                  conversationId={detail.conversation.id}
+                  money={money}
+                  start={start}
+                />
+              )}
             </div>
           ) : (
             <div className="flex h-full min-h-48 flex-col items-center justify-center gap-2 text-center text-neutral-400">
@@ -127,6 +136,88 @@ export function StudioVisuals({
           )}
         </div>
       </div>
+    </div>
+  );
+}
+
+/** Lines of a free poster: typed text from the meta, or the shown text for older ones. */
+function typedLines(artifact: Artifact): { headline: string; subline: string } {
+  const typed = artifact.meta?.typed as { headline?: string; subline?: string } | null | undefined;
+  if (typed?.headline) return { headline: typed.headline, subline: typed.subline ?? "" };
+  const [headline = "", subline = ""] = artifact.text.split(" · ");
+  return { headline, subline };
+}
+
+/** Regenerates a free poster with the same text in a different style family. */
+function AnotherVersion({
+  artifact,
+  conversationId,
+  money,
+  start,
+}: {
+  artifact: Artifact;
+  conversationId: string;
+  money: Money;
+  start: (tool: JobTool, params: Record<string, unknown>, estimateUsd: number) => Promise<StartResult>;
+}) {
+  const [usd, setUsd] = useState<number | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [sent, setSent] = useState(false);
+  const design = artifact.meta?.design as { family?: string } | null | undefined;
+  const familyLabel = typeof artifact.meta?.family_label === "string" ? artifact.meta.family_label : null;
+  // Older free posters may be square or have no format: they come back in 9:16.
+  const format = artifact.meta?.format === "4x5" ? "4x5" : "9x16";
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchEstimate("greeting", conversationId, { headline: "x", format }).then((e) => {
+      if (!cancelled) setUsd(e?.estimateUsd ?? null);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [conversationId, format]);
+
+  async function again() {
+    if (usd === null) return;
+    setBusy(true);
+    setError(null);
+    const lines = typedLines(artifact);
+    const result = await start(
+      "greeting",
+      { ...lines, format, style: "surprise", avoid: design?.family ? [design.family] : [] },
+      usd,
+    );
+    setBusy(false);
+    if (result.ok) setSent(true);
+    else setError(result.error);
+  }
+
+  return (
+    <div className="mt-3 space-y-2">
+      <div className="flex items-center gap-2">
+        {familyLabel && <span className="text-xs font-medium text-neutral-500">Style : {familyLabel}</span>}
+        <button
+          type="button"
+          onClick={() => void again()}
+          disabled={busy || usd === null || sent}
+          className="ml-auto inline-flex min-h-10 items-center gap-1.5 whitespace-nowrap rounded-xl border border-neutral-200 bg-white px-3 text-sm font-semibold text-neutral-800 hover:bg-neutral-50 disabled:opacity-50"
+        >
+          {busy ? (
+            <SpinnerGapIcon size={16} className="size-4 shrink-0 animate-spin" />
+          ) : (
+            <ArrowsClockwiseIcon size={16} weight="bold" className="size-4 shrink-0" />
+          )}
+          Une autre version{usd !== null ? ` (environ ${money(usd)})` : ""}
+        </button>
+      </div>
+      {sent && <p className="text-xs font-medium text-neutral-500">Nouvelle version en cours, dans un autre style.</p>}
+      {error && (
+        <p className="text-xs font-bold text-red-600" role="alert">
+          {error}
+        </p>
+      )}
     </div>
   );
 }

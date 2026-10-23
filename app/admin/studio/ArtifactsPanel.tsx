@@ -389,7 +389,14 @@ function checkSummary(meta: Record<string, unknown>): {
   }
   const wrong = (check.fields ?? []).filter((f) => !f.found);
   if (check.ok || wrong.length === 0) {
-    return { tone: "ok", text: "Texte vérifié : prix, téléphone et quartier lus correctement.", fields: [] };
+    return {
+      tone: "ok",
+      text:
+        meta.tool === "greeting"
+          ? "Texte vérifié : identique au texte saisi."
+          : "Texte vérifié : prix, téléphone et quartier lus correctement.",
+      fields: [],
+    };
   }
   return { tone: "warn", text: "À vérifier avant de publier :", fields: wrong };
 }
@@ -413,7 +420,10 @@ function ImageCard({
       {artifact.url ? (
         <div
           className="relative w-full overflow-hidden rounded-2xl bg-[repeating-conic-gradient(#eee_0%_25%,#fff_0%_50%)] bg-[length:20px_20px]"
-          style={{ aspectRatio: artifact.title.includes("9:16") ? "9 / 16" : artifact.title.includes("Carré") ? "1 / 1" : "4 / 5" }}
+          style={{
+            // "Carré" only for squares made before 2026-10-23.
+            aspectRatio: artifact.title.includes("9:16") ? "9 / 16" : artifact.title.includes("Carré") ? "1 / 1" : "4 / 5",
+          }}
         >
           <Image src={artifact.url} alt={artifact.title} fill sizes="360px" unoptimized className="object-contain" />
         </div>
@@ -439,6 +449,7 @@ function ImageCard({
                 {check.fields.map((field, i) => (
                   <li key={`${field.key}-${i}`}>
                     {field.label} : attendu « {field.expected} »
+                    {field.note && <span className="block font-normal">{field.note}</span>}
                   </li>
                 ))}
               </ul>
