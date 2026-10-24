@@ -139,9 +139,6 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
               Vidéo du bien
               <OptionalMark />
             </label>
-            <span className="text-xs font-semibold text-neutral-400">
-              Optionnelle
-            </span>
           </div>
           {videoFile ? (
             <div className="space-y-3">
