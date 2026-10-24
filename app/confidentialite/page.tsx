@@ -216,9 +216,13 @@ export default function PrivacyPage() {
                   toutes les 6 heures.
                 </li>
                 <li>
-                  <strong>Suppression :</strong> elles sont supprimées lorsque
-                  la connexion YouTube est retirée dans le Studio, ou au plus
-                  tard dans un délai de 30 jours.
+                  <strong>Suppression :</strong> les jetons de connexion et les
+                  statistiques de la chaîne gardées en cache sont supprimés
+                  lorsque la connexion YouTube est retirée dans le Studio de
+                  Roogo. Le nombre quotidien d&apos;abonnés de la chaîne de
+                  Roogo est conservé comme historique des objectifs internes de
+                  Roogo : il concerne uniquement la chaîne de Roogo, et aucune
+                  donnée de tiers.
                 </li>
                 <li>
                   <strong>Révoquer l&apos;accès :</strong> l&apos;accès de

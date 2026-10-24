@@ -201,9 +201,12 @@ export default function PrivacyPageEn() {
                   shared. It is refreshed every 6 hours.
                 </li>
                 <li>
-                  <strong>Deletion:</strong> it is deleted when the YouTube
-                  connection is removed in the Studio, or at the latest within
-                  30 days.
+                  <strong>Deletion:</strong> the connection tokens and the cached
+                  channel statistics are deleted when the YouTube connection is
+                  removed in Roogo Studio. The daily subscriber count of
+                  Roogo&apos;s own channel is kept as the history of
+                  Roogo&apos;s internal goals: it concerns only Roogo&apos;s own
+                  channel, and no third-party data.
                 </li>
                 <li>
                   <strong>Revoking access:</strong> Roogo&apos;s access to the
