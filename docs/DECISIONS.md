@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### YouTube Shorts in Publier: private until the audit, resumable across runs, quota retried next day — 2026-10-24
+
+**Decision:** YouTube Shorts joins Facebook, Instagram and TikTok as a « Publier une vidéo » destination when the channel is connected with `youtube.upload`. Uploads are `private` unless `YOUTUBE_PUBLIC_UPLOADS=true`, which is set only after the Google Cloud project passes the YouTube API Services audit. The YouTube text keeps one field: its first line is the title (100 characters, searchable: type, place, price), the rest is the description. Uploads are streamed from the Drive copy in 8 MiB chunks with the session URL and next byte saved after each chunk. On `quotaExceeded` the network is « Échec » with a French message and the worker retries it by itself after the next quota reset (08:00 UTC), at most 3 days in a row.
+
+**Why:** Unaudited API uploads are locked private by YouTube whatever we send, so saying it on the page avoids a « why is it not public? » surprise, and the flag makes the switch a config change. One text field with the title on the first line keeps `network_copy` (migration 105) as it is: no migration. Saving the position after every chunk is what makes a 300 s function safe for a 500 MB video; YouTube only creates the video when the last byte arrives, so restarting a dead session never double posts, and probing an existing session returns the video id if the last chunk already landed. The quota (1 600 of 10 000 units per upload, about 6 a day) is a hard daily wall: retrying the same day only burns attempts, the next day almost always works, and a cap keeps a broken channel from looping forever.
+
+**Ruled out:** A separate title column (a migration for one line of text). Loading the whole file in memory (`uploadYouTubeShort`, kept for small files and tests). Publishing YouTube from calendar posts (only uploaded vertical videos are Shorts). Asking for a quota increase now (premature at our volume).
+
+**Policy page:** The customer privacy policy and terms do not mention YouTube (Salif, 2026-10-24, council recommendation approved): YouTube is used only by the internal Studio on Roogo's own channel, so its audit gets a separate short note at `/studio/confidentialite` (FR, with `/en`), public but unlinked, noindex and out of the sitemap. It says tokens and cached statistics are deleted when the connection is removed and the daily subscriber count of Roogo's own channel is kept as internal goal history, which is what the code does.
+
+**Status:** Branch `feat/publier-youtube`, not merged. No real upload made; the end-to-end Short (private) is to be checked by Salif after deploy.
+
 ### YouTube connects like TikTok: one founder connection, with upload asked up front — 2026-10-23
 
 **Decision:** The Roogo YouTube channel is connected once by the founder from the YouTube card of Studio › Statistiques, with Google OAuth asking both `youtube.readonly` and `youtube.upload` (PRD 1.4, approved by Salif 2026-10-23), `access_type=offline` and `prompt=consent`. Tokens live in the existing `social_tokens` table (provider `youtube`, migration 106), sealed with `SOCIAL_TOKENS_KEY`, exactly like TikTok. Subscribers become the goal metric `youtube_subscribers` (« Abonnés YouTube »), read on connect, on every fresh Statistiques snapshot and nightly, with the same rule as the other networks: an automatic reading of the day is inserted or refreshed, a manual one is never overwritten. The goal itself (« 500 abonnés YouTube » by 31 December 2026) is created by the founder in the app, not by a migration.

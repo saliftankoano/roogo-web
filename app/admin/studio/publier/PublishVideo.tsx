@@ -16,6 +16,7 @@ import { cn } from "@/lib/utils";
 import { TimeSelect24h } from "@/components/ui/TimeSelect24h";
 import { notifyApprovalsChanged } from "@/components/admin/useStudioApprovals";
 import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
+import type { YouTubePublishInfo } from "@/lib/social/youtube-upload";
 import { NETWORK_LABELS, slotLabel, type Network } from "@/lib/studio/publishing";
 import {
   DESTINATION_FORMATS,
@@ -38,6 +39,7 @@ import { DestinationIcon } from "../calendrier/NetworkIcons";
 import { readError, type FinalVideo, type Post } from "../calendrier/calendar-types";
 import { ApprovalPreview } from "../publishing/ApprovalPreview";
 import { TikTokNote } from "../publishing/TikTokChoice";
+import { YouTubeNote } from "../publishing/YouTubeNote";
 import { Toast, type ToastMessage } from "../publishing/Toast";
 import { CopyTabs } from "./CopyTabs";
 import { PropertyLink, type LinkedProperty } from "./PropertyLink";
@@ -48,6 +50,7 @@ type PageData = {
   me: { id: string; role: "staff" | "founder" };
   destinations: DestinationOption[];
   tiktok: TikTokPublishInfo | null;
+  youtube?: YouTubePublishInfo | null;
   driveConfigured: boolean;
   slots: string[];
   items: Item[];
@@ -485,7 +488,7 @@ export function PublishVideo() {
                       <span className="min-w-0">
                         <span className="block truncate text-[13px] font-bold leading-tight">{DESTINATION_LABELS[d.id]}</span>
                         <span className="block truncate text-[11px] leading-tight">
-                          {d.available ? DESTINATION_FORMATS[d.id] : d.id === "youtube" ? "(à connecter)" : "Pas disponible"}
+                          {d.available ? DESTINATION_FORMATS[d.id] : "Pas disponible"}
                         </span>
                       </span>
                     </button>
@@ -493,13 +496,14 @@ export function PublishVideo() {
                 })}
               </div>
               {destinations
-                .filter((d) => !d.available && d.id !== "youtube")
+                .filter((d) => !d.available)
                 .map((d) => (
                   <p key={d.id} className="text-[12px] text-neutral-500">
                     {d.label} : {d.reason}
                   </p>
                 ))}
               {chosen.includes("tiktok") && <TikTokNote info={data?.tiktok} />}
+              {chosen.includes("youtube") && <YouTubeNote info={data?.youtube} />}
             </section>
 
             <section className={step}>
@@ -612,6 +616,7 @@ export function PublishVideo() {
           queue={[preview]}
           daySlots={data.slots}
           tiktok={data.tiktok}
+          youtube={data.youtube ?? null}
           onClose={() => {
             setPreview(null);
             if (wanted) router.replace("/admin/studio/publier");

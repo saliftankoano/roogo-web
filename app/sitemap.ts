@@ -97,6 +97,8 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
       changeFrequency: "monthly",
       priority: 0.4,
     },
+    // Never list /studio/confidentialite (Roogo Studio internal-tool note for
+    // the YouTube API audit): unlinked and noindex on purpose.
   ];
 
   const propertyPages: MetadataRoute.Sitemap = properties.map((p) => ({

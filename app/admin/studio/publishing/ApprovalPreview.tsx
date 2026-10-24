@@ -23,6 +23,8 @@ import { useDialog } from "./useDialog";
 import { TikTokChoice, TikTokNote } from "./TikTokChoice";
 import { NetworkTexts } from "./NetworkTexts";
 import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
+import type { YouTubePublishInfo } from "@/lib/social/youtube-upload";
+import { YouTubeNote } from "./YouTubeNote";
 
 type View = "preview" | "return" | "approved";
 
@@ -36,6 +38,7 @@ export function ApprovalPreview({
   startIndex = 0,
   daySlots,
   tiktok,
+  youtube,
   onClose,
   onChanged,
 }: {
@@ -44,6 +47,8 @@ export function ApprovalPreview({
   daySlots: string[];
   /** TikTok publishing status from the server (feature flag). */
   tiktok?: TikTokPublishInfo | null;
+  /** YouTube Shorts status (Studio › Publier passes it); without it YouTube can only be removed. */
+  youtube?: YouTubePublishInfo | null;
   onClose: () => void;
   onChanged: (post: Post) => void;
 }) {
@@ -472,7 +477,10 @@ export function ApprovalPreview({
         <div
           role="group"
           aria-label="Réseaux"
-          className={cn("grid gap-2", tiktok?.enabled ? "grid-cols-3" : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]")}
+          className={cn(
+            "grid gap-2",
+            uploaded ? "grid-cols-2 sm:grid-cols-4" : tiktok?.enabled ? "grid-cols-3" : "grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto]",
+          )}
         >
           {(["instagram", "facebook"] as const).map((n) => {
             const on = post.networks.includes(n);
@@ -506,8 +514,26 @@ export function ApprovalPreview({
             iconSize={16}
             className="h-11"
           />
+          {uploaded && (youtube?.enabled || post.networks.includes("youtube")) && (
+            <button
+              type="button"
+              aria-pressed={post.networks.includes("youtube")}
+              disabled={busy !== null || (!post.networks.includes("youtube") && !youtube?.enabled)}
+              onClick={() => void toggleNetwork("youtube")}
+              className={cn(
+                "inline-flex h-11 min-w-0 items-center justify-center gap-1.5 rounded-2xl px-1.5 text-[13px] font-semibold disabled:opacity-50",
+                post.networks.includes("youtube")
+                  ? "bg-white text-[#1F1A16] ring-2 ring-[#C96A2E]"
+                  : "bg-white/60 text-neutral-500 ring-1 ring-[rgba(74,52,36,0.12)]",
+              )}
+            >
+              <NetworkIcon network="youtube" size={16} label={false} />
+              <span className="truncate">YouTube</span>
+            </button>
+          )}
         </div>
         {(tiktok?.enabled || post.networks.includes("tiktok")) && <TikTokNote info={tiktok} />}
+        {post.networks.includes("youtube") && <YouTubeNote info={youtube} />}
 
         {uploaded ? (
           <NetworkTexts post={post} busy={busy !== null} onSave={saveNetworkText} />

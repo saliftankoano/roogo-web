@@ -96,12 +96,9 @@ export function MessengerIcon({ size = 14, className, label = true }: { size?: n
 
 const LOGOS = { facebook: FacebookLogo, instagram: InstagramLogo, tiktok: TiktokLogo, youtube: YoutubeLogo } as const;
 
-/**
- * Every network with a logo. YouTube is drawn here (Studio > Statistiques,
- * 2026-10-23) before it becomes a publishing network (« Publier partout »).
- */
-export type LogoNetwork = Network | "youtube";
-const LABELS: Record<LogoNetwork, string> = { youtube: "YouTube", ...NETWORK_LABELS };
+/** Every network with a logo (YouTube is a publishing network since 2026-10-24). */
+export type LogoNetwork = Network;
+const LABELS: Record<LogoNetwork, string> = NETWORK_LABELS;
 
 /** Any « Publier une vidéo » destination, YouTube Shorts included. */
 export function DestinationIcon({ destination, size = 14, className }: { destination: LogoNetwork; size?: number; className?: string }) {

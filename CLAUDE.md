@@ -167,6 +167,7 @@ SOCIAL_TOKENS_KEY       # 32 random bytes, base64 (openssl rand -base64 32): enc
 YOUTUBE_CLIENT_ID       # server only: Google Cloud OAuth client (Web application), scopes youtube.readonly + youtube.upload
 YOUTUBE_CLIENT_SECRET   # server only, never logged
 YOUTUBE_REDIRECT_URI    # optional; default <site>/api/admin/social/youtube/callback (must be an authorized redirect URI of the OAuth client)
+YOUTUBE_PUBLIC_UPLOADS  # optional; "true" publishes Studio › Publier Shorts as public. Leave unset (private) until the YouTube API audit passes
 ```
 
 ### Design System

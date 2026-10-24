@@ -18,6 +18,7 @@ import {
   roleOf,
   tiktokPublishStatus,
   toDtos,
+  youtubePublishStatus,
   type PublicationRow,
 } from "@/lib/studio/publishing-server";
 
@@ -50,7 +51,7 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!body) return errorResponse("Requête invalide", 400, req);
 
   const meta = metaStatus();
-  const options = destinationOptions({ facebook: meta.facebook, instagram: meta.instagram, tiktok: await tiktokPublishStatus(), youtube: null });
+  const options = destinationOptions({ facebook: meta.facebook, instagram: meta.instagram, tiktok: await tiktokPublishStatus(), youtube: await youtubePublishStatus() });
   const networks = ticksToNetworks(Array.isArray(body.networks) ? body.networks.map(String) : [], options);
   if (!networks.length) return errorResponse("Choisissez au moins un réseau disponible.", 400, req);
 

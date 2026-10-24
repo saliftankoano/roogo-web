@@ -17,6 +17,8 @@ import {
   mediaProblems,
   networksToPublish,
   parseSlots,
+  quotaRetryDue,
+  retryResults,
   summarizeErrors,
   type CadenceStep,
   type CaptionProblem,
@@ -40,11 +42,15 @@ import {
 import { publishTikTok, tiktokPostMode, type TikTokResume } from "@/lib/social/tiktok-publish";
 import { rangeSource } from "./range-source";
 import { tiktokAccessToken, tiktokPublishStatus } from "@/lib/social/tiktok-token-server";
+import { MAX_QUOTA_RETRIES, publishYouTubeShort, youtubePrivacy, type YouTubeResume } from "@/lib/social/youtube-upload";
+import { youtubeAccessToken, youtubePublishStatus } from "@/lib/social/youtube-token-server";
 import {
   copyPostText,
   finalizeNetworkCopy,
   networkCopyErrors,
   parseNetworkCopy,
+  textForNetwork,
+  youtubeShortFields,
   type NetworkCopy,
 } from "./publish-everywhere";
 import {
@@ -58,7 +64,7 @@ import {
   type FinalVideoRow,
 } from "./final-videos-server";
 
-export { tiktokPublishStatus };
+export { tiktokPublishStatus, youtubePublishStatus };
 
 export const PUBLICATION_COLUMNS =
   "id, property_id, artifact_id, title, cadence_step, visit_date, media_type, photo_urls, caption, notes, networks, scheduled_at, assignee_id, status, approved_by, approved_at, claimed_at, published_at, results, last_error, created_by, created_at, updated_at, hashtags, caption_model, caption_generated_at, caption_edited_by, caption_edited_at, submitted_by, submitted_at, returned_by, returned_at, review_comment, review_tags, final_video_id, network_copy, same_text, publish_on_approval";
@@ -171,6 +177,10 @@ async function finalVideoProblems(row: PublicationRow): Promise<CaptionProblem[]
   if (row.networks.includes("tiktok") && !(await tiktokPublishStatus()).enabled) {
     problems.push({ code: "tiktok", message: "TikTok n'est pas connecté pour la publication." });
   }
+  if (row.networks.includes("youtube")) {
+    const youtube = await youtubePublishStatus();
+    if (!youtube.enabled) problems.push({ code: "youtube", message: youtube.reason ?? "YouTube n'est pas connecté pour la publication." });
+  }
   const { base, copy } = copyOf(row);
   const facts = await copyFactsFor(row.property_id);
   for (const error of networkCopyErrors(row.networks, copy, base, facts, row.same_text)) {
@@ -184,6 +194,7 @@ export async function approvalProblems(row: PublicationRow): Promise<CaptionProb
   if (row.final_video_id) return finalVideoProblems(row);
   const artifact = row.artifact_id ? await loadArtifactInfo(row.artifact_id) : null;
   const problems = [
+    ...(row.networks.includes("youtube") ? [{ code: "youtube-calendar", message: "YouTube Shorts se publie depuis Studio › Publier, avec une vidéo finale." }] : []),
     ...captionProblems(postText(row.caption, row.hashtags), { mediaType: row.media_type, step: row.cadence_step }),
     ...mediaProblems({
       mediaType: row.media_type,
@@ -241,7 +252,15 @@ async function mediaFor(row: PublicationRow): Promise<{ media: PublishMedia | nu
     try {
       const durationSeconds = video.duration_seconds == null ? null : Number(video.duration_seconds);
       return {
-        media: { kind: "video", url: await signedFinalVideoUrl(video.id, PUBLISH_SIGNED_URL_SECONDS), durationSeconds, sizeBytes: Number(video.size_bytes) },
+        media: {
+          kind: "video",
+          url: await signedFinalVideoUrl(video.id, PUBLISH_SIGNED_URL_SECONDS),
+          durationSeconds,
+          sizeBytes: Number(video.size_bytes),
+          mimeType: video.mime_type,
+          width: video.width,
+          height: video.height,
+        },
         error: null,
       };
     } catch {
@@ -300,6 +319,42 @@ async function failStaleClaims(now: Date) {
 }
 
 /**
+ * « Retry next day » after a YouTube quota error: once the quota is back
+ * (results.youtube.retry_after, 08:00 UTC), the post goes back to « Validé »
+ * with only YouTube to publish; the other failed networks are held and keep
+ * their own « Réessayer ». At most MAX_QUOTA_RETRIES days in a row.
+ */
+async function requeueQuotaRetries(now: Date) {
+  const since = new Date(now.getTime() - (MAX_QUOTA_RETRIES + 2) * 86400_000).toISOString();
+  const { data } = await supabaseAdmin
+    .from("studio_publications")
+    .select("id, status, networks, results, claimed_at")
+    .eq("status", "echec")
+    .is("claimed_at", null)
+    .contains("networks", ["youtube"])
+    .gte("updated_at", since)
+    .limit(20);
+  let count = 0;
+  for (const row of (data ?? []) as Array<Pick<PublicationRow, "id" | "status" | "networks" | "results">>) {
+    if (!quotaRetryDue(row, now, MAX_QUOTA_RETRIES)) continue;
+    const plan = retryResults(row.networks, row.results ?? {}, "youtube");
+    if (plan.error) continue;
+    const yt = plan.results.youtube!;
+    plan.results.youtube = { ...yt, retry_after: null, auto_retries: (yt.auto_retries ?? 0) + 1 };
+    const { data: moved } = await supabaseAdmin
+      .from("studio_publications")
+      .update({ status: "valide", last_error: null, results: plan.results, updated_at: now.toISOString() })
+      .eq("id", row.id)
+      .eq("status", "echec")
+      .is("claimed_at", null)
+      .select("id");
+    count += moved?.length ?? 0;
+  }
+  if (count) console.log("studio-publish: YouTube quota retries queued", count);
+  return count;
+}
+
+/**
  * Time a run may spend before it stops starting TikTok chunks and saves its
  * place (the cron and the immediate publish both have maxDuration = 300 s).
  */
@@ -319,6 +374,13 @@ export async function runPublishingWorker(
   const started = Date.now();
   const now = opts.now ?? new Date();
   const summary: WorkerSummary = { claimed: 0, published: 0, failed: 0, stale: await failStaleClaims(now) };
+  if (!opts.onlyId) {
+    try {
+      await requeueQuotaRetries(now);
+    } catch (error) {
+      console.error("studio-publish: quota requeue failed", error instanceof Error ? error.message : "unknown");
+    }
+  }
 
   // onlyId: « Valider » on « Dès que Salif valide » starts this one post right away.
   let dueQuery = supabaseAdmin
@@ -387,6 +449,42 @@ export async function runPublishingWorker(
     );
   };
 
+  // YouTube Shorts (lib/social/youtube-upload.ts): resumable upload in 8 MiB
+  // chunks (multiples of 256 KiB) read one at a time from the signed Drive
+  // link. The session URL and the next byte are saved after every chunk; a run
+  // that reaches the deadline stops and the next one continues. Private until
+  // the YouTube API audit (YOUTUBE_PUBLIC_UPLOADS=true then publishes public).
+  const publishToYouTube = async (
+    media: PublishMedia,
+    fields: { title: string; description: string },
+    resume: YouTubeResume | null,
+    onProgress: (partial: NetworkResult) => Promise<void>,
+  ): Promise<NetworkResult> => {
+    if (media.kind !== "video") return { status: "failed", error: "YouTube Shorts ne publie que des vidéos." };
+    const access = await youtubeAccessToken();
+    if ("error" in access) return { status: "failed", error: access.error };
+    return publishYouTubeShort(
+      {
+        fetch: (url, init) => fetch(url, init as RequestInit),
+        video: rangeSource((url, init) => fetch(url, init), media.url, media.sizeBytes ?? null),
+        contentType: media.mimeType || "video/mp4",
+        deadline,
+        sleep: deps.sleep,
+        onProgress: (partial) => onProgress(partial as NetworkResult),
+      },
+      access.token,
+      {
+        title: fields.title,
+        description: fields.description,
+        privacyStatus: youtubePrivacy(process.env),
+        width: media.width ?? null,
+        height: media.height ?? null,
+        durationSeconds: media.durationSeconds ?? null,
+      },
+      { resume },
+    ) as Promise<NetworkResult>;
+  };
+
   for (const { id } of due) {
     // Leave time for the posts already claimed; the rest waits for the next run.
     if (Date.now() - started > (opts.budgetMs ?? 90_000)) break;
@@ -431,6 +529,18 @@ export async function runPublishingWorker(
         result = { status: "failed", error: copyErrors[0].message.replace(/^[^:]+ : /, "") };
       } else if (!media) {
         result = { status: "failed", error: mediaError ?? "Média introuvable." };
+      } else if (network === "youtube") {
+        if (!row.final_video_id) {
+          result = { status: "failed", error: "YouTube Shorts se publie depuis Studio › Publier, avec une vidéo finale." };
+        } else {
+          const previous = results.youtube;
+          const draft = row.same_text ? base : textForNetwork("youtube", copy, base);
+          result = await publishToYouTube(media, youtubeShortFields(draft, row.title), (previous?.resume as YouTubeResume | null | undefined) ?? null, async (partial) => {
+            results.youtube = { ...partial, auto_retries: previous?.auto_retries };
+            await save();
+          });
+          if (previous?.auto_retries) result = { ...result, auto_retries: previous.auto_retries };
+        }
       } else if (network === "tiktok") {
         result = await publishToTikTok(media, text, results.tiktok?.container_id ?? null, (results.tiktok?.resume as TikTokResume | null | undefined) ?? null, async (partial) => {
           results.tiktok = partial;
@@ -708,7 +818,15 @@ export async function parsePostInput(
   if (has("networks")) {
     if (!Array.isArray(body.networks)) return { values, error: "Réseaux invalides" };
     const nets = [...new Set(body.networks.map(String))];
-    if (nets.some((n) => n !== "facebook" && n !== "instagram" && n !== "tiktok")) return { values, error: "Réseau inconnu" };
+    if (nets.some((n) => n !== "facebook" && n !== "instagram" && n !== "tiktok" && n !== "youtube")) return { values, error: "Réseau inconnu" };
+    if (nets.includes("youtube")) {
+      // YouTube Shorts: only for « Publier une vidéo » posts, and only when the channel can receive uploads.
+      if (!current?.final_video_id) return { values, error: "YouTube Shorts se publie depuis Studio › Publier, avec une vidéo finale." };
+      if (!current.networks?.includes("youtube")) {
+        const youtube = await youtubePublishStatus();
+        if (!youtube.enabled) return { values, error: youtube.reason ?? "YouTube n'est pas disponible." };
+      }
+    }
     if (nets.includes("tiktok") && !current?.networks?.includes("tiktok")) {
       // Feature flag: TikTok key, connected account (PR #78) and a publishing scope.
       const tiktok = await tiktokPublishStatus();
@@ -753,6 +871,20 @@ export async function parsePostInput(
         out[network] = { text: final.text, hashtags: final.hashtags };
       }
       values.network_copy = out;
+    }
+  }
+  // A network added on an uploaded video (Salif's preview) gets its own text from the base.
+  if (finalVideoId && values.networks && !(values.same_text ?? current?.same_text)) {
+    const stored = values.network_copy ? parseNetworkCopy(values.network_copy) : parseNetworkCopy(current?.network_copy);
+    const added = values.networks.filter((n) => !stored[n]);
+    if (added.length) {
+      const facts = await copyFactsFor(values.property_id !== undefined ? values.property_id : current?.property_id ?? null);
+      const base = { text: values.caption ?? current?.caption ?? "", hashtags: values.hashtags ?? current?.hashtags ?? [] };
+      for (const n of added) {
+        const final = finalizeNetworkCopy(n, base, facts);
+        stored[n] = { text: final.text, hashtags: final.hashtags };
+      }
+      values.network_copy = stored;
     }
   }
 

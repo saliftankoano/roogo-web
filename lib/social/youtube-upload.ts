@@ -1,7 +1,11 @@
 // Resumable upload of one vertical Short to the Roogo YouTube channel
-// (videos.insert with uploadType=resumable). Tested but NOT wired yet: the
-// « Publier partout » PR (PRD 2) calls uploadYouTubeShort from its worker,
-// with the token from getFreshYouTubeAccess (lib/team-goals/youtube-store.ts).
+// (videos.insert with uploadType=resumable). The « Publier une vidéo » worker
+// (lib/studio/publishing-server.ts) calls publishYouTubeShort: the video is
+// read from the Drive copy one chunk at a time (lib/studio/range-source.ts)
+// and the session URL plus the next byte are saved, so a run that reaches its
+// time budget stops and the next run continues without posting twice. The
+// token comes from getFreshYouTubeAccess (lib/team-goals/youtube-store.ts).
+// uploadYouTubeShort (whole file in memory) is kept for small files and tests.
 //
 // Protocol (https://developers.google.com/youtube/v3/guides/using_resumable_upload_protocol):
 //   1. POST https://www.googleapis.com/upload/youtube/v3/videos?uploadType=resumable&part=snippet,status
@@ -227,4 +231,268 @@ export async function uploadYouTubeShort(
     }
   }
   return { ok: false, error: "Mise en ligne YouTube interrompue." };
+}
+
+// ---------------------------------------------------------------------------
+// « Publier une vidéo »: chunked, resumable across runs (2026-10-24).
+// ---------------------------------------------------------------------------
+
+/** Until the YouTube API audit, YouTube locks API uploads private anyway. */
+export const YOUTUBE_PRIVATE_NOTE = "YouTube : publication privée tant que l'application n'est pas validée par YouTube";
+export const YOUTUBE_PUBLIC_NOTE = "YouTube : publication publique en Short";
+/** Google keeps a resumable session about a week; we resume within 6 days, else start again. */
+export const SESSION_TTL_MS = 6 * 24 * 3600_000;
+/** Do not start a chunk when less than this is left before the run's deadline. */
+export const YOUTUBE_CHUNK_TIME_MARGIN_MS = 30_000;
+/** One videos.insert costs 1 600 of the 10 000 quota units of a day. */
+export const UPLOAD_QUOTA_COST = 1600;
+export const DAILY_QUOTA = 10_000;
+/** Automatic next-day attempts after a quota error, then the team uses « Réessayer ». */
+export const MAX_QUOTA_RETRIES = 3;
+export const QUOTA_ERROR =
+  "Quota YouTube du jour atteint (une vidéo coûte 1 600 unités sur 10 000 par jour). Nouvel essai automatique demain à partir de 8 h.";
+
+/** YOUTUBE_PUBLIC_UPLOADS=true (after the API audit) publishes public; private otherwise. */
+export function youtubePrivacy(env: Record<string, string | undefined>): PrivacyStatus {
+  return env.YOUTUBE_PUBLIC_UPLOADS?.trim().toLowerCase() === "true" ? "public" : "private";
+}
+
+export function youtubeNote(privacy: PrivacyStatus): string {
+  return privacy === "public" ? YOUTUBE_PUBLIC_NOTE : YOUTUBE_PRIVATE_NOTE;
+}
+
+/**
+ * When the quota is back: Google resets it at midnight Pacific time, which is
+ * 07:00 or 08:00 UTC. 08:00 UTC is always after the reset (08:00 in Ouaga).
+ */
+export function nextQuotaReset(now: Date): string {
+  const reset = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), 8, 0, 0));
+  if (reset.getTime() <= now.getTime()) reset.setUTCDate(reset.getUTCDate() + 1);
+  return reset.toISOString();
+}
+
+export function isQuotaReason(reason: string | null | undefined): boolean {
+  return reason === "quotaExceeded" || reason === "dailyLimitExceeded";
+}
+
+export type YouTubePublishInfo = {
+  enabled: boolean;
+  /** French reason when not enabled. */
+  reason: string | null;
+  privacy: PrivacyStatus;
+  note: string;
+};
+
+/** Whether « YouTube Shorts » can be ticked, from the connection status (getYouTubeStatus). */
+export function youtubePublishInfo(
+  status: { configured: boolean; missing?: string[]; tableReady: boolean; connected: boolean; canUpload: boolean } | null,
+  env: Record<string, string | undefined>,
+): YouTubePublishInfo {
+  const privacy = youtubePrivacy(env);
+  const note = youtubeNote(privacy);
+  const off = (reason: string): YouTubePublishInfo => ({ enabled: false, reason, privacy, note });
+  if (!status) return off("Le statut YouTube n'a pas pu être lu. Réessayez plus tard.");
+  if (!status.configured) return off(`YouTube n'est pas configuré sur le serveur (${(status.missing ?? []).join(", ") || "YOUTUBE_CLIENT_ID"}).`);
+  if (!status.tableReady) return off("La connexion YouTube n'est pas encore installée (migration 106 à lancer).");
+  if (!status.connected) return off("La chaîne YouTube n'est pas connectée (Studio, Statistiques, Connecter YouTube).");
+  if (!status.canUpload) return off("Reconnectez YouTube en autorisant la mise en ligne (youtube.upload).");
+  return { enabled: true, reason: null, privacy, note };
+}
+
+/** Where an interrupted upload continues (saved in the results, never sent to the browser). */
+export type YouTubeResume = {
+  session_url: string;
+  /** First byte YouTube does not have yet. */
+  next_byte: number;
+  total: number;
+  /** After this, the session is considered dead: start a new one (nothing was posted). */
+  expires_at: string;
+};
+
+export type YouTubeVideoSource = {
+  size: () => Promise<number>;
+  /** Bytes start..end inclusive, read with a Range request: never the whole file. */
+  readRange: (start: number, end: number) => Promise<Uint8Array>;
+};
+
+/** Same shape as NetworkResult in lib/studio/publishing.ts (kept import-free for tests). */
+export type YouTubeNetworkResult = {
+  status: "published" | "failed" | "pending";
+  remote_id?: string | null;
+  permalink?: string | null;
+  error?: string | null;
+  published_at?: string | null;
+  note?: string | null;
+  resume?: YouTubeResume | null;
+  /** Quota error: when the worker tries again by itself. */
+  retry_after?: string | null;
+};
+
+export type YouTubePublishDeps = {
+  fetch: UploadFetch;
+  video: YouTubeVideoSource;
+  contentType: string;
+  /** Epoch ms: no chunk starts past this minus the margin. */
+  deadline?: number;
+  clock?: () => number;
+  sleep?: (ms: number) => Promise<void>;
+  /** Multiple of 256 KiB (rounded down); 8 MiB by default. */
+  chunkSize?: number;
+  /** Saves the session and position after each chunk, so a dead run never loses or repeats the upload. */
+  onProgress?: (partial: YouTubeNetworkResult) => Promise<void> | void;
+};
+
+function shortsUrl(videoId: string) {
+  return `https://youtube.com/shorts/${videoId}`;
+}
+
+async function idOf(res: { json: () => Promise<unknown> }): Promise<string | null> {
+  const body = (await res.json().catch(() => null)) as { id?: unknown } | null;
+  return typeof body?.id === "string" && body.id ? body.id : null;
+}
+
+/**
+ * Publishes one Short, reading the video chunk by chunk (multiples of
+ * 256 KiB) and saving the session URL and the next byte after every chunk.
+ * With `resume`, it first asks YouTube how much it has (PUT bytes * /total):
+ * a session that already finished returns its video (no second post), a dead
+ * one (404, 410 or older than 6 days) starts again from zero, which is safe
+ * because YouTube only creates the video when the last byte arrives. When the
+ * deadline comes, it returns « pending » with `resume` and the next run
+ * continues. Never throws; the token never appears in a result.
+ */
+export async function publishYouTubeShort(
+  deps: YouTubePublishDeps,
+  token: string,
+  input: ShortInput,
+  opts: { resume?: YouTubeResume | null } = {},
+): Promise<YouTubeNetworkResult> {
+  const clock = deps.clock ?? (() => Date.now());
+  const timeLeft = () => (deps.deadline == null ? Infinity : deps.deadline - clock());
+  const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
+  const chunk = Math.max(CHUNK_UNIT, Math.floor((deps.chunkSize ?? DEFAULT_CHUNK_SIZE) / CHUNK_UNIT) * CHUNK_UNIT);
+  const auth = { Authorization: `Bearer ${token}` };
+  const done = (videoId: string): YouTubeNetworkResult => ({
+    status: "published",
+    remote_id: videoId,
+    permalink: shortsUrl(videoId),
+    published_at: new Date(clock()).toISOString(),
+    note: input.privacyStatus === "public" ? "Publiée en Short" : "Publiée en privé (visible par la chaîne seulement)",
+    resume: null,
+    retry_after: null,
+  });
+  const fail = (status: number | undefined, body: unknown, resume: YouTubeResume | null): YouTubeNetworkResult => {
+    const { error, reason } = frenchUploadError(status ?? 0, body);
+    if (isQuotaReason(reason)) return { status: "failed", error: QUOTA_ERROR, resume, retry_after: nextQuotaReset(new Date(clock())) };
+    return { status: "failed", error, resume };
+  };
+
+  let resume = opts.resume && Date.parse(opts.resume.expires_at) > clock() ? { ...opts.resume } : null;
+
+  // Probe: how much of an earlier session arrived?
+  const probe = async (r: YouTubeResume): Promise<"gone" | "unknown" | { id: string } | { next: number } | { failed: YouTubeNetworkResult }> => {
+    try {
+      const res = await deps.fetch(r.session_url, { method: "PUT", headers: { ...auth, "Content-Range": `bytes */${r.total}` } });
+      if (res.status === 200 || res.status === 201) {
+        const id = await idOf(res);
+        return id ? { id } : "unknown";
+      }
+      if (res.status === 308) return { next: lastByteOf(res.headers.get("range")) + 1 };
+      if (res.status === 404 || res.status === 410) return "gone";
+      if (res.status >= 500 || res.status === 429) return "unknown";
+      return { failed: fail(res.status, await res.json().catch(() => null), r) };
+    } catch {
+      return "unknown";
+    }
+  };
+
+  try {
+    if (resume) {
+      const p = await probe(resume);
+      if (p === "gone") resume = null;
+      else if (p !== "unknown") {
+        if ("id" in p) return done(p.id);
+        if ("failed" in p) return p.failed;
+        resume = { ...resume, next_byte: p.next };
+      }
+    }
+
+    if (!resume) {
+      const total = await deps.video.size();
+      if (!total) return { status: "failed", error: "Le fichier vidéo est vide." };
+      const session = await startResumableSession(token, buildShortMetadata(input), { size: total, contentType: deps.contentType }, deps.fetch);
+      if (!session.ok) {
+        if (isQuotaReason(session.reason)) return { status: "failed", error: QUOTA_ERROR, resume: null, retry_after: nextQuotaReset(new Date(clock())) };
+        return { status: "failed", error: session.error, resume: null };
+      }
+      resume = { session_url: session.sessionUrl, next_byte: 0, total, expires_at: new Date(clock() + SESSION_TTL_MS).toISOString() };
+      await deps.onProgress?.({ status: "pending", resume });
+    }
+
+    let retries = 0;
+    while (resume.next_byte < resume.total) {
+      if (timeLeft() < YOUTUBE_CHUNK_TIME_MARGIN_MS) {
+        return { status: "pending", resume, error: "Envoi vers YouTube en cours : il reprend au prochain passage." };
+      }
+      const start = resume.next_byte;
+      const end = Math.min(start + chunk, resume.total) - 1;
+      let res: Awaited<ReturnType<UploadFetch>> | null = null;
+      try {
+        const bytes = await deps.video.readRange(start, end);
+        if (bytes.byteLength !== end - start + 1) throw new Error("ROOGO:La vidéo n'a pas pu être lue en entier depuis le stockage.");
+        res = await deps.fetch(resume.session_url, {
+          method: "PUT",
+          headers: { ...auth, "Content-Type": deps.contentType, "Content-Range": `bytes ${start}-${end}/${resume.total}` },
+          body: bytes,
+        });
+      } catch (error) {
+        if (error instanceof Error && error.message.startsWith("ROOGO:")) {
+          return { status: "failed", error: error.message.slice(6), resume };
+        }
+        res = null;
+      }
+
+      if (res && (res.status === 200 || res.status === 201)) {
+        const id = await idOf(res);
+        if (!id) return { status: "failed", error: "YouTube a reçu la vidéo sans renvoyer son identifiant.", resume: null };
+        return done(id);
+      }
+      if (res && res.status === 308) {
+        const next = lastByteOf(res.headers.get("range")) + 1;
+        resume = { ...resume, next_byte: next };
+        retries = 0;
+        await deps.onProgress?.({ status: "pending", resume });
+        continue;
+      }
+      if (res && (res.status === 404 || res.status === 410)) {
+        // Nothing was posted (the video exists only once the last byte arrives): « Réessayer » starts again.
+        return { status: "failed", error: "La session de mise en ligne YouTube a expiré. Réessayez.", resume: null };
+      }
+      if (res && res.status < 500 && res.status !== 429 && res.status !== 408) {
+        // 401: keep the position, the next token continues the same session.
+        return fail(res.status, await res.json().catch(() => null), res.status === 401 ? resume : null);
+      }
+
+      // Network error, 5xx, 408 or 429: ask YouTube how much it has, then resume.
+      retries += 1;
+      if (retries > MAX_RETRIES) {
+        return { status: "failed", error: `La mise en ligne YouTube a échoué après ${MAX_RETRIES} reprises${res ? ` (HTTP ${res.status})` : ""}. « Réessayer » reprend où elle s'est arrêtée.`, resume };
+      }
+      await sleep(1000 * 2 ** retries);
+      const p = await probe(resume);
+      if (p === "gone") return { status: "failed", error: "La session de mise en ligne YouTube a expiré. Réessayez.", resume: null };
+      if (p !== "unknown") {
+        if ("id" in p) return done(p.id);
+        if ("failed" in p) return p.failed;
+        resume = { ...resume, next_byte: p.next };
+      }
+    }
+    // Every byte confirmed by a 308 but no final answer: ask once more.
+    const p = await probe(resume);
+    if (p !== "gone" && p !== "unknown" && "id" in p) return done(p.id);
+    return { status: "pending", resume, error: "YouTube termine la réception de la vidéo. Elle reprend au prochain passage." };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return { status: "failed", error: message.startsWith("ROOGO:") ? message.slice(6) : "La mise en ligne YouTube a échoué. Réessayez.", resume };
+  }
 }

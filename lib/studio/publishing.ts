@@ -22,20 +22,24 @@ export const STATUS_LABELS: Record<PublicationStatus, string> = {
 export const MEDIA_TYPES = ["video", "image", "carousel", "text"] as const;
 export type MediaType = (typeof MEDIA_TYPES)[number];
 
-export const NETWORKS = ["facebook", "instagram", "tiktok"] as const;
+export const NETWORKS = ["facebook", "instagram", "tiktok", "youtube"] as const;
 export type Network = (typeof NETWORKS)[number];
 /**
  * Networks the worker can publish to. TikTok (2026-10-21) only when a TikTok
  * account is connected with a publishing scope (checked when the post is
  * saved and validated, lib/social/tiktok-token-server.ts); its posts stay
- * private until TikTok audits the Roogo app.
+ * private until TikTok audits the Roogo app. YouTube Shorts (2026-10-24) only
+ * for « Publier une vidéo » posts, when the channel is connected with
+ * youtube.upload (lib/social/youtube-token-server.ts); private until the
+ * YouTube API audit (YOUTUBE_PUBLIC_UPLOADS).
  */
-export const PUBLISHABLE_NETWORKS: readonly Network[] = ["facebook", "instagram", "tiktok"];
+export const PUBLISHABLE_NETWORKS: readonly Network[] = ["facebook", "instagram", "tiktok", "youtube"];
 
 export const NETWORK_LABELS: Record<Network, string> = {
   facebook: "Facebook",
   instagram: "Instagram",
   tiktok: "TikTok",
+  youtube: "YouTube",
 };
 
 export const TIKTOK_PENDING_TOOLTIP =
@@ -514,6 +518,12 @@ export type NetworkResult = {
    * sent to the browser (it holds TikTok's pre-signed upload_url).
    */
   resume?: Record<string, unknown> | null;
+  /**
+   * YouTube quota error: when the worker tries this network again by itself
+   * (the next quota reset), and how many times it already did.
+   */
+  retry_after?: string | null;
+  auto_retries?: number;
 };
 
 export type PublicationResults = Partial<Record<Network, NetworkResult>>;
@@ -550,6 +560,25 @@ export function retryResults(
 /** A network is mid-upload (pending with a saved position): the post waits for the next run instead of failing. */
 export function continueLater(networks: Network[], results: PublicationResults): boolean {
   return networks.some((n) => results[n]?.status === "pending" && Boolean(results[n]?.resume));
+}
+
+/**
+ * A failed post whose YouTube upload hit the daily quota and whose retry time
+ * has come: the worker puts it back « Validé » with only YouTube to publish
+ * (the other failed networks keep their own « Réessayer »), at most
+ * `maxRetries` days in a row.
+ */
+export function quotaRetryDue(
+  post: { status: string; networks: readonly string[]; results: PublicationResults },
+  now: Date,
+  maxRetries: number,
+): boolean {
+  if (post.status !== "echec" || !post.networks.includes("youtube")) return false;
+  const yt = post.results?.youtube;
+  if (!yt || yt.status !== "failed" || !yt.retry_after) return false;
+  if ((yt.auto_retries ?? 0) >= maxRetries) return false;
+  const at = Date.parse(yt.retry_after);
+  return Number.isFinite(at) && at <= now.getTime();
 }
 
 /** Results as stored after a run: no network stays held. */
