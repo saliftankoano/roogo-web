@@ -34,6 +34,7 @@ import { normalizeKuulaVirtualTourUrl } from "@/lib/virtual-tour";
 import { LocationPicker } from "./LocationPicker";
 import { EquipementsSelector } from "./EquipementsSelector";
 import { InterdictionsSelector } from "./InterdictionsSelector";
+import { OptionalMark, RequiredLegend, RequiredMark } from "./FieldMarks";
 import { PhotoUploader } from "./PhotoUploader";
 import { useExpandableScreen } from "@/components/ui/expandable-screen";
 import { savePendingPhotos, savePendingVideo } from "@/lib/clientPendingPhotos";
@@ -1375,6 +1376,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         icon={<HouseIcon size={22} className="text-primary" weight="bold" />}
         title="Le bien"
       />
+      <RequiredLegend />
 
       {isStaffOrFounder && (
         <div className="space-y-3">
@@ -1521,6 +1523,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <div>
           <h4 className="text-sm font-extrabold text-neutral-900">
             Règles maison
+            <OptionalMark />
           </h4>
           <p className="text-xs font-semibold text-neutral-500">
             Maximum 20 règles, 200 caractères chacune.
@@ -1586,6 +1589,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         icon={<InfoIcon size={22} className="text-primary" weight="bold" />}
         title="Photos & Détails"
       />
+      <RequiredLegend />
 
       <div>
         <PhotoUploader
@@ -1610,9 +1614,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <div className="space-y-2 rounded-3xl border border-neutral-200 bg-neutral-50 p-5">
           <label className="text-sm font-extrabold text-neutral-800">
             Visite virtuelle Kuula
+            <OptionalMark />
           </label>
           <p className="text-xs font-semibold text-neutral-500">
             Collez le lien de partage Kuula (pas le script d&apos;intégration).
+            Laissez vide s&apos;il n&apos;y a pas de visite 3D.
           </p>
           <input
             type="url"
@@ -1647,6 +1653,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <div className="space-y-2">
           <label className="text-sm font-extrabold text-neutral-800">
             Superficie (m²)
+            {getListingTypeCapabilities(formData.type).superficieRequired ? (
+              <RequiredMark />
+            ) : (
+              <OptionalMark />
+            )}
           </label>
           <input
             type="number"
@@ -1682,9 +1693,9 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           required
           minLength={10}
           maxLength={1200}
-          rows={5}
+          rows={10}
           placeholder="Décrivez le bien..."
-          className={`w-full resize-none rounded-3xl border bg-neutral-50 px-5 py-4 outline-none ${
+          className={`min-h-64 w-full resize-y rounded-3xl border bg-neutral-50 px-5 py-4 outline-none ${
             errors.description ? "border-red-500" : "border-neutral-200"
           }`}
           value={formData.description}
@@ -1890,7 +1901,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 <div>
                   <label className="text-xs font-extrabold text-neutral-600">
-                    Prénom *
+                    Prénom
+                    <RequiredMark />
                   </label>
                   <input
                     value={directOwner.firstName}
@@ -1906,7 +1918,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 </div>
                 <div>
                   <label className="text-xs font-extrabold text-neutral-600">
-                    Nom *
+                    Nom
+                    <RequiredMark />
                   </label>
                   <input
                     value={directOwner.lastName}
@@ -2409,6 +2422,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
                   <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
                     Code de parrainage
+                    <OptionalMark />
                   </label>
                   <div className="flex flex-col gap-2 sm:flex-row">
                     <input

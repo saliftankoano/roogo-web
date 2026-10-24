@@ -8,6 +8,7 @@ import {
   UserX,
   Users
 } from "lucide-react";
+import { OptionalMark } from "./FieldMarks";
 
 interface InterdictionsSelectorProps {
   selected: string[];
@@ -40,6 +41,7 @@ export const InterdictionsSelector: React.FC<InterdictionsSelectorProps> = ({
     <div className="space-y-3">
       <label className="text-sm font-medium text-gray-700">
         Restrictions & Interdictions
+        <OptionalMark />
       </label>
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
         {INTERDICTIONS.map((item) => {

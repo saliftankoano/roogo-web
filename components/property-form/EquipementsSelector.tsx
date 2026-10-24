@@ -10,6 +10,7 @@ import {
   Waves, 
   Armchair 
 } from "lucide-react";
+import { OptionalMark } from "./FieldMarks";
 
 interface EquipementsSelectorProps {
   selected: string[];
@@ -44,6 +45,7 @@ export const EquipementsSelector: React.FC<EquipementsSelectorProps> = ({
     <div className="space-y-3">
       <label className="text-sm font-medium text-gray-700">
         Équipements & Commodités
+        <OptionalMark />
       </label>
       <div className="grid grid-cols-2 sm:grid-cols-3 gap-3">
         {EQUIPEMENTS.map((item) => {
