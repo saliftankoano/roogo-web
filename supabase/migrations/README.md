@@ -2,7 +2,7 @@
 
 ## YouTube connection and the « Abonnés YouTube » goal — 2026-10-23
 
-- [ ] [107_fix_record_property_view.sql](./107_fix_record_property_view.sql) — not run yet. Redefines `record_property_view` without `user_id` (dropped by 001, reinserted by 013), so property views are recorded again.
+- [x] [107_fix_record_property_view_executed.sql](./107_fix_record_property_view_executed.sql) — **run by Salif on 2026-10-24.** Redefines `record_property_view` without `user_id` (dropped by 001, reinserted by 013), so property views are recorded again. Verified the same day without writing data: a call with an unknown listing now stops at the foreign key (23503) instead of the missing `user_id` column (42703).
 - [x] [106_youtube_connection_executed.sql](./106_youtube_connection_executed.sql) — **run by Salif on 2026-10-23.** Run after 100 (`social_tokens`). `social_tokens.provider` accepts `youtube` next to `tiktok`; `team_goals.metric` and `team_goal_readings.metric` accept `youtube_subscribers`. No data written, no goal created (the founder creates « 500 abonnés YouTube » in the app). Safe to run twice and for every app version. Until it runs, « Connecter YouTube » comes back with « La migration 106 n'est pas encore passée » and the « Abonnés YouTube » goal cannot be saved. Numbered 106 because 105 is the parallel `feat/publier-partout` branch (and 102 the studio carousels branch). Branch `feat/youtube-connexion`.
 
 ## Publier partout — 2026-10-23
