@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useUser } from "@clerk/nextjs";
-import { CalendarBlankIcon, ChartBarIcon, ChatsCircleIcon, FolderSimpleIcon, type Icon } from "@phosphor-icons/react";
+import { CalendarBlankIcon, ChartBarIcon, ChatsCircleIcon, FolderSimpleIcon, UploadSimpleIcon, type Icon } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { useStudioApprovals } from "@/components/admin/useStudioApprovals";
 import { useSocialInboxCount, type SocialInboxCount } from "@/components/admin/useSocialInboxCount";
@@ -13,9 +13,10 @@ import { useStaffAccess } from "@/components/admin/StaffAccessProvider";
 export const CALENDAR_HREF = "/admin/studio/calendrier";
 export const STATS_HREF = "/admin/studio/statistiques";
 export const INBOX_HREF = "/admin/studio/reseaux";
+export const PUBLISH_HREF = "/admin/studio/publier";
 
 /**
- * The Studio page header, shared by Projets, Calendrier, Statistiques and
+ * The Studio page header, shared by Projets, Publier, Calendrier, Statistiques and
  * Réseaux (design canvas, approved 2026-10-21). It must not read as a second
  * navigation bar under the staff navbar: no pill, no background, just the
  * « Studio » title and four plain text tabs on a thin line.
@@ -24,7 +25,7 @@ export const INBOX_HREF = "/admin/studio/reseaux";
  *   tab is terracotta, extra bold, with a 2 px underline over the line.
  * - The h1 « Studio » is the page's only h1; page titles are h2. On a phone
  *   it is visually hidden (sr-only), not removed.
- * - Phone: no visible title, text labels only (13 px), all four visible at 390 px; the
+ * - Phone: no visible title, text labels only (13 px), all five visible at 390 px; the
  *   tab row scrolls sideways if it ever overflows, it never wraps.
  * - `actions` (Actualiser, week navigation...) sits on the same row on the
  *   right, aligned to the bottom; on a phone it goes above the tabs.
@@ -54,7 +55,8 @@ export function StudioHeader({
   const onCalendar = pathname.startsWith(CALENDAR_HREF);
   const onStats = pathname.startsWith(STATS_HREF);
   const onInbox = pathname.startsWith(INBOX_HREF);
-  const onProjects = !onCalendar && !onStats && !onInbox;
+  const onPublish = pathname.startsWith(PUBLISH_HREF);
+  const onProjects = !onCalendar && !onStats && !onInbox && !onPublish;
 
   const tab = (href: string, label: string, TabIcon: Icon, active: boolean, badge?: React.ReactNode) => (
     <Link
@@ -82,6 +84,7 @@ export function StudioHeader({
           className="-mb-px flex min-w-0 items-end gap-4 overflow-x-auto [scrollbar-width:none] md:gap-6 [&::-webkit-scrollbar]:hidden"
         >
           {tab("/admin/studio", "Projets", FolderSimpleIcon, onProjects)}
+          {tab(PUBLISH_HREF, "Publier", UploadSimpleIcon, onPublish)}
           {tab(
             CALENDAR_HREF,
             "Calendrier",

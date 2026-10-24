@@ -1,5 +1,9 @@
 # Database migration execution ledger
 
+## Publier partout — 2026-10-23
+
+- [x] [105_studio_publish_everywhere_executed.sql](./105_studio_publish_everywhere_executed.sql) — **run by Salif on 2026-10-23.** `studio_final_videos`, new columns on `studio_publications` (`final_video_id`, `network_copy`, `same_text`, `publish_on_approval`), networks accept `youtube`.
+
 ## Job applications with a deadline (hiring) — 2026-10-22
 
 - [x] [104_job_applications_executed.sql](./104_job_applications_executed.sql) — **run by Salif on 2026-10-22.** Service-role table `job_applications` (one application per phone number per role: unique `(role_slug, phone)`, status `nouveau` / `retenu` / `entretien` / `refuse`, reviewer notes) and the PRIVATE bucket `candidatures` (PDF, JPEG, PNG, WebP, MP4, MOV, WebM; 150 MB). RLS on, no policy, anon and authenticated revoked; no storage policy. Safe to run twice and for every app version. Also raise the project-wide Storage upload limit to at least 150 MB (Dashboard > Storage > Settings), or videos above it fail with 413. Until it runs, `/carrieres/commercial-immobilier` shows the form but uploads and sending fail, and `/admin/recrutement` says the migration is missing. Numbered 104 because 102 (studio carousels branch) and 103 (lease signatures) are taken.

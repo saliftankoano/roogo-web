@@ -110,6 +110,8 @@ export const fb = {
   textPost: (cfg: MetaConfig, message: string) => post(cfg, `${cfg.pageId}/feed`, { message }),
   comment: (cfg: MetaConfig, objectId: string, message: string) => post(cfg, `${objectId}/comments`, { message }),
   reelStart: (cfg: MetaConfig) => post(cfg, `${cfg.pageId}/video_reels`, { upload_phase: "start" }),
+  /** A regular Page video (Meta fetches `fileUrl`): for videos over the 90 s Reels limit. */
+  videoPost: (cfg: MetaConfig, fileUrl: string, description: string) => post(cfg, `${cfg.pageId}/videos`, { file_url: fileUrl, description }),
   /** Meta fetches the file itself from `fileUrl` (our signed URL). */
   reelUpload: (cfg: MetaConfig, videoId: string, fileUrl: string): GraphRequest => ({
     method: "POST",
@@ -257,7 +259,8 @@ async function permalinkOrNull(deps: PublishDeps, req: GraphRequest, field: stri
 }
 
 export type PublishMedia =
-  | { kind: "video"; url: string }
+  /** durationSeconds: known for « Publier une vidéo » uploads (up to 3 minutes). */
+  | { kind: "video"; url: string; durationSeconds?: number | null; sizeBytes?: number | null }
   | { kind: "images"; urls: string[] }
   | { kind: "text" };
 
@@ -266,6 +269,9 @@ function nowIso(deps: PublishDeps): string {
 }
 
 // --- Facebook publisher ------------------------------------------------------
+
+/** Meta's limit for Facebook Reels published through the API. */
+export const FACEBOOK_REEL_MAX_SECONDS = 90;
 
 /**
  * Publishes one post to the Facebook Page. `commentOn` turns a text post into
@@ -311,6 +317,21 @@ export async function publishFacebook(
       const id = str(data.id);
       if (!id) fail("Facebook n'a pas renvoyé d'identifiant.");
       return { status: "published", remote_id: id, permalink: await permalinkOrNull(deps, fb.permalink(cfg, id), "permalink_url"), published_at: nowIso(deps) };
+    }
+
+    // Facebook Reels stop at 90 s. A longer upload (« Publier une vidéo » allows
+    // 3 minutes) goes out as a regular Page video, still vertical.
+    if (media.durationSeconds != null && media.durationSeconds > FACEBOOK_REEL_MAX_SECONDS) {
+      const data = await graphCall(deps, fb.videoPost(cfg, media.url, caption));
+      const id = str(data.id);
+      if (!id) fail("Facebook n'a pas renvoyé d'identifiant.");
+      return {
+        status: "published",
+        remote_id: id,
+        permalink: await permalinkOrNull(deps, fb.permalink(cfg, id), "permalink_url"),
+        published_at: nowIso(deps),
+        note: "Vidéo (plus de 90 s, pas un Reel)",
+      };
     }
 
     // Video: Reels flow (vertical 9:16, 3 to 90 s, which is what the Studio renders).

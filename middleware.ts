@@ -152,6 +152,9 @@ const isPublicRoute = createRouteMatcher([
   // Studio field media stream: HeyGen fetches it with a signed ?exp=&token=
   // link and no session; the handler checks the token or a staff session.
   "/api/admin/studio/media/(.*)/stream",
+  // « Publier une vidéo »: Meta and TikTok download the final video with a
+  // signed ?exp=&token= link; the handler checks the token or a staff session.
+  "/api/admin/studio/final-videos/(.*)/stream",
   "/api/account/delete-request",
   // Availability data is public — any user can see blocked dates
   "/api/properties/(.*)/availability",

@@ -1,4 +1,5 @@
 import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
+import type { Destination } from "@/lib/studio/publish-everywhere";
 import type {
   CadenceStep,
   MediaType,
@@ -43,6 +44,30 @@ export type Post = {
   returnedByName: string | null;
   reviewComment: string | null;
   reviewTags: string[];
+  /** « Publier une vidéo » (migration 105): the uploaded video and the text per network. */
+  finalVideo?: FinalVideo | null;
+  networkCopy?: Partial<Record<Destination, { text: string; hashtags: string[] }>>;
+  sameText?: boolean;
+  publishOnApproval?: boolean;
+};
+
+/** A finished video uploaded to Drive « Vidéos finales » (lib/studio/final-videos-server.ts FinalVideoDto). */
+export type FinalVideo = {
+  id: string;
+  propertyId: string | null;
+  title: string;
+  fileName: string;
+  driveName: string;
+  sizeBytes: number;
+  durationSeconds: number | null;
+  width: number | null;
+  height: number | null;
+  status: "uploading" | "ready" | "failed";
+  error: string | null;
+  driveUrl: string | null;
+  streamUrl: string | null;
+  publishedFolderAt: string | null;
+  createdAt: string;
 };
 
 export type TeamMember = { id: string; name: string; role: Role };
