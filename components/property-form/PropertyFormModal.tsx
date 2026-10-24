@@ -8,7 +8,6 @@ import {
   CaretLeftIcon,
   CaretRightIcon,
   CaretUpIcon,
-  CheckCircleIcon,
   HouseIcon,
   InfoIcon,
   MagnifyingGlassIcon,
@@ -304,123 +303,6 @@ function CounterField({
   );
 }
 
-function UpsellModal({
-  addons,
-  onCancel,
-  onConfirm,
-}: {
-  addons: PricingAddon[];
-  onCancel: () => void;
-  onConfirm: (addons: string[]) => void;
-}) {
-  const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  // Listing videos are no longer offered (Salif, 2026-10-24).
-  const filteredAddons = addons.filter((addon) => addon.id !== "video");
-  const total = selectedIds.reduce((sum, id) => {
-    const addon = filteredAddons.find((item) => item.id === id);
-    return sum + (addon?.price ?? 0);
-  }, 0);
-
-  const toggle = (id: string) => {
-    setSelectedIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    );
-  };
-
-  return (
-    <Portal>
-    <div className="fixed inset-0 z-100 flex items-end justify-center bg-black/40 px-4 py-6 sm:items-center">
-      <div className="w-full max-w-2xl rounded-3xl bg-white p-6 shadow-2xl">
-        <div className="mb-5 flex items-start justify-between gap-4">
-          <div>
-            <h3 className="text-2xl font-extrabold text-neutral-950">
-              Booster votre annonce ?
-            </h3>
-            <p className="mt-1 text-sm font-medium text-neutral-500">
-              Ajoutez des options avant de passer au paiement.
-            </p>
-          </div>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-full p-2 text-neutral-400 hover:bg-neutral-100 hover:text-neutral-700"
-            aria-label="Fermer"
-          >
-            <XCircleIcon size={26} weight="fill" />
-          </button>
-        </div>
-
-        <div className="max-h-[48vh] space-y-3 overflow-y-auto pr-1">
-          {filteredAddons.length === 0 ? (
-            <div className="rounded-2xl border border-neutral-100 bg-neutral-50 p-5 text-sm font-semibold text-neutral-500">
-              Aucune option supplémentaire disponible pour ce pack.
-            </div>
-          ) : (
-            filteredAddons.map((addon) => {
-              const selected = selectedIds.includes(addon.id);
-              return (
-                <button
-                  key={addon.id}
-                  type="button"
-                  onClick={() => toggle(addon.id)}
-                  className={`flex w-full items-center justify-between gap-4 rounded-2xl border p-4 text-left transition-all ${
-                    selected
-                      ? "border-primary bg-primary/5"
-                      : "border-neutral-200 bg-white hover:border-neutral-300"
-                  }`}
-                >
-                  <div>
-                    <p className="font-extrabold text-neutral-950">
-                      {addon.name}
-                    </p>
-                    {addon.description && (
-                      <p className="mt-1 text-sm font-medium text-neutral-500">
-                        {addon.description}
-                      </p>
-                    )}
-                    <p className="mt-2 text-sm font-extrabold text-primary">
-                      +{formatAmount(addon.price)}
-                    </p>
-                  </div>
-                  <span
-                    className={`grid h-7 w-7 place-items-center rounded-full border-2 ${
-                      selected
-                        ? "border-primary bg-primary text-white"
-                        : "border-neutral-200"
-                    }`}
-                  >
-                    {selected && <CheckCircleIcon size={18} weight="fill" />}
-                  </span>
-                </button>
-              );
-            })
-          )}
-        </div>
-
-        <div className="mt-6 flex flex-col gap-3 border-t border-neutral-100 pt-5 sm:flex-row">
-          <button
-            type="button"
-            onClick={() => onConfirm([])}
-            className="flex-1 rounded-full bg-neutral-100 px-5 py-4 text-sm font-extrabold text-neutral-700 hover:bg-neutral-200"
-          >
-            Continuer sans option
-          </button>
-          <button
-            type="button"
-            onClick={() => onConfirm(selectedIds)}
-            className="flex-1 rounded-full bg-primary px-5 py-4 text-sm font-extrabold text-white shadow-lg"
-          >
-            Continuer avec options ({formatAmount(total)})
-          </button>
-        </div>
-      </div>
-    </div>
-    </Portal>
-  );
-}
-
 export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   userType,
   onSuccess,
@@ -434,18 +316,17 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
 
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [showUpsell, setShowUpsell] = useState(false);
   const [showFullPreview, setShowFullPreview] = useState(false);
   const [selectedTier, setSelectedTier] = useState<string | null>(null);
   const [selectedAddOns, setSelectedAddOns] = useState<string[]>([]);
-  const [paymentChoice, setPaymentChoice] = useState<"free" | "pay">("free");
+  // Packs are gone (Salif, 2026-10-24): monthly listings always take the free
+  // path, which carries the default allowance (Premium's limits).
+  const paymentChoice = "free" as "free" | "pay";
   const [isTestListing, setIsTestListing] = useState(false);
   const [tiersList, setTiersList] = useState<PricingTier[]>([]);
   const [addonsList, setAddonsList] = useState<PricingAddon[]>([]);
   const [commissionRate, setCommissionRate] = useState<number | null>(null);
-  const [commissionConfigError, setCommissionConfigError] = useState<
-    string | null
-  >(null);
+  const [, setCommissionConfigError] = useState<string | null>(null);
   const [referralCode, setReferralCode] = useState("");
   const [referralQuote, setReferralQuote] = useState<ReferralQuote | null>(
     null,
@@ -527,16 +408,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     : 0;
   const displayedDeferredSuccessFeeAmount =
     referralQuote?.paidAmount ?? deferredSuccessFeeAmount;
-  const sortedPaidTiers = useMemo(
-    () =>
-      [...tiersList].sort((a, b) => {
-        const aPrice = a.base_fee + rentAmount * (commissionRate ?? 0);
-        const bPrice = b.base_fee + rentAmount * (commissionRate ?? 0);
-        return aPrice - bPrice;
-      }),
-    [commissionRate, rentAmount, tiersList],
-  );
-
   useEffect(() => {
     setReferralQuote(null);
     setReferralError(null);
@@ -584,7 +455,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       setCurrentStep(Math.min(3, Math.max(1, draft.currentStep || 1)));
       setSelectedTier(draft.selectedTier ?? null);
       setSelectedAddOns(draft.selectedAddOns ?? []);
-      setPaymentChoice(draft.paymentChoice ?? "free");
       setIsTestListing(draft.isTestListing ?? false);
       setOnBehalfOfClient(draft.onBehalfOfClient ?? false);
       setSelectedOwner(draft.selectedOwner ?? null);
@@ -951,15 +821,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         nextErrors.direct_owner_phone = "Numéro de téléphone invalide";
       }
     }
-    if (
-      step === 3 &&
-      !isSaleListing &&
-      !isDailyListing &&
-      paymentChoice === "pay" &&
-      !selectedTier
-    ) {
-      nextErrors.tier_id = "Choisissez un pack";
-    }
     setErrors((current) => ({ ...current, ...nextErrors }));
     return Object.keys(nextErrors).length === 0;
   };
@@ -1296,11 +1157,12 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       return;
     }
 
-    setShowUpsell(true);
+    // Daily listings publish for free and add-ons are hidden (2026-10-24):
+    // no upsell step any more.
+    await handleUpsellConfirm([]);
   };
 
   const handleUpsellConfirm = async (addOns: string[]) => {
-    setShowUpsell(false);
     setSelectedAddOns(addOns);
     setIsSubmitting(true);
     try {
@@ -2139,45 +2001,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         )}
       </div>
 
-      {!isSaleListing && !isDailyListing && (
-        <div className="space-y-4 rounded-3xl border border-neutral-200 bg-white p-5">
-          <h4 className="text-lg font-extrabold text-neutral-950">
-            Mode de publication
-          </h4>
-          <SegmentedButton
-            value={paymentChoice}
-            options={[
-              { id: "free", label: "Sans paiement initial" },
-              { id: "pay", label: "Packs payants" },
-            ]}
-            onChange={(value) => {
-              setPaymentChoice(value);
-              setFreeTermsAccepted(false);
-              setReferralQuote(null);
-              setReferralError(null);
-              if (value === "free") {
-                setSelectedTier(FREE_LISTING_DEFAULT_TIER_ID);
-                setSelectedAddOns([]);
-              }
-            }}
-          />
-          <p className="text-sm font-semibold leading-6 text-neutral-500">
-            {paymentChoice === "free"
-              ? "0 FCFA aujourd'hui. Un frais unique égal à 50% du loyer mensuel indiqué sera retenu si Roogo apporte le locataire et encaisse le premier loyer."
-              : "Choisissez un pack maintenant pour payer la publication et éviter le frais de succès au premier loyer."}
-          </p>
-        </div>
-      )}
-
       {!isSaleListing && (
         <div className="space-y-4">
           <h4 className="text-lg font-extrabold text-neutral-950">
-            {isDailyListing
-              ? "Publication journalière"
-              : isFreeMonthlyListing
-                ? "Publication sans paiement initial"
-                : "Packs de publication"}{" "}
-            {!isFreeMonthlyListing && <span className="text-red-500">*</span>}
+            {isDailyListing ? "Publication journalière" : "Publication gratuite"}
           </h4>
           {isDailyListing ? (
             <button
@@ -2198,15 +2025,11 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                     Publication journalière
                   </p>
                   <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
-                    Publication gratuite pour une location journalière. Les
-                    options photo, vidéo et visibilité restent disponibles à
-                    l&apos;étape suivante.
+                    Publication gratuite pour une location journalière.
                   </p>
                 </div>
                 <p className="shrink-0 text-2xl font-black text-neutral-950">
-                  {paymentChoice === "free"
-                    ? formatAmount(0)
-                    : formatAmount(DAILY_LISTING_PUBLICATION_FEE)}
+                  {formatAmount(0)}
                 </p>
               </div>
             </button>
@@ -2226,12 +2049,13 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <p className="text-lg font-extrabold text-neutral-950">
-                    Publication sans paiement initial
+                    Publication gratuite
                   </p>
                   <p className="mt-2 max-w-xl text-sm font-semibold leading-6 text-neutral-500">
-                    Le pack Premium est inclus. Aucun paiement aujourd&apos;hui;
-                    le frais unique sera retenu uniquement si Roogo apporte le
-                    locataire et encaisse le premier loyer.
+                    Jusqu&apos;à 20 photos, 100 candidats et 3 visites groupées.
+                    Aucun paiement aujourd&apos;hui : le frais unique sera retenu
+                    uniquement si Roogo apporte le locataire et encaisse le
+                    premier loyer.
                   </p>
                   <p className="mt-2 max-w-xl text-xs font-semibold leading-5 text-neutral-500">
                     Après la mise en location, la collecte mensuelle via Roogo
@@ -2245,53 +2069,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 </p>
               </div>
             </button>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              {sortedPaidTiers.map((tier) => {
-                const selected = selectedTier === tier.id;
-                const price =
-                  tier.base_fee + rentAmount * (commissionRate ?? 0);
-                return (
-                  <button
-                    key={tier.id}
-                    type="button"
-                    onClick={() => {
-                      setSelectedTier(tier.id);
-                      setErrors((current) => {
-                        const next = { ...current };
-                        delete next.tier_id;
-                        return next;
-                      });
-                    }}
-                    className={`rounded-3xl border-2 p-5 text-left transition-all ${
-                      selected
-                        ? "border-primary bg-primary/5"
-                        : "border-neutral-200 bg-white hover:border-neutral-300"
-                    }`}
-                  >
-                    <p className="text-lg font-extrabold capitalize text-neutral-950">
-                      {tier.id}
-                    </p>
-                    <p className="mt-2 text-2xl font-black text-neutral-950">
-                      {formatAmount(price)}
-                    </p>
-                    <ul className="mt-4 space-y-2 text-sm font-semibold text-neutral-600">
-                      <li>{tier.photo_limit} photos</li>
-                      <li>{tier.slot_limit} candidats</li>
-                    </ul>
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          ) : null}
           <FieldError message={errors.tier_id} />
-          {paymentChoice === "pay" &&
-            !isDailyListing &&
-            commissionConfigError && (
-              <p className="text-xs font-semibold text-red-600">
-                {commissionConfigError}
-              </p>
-            )}
         </div>
       )}
 
@@ -2354,9 +2133,7 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                 </span>
               </div>
             )}
-            {!isDailyListing &&
-              (isFreeMonthlyListing ||
-                (paymentChoice === "pay" && selectedTier)) && (
+            {isFreeMonthlyListing && (
                 <div className="space-y-3 rounded-2xl border border-neutral-200 bg-white p-4">
                   <label className="text-xs font-extrabold uppercase tracking-wider text-neutral-500">
                     Code de parrainage
@@ -2618,13 +2395,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         </Portal>
       )}
 
-      {showUpsell && (
-        <UpsellModal
-          addons={addonsList}
-          onCancel={() => setShowUpsell(false)}
-          onConfirm={handleUpsellConfirm}
-        />
-      )}
     </div>
   );
 };
