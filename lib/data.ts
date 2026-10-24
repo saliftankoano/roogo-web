@@ -275,12 +275,6 @@ export async function fetchPropertyById(id: string): Promise<Property | null> {
 
   const p = data as DBProperty;
   const property = mapProperty(p);
-  const { data: videos } = await supabase
-    .from("property_videos")
-    .select("url")
-    .eq("property_id", id)
-    .limit(1);
-  property.videoUrl = videos?.[0]?.url || undefined;
   return property;
 }
 
@@ -326,12 +320,6 @@ export async function fetchPropertyBySlug(
 
   const p = data as DBProperty;
   const property = mapProperty(p);
-  const { data: videos } = await supabase
-    .from("property_videos")
-    .select("url")
-    .eq("property_id", p.id)
-    .limit(1);
-  property.videoUrl = videos?.[0]?.url || undefined;
   return property;
 }
 

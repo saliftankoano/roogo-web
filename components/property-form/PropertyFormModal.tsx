@@ -37,11 +37,10 @@ import { InterdictionsSelector } from "./InterdictionsSelector";
 import { OptionalMark, RequiredLegend, RequiredMark } from "./FieldMarks";
 import { PhotoUploader } from "./PhotoUploader";
 import { useExpandableScreen } from "@/components/ui/expandable-screen";
-import { savePendingPhotos, savePendingVideo } from "@/lib/clientPendingPhotos";
+import { savePendingPhotos } from "@/lib/clientPendingPhotos";
 import {
   compressPropertyPhotoFiles,
   uploadPropertyPhotoFiles,
-  uploadPropertyVideoFile,
 } from "@/lib/clientPropertyPhotoUpload";
 import {
   getMockPropertyData,
@@ -180,15 +179,6 @@ function cleanRules(rules: string[]) {
     .slice(0, 20);
 }
 
-async function fileToBase64(file: File) {
-  const bytes = new Uint8Array(await file.arrayBuffer());
-  let binary = "";
-  bytes.forEach((byte) => {
-    binary += String.fromCharCode(byte);
-  });
-  return btoa(binary);
-}
-
 function getVirtualTourError(value: string): string | undefined {
   if (!value.trim()) return undefined;
 
@@ -316,21 +306,16 @@ function CounterField({
 
 function UpsellModal({
   addons,
-  selectedTier,
   onCancel,
   onConfirm,
 }: {
   addons: PricingAddon[];
-  selectedTier: string | null;
   onCancel: () => void;
   onConfirm: (addons: string[]) => void;
 }) {
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
-  const filteredAddons = addons.filter(
-    (addon) =>
-      addon.id !== "video" ||
-      (selectedTier !== "standard" && selectedTier !== "premium"),
-  );
+  // Listing videos are no longer offered (Salif, 2026-10-24).
+  const filteredAddons = addons.filter((addon) => addon.id !== "video");
   const total = selectedIds.reduce((sum, id) => {
     const addon = filteredAddons.find((item) => item.id === id);
     return sum + (addon?.price ?? 0);
@@ -471,7 +456,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
   const [stepBlocked, setStepBlocked] = useState(false);
   const [formData, setFormData] = useState<PropertyFormData>(DEFAULT_FORM_DATA);
   const [photos, setPhotos] = useState<File[]>([]);
-  const [videoFile, setVideoFile] = useState<File | null>(null);
   const [showFreeTermsModal, setShowFreeTermsModal] = useState(false);
   const [freeTermsAccepted, setFreeTermsAccepted] = useState(false);
 
@@ -543,9 +527,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
     : 0;
   const displayedDeferredSuccessFeeAmount =
     referralQuote?.paidAmount ?? deferredSuccessFeeAmount;
-  const hasVideoEntitlement =
-    selectedTierConfig?.video_included === true ||
-    selectedAddOns.includes("video");
   const sortedPaidTiers = useMemo(
     () =>
       [...tiersList].sort((a, b) => {
@@ -855,9 +836,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       nextErrors.owner_id =
         "Indiquez le propriétaire existant ou saisissez un propriétaire sans compte";
     }
-    if (videoFile && isFreeMonthlyListing && !hasVideoEntitlement) {
-      nextErrors.video = "Choisissez un pack ou une option incluant la vidéo.";
-    }
     const virtualTourError = isStaffOrFounder
       ? getVirtualTourError(formData.virtualTourUrl)
       : undefined;
@@ -1082,13 +1060,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         files: photos,
       });
     }
-    if (videoFile) {
-      await uploadPropertyVideoFile({
-        propertyId,
-        token,
-        file: videoFile,
-      });
-    }
 
     localStorage.removeItem("roogo_property_draft");
     alert("Propriété ajoutée avec succès !");
@@ -1234,8 +1205,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       let pendingPhotosStoredInDb = false;
       let pendingPhotosOverflow = false;
       const pendingPhotosCount = photos.length;
-      let pendingVideoStoredInDb = false;
-      let pendingVideoOverflow = false;
 
       if (photos.length > 0) {
         try {
@@ -1250,23 +1219,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         }
       }
 
-      if (videoFile) {
-        try {
-          pendingVideoStoredInDb = await savePendingVideo(
-            paymentData.depositId,
-            {
-              data: await fileToBase64(videoFile),
-              ext: videoFile.name.split(".").pop()?.toLowerCase() || "mp4",
-              mimeType: videoFile.type || undefined,
-              sizeBytes: videoFile.size,
-            },
-          );
-          pendingVideoOverflow = !pendingVideoStoredInDb;
-        } catch {
-          pendingVideoOverflow = true;
-        }
-      }
-
       sessionStorage.setItem(
         "pendingAdminListing",
         JSON.stringify({
@@ -1277,8 +1229,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
           pendingPhotosOverflow,
           pendingPhotosCount,
           pendingPhotosStoredInDb,
-          pendingVideoStoredInDb,
-          pendingVideoOverflow,
           onBehalfOfClient,
           selectedOwnerId,
           isTestListing,
@@ -1595,19 +1545,8 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
         <PhotoUploader
           files={photos}
           onChange={setPhotos}
-          videoFile={videoFile}
-          onVideoChange={(file) => {
-            setVideoFile(file);
-            setErrors((current) => {
-              if (!current.video) return current;
-              const next = { ...current };
-              delete next.video;
-              return next;
-            });
-          }}
         />
         <FieldError message={errors.photos} />
-        <FieldError message={errors.video} />
       </div>
 
       {isStaffOrFounder && (
@@ -2339,7 +2278,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
                     <ul className="mt-4 space-y-2 text-sm font-semibold text-neutral-600">
                       <li>{tier.photo_limit} photos</li>
                       <li>{tier.slot_limit} candidats</li>
-                      {tier.video_included && <li>Vidéo incluse</li>}
                     </ul>
                   </button>
                 );
@@ -2683,7 +2621,6 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
       {showUpsell && (
         <UpsellModal
           addons={addonsList}
-          selectedTier={selectedTier}
           onCancel={() => setShowUpsell(false)}
           onConfirm={handleUpsellConfirm}
         />
