@@ -8,6 +8,7 @@ import {
   STALE_CLAIM_MINUTES,
   captionProblems,
   clearHeld,
+  continueLater,
   finalStatus,
   finalizeCaption,
   normalizeHashtags,
@@ -36,7 +37,8 @@ import {
   type PublishDeps,
   type PublishMedia,
 } from "./meta-graph";
-import { publishTikTok, tiktokPostMode } from "@/lib/social/tiktok-publish";
+import { publishTikTok, tiktokPostMode, type TikTokResume } from "@/lib/social/tiktok-publish";
+import { rangeSource } from "./range-source";
 import { tiktokAccessToken, tiktokPublishStatus } from "@/lib/social/tiktok-token-server";
 import {
   copyPostText,
@@ -238,7 +240,10 @@ async function mediaFor(row: PublicationRow): Promise<{ media: PublishMedia | nu
     if (!video || video.status !== "ready" || !video.drive_file_id) return { media: null, error: "La vidéo n'est plus dans le Drive « Vidéos finales »." };
     try {
       const durationSeconds = video.duration_seconds == null ? null : Number(video.duration_seconds);
-      return { media: { kind: "video", url: await signedFinalVideoUrl(video.id, PUBLISH_SIGNED_URL_SECONDS), durationSeconds }, error: null };
+      return {
+        media: { kind: "video", url: await signedFinalVideoUrl(video.id, PUBLISH_SIGNED_URL_SECONDS), durationSeconds, sizeBytes: Number(video.size_bytes) },
+        error: null,
+      };
     } catch {
       return { media: null, error: "Le lien de la vidéo n'a pas pu être créé." };
     }
@@ -294,6 +299,12 @@ async function failStaleClaims(now: Date) {
   return data?.length ?? 0;
 }
 
+/**
+ * Time a run may spend before it stops starting TikTok chunks and saves its
+ * place (the cron and the immediate publish both have maxDuration = 300 s).
+ */
+export const DEFAULT_RUN_BUDGET_MS = 240_000;
+
 export type WorkerSummary = { claimed: number; published: number; failed: number; stale: number };
 
 /**
@@ -303,7 +314,7 @@ export type WorkerSummary = { claimed: number; published: number; failed: number
  * network that already succeeded is skipped on a retry.
  */
 export async function runPublishingWorker(
-  opts: { now?: Date; limit?: number; budgetMs?: number; deps?: Partial<PublishDeps>; onlyId?: string } = {},
+  opts: { now?: Date; limit?: number; budgetMs?: number; runBudgetMs?: number; deps?: Partial<PublishDeps>; onlyId?: string } = {},
 ): Promise<WorkerSummary> {
   const started = Date.now();
   const now = opts.now ?? new Date();
@@ -343,12 +354,17 @@ export async function runPublishingWorker(
     return publishFacebook(deps, cfg, media, text, opts);
   };
 
-  // TikTok: the video bytes are downloaded from our signed URL and pushed with
-  // FILE_UPLOAD (lib/social/tiktok-publish.ts). Private until TikTok's audit.
+  // TikTok (lib/social/tiktok-publish.ts), private until TikTok's audit:
+  // PULL_FROM_URL when TIKTOK_PULL_URL_PREFIX covers the signed link, else
+  // FILE_UPLOAD in 10 MB chunks read one at a time from the signed URL with
+  // Range requests (never the whole file in memory). An upload that cannot
+  // finish before this run's deadline is saved and continued by the next run.
+  const deadline = started + (opts.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS);
   const publishToTikTok = async (
     media: PublishMedia,
     text: string,
     existingPublishId: string | null,
+    resume: TikTokResume | null,
     onProgress: (partial: NetworkResult) => Promise<void>,
   ): Promise<NetworkResult> => {
     if (media.kind !== "video") return { status: "failed", error: "TikTok ne publie que des vidéos depuis Roogo." };
@@ -361,15 +377,13 @@ export async function runPublishingWorker(
         pollIntervalMs: 5000,
         maxPolls: 12,
         onProgress,
-        loadVideo: async () => {
-          const res = await fetch(media.url);
-          if (!res.ok) throw new Error("ROOGO:La vidéo n'a pas pu être lue depuis le Studio.");
-          return new Uint8Array(await res.arrayBuffer());
-        },
+        deadline,
+        pullUrlPrefix: process.env.TIKTOK_PULL_URL_PREFIX ?? null,
+        video: rangeSource((url, init) => fetch(url, init), media.url, media.sizeBytes ?? null),
       },
       access.token,
       text,
-      { mode: tiktokPostMode(process.env), existingPublishId },
+      { mode: tiktokPostMode(process.env), existingPublishId, resume },
     );
   };
 
@@ -418,7 +432,7 @@ export async function runPublishingWorker(
       } else if (!media) {
         result = { status: "failed", error: mediaError ?? "Média introuvable." };
       } else if (network === "tiktok") {
-        result = await publishToTikTok(media, text, results.tiktok?.container_id ?? null, async (partial) => {
+        result = await publishToTikTok(media, text, results.tiktok?.container_id ?? null, (results.tiktok?.resume as TikTokResume | null | undefined) ?? null, async (partial) => {
           results.tiktok = partial;
           await save();
         });
@@ -458,6 +472,17 @@ export async function runPublishingWorker(
       await save();
     }
 
+    // A TikTok upload cut by this run's deadline: the post stays « Validé »
+    // and the next run (cron or Réessayer) continues from the saved chunk.
+    if (continueLater(row.networks, results)) {
+      await supabaseAdmin
+        .from("studio_publications")
+        .update({ results: clearHeld(results), claimed_at: null, last_error: null, updated_at: new Date().toISOString() })
+        .eq("id", row.id)
+        .eq("claimed_at", claimedAt);
+      console.log("studio-publish:", row.id, "continues next run");
+      continue;
+    }
     const status = finalStatus(row.networks, results);
     const finishedAt = new Date().toISOString();
     const stored = clearHeld(results);
@@ -530,6 +555,18 @@ export type PublicationDto = {
   publishOnApproval: boolean;
 };
 
+/** Results as the browser sees them: TikTok's upload position (a pre-signed upload_url) stays on the server. */
+function publicResults(results: PublicationResults): PublicationResults {
+  const out: PublicationResults = {};
+  for (const [key, value] of Object.entries(results) as Array<[Network, NetworkResult | undefined]>) {
+    if (!value) continue;
+    const { resume, ...rest } = value;
+    void resume;
+    out[key] = rest;
+  }
+  return out;
+}
+
 export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> {
   const properties = await propertySummaries(rows.map((r) => r.property_id ?? ""));
   const artifactIds = [...new Set(rows.map((r) => r.artifact_id).filter((id): id is string => Boolean(id)))];
@@ -581,7 +618,7 @@ export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> 
       approvedAt: r.approved_at,
       publishing: Boolean(r.claimed_at),
       publishedAt: r.published_at,
-      results: r.results ?? {},
+      results: publicResults(r.results ?? {}),
       lastError: r.last_error,
       createdById: r.created_by,
       hashtags: r.hashtags ?? [],

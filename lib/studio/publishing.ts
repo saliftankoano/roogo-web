@@ -508,6 +508,12 @@ export type NetworkResult = {
    * for their own retry. Set by retryResults, cleared after the run.
    */
   held?: boolean;
+  /**
+   * TikTok chunked upload cut by a run's deadline: where the next run
+   * continues (lib/social/tiktok-publish.ts TikTokResume). Server only, never
+   * sent to the browser (it holds TikTok's pre-signed upload_url).
+   */
+  resume?: Record<string, unknown> | null;
 };
 
 export type PublicationResults = Partial<Record<Network, NetworkResult>>;
@@ -539,6 +545,11 @@ export function retryResults(
     if (n !== only && next[n] && next[n]!.status !== "published") next[n] = { ...next[n]!, held: true };
   }
   return { results: next, error: null };
+}
+
+/** A network is mid-upload (pending with a saved position): the post waits for the next run instead of failing. */
+export function continueLater(networks: Network[], results: PublicationResults): boolean {
+  return networks.some((n) => results[n]?.status === "pending" && Boolean(results[n]?.resume));
 }
 
 /** Results as stored after a run: no network stays held. */

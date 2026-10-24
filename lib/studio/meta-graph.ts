@@ -260,7 +260,7 @@ async function permalinkOrNull(deps: PublishDeps, req: GraphRequest, field: stri
 
 export type PublishMedia =
   /** durationSeconds: known for « Publier une vidéo » uploads (up to 3 minutes). */
-  | { kind: "video"; url: string; durationSeconds?: number | null }
+  | { kind: "video"; url: string; durationSeconds?: number | null; sizeBytes?: number | null }
   | { kind: "images"; urls: string[] }
   | { kind: "text" };
 
