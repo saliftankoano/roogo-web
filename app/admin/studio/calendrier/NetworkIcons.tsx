@@ -88,7 +88,27 @@ export function MessengerIcon({ size = 14, className, label = true }: { size?: n
   );
 }
 
+/** YouTube (Shorts, PRD 1): the red rounded play button. */
+function YoutubeLogo({ size }: { size: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
+      <rect x="1" y="4.5" width="22" height="15" rx="4.5" fill="#FF0000" />
+      <path fill="#fff" d="M9.75 8.6v6.8L15.6 12z" />
+    </svg>
+  );
+}
+
 const LOGOS = { facebook: FacebookLogo, instagram: InstagramLogo, tiktok: TiktokLogo } as const;
+
+/** Any « Publier une vidéo » destination, YouTube Shorts included. */
+export function DestinationIcon({ destination, size = 14, className }: { destination: Network | "youtube"; size?: number; className?: string }) {
+  if (destination !== "youtube") return <NetworkIcon network={destination} size={size} className={className} label={false} />;
+  return (
+    <span aria-hidden="true" className={cn("inline-flex shrink-0", className)} style={{ width: size, height: size }}>
+      <YoutubeLogo size={size} />
+    </span>
+  );
+}
 
 export function NetworkIcon({ network, size = 14, className, label = true }: { network: Network; size?: number; className?: string; label?: boolean }) {
   const Logo = LOGOS[network];

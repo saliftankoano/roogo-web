@@ -87,7 +87,7 @@ export function buildDescriptionRequest(input: DescriptionInput, model: string) 
   };
 }
 
-function outputText(response: unknown): string {
+export function outputText(response: unknown): string {
   if (response && typeof response === "object" && "output_text" in response && typeof response.output_text === "string") {
     return response.output_text;
   }
@@ -139,6 +139,175 @@ export async function requestDescription(deps: DescriptionDeps, input: Descripti
       throw new Error(`La génération a échoué (HTTP ${res.status}). Réessayez.`);
     }
     return { ...parseDescriptionOutput(json), model };
+  } catch (error) {
+    if (error instanceof Error && error.name === "AbortError") throw new Error("La génération a pris trop de temps. Réessayez.");
+    throw error;
+  } finally {
+    clearTimeout(timeout);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// « Publier une vidéo » (PRD 3): one call returns a base text and one version
+// per ticked network. The model writes words only: price, place, phone and
+// roogobf.com are added and checked afterwards by finalizeNetworkCopy in
+// ./publish-everywhere, whatever the model wrote.
+// ---------------------------------------------------------------------------
+
+export type CopyNetwork = "facebook" | "instagram" | "tiktok" | "youtube";
+
+export type NetworkCopyInput = {
+  property: (NonNullable<DescriptionInput["property"]> & { reference?: string | null }) | null;
+  /** What the team called the video. */
+  title: string;
+  /** One or two sentences from the team on what the video shows (optional). */
+  note: string;
+  networks: CopyNetwork[];
+  /** Per network, the brief from COPY_RULES (passed in so this file has no value imports). */
+  briefs: Partial<Record<CopyNetwork | "base", string>>;
+  /** « Régénérer »: the base already shown to the team, kept as the reference. */
+  existingBase?: string | null;
+};
+
+export type CopyDraftOut = { text: string; hashtags: string[] };
+
+export type NetworkCopyOutput = {
+  base: CopyDraftOut;
+  versions: Partial<Record<CopyNetwork, CopyDraftOut>>;
+  model: string;
+};
+
+export const NETWORK_COPY_INSTRUCTIONS = [
+  "Tu écris les textes d'une vidéo verticale que Roogo, la plateforme immobilière du Burkina Faso, publie sur plusieurs réseaux.",
+  "Tu rends un texte de base, puis une version par réseau demandé, chacune écrite pour ce réseau selon sa consigne.",
+  "Écris en français simple, positif et inspirant : montre ce que le bien rend possible (une famille installée, un projet lancé), sans exagérer.",
+  "Les seules références culturelles permises sont celles que le public burkinabè connaît (Ouaga, les quartiers, le maquis, le barrage, la saison des pluies...). Jamais de référence étrangère.",
+  "N'invente aucun fait : prix, pièces, quartier et équipements viennent uniquement des données fournies.",
+  "N'écris aucun numéro de téléphone, ni roogobf.com, ni ligne « Prix : » : le code les ajoute lui-même à la fin.",
+  "Tu peux citer le prix dans une phrase, seulement exactement comme fourni.",
+  "Pour une vente, ne parle jamais de crédit, de financement, de mensualités ni de paiement échelonné : les ventes Roogo se font au comptant.",
+  "N'utilise jamais de tiret long ni de tiret moyen. Utilise des virgules ou deux phrases.",
+  "Au plus 3 emoji par texte, ou aucun.",
+  "N'utilise jamais le mot « faux » pour un élément du bien. Ne critique pas les gardiens.",
+  "Les hashtags vont dans la liste à part, jamais dans le texte, sans accents ni espaces, en commençant par #Roogo.",
+  "Si un texte de base existant est fourni, garde-le comme référence et écris seulement les versions demandées dans le même esprit.",
+].join("\n");
+
+export function buildNetworkCopyRequest(input: NetworkCopyInput, model: string) {
+  const networks = [...new Set(input.networks)];
+  const draft = {
+    type: "object",
+    additionalProperties: false,
+    properties: { text: { type: "string" }, hashtags: { type: "array", items: { type: "string" } } },
+    required: ["text", "hashtags"],
+  };
+  return {
+    model,
+    max_output_tokens: 4000,
+    reasoning: { effort: "low" },
+    input: [
+      { role: "system", content: NETWORK_COPY_INSTRUCTIONS },
+      {
+        role: "user",
+        content: JSON.stringify({
+          bien: input.property,
+          titre_video: input.title.slice(0, 160),
+          ce_que_montre_la_video: input.note.slice(0, 1000),
+          consigne_base: input.briefs.base ?? "",
+          reseaux: networks.map((n) => ({ reseau: n, consigne: input.briefs[n] ?? "" })),
+          texte_de_base_existant: input.existingBase ? input.existingBase.slice(0, 3000) : null,
+        }),
+      },
+    ],
+    text: {
+      format: {
+        type: "json_schema",
+        name: "roogo_network_copy",
+        strict: true,
+        schema: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            base: draft,
+            versions: {
+              type: "array",
+              items: {
+                type: "object",
+                additionalProperties: false,
+                properties: {
+                  network: { type: "string", enum: networks.length ? networks : ["facebook"] },
+                  text: { type: "string" },
+                  hashtags: { type: "array", items: { type: "string" } },
+                },
+                required: ["network", "text", "hashtags"],
+              },
+            },
+          },
+          required: ["base", "versions"],
+        },
+      },
+    },
+  };
+}
+
+function draftOf(value: unknown): CopyDraftOut | null {
+  if (!value || typeof value !== "object") return null;
+  const v = value as { text?: unknown; hashtags?: unknown };
+  const text = typeof v.text === "string" ? v.text.trim() : "";
+  if (!text) return null;
+  const hashtags = Array.isArray(v.hashtags) ? v.hashtags.filter((t): t is string => typeof t === "string") : [];
+  return { text, hashtags };
+}
+
+/**
+ * The model's JSON, checked. A network the model skipped gets the base, so
+ * every ticked network always has a text the team can edit.
+ */
+export function parseNetworkCopyOutput(response: unknown, networks: CopyNetwork[]): Omit<NetworkCopyOutput, "model"> {
+  const text = outputText(response);
+  if (!text) throw new Error("La réponse ne contient pas de texte.");
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    throw new Error("La réponse n'est pas lisible.");
+  }
+  const obj = parsed as { base?: unknown; versions?: unknown };
+  const base = draftOf(obj.base);
+  if (!base) throw new Error("Le texte de base généré est vide.");
+  const versions: NetworkCopyOutput["versions"] = {};
+  for (const item of Array.isArray(obj.versions) ? obj.versions : []) {
+    const network = (item as { network?: unknown } | null)?.network;
+    const one = draftOf(item);
+    if (typeof network === "string" && (networks as string[]).includes(network) && one && !versions[network as CopyNetwork]) {
+      versions[network as CopyNetwork] = one;
+    }
+  }
+  for (const n of networks) if (!versions[n]) versions[n] = { text: base.text, hashtags: [...base.hashtags] };
+  return { base, versions };
+}
+
+/** One Responses call, same timeout and French errors as requestDescription. */
+export async function requestNetworkCopy(deps: DescriptionDeps, input: NetworkCopyInput): Promise<NetworkCopyOutput> {
+  if (!deps.apiKey) throw new Error("La génération n'est pas configurée (OPENAI_API_KEY).");
+  if (!input.networks.length) throw new Error("Choisissez au moins un réseau.");
+  const model = deps.model || DEFAULT_CAPTION_MODEL;
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  try {
+    const res = await deps.fetch(OPENAI_RESPONSES_URL, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${deps.apiKey}`, "Content-Type": "application/json" },
+      signal: controller.signal,
+      body: JSON.stringify(buildNetworkCopyRequest(input, model)),
+    });
+    const json = await res.json().catch(() => null);
+    if (!res.ok) {
+      const message = (json as { error?: { message?: unknown } } | null)?.error?.message;
+      console.error("Studio network copy: OpenAI error", res.status, typeof message === "string" ? message.slice(0, 200) : "");
+      throw new Error(`La génération a échoué (HTTP ${res.status}). Réessayez.`);
+    }
+    return { ...parseNetworkCopyOutput(json, input.networks), model };
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError") throw new Error("La génération a pris trop de temps. Réessayez.");
     throw error;

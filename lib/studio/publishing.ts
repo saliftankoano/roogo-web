@@ -85,7 +85,7 @@ export function canRetry(role: Role, status: PublicationStatus, approved: boolea
 }
 
 /** Fields whose change voids an approval: what goes out, where and when. */
-export const CONTENT_FIELDS = ["caption", "hashtags", "artifact_id", "photo_urls", "media_type", "networks", "scheduled_at"] as const;
+export const CONTENT_FIELDS = ["caption", "hashtags", "artifact_id", "photo_urls", "media_type", "networks", "scheduled_at", "network_copy", "publish_on_approval"] as const;
 
 /**
  * Status after an edit. Editing approved or failed content sends it back to
@@ -299,7 +299,8 @@ export function planVisitCadence(visitDate: string, slots: string[] = [...DEFAUL
 // ---------------------------------------------------------------------------
 
 export const CAPTION_CLOSING = "Avec Roogo, on s'occupe de tout, de la visite jusqu'au notaire.";
-export const CAPTION_CONTACT = "Appel ou WhatsApp : +226 67 00 61 16";
+/** The phone rule approved by Salif on 2026-10-23 (PRD 3): WhatsApp and call numbers on one line. */
+export const CAPTION_CONTACT = "WhatsApp : 67 00 61 16 · Appel : 53 11 11 19";
 export const CAPTION_SITE = "roogobf.com";
 export const TOUR_LINK_CAPTION = "Faites la visite 3D de ce bien depuis chez vous : ";
 
@@ -502,13 +503,54 @@ export type NetworkResult = {
   published_at?: string | null;
   /** Shown under the network on the card, e.g. TikTok « Publiée en privé ». */
   note?: string | null;
+  /**
+   * « Réessayer » on one network (PRD 2.7): the other failed networks wait
+   * for their own retry. Set by retryResults, cleared after the run.
+   */
+  held?: boolean;
 };
 
 export type PublicationResults = Partial<Record<Network, NetworkResult>>;
 
 /** Networks still to publish on this run: a retry never re-posts a network that succeeded. */
 export function networksToPublish(networks: Network[], results: PublicationResults): Network[] {
-  return networks.filter((n) => (PUBLISHABLE_NETWORKS as readonly string[]).includes(n) && results[n]?.status !== "published");
+  return networks.filter((n) => (PUBLISHABLE_NETWORKS as readonly string[]).includes(n) && results[n]?.status !== "published" && !results[n]?.held);
+}
+
+/**
+ * Results for a retry. Without `only`, every network that did not succeed is
+ * tried again. With `only`, just that network: the other failed ones are
+ * held, so a failure on one network never forces re-posting on another and
+ * each failed network has its own « Réessayer ».
+ */
+export function retryResults(
+  networks: Network[],
+  results: PublicationResults,
+  only?: Network | null,
+): { results: PublicationResults; error: string | null } {
+  const next: PublicationResults = {};
+  for (const [key, value] of Object.entries(results) as Array<[Network, NetworkResult | undefined]>) {
+    if (value) next[key] = { ...value, held: false };
+  }
+  if (!only) return { results: next, error: null };
+  if (!networks.includes(only)) return { results, error: `${NETWORK_LABELS[only]} n'est pas prévu pour cette publication.` };
+  if (results[only]?.status === "published") return { results, error: `Déjà publiée sur ${NETWORK_LABELS[only]}.` };
+  for (const n of networks) {
+    if (n !== only && next[n] && next[n]!.status !== "published") next[n] = { ...next[n]!, held: true };
+  }
+  return { results: next, error: null };
+}
+
+/** Results as stored after a run: no network stays held. */
+export function clearHeld(results: PublicationResults): PublicationResults {
+  const out: PublicationResults = {};
+  for (const [key, value] of Object.entries(results) as Array<[Network, NetworkResult | undefined]>) {
+    if (!value) continue;
+    const { held, ...rest } = value;
+    void held;
+    out[key] = rest;
+  }
+  return out;
 }
 
 export function finalStatus(networks: Network[], results: PublicationResults): "publie" | "echec" {

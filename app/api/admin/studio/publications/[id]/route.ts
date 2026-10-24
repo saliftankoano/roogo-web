@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { after, NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
 import { supabaseAdmin } from "@/lib/supabase-admin";
@@ -8,15 +8,19 @@ import {
   canRetry,
   canReturn,
   cleanReturnInput,
+  isNetwork,
+  retryResults,
   submitProblems,
   statusAfterEdit,
   type PublicationStatus,
 } from "@/lib/studio/publishing";
+import { scheduledAtOnApproval } from "@/lib/studio/publish-everywhere";
 import {
   PUBLICATION_COLUMNS,
   approvalProblems,
   parsePostInput,
   roleOf,
+  runPublishingWorker,
   toDtos,
   type PublicationRow,
 } from "@/lib/studio/publishing-server";
@@ -24,6 +28,9 @@ import {
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
+
+// « Valider » on « Dès que Salif valide » starts the publisher right away (after the answer).
+export const maxDuration = 300;
 
 type Ctx = { params: Promise<{ id: string }> };
 
@@ -64,6 +71,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const action = typeof body.action === "string" ? body.action : null;
   const nowIso = new Date().toISOString();
   let update: Record<string, unknown> = {};
+  let startNow = false;
 
   if (action === "return") {
     // "Renvoyer" (founder): back to the team with a required comment. The
@@ -82,7 +90,13 @@ export async function PATCH(req: Request, { params }: Ctx) {
     };
   } else if (action === "retry") {
     if (!canRetry(role, row.status, Boolean(row.approved_by))) return errorResponse("Seule une publication en échec peut être relancée.", 409, req);
-    update = { status: "valide", last_error: null, claimed_at: null };
+    // « Réessayer » on one network (PRD 2.7) or on every network that failed.
+    const only = body.network === undefined || body.network === null ? null : body.network;
+    if (only !== null && !isNetwork(only)) return errorResponse("Réseau inconnu", 400, req);
+    const plan = retryResults(row.networks, row.results ?? {}, only);
+    if (plan.error) return errorResponse(plan.error, 409, req);
+    update = { status: "valide", last_error: null, claimed_at: null, results: plan.results };
+    startNow = true;
   } else if (action) {
     const target = ACTION_TARGET[action];
     if (!target) return errorResponse("Action inconnue", 400, req);
@@ -92,7 +106,14 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (target === "valide") {
       const problems = await approvalProblems(row);
       if (problems.length) return cors(NextResponse.json({ error: problems[0].message, problems }, { status: 422 }), req);
-      update = { status: "valide", approved_by: staff.id, approved_at: nowIso, last_error: null };
+      update = {
+        status: "valide",
+        approved_by: staff.id,
+        approved_at: nowIso,
+        last_error: null,
+        scheduled_at: scheduledAtOnApproval(row, new Date(nowIso)),
+      };
+      startNow = Boolean(row.publish_on_approval);
     } else {
       if (target === "a_valider" && row.status === "a_faire") {
         const problems = submitProblems(row.caption);
@@ -129,6 +150,16 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   if (!data?.length) return errorResponse("La publication a changé entre-temps. Rechargez la page.", 409, req);
   const [post] = await toDtos(data as PublicationRow[]);
+  if (startNow) {
+    // The cron (every 10 minutes) stays the safety net; the claim makes a double run harmless.
+    after(async () => {
+      try {
+        await runPublishingWorker({ onlyId: id, limit: 1, budgetMs: 240_000 });
+      } catch (error) {
+        console.error("Studio: immediate publish failed", id, error instanceof Error ? error.message : "unknown");
+      }
+    });
+  }
   return cors(NextResponse.json({ post }), req);
 }
 

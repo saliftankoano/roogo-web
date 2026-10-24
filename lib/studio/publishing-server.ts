@@ -7,6 +7,7 @@ import { STUDIO_BUCKET } from "./server";
 import {
   STALE_CLAIM_MINUTES,
   captionProblems,
+  clearHeld,
   finalStatus,
   finalizeCaption,
   normalizeHashtags,
@@ -37,11 +38,28 @@ import {
 } from "./meta-graph";
 import { publishTikTok, tiktokPostMode } from "@/lib/social/tiktok-publish";
 import { tiktokAccessToken, tiktokPublishStatus } from "@/lib/social/tiktok-token-server";
+import {
+  copyPostText,
+  finalizeNetworkCopy,
+  networkCopyErrors,
+  parseNetworkCopy,
+  type NetworkCopy,
+} from "./publish-everywhere";
+import {
+  copyFactsFor,
+  loadFinalVideo,
+  moveFinalVideoIfPublished,
+  signedFinalVideoUrl,
+  toFinalVideoDto,
+  FINAL_VIDEO_COLUMNS,
+  type FinalVideoDto,
+  type FinalVideoRow,
+} from "./final-videos-server";
 
 export { tiktokPublishStatus };
 
 export const PUBLICATION_COLUMNS =
-  "id, property_id, artifact_id, title, cadence_step, visit_date, media_type, photo_urls, caption, notes, networks, scheduled_at, assignee_id, status, approved_by, approved_at, claimed_at, published_at, results, last_error, created_by, created_at, updated_at, hashtags, caption_model, caption_generated_at, caption_edited_by, caption_edited_at, submitted_by, submitted_at, returned_by, returned_at, review_comment, review_tags";
+  "id, property_id, artifact_id, title, cadence_step, visit_date, media_type, photo_urls, caption, notes, networks, scheduled_at, assignee_id, status, approved_by, approved_at, claimed_at, published_at, results, last_error, created_by, created_at, updated_at, hashtags, caption_model, caption_generated_at, caption_edited_by, caption_edited_at, submitted_by, submitted_at, returned_by, returned_at, review_comment, review_tags, final_video_id, network_copy, same_text, publish_on_approval";
 
 export type PublicationRow = {
   id: string;
@@ -78,6 +96,11 @@ export type PublicationRow = {
   returned_at: string | null;
   review_comment: string | null;
   review_tags: string[];
+  /** Migration 105: « Publier une vidéo ». */
+  final_video_id: string | null;
+  network_copy: Record<string, unknown>;
+  same_text: boolean;
+  publish_on_approval: boolean;
 };
 
 /** Signed links Meta downloads from. Three hours covers a slow Instagram video. */
@@ -128,8 +151,35 @@ export async function loadArtifactInfo(id: string): Promise<ArtifactInfo | null>
   };
 }
 
+/** The base text and the per-network texts of a post (PRD 3). */
+export function copyOf(row: Pick<PublicationRow, "caption" | "hashtags" | "network_copy">): { base: { text: string; hashtags: string[] }; copy: NetworkCopy } {
+  return { base: { text: row.caption ?? "", hashtags: row.hashtags ?? [] }, copy: parseNetworkCopy(row.network_copy) };
+}
+
+/**
+ * « Publier une vidéo »: what blocks « Valider » for an uploaded video. The
+ * video must be confirmed in Drive, and every network's text must pass the
+ * house rules with the listing's facts (price, phone, site, no financing).
+ */
+async function finalVideoProblems(row: PublicationRow): Promise<CaptionProblem[]> {
+  const problems: CaptionProblem[] = [];
+  const video = await loadFinalVideo(row.final_video_id!);
+  if (!video || video.status !== "ready" || !video.drive_file_id) problems.push({ code: "no-video", message: "La vidéo n'est pas encore confirmée dans le Drive." });
+  if (!row.networks.length) problems.push({ code: "no-network", message: "Choisissez au moins un réseau." });
+  if (row.networks.includes("tiktok") && !(await tiktokPublishStatus()).enabled) {
+    problems.push({ code: "tiktok", message: "TikTok n'est pas connecté pour la publication." });
+  }
+  const { base, copy } = copyOf(row);
+  const facts = await copyFactsFor(row.property_id);
+  for (const error of networkCopyErrors(row.networks, copy, base, facts, row.same_text)) {
+    problems.push({ code: `copy-${error.network}`, message: error.message });
+  }
+  return problems;
+}
+
 /** Everything that blocks "Valider" for this row. */
 export async function approvalProblems(row: PublicationRow): Promise<CaptionProblem[]> {
+  if (row.final_video_id) return finalVideoProblems(row);
   const artifact = row.artifact_id ? await loadArtifactInfo(row.artifact_id) : null;
   const problems = [
     ...captionProblems(postText(row.caption, row.hashtags), { mediaType: row.media_type, step: row.cadence_step }),
@@ -182,6 +232,17 @@ export async function staffDirectory(): Promise<Array<{ id: string; name: string
 
 async function mediaFor(row: PublicationRow): Promise<{ media: PublishMedia | null; error: string | null }> {
   if (row.media_type === "text") return { media: { kind: "text" }, error: null };
+  if (row.final_video_id) {
+    // « Publier une vidéo »: the Drive copy, through a signed stream link valid 3 hours.
+    const video = await loadFinalVideo(row.final_video_id);
+    if (!video || video.status !== "ready" || !video.drive_file_id) return { media: null, error: "La vidéo n'est plus dans le Drive « Vidéos finales »." };
+    try {
+      const durationSeconds = video.duration_seconds == null ? null : Number(video.duration_seconds);
+      return { media: { kind: "video", url: await signedFinalVideoUrl(video.id, PUBLISH_SIGNED_URL_SECONDS), durationSeconds }, error: null };
+    } catch {
+      return { media: null, error: "Le lien de la vidéo n'a pas pu être créé." };
+    }
+  }
   const storage = supabaseAdmin.storage.from(STUDIO_BUCKET);
   if (row.media_type === "video") {
     const artifact = row.artifact_id ? await loadArtifactInfo(row.artifact_id) : null;
@@ -241,19 +302,22 @@ export type WorkerSummary = { claimed: number; published: number; failed: number
  * runs cannot both take it. Results are saved after every network, and a
  * network that already succeeded is skipped on a retry.
  */
-export async function runPublishingWorker(opts: { now?: Date; limit?: number; budgetMs?: number; deps?: Partial<PublishDeps> } = {}): Promise<WorkerSummary> {
+export async function runPublishingWorker(
+  opts: { now?: Date; limit?: number; budgetMs?: number; deps?: Partial<PublishDeps>; onlyId?: string } = {},
+): Promise<WorkerSummary> {
   const started = Date.now();
   const now = opts.now ?? new Date();
   const summary: WorkerSummary = { claimed: 0, published: 0, failed: 0, stale: await failStaleClaims(now) };
 
-  const { data: due } = await supabaseAdmin
+  // onlyId: « Valider » on « Dès que Salif valide » starts this one post right away.
+  let dueQuery = supabaseAdmin
     .from("studio_publications")
     .select("id")
     .eq("status", "valide")
     .is("claimed_at", null)
-    .lte("scheduled_at", now.toISOString())
-    .order("scheduled_at", { ascending: true })
-    .limit(opts.limit ?? 3);
+    .lte("scheduled_at", now.toISOString());
+  if (opts.onlyId) dueQuery = dueQuery.eq("id", opts.onlyId);
+  const { data: due } = await dueQuery.order("scheduled_at", { ascending: true }).limit(opts.limit ?? 3);
   if (!due?.length) return summary;
 
   const meta = metaConfigFromEnv(process.env);
@@ -335,11 +399,23 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
     };
 
     const { media, error: mediaError } = await mediaFor(row);
-    // Exactly what the founder approved: the description, then the hashtags.
-    const text = row.cadence_step === "tour_3d_link" ? row.caption : postText(row.caption, row.hashtags);
+    // Exactly what the founder approved: the description, then the hashtags,
+    // or this network's own text when the post has one (PRD 3).
+    const { base, copy } = copyOf(row);
+    const textFor = (network: Network) => {
+      if (row.cadence_step === "tour_3d_link") return row.caption;
+      if (copy[network]) return copyPostText(copy[network]!.text, copy[network]!.hashtags);
+      return postText(row.caption, row.hashtags);
+    };
+    // Guardrail (PRD 3): the facts are checked again right before posting.
+    const facts = row.final_video_id ? await copyFactsFor(row.property_id) : null;
     for (const network of networksToPublish(row.networks, results)) {
       let result: NetworkResult;
-      if (!media) {
+      const text = textFor(network);
+      const copyErrors = facts ? networkCopyErrors([network], copy, base, facts, row.same_text) : [];
+      if (copyErrors.length) {
+        result = { status: "failed", error: copyErrors[0].message.replace(/^[^:]+ : /, "") };
+      } else if (!media) {
         result = { status: "failed", error: mediaError ?? "Média introuvable." };
       } else if (network === "tiktok") {
         result = await publishToTikTok(media, text, results.tiktok?.container_id ?? null, async (partial) => {
@@ -384,11 +460,12 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
 
     const status = finalStatus(row.networks, results);
     const finishedAt = new Date().toISOString();
+    const stored = clearHeld(results);
     await supabaseAdmin
       .from("studio_publications")
       .update({
         status,
-        results,
+        results: stored,
         claimed_at: null,
         published_at: status === "publie" ? finishedAt : null,
         last_error: status === "publie" ? null : summarizeErrors(results) ?? "La publication a échoué.",
@@ -398,6 +475,10 @@ export async function runPublishingWorker(opts: { now?: Date; limit?: number; bu
       .eq("claimed_at", claimedAt);
     if (status === "publie") summary.published += 1;
     else summary.failed += 1;
+    // PRD 2.4b: out everywhere, so the Drive copy moves to « Publié ».
+    if (row.final_video_id && status === "publie") {
+      await moveFinalVideoIfPublished(row.final_video_id, { status, networks: row.networks, results: stored });
+    }
     console.log("studio-publish:", row.id, status, Object.fromEntries(Object.entries(results).map(([k, v]) => [k, v?.status])));
   }
   return summary;
@@ -442,6 +523,11 @@ export type PublicationDto = {
   returnedByName: string | null;
   reviewComment: string | null;
   reviewTags: string[];
+  /** « Publier une vidéo »: the uploaded video and the text per network. */
+  finalVideo: FinalVideoDto | null;
+  networkCopy: NetworkCopy;
+  sameText: boolean;
+  publishOnApproval: boolean;
 };
 
 export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> {
@@ -458,6 +544,12 @@ export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> 
     for (const a of data ?? []) {
       artifacts.set(a.id, { kind: a.kind, title: a.title, url: a.output_path ? byPath.get(a.output_path) ?? null : null });
     }
+  }
+  const videoIds = [...new Set(rows.map((r) => r.final_video_id).filter((id): id is string => Boolean(id)))];
+  const videos = new Map<string, FinalVideoDto>();
+  if (videoIds.length) {
+    const { data } = await supabaseAdmin.from("studio_final_videos").select(FINAL_VIDEO_COLUMNS).in("id", videoIds);
+    for (const v of (data ?? []) as FinalVideoRow[]) videos.set(v.id, toFinalVideoDto(v));
   }
   const userIds = [...new Set(rows.flatMap((r) => [r.assignee_id, r.approved_by, r.submitted_by, r.returned_by, r.caption_edited_by]).filter((id): id is string => Boolean(id)))];
   const names = new Map<string, string>();
@@ -502,6 +594,10 @@ export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> 
       returnedByName: r.returned_by ? names.get(r.returned_by) ?? null : null,
       reviewComment: r.review_comment ?? null,
       reviewTags: r.review_tags ?? [],
+      finalVideo: r.final_video_id ? videos.get(r.final_video_id) ?? null : null,
+      networkCopy: parseNetworkCopy(r.network_copy),
+      sameText: Boolean(r.same_text),
+      publishOnApproval: Boolean(r.publish_on_approval),
     };
   });
 }
@@ -513,7 +609,20 @@ export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> 
 export type PostInput = Partial<
   Pick<
     PublicationRow,
-    "property_id" | "artifact_id" | "title" | "media_type" | "photo_urls" | "caption" | "hashtags" | "notes" | "networks" | "scheduled_at" | "assignee_id"
+    | "property_id"
+    | "artifact_id"
+    | "title"
+    | "media_type"
+    | "photo_urls"
+    | "caption"
+    | "hashtags"
+    | "notes"
+    | "networks"
+    | "scheduled_at"
+    | "assignee_id"
+    | "network_copy"
+    | "same_text"
+    | "publish_on_approval"
   >
 >;
 
@@ -585,9 +694,34 @@ export async function parsePostInput(
     values.assignee_id = (v as string | null) || null;
   }
 
+  // « Publier une vidéo »: the texts per network, finalized by code with the
+  // listing's facts on every save (PRD 3.2, 3.3), the founder's edits included.
+  const finalVideoId = current?.final_video_id ?? null;
+  if (has("sameText")) values.same_text = Boolean(body.sameText);
+  if (has("publishOnApproval")) values.publish_on_approval = Boolean(body.publishOnApproval);
+  if (finalVideoId && (has("networkCopy") || has("caption") || has("hashtags"))) {
+    const propertyForFacts = values.property_id !== undefined ? values.property_id : current?.property_id ?? null;
+    const facts = await copyFactsFor(propertyForFacts);
+    if (has("caption") || has("hashtags")) {
+      const base = finalizeNetworkCopy("base", { text: values.caption ?? current?.caption ?? "", hashtags: values.hashtags ?? current?.hashtags ?? [] }, facts);
+      values.caption = base.text;
+      values.hashtags = base.hashtags;
+    }
+    if (has("networkCopy")) {
+      const same = values.same_text ?? current?.same_text ?? false;
+      const parsed = parseNetworkCopy(body.networkCopy);
+      const out: NetworkCopy = {};
+      for (const [network, draft] of Object.entries(parsed) as Array<[Network, { text: string; hashtags: string[] }]>) {
+        const final = finalizeNetworkCopy(same ? "base" : network, draft, facts);
+        out[network] = { text: final.text, hashtags: final.hashtags };
+      }
+      values.network_copy = out;
+    }
+  }
+
   // House rules on every save of a description (not on a bare 3D tour link).
   const mediaType = values.media_type ?? current?.media_type ?? null;
-  if (values.caption !== undefined && mediaType && mediaType !== "text" && values.caption.trim()) {
+  if (!finalVideoId && values.caption !== undefined && mediaType && mediaType !== "text" && values.caption.trim()) {
     const clean = finalizeCaption({ caption: values.caption, hashtags: values.hashtags ?? current?.hashtags ?? [] });
     values.caption = clean.caption;
     values.hashtags = clean.hashtags;
