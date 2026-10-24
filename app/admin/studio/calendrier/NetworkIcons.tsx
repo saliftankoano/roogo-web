@@ -103,6 +103,11 @@ const LOGOS = { facebook: FacebookLogo, instagram: InstagramLogo, tiktok: Tiktok
 export type LogoNetwork = Network | "youtube";
 const LABELS: Record<LogoNetwork, string> = { youtube: "YouTube", ...NETWORK_LABELS };
 
+/** Any « Publier une vidéo » destination, YouTube Shorts included. */
+export function DestinationIcon({ destination, size = 14, className }: { destination: LogoNetwork; size?: number; className?: string }) {
+  return <NetworkIcon network={destination} size={size} className={className} label={false} />;
+}
+
 export function NetworkIcon({ network, size = 14, className, label = true }: { network: LogoNetwork; size?: number; className?: string; label?: boolean }) {
   const Logo = LOGOS[network];
   return (

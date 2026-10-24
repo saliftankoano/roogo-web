@@ -8,9 +8,10 @@
 //   The video lands in the TikTok app's notifications, the account owner
 //   finishes and publishes it there. Chosen with TIKTOK_POST_MODE=draft.
 //
-// Both use source FILE_UPLOAD (we PUT the bytes ourselves), never
-// PULL_FROM_URL: that one needs a domain verified with TikTok and our media
-// lives on Supabase signed URLs.
+// Source: FILE_UPLOAD by default, in 10 MB chunks read one at a time with
+// Range requests (never the whole file in memory), resumable across runs.
+// PULL_FROM_URL only when TIKTOK_PULL_URL_PREFIX names a URL prefix verified
+// in the TikTok developer portal (TikTok then downloads the signed link).
 //
 // No runtime imports: node:test loads this file directly with a fake fetch
 // (lib/social/tiktok-publish.test.mjs). The access token travels only in the
@@ -38,21 +39,52 @@ export function hasScope(scope: string | null | undefined, needed: string): bool
 // --- Chunks -------------------------------------------------------------------
 
 const MB = 1024 * 1024;
-/** TikTok: one chunk up to 64 MB; otherwise chunks of 5 to 64 MB, the last one may hold the remainder (up to 128 MB). */
-export const SINGLE_CHUNK_MAX = 64 * MB;
+/**
+ * TikTok's rules: a video under 5 MB goes in one chunk; otherwise every chunk
+ * is 5 to 64 MB, total_chunk_count = floor(video_size / chunk_size), and the
+ * last chunk carries the remainder (up to 128 MB). We use 10 MB chunks for
+ * anything above 10 MB, so a function never holds more than one chunk (under
+ * 20 MB) in memory, whatever the video size (« Publier une vidéo » allows 500 MB).
+ */
 export const CHUNK_SIZE = 10 * MB;
+/** Kept for callers of the first version; a single chunk now stops at CHUNK_SIZE. */
+export const SINGLE_CHUNK_MAX = CHUNK_SIZE;
 export const MAX_VIDEO_BYTES = 4 * 1024 * MB;
+/** TikTok's upload_url is valid one hour; we resume within 55 minutes, else start a new upload. */
+export const UPLOAD_URL_TTL_MS = 55 * 60_000;
+/** Do not start a chunk when less than this is left before the function's deadline. */
+export const CHUNK_TIME_MARGIN_MS = 30_000;
+/** Attempts per chunk (the range is read again from storage each time). */
+export const CHUNK_ATTEMPTS = 3;
 
 export type ChunkPlan = { videoSize: number; chunkSize: number; totalChunkCount: number; ranges: Array<{ start: number; end: number }> };
+
+/** The byte range (inclusive) of chunk `index`; the last one takes the remainder. */
+export function chunkRange(index: number, videoSize: number, chunkSize: number, totalChunkCount: number): { start: number; end: number } {
+  const start = index * chunkSize;
+  const end = index === totalChunkCount - 1 ? videoSize - 1 : (index + 1) * chunkSize - 1;
+  return { start, end };
+}
 
 /** The upload plan TikTok expects. Byte ranges are inclusive. */
 export function chunkPlan(videoSize: number): ChunkPlan {
   if (!Number.isInteger(videoSize) || videoSize <= 0) throw new Error("ROOGO:La vidéo est vide.");
   if (videoSize > MAX_VIDEO_BYTES) throw new Error("ROOGO:La vidéo dépasse la taille acceptée par TikTok.");
-  if (videoSize <= SINGLE_CHUNK_MAX) return { videoSize, chunkSize: videoSize, totalChunkCount: 1, ranges: [{ start: 0, end: videoSize - 1 }] };
+  if (videoSize <= CHUNK_SIZE) return { videoSize, chunkSize: videoSize, totalChunkCount: 1, ranges: [{ start: 0, end: videoSize - 1 }] };
   const total = Math.floor(videoSize / CHUNK_SIZE);
-  const ranges = Array.from({ length: total }, (_, i) => ({ start: i * CHUNK_SIZE, end: i === total - 1 ? videoSize - 1 : (i + 1) * CHUNK_SIZE - 1 }));
+  const ranges = Array.from({ length: total }, (_, i) => chunkRange(i, videoSize, CHUNK_SIZE, total));
   return { videoSize, chunkSize: CHUNK_SIZE, totalChunkCount: total, ranges };
+}
+
+/**
+ * PULL_FROM_URL is only allowed for URL prefixes verified in the TikTok
+ * developer portal. TIKTOK_PULL_URL_PREFIX names the verified prefix; a video
+ * URL under it is pulled by TikTok (nothing passes through our function),
+ * anything else goes by FILE_UPLOAD in chunks.
+ */
+export function pullUrlAllowed(videoUrl: string, verifiedPrefix: string | null | undefined): boolean {
+  const prefix = (verifiedPrefix ?? "").trim();
+  return Boolean(prefix) && /^https:\/\//.test(prefix) && videoUrl.startsWith(prefix);
 }
 
 /** TikTok counts the title in UTF-16 code units, at most 2 200. */
@@ -135,15 +167,39 @@ async function tiktokJson(fetchImpl: TikTokFetch, token: string, path: string, b
   return (data.data ?? {}) as Json;
 }
 
+/** Where an interrupted FILE_UPLOAD continues (saved in the results, never shown to the team). */
+export type TikTokResume = {
+  upload_url: string;
+  next_chunk: number;
+  video_size: number;
+  chunk_size: number;
+  total_chunk_count: number;
+  /** After this, TikTok's upload_url is dead: start a new upload. */
+  expires_at: string;
+};
+
+export type TikTokVideoSource = {
+  /** Public, short-lived signed URL of the video (Range supported). */
+  url: string;
+  /** Total size in bytes (asked from storage when unknown). */
+  size: () => Promise<number>;
+  /** Bytes start..end inclusive, read with a Range request: never the whole file. */
+  readRange: (start: number, end: number) => Promise<Uint8Array>;
+};
+
 export type TikTokPublishDeps = {
   fetch: TikTokFetch;
   sleep: (ms: number) => Promise<void>;
-  /** The video bytes (downloaded from our storage). */
-  loadVideo: () => Promise<Uint8Array>;
+  video: TikTokVideoSource;
   now?: () => string;
+  /** Epoch ms: no chunk starts and no status wait begins past this minus the margin. */
+  deadline?: number;
+  clock?: () => number;
+  /** TIKTOK_PULL_URL_PREFIX: verified URL prefix for PULL_FROM_URL. */
+  pullUrlPrefix?: string | null;
   pollIntervalMs?: number;
   maxPolls?: number;
-  /** Saves the publish_id before waiting, so a retry checks it instead of posting twice. */
+  /** Saves the publish_id (and the upload position) before waiting, so a retry never posts twice. */
   onProgress?: (partial: TikTokNetworkResult) => Promise<void> | void;
 };
 
@@ -156,6 +212,8 @@ export type TikTokNetworkResult = {
   error?: string | null;
   published_at?: string | null;
   note?: string | null;
+  /** Set while a chunked upload is unfinished: the next run continues from here. */
+  resume?: TikTokResume | null;
 };
 
 export type PublishStatus = "PROCESSING_UPLOAD" | "PROCESSING_DOWNLOAD" | "SEND_TO_USER_INBOX" | "PUBLISH_COMPLETE" | "FAILED" | "UNKNOWN";
@@ -171,26 +229,70 @@ export async function fetchPublishStatus(fetchImpl: TikTokFetch, token: string, 
   };
 }
 
+async function putChunk(deps: TikTokPublishDeps, resume: TikTokResume, index: number): Promise<void> {
+  const { start, end } = chunkRange(index, resume.video_size, resume.chunk_size, resume.total_chunk_count);
+  let lastStatus = 0;
+  for (let attempt = 1; attempt <= CHUNK_ATTEMPTS; attempt += 1) {
+    try {
+      // Read the range again on each attempt: only this chunk is ever in memory.
+      const chunk = await deps.video.readRange(start, end);
+      if (chunk.byteLength !== end - start + 1) throw new Error("ROOGO:La vidéo n'a pas pu être lue en entier depuis le stockage.");
+      const res = await deps.fetch(resume.upload_url, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "video/mp4",
+          "Content-Length": String(chunk.byteLength),
+          "Content-Range": `bytes ${start}-${end}/${resume.video_size}`,
+        },
+        body: chunk,
+      });
+      if (res.ok) return;
+      lastStatus = res.status;
+      // 4xx other than timeout or rate limit will not get better by retrying.
+      if (res.status >= 400 && res.status < 500 && res.status !== 408 && res.status !== 429) break;
+    } catch (error) {
+      if (attempt === CHUNK_ATTEMPTS) throw error;
+    }
+    if (attempt < CHUNK_ATTEMPTS) await deps.sleep(1000 * 2 ** attempt);
+  }
+  throw new TikTokApiError(`upload_http_${lastStatus}`, lastStatus, "L'envoi de la vidéo à TikTok a échoué.");
+}
+
 /**
- * Publishes one video to TikTok. With `existingPublishId` (saved by an earlier
- * run that timed out) it only checks that upload, never posts again. Never
- * throws: a failure comes back as a French error.
+ * Publishes one video to TikTok without ever holding the whole file:
+ * PULL_FROM_URL when the signed URL is under a verified prefix (TikTok
+ * downloads it), otherwise FILE_UPLOAD in 10 MB chunks read one by one with
+ * Range requests. When the function's deadline comes before the last chunk,
+ * it returns « pending » with `resume` and the next run continues (TikTok's
+ * upload_url lasts one hour). With `existingPublishId` and no `resume`, an
+ * earlier upload is only checked, never posted again. Never throws.
  */
 export async function publishTikTok(
   deps: TikTokPublishDeps,
   token: string,
   caption: string,
-  opts: { mode: TikTokPostMode; existingPublishId?: string | null },
+  opts: { mode: TikTokPostMode; existingPublishId?: string | null; resume?: TikTokResume | null },
 ): Promise<TikTokNetworkResult> {
+  const clock = deps.clock ?? (() => Date.now());
+  const timeLeft = () => (deps.deadline == null ? Infinity : deps.deadline - clock());
   let publishId = opts.existingPublishId ?? null;
+  let resume = opts.resume && publishId && Date.parse(opts.resume.expires_at) > clock() ? opts.resume : null;
+  // A resume whose upload_url expired: that upload never completed, so nothing was posted. Start again.
+  if (opts.resume && !resume) publishId = null;
   // Only an upload TikTok fully received is worth checking again on a retry.
-  let uploaded = Boolean(publishId);
+  let uploaded = Boolean(publishId) && !resume;
   const note = opts.mode === "direct" ? "Publiée en privé (visible par le compte seulement)" : "Dans les brouillons TikTok, à publier depuis l'application";
   try {
     if (!publishId) {
-      const bytes = await deps.loadVideo();
-      const plan = chunkPlan(bytes.byteLength);
-      const source_info = { source: "FILE_UPLOAD", video_size: plan.videoSize, chunk_size: plan.chunkSize, total_chunk_count: plan.totalChunkCount };
+      const pull = pullUrlAllowed(deps.video.url, deps.pullUrlPrefix);
+      let source_info: Json;
+      let plan: ChunkPlan | null = null;
+      if (pull) {
+        source_info = { source: "PULL_FROM_URL", video_url: deps.video.url };
+      } else {
+        plan = chunkPlan(await deps.video.size());
+        source_info = { source: "FILE_UPLOAD", video_size: plan.videoSize, chunk_size: plan.chunkSize, total_chunk_count: plan.totalChunkCount };
+      }
       const init =
         opts.mode === "direct"
           ? await tiktokJson(deps.fetch, token, "/v2/post/publish/video/init/", {
@@ -199,28 +301,43 @@ export async function publishTikTok(
             })
           : await tiktokJson(deps.fetch, token, "/v2/post/publish/inbox/video/init/", { source_info });
       publishId = typeof init.publish_id === "string" ? init.publish_id : null;
-      const uploadUrl = typeof init.upload_url === "string" ? init.upload_url : null;
-      if (!publishId || !uploadUrl) throw new Error("ROOGO:TikTok n'a pas ouvert l'envoi de la vidéo.");
-      await deps.onProgress?.({ status: "pending", container_id: publishId });
-      for (const range of plan.ranges) {
-        const chunk = bytes.subarray(range.start, range.end + 1);
-        const res = await deps.fetch(uploadUrl, {
-          method: "PUT",
-          headers: {
-            "Content-Type": "video/mp4",
-            "Content-Length": String(chunk.byteLength),
-            "Content-Range": `bytes ${range.start}-${range.end}/${plan.videoSize}`,
-          },
-          body: chunk,
-        });
-        if (!res.ok) throw new TikTokApiError(`upload_http_${res.status}`, res.status, "L'envoi de la vidéo à TikTok a échoué.");
+      if (!publishId) throw new Error("ROOGO:TikTok n'a pas ouvert l'envoi de la vidéo.");
+      if (pull) {
+        uploaded = true;
+        await deps.onProgress?.({ status: "pending", container_id: publishId });
+      } else {
+        const uploadUrl = typeof init.upload_url === "string" ? init.upload_url : null;
+        if (!uploadUrl) throw new Error("ROOGO:TikTok n'a pas ouvert l'envoi de la vidéo.");
+        resume = {
+          upload_url: uploadUrl,
+          next_chunk: 0,
+          video_size: plan!.videoSize,
+          chunk_size: plan!.chunkSize,
+          total_chunk_count: plan!.totalChunkCount,
+          expires_at: new Date(clock() + UPLOAD_URL_TTL_MS).toISOString(),
+        };
+        await deps.onProgress?.({ status: "pending", container_id: publishId, resume });
       }
+    }
+
+    if (resume) {
+      for (let i = resume.next_chunk; i < resume.total_chunk_count; i += 1) {
+        if (timeLeft() < CHUNK_TIME_MARGIN_MS) {
+          resume = { ...resume, next_chunk: i };
+          return { status: "pending", container_id: publishId, resume, error: "Envoi vers TikTok en cours : il reprend au prochain passage." };
+        }
+        await putChunk(deps, resume, i);
+        resume = { ...resume, next_chunk: i + 1 };
+        if (i + 1 < resume.total_chunk_count) await deps.onProgress?.({ status: "pending", container_id: publishId, resume });
+      }
+      resume = null;
       uploaded = true;
+      await deps.onProgress?.({ status: "pending", container_id: publishId, resume: null });
     }
 
     const maxPolls = deps.maxPolls ?? 12;
     for (let i = 0; i < maxPolls; i += 1) {
-      const s = await fetchPublishStatus(deps.fetch, token, publishId);
+      const s = await fetchPublishStatus(deps.fetch, token, publishId!);
       if (s.status === "FAILED") {
         return { status: "failed", container_id: null, error: frenchTikTokError(new TikTokApiError(s.failReason ?? "failed", 200, s.failReason ?? "")) };
       }
@@ -235,11 +352,13 @@ export async function publishTikTok(
           note,
         };
       }
+      if (timeLeft() < CHUNK_TIME_MARGIN_MS) break;
       await deps.sleep(deps.pollIntervalMs ?? 5000);
     }
     return { status: "pending", container_id: publishId, error: "TikTok traite encore la vidéo. Réessayez dans quelques minutes." };
   } catch (error) {
-    return { status: "failed", container_id: uploaded ? publishId : null, error: frenchTikTokError(error) };
+    // A half-sent upload keeps its position, so « Réessayer » continues it within the hour.
+    return { status: "failed", container_id: uploaded || resume ? publishId : null, resume: uploaded ? null : resume, error: frenchTikTokError(error) };
   }
 }
 

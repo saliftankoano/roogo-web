@@ -22,8 +22,10 @@ export type FieldMedia = {
   error: string | null;
 };
 
-type StartAnswer = {
-  media: FieldMedia;
+type UploadedRow = { id: string; status: string; error?: string | null };
+
+type StartAnswer<M extends UploadedRow = FieldMedia> = {
+  media: M;
   uploadUrl?: string;
   offset?: number;
   done?: boolean;
@@ -62,7 +64,38 @@ export function readVideoDuration(file: File): Promise<number | null> {
   });
 }
 
-type PutResult = { status: number; range: string | null; text: string };
+/**
+ * A video's length and displayed size (rotation applied) from its metadata,
+ * read in the browser before any byte is sent. Nulls when the browser cannot
+ * decode it within 8 s (HEVC in desktop Chrome, for example).
+ */
+export function readVideoShape(file: File): Promise<{ durationSeconds: number | null; width: number | null; height: number | null }> {
+  return new Promise((resolve) => {
+    const video = document.createElement("video");
+    const url = URL.createObjectURL(file);
+    const done = (value: { durationSeconds: number | null; width: number | null; height: number | null }) => {
+      clearTimeout(timer);
+      URL.revokeObjectURL(url);
+      video.removeAttribute("src");
+      resolve(value);
+    };
+    const empty = { durationSeconds: null, width: null, height: null };
+    const timer = setTimeout(() => done(empty), 8000);
+    video.preload = "metadata";
+    video.muted = true;
+    video.playsInline = true;
+    video.onloadedmetadata = () =>
+      done({
+        durationSeconds: Number.isFinite(video.duration) && video.duration > 0 ? video.duration : null,
+        width: video.videoWidth || null,
+        height: video.videoHeight || null,
+      });
+    video.onerror = () => done(empty);
+    video.src = url;
+  });
+}
+
+type PutResult ={ status: number; range: string | null; text: string };
 
 function put(url: string, body: Blob, headers: Record<string, string>, onSent: (loaded: number) => void, signal?: AbortSignal) {
   return new Promise<PutResult>((resolve, reject) => {
@@ -89,9 +122,9 @@ function put(url: string, body: Blob, headers: Record<string, string>, onSent: (
 
 const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-async function serverOffset(mediaId: string): Promise<{ offset: number | null; complete: boolean; media: FieldMedia }> {
-  const { status, body } = await apiJson<{ offset: number | null; complete: boolean; media: FieldMedia }>(
-    `/api/admin/studio/media/${mediaId}`,
+async function serverOffset(base: string, mediaId: string): Promise<{ offset: number | null; complete: boolean; media: UploadedRow }> {
+  const { status, body } = await apiJson<{ offset: number | null; complete: boolean; media: UploadedRow }>(
+    `${base}/${mediaId}`,
   );
   if (status !== 200) throw new UploadError(body.error ?? `Suivi de l'envoi impossible (${status}).`);
   if (body.media.status === "failed") throw new UploadError(body.media.error ?? "Envoi échoué.");
@@ -111,10 +144,34 @@ export async function uploadFieldFile(
   sheet?: { fieldVisitId: string; deliverable: string },
 ): Promise<FieldMedia> {
   const durationSeconds = await readVideoDuration(file);
-  const start = await apiJson<StartAnswer>("/api/admin/studio/media", {
+  return uploadResumableToDrive<FieldMedia>(
+    "/api/admin/studio/media",
+    file,
+    { propertyId, fileName: file.name, mimeType: file.type, sizeBytes: file.size, durationSeconds, ...(sheet ?? {}) },
+    onProgress,
+    signal,
+    { durationSeconds },
+  );
+}
+
+/**
+ * The resumable Drive upload shared by field media and « Publier une vidéo »
+ * (base "/api/admin/studio/final-videos"). Both APIs answer the same shapes:
+ * POST base (start), GET base/id (bytes Google kept), PUT base/id/chunk
+ * (relay), POST base/id/finalize (the server checks the file in Drive).
+ */
+export async function uploadResumableToDrive<M extends UploadedRow>(
+  base: string,
+  file: File,
+  startBody: Record<string, unknown>,
+  onProgress: (sentBytes: number) => void,
+  signal?: AbortSignal,
+  finalizeExtras: Record<string, unknown> = {},
+): Promise<M> {
+  const start = await apiJson<StartAnswer<M>>(base, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ propertyId, fileName: file.name, mimeType: file.type, sizeBytes: file.size, durationSeconds, ...(sheet ?? {}) }),
+    body: JSON.stringify(startBody),
     signal,
   });
   if (start.status !== 200) throw new UploadError(start.body.error ?? `Envoi refusé (${start.status}).`);
@@ -143,7 +200,7 @@ export async function uploadFieldFile(
       const result = direct
         ? await put(uploadUrl, file.slice(from, end), { "Content-Range": contentRange }, (n) => onProgress(from + n), signal)
         : await put(
-            `/api/admin/studio/media/${media.id}/chunk`,
+            `${base}/${media.id}/chunk`,
             file.slice(from, end),
             { "X-Content-Range": contentRange, "Content-Type": "application/octet-stream" },
             (n) => onProgress(from + n),
@@ -157,7 +214,7 @@ export async function uploadFieldFile(
         break;
       }
       if (direct && result.status === 308) {
-        offset = result.range ? nextOffsetFromRange(result.range) : ((await serverOffset(media.id)).offset ?? end);
+        offset = result.range ? nextOffsetFromRange(result.range) : ((await serverOffset(base, media.id)).offset ?? end);
         directWorked = true;
         failures = 0;
         continue;
@@ -182,15 +239,15 @@ export async function uploadFieldFile(
         await wait(Math.min(30_000, 1000 * 2 ** failures));
       }
       // Continue from what Google really kept.
-      const now = await serverOffset(media.id);
+      const now = await serverOffset(base, media.id);
       offset = now.complete ? size : (now.offset ?? from);
       onProgress(offset);
     }
 
-    const done = await apiJson<{ media: FieldMedia; offset?: number }>(`/api/admin/studio/media/${media.id}/finalize`, {
+    const done = await apiJson<{ media: M; offset?: number }>(`${base}/${media.id}/finalize`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ driveFileId, durationSeconds }),
+      body: JSON.stringify({ driveFileId, ...finalizeExtras }),
     });
     if (done.status === 200) {
       onProgress(size);

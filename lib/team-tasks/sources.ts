@@ -414,7 +414,88 @@ const openHouseSlots: TaskSource = {
   },
 };
 
+/** « Publier une vidéo »: where the founder previews a video and where the team fixes one. */
+export function publishVideoHref(publicationId: string): string {
+  return `/admin/studio/publier?publication=${encodeURIComponent(publicationId)}`;
+}
+
+// « Publier une vidéo » (PRD 2.5): a video sent to Salif is a task « Valider
+// la vidéo : <titre> » for each founder on Accueil, until he validates it or
+// asks for a change (its own status). A video sent back is a task « Corriger
+// la vidéo » for the person who sent it. Before migration 105 the column does
+// not exist; the source then shows nothing instead of failing.
+const studioVideoApprovals: TaskSource = {
+  id: "studio_video_approvals",
+  async load(ctx) {
+    const [waiting, returned, founders] = await Promise.all([
+      supabaseAdmin
+        .from("studio_publications")
+        .select("id, title, submitted_at, submitted_by, networks, final_video_id, property_id")
+        .eq("status", "a_valider")
+        .not("final_video_id", "is", null)
+        .order("submitted_at", { ascending: true })
+        .limit(30),
+      supabaseAdmin
+        .from("studio_publications")
+        .select("id, title, returned_at, submitted_by, created_by, review_comment, final_video_id, property_id")
+        .eq("status", "a_faire")
+        .not("returned_at", "is", null)
+        .not("final_video_id", "is", null)
+        .order("returned_at", { ascending: true })
+        .limit(30),
+      supabaseAdmin.from("users").select("id").eq("user_type", "founder"),
+    ]);
+    if (waiting.error?.code === "42703" || returned.error?.code === "42703") return [];
+    if (waiting.error) throw waiting.error;
+    if (returned.error) throw returned.error;
+    if (founders.error) throw founders.error;
+    const founderIds = (founders.data ?? []).map((u) => u.id as string).filter((id) => ctx.staffIds.has(id));
+    const submitters = [...new Set((waiting.data ?? []).map((r) => r.submitted_by).filter((id): id is string => Boolean(id)))];
+    const names = new Map<string, string>();
+    if (submitters.length) {
+      const { data } = await supabaseAdmin.from("users").select("id, full_name").in("id", submitters);
+      for (const u of data ?? []) names.set(u.id, (u.full_name ?? "").split(" ")[0] || "l’équipe");
+    }
+    const items: BriefingItem[] = [];
+    for (const row of waiting.data ?? []) {
+      const nets = (row.networks as string[] | null) ?? [];
+      for (const founderId of founderIds.length ? founderIds : [null]) {
+        items.push(base({
+          key: `studio-video:${row.id}:${founderId ?? "none"}`,
+          kindLabel: "Studio",
+          tone: "orange",
+          title: `Valider la vidéo : ${row.title || "vidéo sans titre"}`,
+          sub: [row.submitted_by ? `Envoyée par ${names.get(row.submitted_by) ?? "l’équipe"}` : null, nets.length ? `${nets.length} réseau${nets.length > 1 ? "x" : ""}` : null]
+            .filter(Boolean)
+            .join(" · "),
+          ownerId: founderId,
+          dueDate: dueFrom(row.submitted_at, ctx),
+          href: publishVideoHref(row.id),
+          actionLabel: "Voir et valider",
+          propertyId: row.property_id ?? null,
+        }));
+      }
+    }
+    for (const row of returned.data ?? []) {
+      items.push(base({
+        key: `studio-video-fix:${row.id}:${row.returned_at ?? ""}`,
+        kindLabel: "Studio",
+        tone: "red",
+        title: `Corriger la vidéo : ${row.title || "vidéo sans titre"}`,
+        sub: preview(row.review_comment) || "Salif demande une modification",
+        ownerId: ownerOrNobody(row.submitted_by ?? row.created_by, ctx),
+        dueDate: dueFrom(row.returned_at, ctx),
+        href: publishVideoHref(row.id),
+        actionLabel: "Corriger",
+        propertyId: row.property_id ?? null,
+      }));
+    }
+    return items;
+  },
+};
+
 export const TASK_SOURCES: TaskSource[] = [
+  studioVideoApprovals,
   visitRequests,
   notaryMeetings,
   supportThreads,

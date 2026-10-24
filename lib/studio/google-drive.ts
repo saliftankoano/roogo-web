@@ -105,7 +105,7 @@ async function driveJson<T>(url: string, init: RequestInit = {}): Promise<T> {
 }
 
 /** Every folder directly inside a parent (paged; a parent holds a few hundred at most). */
-async function listChildFolders(parentId: string): Promise<DriveFolderRef[]> {
+export async function listChildFolders(parentId: string): Promise<DriveFolderRef[]> {
   const { driveId } = requireConfig();
   const folders: DriveFolderRef[] = [];
   let pageToken: string | undefined;
@@ -281,13 +281,13 @@ export async function relayChunk(sessionUrl: string, contentRange: string, bytes
 export type DriveFile = DriveFileFacts & {
   name?: string;
   thumbnailLink?: string | null;
-  videoMediaMetadata?: { durationMillis?: string | null } | null;
+  videoMediaMetadata?: { durationMillis?: string | null; width?: number | null; height?: number | null } | null;
 };
 
 export async function getDriveFile(fileId: string): Promise<DriveFile | null> {
   try {
     return await driveJson<DriveFile>(
-      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id,name,size,mimeType,parents,trashed,thumbnailLink,videoMediaMetadata(durationMillis)`,
+      `${DRIVE_API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id,name,size,mimeType,parents,trashed,thumbnailLink,videoMediaMetadata(durationMillis,width,height)`,
     );
   } catch (error) {
     if (error instanceof DriveError && error.status === 404) return null;
@@ -303,6 +303,36 @@ export async function fetchDriveMedia(fileId: string, range: string | null, meth
   // Drive's media endpoint does not answer HEAD; a 1-byte GET gives the same headers.
   if (method === "HEAD" && !range) headers.Range = "bytes=0-0";
   return fetch(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?alt=media&supportsAllDrives=true`, { headers });
+}
+
+/** The shared drive "Roogo" id (ROOGO_SHARED_DRIVE_ID). */
+export function sharedDriveId(): string {
+  return requireConfig().driveId;
+}
+
+/** Renames a file (the French descriptive name of a final video, set when it is sent to Salif). */
+export async function renameDriveFile(fileId: string, name: string): Promise<void> {
+  await driveJson(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify({ name }),
+  });
+}
+
+/** Moves a file from one folder to another inside the shared drive (« Vidéos finales » to « Publié »). */
+export async function moveDriveFile(fileId: string, fromFolderId: string, toFolderId: string): Promise<{ parents: string[] }> {
+  const params = new URLSearchParams({
+    supportsAllDrives: "true",
+    addParents: toFolderId,
+    removeParents: fromFolderId,
+    fields: "id,parents",
+  });
+  const moved = await driveJson<{ parents?: string[] }>(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?${params}`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: "{}",
+  });
+  return { parents: moved.parents ?? [] };
 }
 
 /** A small preview image (Drive makes them for photos, HEIC included, and processed videos). */

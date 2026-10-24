@@ -21,6 +21,7 @@ import { readError, type Post } from "../calendrier/calendar-types";
 import { isPhone, motionOn, riseIn } from "./motion";
 import { useDialog } from "./useDialog";
 import { TikTokChoice, TikTokNote } from "./TikTokChoice";
+import { NetworkTexts } from "./NetworkTexts";
 import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
 
 type View = "preview" | "return" | "approved";
@@ -206,7 +207,8 @@ export function ApprovalPreview({
   }
 
   async function saveDate() {
-    const saved = await patch("date", { scheduledAt: slotToIso(date, slot) });
+    // A chosen date replaces « Dès que vous validez ».
+    const saved = await patch("date", { scheduledAt: slotToIso(date, slot), ...(post?.finalVideo ? { publishOnApproval: false } : {}) });
     if (!saved) return;
     replace(saved);
     setDating(false);
@@ -222,17 +224,33 @@ export function ApprovalPreview({
     if (saved) replace(saved);
   }
 
+  /** « Publier une vidéo »: Salif edits one network's text (all of them when « Même texte partout »). */
+  async function saveNetworkText(network: Network, text: string, hashtags: string[]): Promise<boolean> {
+    if (!post) return false;
+    const entry = { text, hashtags };
+    const next = post.sameText
+      ? Object.fromEntries(post.networks.map((n) => [n, entry]))
+      : { ...(post.networkCopy ?? {}), [network]: entry };
+    const saved = await patch("caption", post.sameText ? { networkCopy: next, caption: text, hashtags: hashtags.slice(0, 5) } : { networkCopy: next });
+    if (!saved) return false;
+    replace(saved);
+    return true;
+  }
+
   if (!mounted || !post) return null;
+  const uploaded = Boolean(post.finalVideo);
+  const now = Boolean(post.publishOnApproval);
+  const videoUrl = post.finalVideo?.streamUrl ?? post.artifact?.url ?? null;
   const who = post.submittedByName ?? post.assigneeName ?? "l'équipe";
   const place = post.property?.place;
-  const heading = [post.title, place].filter(Boolean).join(", ");
+  const heading = post.finalVideo ? post.title : [post.title, place].filter(Boolean).join(", ");
   const nextOne = items[Math.min(index, items.length - 1)] ?? null;
 
   const video = (
     <div className="relative mx-auto aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-2xl bg-[linear-gradient(160deg,#d4a985,#8a5a3a)] md:max-w-[300px]">
-      {post.artifact?.url ? (
+      {videoUrl ? (
         <video
-          src={post.artifact.url}
+          src={videoUrl}
           controls
           playsInline
           preload="metadata"
@@ -263,11 +281,10 @@ export function ApprovalPreview({
           <CheckIcon size={34} weight="bold" />
         </span>
         <h3 className="text-2xl font-bold tracking-tight text-[#1F1A16]">
-          Validée et programmée
+          {done.publishOnApproval ? "Validée, publication lancée" : "Validée et programmée"}
         </h3>
         <p className="max-w-sm text-[15px] text-neutral-700">
-          Part{" "}
-          {slotLabel(done.scheduledAt).replace(/^./, (c) => c.toLowerCase())}{" "}
+          {done.publishOnApproval ? "Part maintenant" : <>Part {slotLabel(done.scheduledAt).replace(/^./, (c) => c.toLowerCase())}</>}{" "}
           sur {networksLabel(done.networks)}.{" "}
           {post.submittedByName
             ? `${post.submittedByName} le verra dans le Studio.`
@@ -288,7 +305,7 @@ export function ApprovalPreview({
           disabled={busy !== null}
           className="h-12 flex-1 rounded-full bg-white text-[15px] font-bold text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)] disabled:opacity-50"
         >
-          {busy === "unapprove" ? "Annulation…" : "Annuler"}
+          {busy === "unapprove" ? "Annulation…" : done.publishOnApproval ? "Arrêter" : "Annuler"}
         </button>
         <button
           type="button"
@@ -310,7 +327,7 @@ export function ApprovalPreview({
     body = (
       <div ref={bodyRef} className="grid gap-3">
         <div>
-          <h3 className="text-lg font-bold text-[#1F1A16]">Renvoyer à {who}</h3>
+          <h3 className="text-lg font-bold text-[#1F1A16]">{uploaded ? `Demander une modification à ${who}` : `Renvoyer à ${who}`}</h3>
           <p className="text-[13px] text-neutral-600">
             Dites ce qu&apos;il faut corriger. La date est libérée.
           </p>
@@ -387,7 +404,7 @@ export function ApprovalPreview({
           <div className="w-[112px] shrink-0 md:hidden">{video}</div>
           <div className="grid min-w-0 flex-1 content-start gap-1">
             <span className="text-[17px] font-bold text-[#1F1A16]">
-              {slotLabel(post.scheduledAt)}
+              {now ? "Dès que vous validez" : slotLabel(post.scheduledAt)}
             </span>
             <span className="text-[13px] text-neutral-600">
               Proposée par {who}
@@ -446,7 +463,7 @@ export function ApprovalPreview({
                 }}
                 className="min-h-11 w-max text-sm font-semibold text-[#A8521D] underline underline-offset-2 md:min-h-8"
               >
-                Changer la date
+                {now ? "Choisir une date" : "Changer la date"}
               </button>
             )}
           </div>
@@ -492,6 +509,9 @@ export function ApprovalPreview({
         </div>
         {(tiktok?.enabled || post.networks.includes("tiktok")) && <TikTokNote info={tiktok} />}
 
+        {uploaded ? (
+          <NetworkTexts post={post} busy={busy !== null} onSave={saveNetworkText} />
+        ) : (
         <section
           aria-labelledby="preview-desc"
           className="grid gap-2 rounded-2xl bg-white p-3.5 ring-1 ring-[rgba(74,52,36,0.10)]"
@@ -564,25 +584,27 @@ export function ApprovalPreview({
             {postText(post.caption, post.hashtags).length} / 2 200
           </span>
         </section>
+        )}
       </div>
     );
     footer = (
-      <div className="flex gap-2">
+      // « Demander une modification » is long: on a phone the two buttons stack, Valider on top.
+      <div className={cn("flex gap-2", uploaded && "flex-col-reverse sm:flex-row")}>
         <button
           type="button"
           onClick={() => setView("return")}
           disabled={busy !== null}
-          className="h-12 flex-1 rounded-full bg-white text-[15px] font-bold text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)] disabled:opacity-50"
+          className={cn("h-12 rounded-full bg-white px-3 text-[15px] font-bold text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)] disabled:opacity-50", uploaded ? "shrink-0 sm:flex-1" : "flex-1")}
         >
-          Renvoyer
+          {uploaded ? "Demander une modification" : "Renvoyer"}
         </button>
         <button
           type="button"
           onClick={() => void approve()}
           disabled={busy !== null || editing}
-          className="h-12 flex-[1.6] rounded-full bg-[#C96A2E] text-[15px] font-bold text-white hover:bg-[#B85E26] disabled:opacity-50"
+          className={cn("h-12 rounded-full bg-[#C96A2E] text-[15px] font-bold text-white hover:bg-[#B85E26] disabled:opacity-50", uploaded ? "shrink-0 sm:flex-1" : "flex-[1.6]")}
         >
-          {busy === "approve" ? "Validation…" : "Valider et programmer"}
+          {busy === "approve" ? "Validation…" : now ? "Valider et publier" : "Valider et programmer"}
         </button>
       </div>
     );

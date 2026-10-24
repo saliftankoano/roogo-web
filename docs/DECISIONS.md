@@ -16,6 +16,29 @@ out. Newest first. For what shipped and when, see
 **Ruled out:** A separate `youtube_tokens` table. Creating the goal row in the migration (Salif creates it). Counting long videos in « Dernières publications ». Reading YouTube Analytics (non-goal in the PRD).
 
 **Status:** Branch `feat/youtube-connexion`, not merged, migration 106 not run, no real Google call made during development.
+### Publier une vidéo: one upload to Drive, every network, after Salif's OK — 2026-10-23
+
+**Decision:** PRDs 2 and 3 of the vault note « PRD - YouTube et Publier partout (octobre 2026) », approved by Salif on 2026-10-23, built for Facebook, Instagram and TikTok (YouTube Shorts listed as « à connecter » until PRD 1). One finished vertical video (9:16, MP4/MOV, at most 3 minutes and 500 MB) is uploaded once from Studio › Publier, archived in Drive « Vidéos finales », sent to Salif as a task, and published on every ticked network right after his « Valider » (a date stays possible). One model call writes a base and one text per network; price, place, phones and roogobf.com are inserted and checked by code, never trusted from the model.
+
+**Why the bytes go to Drive, not Supabase Storage:** the brief suggested a Supabase signed or resumable upload with a bucket allowlist, but the Supabase project refuses any object over 50 MB whatever the bucket says (measured 2026-10-12, see the video compression decision), and finished videos reach 500 MB. The field media path already sends phone footage of 100 MB to 1 GB from the browser straight to the shared Drive through a resumable session (resume after a cut, relay fallback, server check of the final file), so it is reused: the Drive copy is made on upload (PRD 2.4) and is also what Meta and TikTok download, through a 3-hour HMAC-signed stream link (the PRD's « short-lived signed link »). Consequences: no bucket change in migration 105 (the limits live in table checks and in the code), and nothing temporary to delete after publishing, because the only copy is the archive the team wants to keep.
+
+**Other choices:**
+- **Texts:** stored per network in `studio_publications.network_copy`, the base in `caption`/`hashtags` (so the calendar keeps working). Every save, the founder's edits included, runs `finalizeNetworkCopy`; « Valider » and the publisher (right before each network) run `copyProblems` again with the listing's facts. A wrong price, another phone number, a financing mention on a sale (cash only), « faux », more than 3 emoji or a text too long block; a hashtag count outside the network's range or a long TikTok hook are warnings. Rentals may quote whole months of rent (caution, avance).
+- **Phone line:** « WhatsApp : 67 00 61 16 · Appel : 53 11 11 19 » on every network, as approved; `CAPTION_CONTACT` changed for the older calendar captions too, so there is one rule.
+- **Founder task:** an automatic Accueil source (`studio_video_approvals` in `lib/team-tasks/sources.ts`), not a stored task: it disappears when the post leaves « À valider », and a post sent back becomes « Corriger la vidéo » for its sender. No task table change.
+- **Right away:** `publish_on_approval`; « Valider » sets `scheduled_at` to that moment and starts the publisher after the answer (`after()`, same claim as the cron, so a double run is harmless). The 10-minute cron stays the safety net.
+- **Per-network retry:** « Réessayer » on one network holds the other failed ones for that run (`held` in the results, cleared after), so each failure has its own retry and a success is never re-posted.
+- **Facebook over 90 s:** Reels stop at 90 s through the API, the PRD allows 3 minutes, so a longer video is posted as a regular Page video (still vertical) with the note « Vidéo (plus de 90 s, pas un Reel) ».
+- **No whole video in a function (2026-10-23, approved by Salif before merge):** TikTok's FILE_UPLOAD used to download the whole video into memory, which a 500 MB file could crash. It now reads 10 MB ranges one at a time and PUTs each, retrying a chunk 3 times; a run near its time budget saves the position and the next run continues (TikTok's upload URL lasts one hour). PULL_FROM_URL needs a URL prefix verified in the TikTok developer portal, which Roogo does not have yet, so it is used only when `TIKTOK_PULL_URL_PREFIX` is set. Facebook and Instagram already download the signed link themselves (`file_url`, `video_url`); our stream route passes Drive's bytes through as a stream within 300 s.
+- **Drive folders:** found by name under the shared drive (Videos › « Vidéos finales » › « Publié »), with the team's folder ids as documented defaults, overridable by `STUDIO_FINAL_VIDEOS_FOLDER_ID` and `STUDIO_PUBLISHED_VIDEOS_FOLDER_ID`. Tanghin's per-property « Vidéo finales » is not at the drive's root, so it never matches.
+
+**Ruled out:** Supabase Storage or TUS (50 MB cap). A second, temporary copy for the networks (two copies to keep in step, and the Drive copy is needed anyway). Letting the model write the phone or price. Stored founder tasks (would need cleanup when Salif validates from the calendar). Re-encoding or converting videos (the team exports them finished; HDR stays untouched).
+
+**Skipped for now:** cover image choice (PRD 2.10, Could), learning from Salif's edits (PRD 3.7, Could), YouTube (PRD 1).
+
+**Status:** Branch `feat/publier-partout`, not merged, not deployed. Migration 105 not run (Salif runs it before the merge; until then the calendar's queries fail because they read the new columns). No real post and no real Drive upload were made; the model call was mocked in tests.
+
+---
 
 ### Monthly lease PDFs follow the official Burkina Faso lease template — 2026-10-21
 

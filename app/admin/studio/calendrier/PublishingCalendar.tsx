@@ -152,6 +152,9 @@ export function PublishingCalendar() {
     if (isFounder && post.status === "a_valider") {
       const index = waiting.findIndex((p) => p.id === post.id);
       setPreview({ queue: index >= 0 ? waiting : [post], index: Math.max(0, index) });
+    } else if (post.finalVideo) {
+      // « Publier une vidéo » posts are followed and corrected on their own page.
+      window.location.assign(`/admin/studio/publier?publication=${encodeURIComponent(post.id)}`);
     } else {
       setEditing({ kind: "edit", post });
     }

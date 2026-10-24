@@ -2,7 +2,11 @@
 
 ## YouTube connection and the « Abonnés YouTube » goal — 2026-10-23
 
-- [ ] [106_youtube_connection.sql](./106_youtube_connection.sql) — **not run.** Run after 100 (`social_tokens`). `social_tokens.provider` accepts `youtube` next to `tiktok`; `team_goals.metric` and `team_goal_readings.metric` accept `youtube_subscribers`. No data written, no goal created (the founder creates « 500 abonnés YouTube » in the app). Safe to run twice and for every app version. Until it runs, « Connecter YouTube » comes back with « La migration 106 n'est pas encore passée » and the « Abonnés YouTube » goal cannot be saved. Numbered 106 because 105 is the parallel `feat/publier-partout` branch (and 102 the studio carousels branch). Branch `feat/youtube-connexion`.
+- [x] [106_youtube_connection_executed.sql](./106_youtube_connection_executed.sql) — **run by Salif on 2026-10-23.** Run after 100 (`social_tokens`). `social_tokens.provider` accepts `youtube` next to `tiktok`; `team_goals.metric` and `team_goal_readings.metric` accept `youtube_subscribers`. No data written, no goal created (the founder creates « 500 abonnés YouTube » in the app). Safe to run twice and for every app version. Until it runs, « Connecter YouTube » comes back with « La migration 106 n'est pas encore passée » and the « Abonnés YouTube » goal cannot be saved. Numbered 106 because 105 is the parallel `feat/publier-partout` branch (and 102 the studio carousels branch). Branch `feat/youtube-connexion`.
+
+## Publier partout — 2026-10-23
+
+- [x] [105_studio_publish_everywhere_executed.sql](./105_studio_publish_everywhere_executed.sql) — **run by Salif on 2026-10-23.** `studio_final_videos`, new columns on `studio_publications` (`final_video_id`, `network_copy`, `same_text`, `publish_on_approval`), networks accept `youtube`.
 
 ## Job applications with a deadline (hiring) — 2026-10-22
 
