@@ -1,5 +1,9 @@
 # Database migration execution ledger
 
+## YouTube connection and the « Abonnés YouTube » goal — 2026-10-23
+
+- [ ] [106_youtube_connection.sql](./106_youtube_connection.sql) — **not run.** Run after 100 (`social_tokens`). `social_tokens.provider` accepts `youtube` next to `tiktok`; `team_goals.metric` and `team_goal_readings.metric` accept `youtube_subscribers`. No data written, no goal created (the founder creates « 500 abonnés YouTube » in the app). Safe to run twice and for every app version. Until it runs, « Connecter YouTube » comes back with « La migration 106 n'est pas encore passée » and the « Abonnés YouTube » goal cannot be saved. Numbered 106 because 105 is the parallel `feat/publier-partout` branch (and 102 the studio carousels branch). Branch `feat/youtube-connexion`.
+
 ## Job applications with a deadline (hiring) — 2026-10-22
 
 - [x] [104_job_applications_executed.sql](./104_job_applications_executed.sql) — **run by Salif on 2026-10-22.** Service-role table `job_applications` (one application per phone number per role: unique `(role_slug, phone)`, status `nouveau` / `retenu` / `entretien` / `refuse`, reviewer notes) and the PRIVATE bucket `candidatures` (PDF, JPEG, PNG, WebP, MP4, MOV, WebM; 150 MB). RLS on, no policy, anon and authenticated revoked; no storage policy. Safe to run twice and for every app version. Also raise the project-wide Storage upload limit to at least 150 MB (Dashboard > Storage > Settings), or videos above it fail with 413. Until it runs, `/carrieres/commercial-immobilier` shows the form but uploads and sending fail, and `/admin/recrutement` says the migration is missing. Numbered 104 because 102 (studio carousels branch) and 103 (lease signatures) are taken.

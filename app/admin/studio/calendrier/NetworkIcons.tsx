@@ -3,6 +3,7 @@
 import { useId } from "react";
 import { cn } from "@/lib/utils";
 import { TikTokMark } from "@/components/admin/TikTokMark";
+import { YouTubeMark } from "@/components/admin/YouTubeMark";
 import { NETWORK_LABELS, type Network } from "@/lib/studio/publishing";
 
 /**
@@ -48,6 +49,11 @@ function TiktokLogo({ size }: { size: number }) {
   return <TikTokMark size={size} />;
 }
 
+/** Shared with the goal icons on Accueil (components/admin/YouTubeMark.tsx). */
+function YoutubeLogo({ size }: { size: number }) {
+  return <YouTubeMark size={size} />;
+}
+
 /** Messenger (Facebook private messages in Studio > Réseaux): the gradient bubble with the white lightning. */
 function MessengerLogo({ size }: { size: number }) {
   const id = useId().replace(/:/g, "");
@@ -88,14 +94,21 @@ export function MessengerIcon({ size = 14, className, label = true }: { size?: n
   );
 }
 
-const LOGOS = { facebook: FacebookLogo, instagram: InstagramLogo, tiktok: TiktokLogo } as const;
+const LOGOS = { facebook: FacebookLogo, instagram: InstagramLogo, tiktok: TiktokLogo, youtube: YoutubeLogo } as const;
 
-export function NetworkIcon({ network, size = 14, className, label = true }: { network: Network; size?: number; className?: string; label?: boolean }) {
+/**
+ * Every network with a logo. YouTube is drawn here (Studio > Statistiques,
+ * 2026-10-23) before it becomes a publishing network (« Publier partout »).
+ */
+export type LogoNetwork = Network | "youtube";
+const LABELS: Record<LogoNetwork, string> = { youtube: "YouTube", ...NETWORK_LABELS };
+
+export function NetworkIcon({ network, size = 14, className, label = true }: { network: LogoNetwork; size?: number; className?: string; label?: boolean }) {
   const Logo = LOGOS[network];
   return (
     <span
       role={label ? "img" : undefined}
-      aria-label={label ? NETWORK_LABELS[network] : undefined}
+      aria-label={label ? LABELS[network] : undefined}
       aria-hidden={label ? undefined : true}
       className={cn("inline-flex shrink-0", className)}
       style={{ width: size, height: size }}
@@ -105,7 +118,7 @@ export function NetworkIcon({ network, size = 14, className, label = true }: { n
   );
 }
 
-export function NetworkIcons({ networks, size = 14 }: { networks: Network[]; size?: number }) {
+export function NetworkIcons({ networks, size = 14 }: { networks: LogoNetwork[]; size?: number }) {
   return (
     <span className="inline-flex items-center gap-1">
       {networks.map((n) => (

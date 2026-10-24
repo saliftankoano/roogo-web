@@ -111,6 +111,11 @@ export function EvidenceDrawer({
               Connecter TikTok dans Statistiques
             </Link>
           )}
+          {goal.needsYouTubeConnection && canManage && (
+            <Link href="/admin/studio/statistiques" className="self-start text-sm font-extrabold text-[#8A4924] hover:text-[#5A321A]">
+              Connecter YouTube dans Statistiques
+            </Link>
+          )}
         </div>
       }
       footer={
