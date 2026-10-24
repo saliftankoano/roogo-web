@@ -492,24 +492,6 @@ export function PropertyDetailClient({
                 )}
               </section>
 
-              {listing.videoUrl && (
-                <section className="space-y-4 rounded-[32px] border border-neutral-100 bg-white p-6 shadow-sm md:p-8">
-                  <div>
-                    <p className="mb-2 text-[10px] font-bold uppercase tracking-widest text-neutral-400">
-                      Vidéo
-                    </p>
-                    <h2 className="text-xl font-black text-neutral-900">
-                      Découvrez le bien en vidéo
-                    </h2>
-                  </div>
-                  <video
-                    src={listing.videoUrl}
-                    controls
-                    className="aspect-video w-full rounded-2xl bg-black object-contain"
-                  />
-                </section>
-              )}
-
               {listing.virtualTourUrl && (
                 <section className="bg-white p-6 md:p-8 rounded-[32px] border border-neutral-100 shadow-sm space-y-4">
                   <div>

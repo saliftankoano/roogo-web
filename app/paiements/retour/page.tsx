@@ -5,15 +5,12 @@ import { useSearchParams, useRouter } from "next/navigation";
 import { CheckCircle2, XCircle, Loader2, AlertCircle } from "lucide-react";
 import { useAuth, useUser } from "@clerk/nextjs";
 import {
-  getPendingVideo,
   getPendingPhotos,
   type PendingPhoto,
   removePendingPhotos,
-  removePendingVideo,
 } from "@/lib/clientPendingPhotos";
 import {
   uploadCompressedPropertyPhotos,
-  uploadPropertyVideoData,
 } from "@/lib/clientPropertyPhotoUpload";
 import { paymentFailureMessage } from "@/lib/payment-failures";
 
@@ -239,8 +236,6 @@ function PaymentStatusChecker({
           pendingPhotosOverflow?: boolean;
           pendingPhotosCount?: number;
           pendingPhotosStoredInDb?: boolean;
-          pendingVideoStoredInDb?: boolean;
-          pendingVideoOverflow?: boolean;
           onBehalfOfClient?: boolean;
           selectedOwnerId?: string | null;
           isTestListing?: boolean;
@@ -353,39 +348,12 @@ function PaymentStatusChecker({
           }
         }
 
-        let videoUploadFailed = false;
-        if (propertyId && pending.pendingVideoStoredInDb && depositId) {
-          const pendingVideo = await getPendingVideo(depositId);
-          if (pendingVideo) {
-            try {
-              await uploadPropertyVideoData({
-                propertyId,
-                token,
-                data: pendingVideo.data,
-                ext: pendingVideo.ext,
-                mimeType: pendingVideo.mimeType,
-                sizeBytes: pendingVideo.sizeBytes,
-              });
-            } catch (videoUploadError) {
-              console.error(
-                "Error uploading pending listing video:",
-                videoUploadError,
-              );
-              videoUploadFailed = true;
-            } finally {
-              await removePendingVideo(depositId);
-            }
-          }
-        }
-
         if (
           pending.pendingPhotosOverflow ||
-          pending.pendingVideoOverflow ||
-          photoUploadFailed ||
-          videoUploadFailed
+          photoUploadFailed
         ) {
           setMessage(
-            "Paiement confirme et annonce creee. Ajoutez les médias depuis la fiche du bien.",
+            "Paiement confirmé et annonce créée. Ajoutez les photos depuis la fiche du bien.",
           );
         } else {
           setMessage("Paiement confirmé et annonce créée avec succès.");

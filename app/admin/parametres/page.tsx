@@ -432,12 +432,6 @@ export default function AdminSettingsPage() {
                               <div className="w-1 h-1 rounded-full bg-neutral-300" />
                               {tier.slot_limit} candidats
                             </span>
-                            {tier.video_included && (
-                              <span className="flex items-center gap-1.5">
-                                <div className="w-1 h-1 rounded-full bg-neutral-300" />
-                                Vidéo incluse
-                              </span>
-                            )}
                             <span className="flex items-center gap-1.5">
                               <div className="w-1 h-1 rounded-full bg-neutral-300" />
                               {tier.open_house_limit} visite(s)
