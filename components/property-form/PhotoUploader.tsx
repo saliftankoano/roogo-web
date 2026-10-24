@@ -11,6 +11,7 @@ import {
 import Image from "next/image";
 import { MAX_LISTING_PHOTOS, MIN_LISTING_PHOTOS } from "@/lib/validations";
 import { LISTING_QUALITY_MIN } from "@/lib/listing-quality";
+import { OptionalMark } from "./FieldMarks";
 
 interface PhotoUploaderProps {
   files: File[];
@@ -136,6 +137,7 @@ export const PhotoUploader: React.FC<PhotoUploaderProps> = ({
             <label className="flex items-center gap-2 text-sm font-medium text-gray-700">
               <Video className="h-4 w-4" />
               Vidéo du bien
+              <OptionalMark />
             </label>
             <span className="text-xs font-semibold text-neutral-400">
               Optionnelle
