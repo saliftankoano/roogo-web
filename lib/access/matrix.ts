@@ -374,8 +374,8 @@ export const AREAS: Area[] = [
       },
       {
         id: "social-connect",
-        action: "Connecter ou déconnecter le compte TikTok (abonnés lus chaque nuit)",
-        detail: "Une seule fois, avec le compte @roogo.226 sur TikTok. Les jetons restent chiffrés sur le serveur ; personne ne les voit.",
+        action: "Connecter ou déconnecter le compte TikTok et la chaîne YouTube (abonnés lus chaque nuit)",
+        detail: "Une seule fois, avec le compte @roogo.226 sur TikTok et le compte Google de la chaîne YouTube Roogo. Les jetons restent chiffrés sur le serveur ; personne ne les voit.",
         access: FOUNDER_ONLY,
         enforcedBy: ["serveur"],
         files: [
@@ -384,6 +384,11 @@ export const AREAS: Area[] = [
           "app/api/admin/social/tiktok/callback/route.ts",
           "app/api/admin/social/tiktok/disconnect/route.ts",
           "app/api/admin/social/tiktok/status/route.ts",
+          "app/api/admin/social/youtube/_shared.ts",
+          "app/api/admin/social/youtube/connect/route.ts",
+          "app/api/admin/social/youtube/callback/route.ts",
+          "app/api/admin/social/youtube/disconnect/route.ts",
+          "app/api/admin/social/youtube/status/route.ts",
         ],
         titleMatters: true,
       },

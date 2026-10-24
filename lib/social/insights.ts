@@ -1,6 +1,7 @@
 // Social statistics for Studio > Statistiques: the Roogo Burkina Facebook Page
-// and the @roogo.burkina Instagram account, read from the Meta Graph API, and
-// the @roogo.226 TikTok account, read from TikTok's Display API v2.
+// and the @roogo.burkina Instagram account, read from the Meta Graph API, the
+// @roogo.226 TikTok account, read from TikTok's Display API v2, and the Roogo
+// YouTube channel, read from the YouTube Data API v3.
 //
 // Read only: every Meta call here is a GET, and the TikTok calls only read
 // (the video list is a POST by TikTok's design). Nothing is ever posted.
@@ -35,6 +36,14 @@
 //   POST /v2/video/list/  view_count, like_count, comment_count, share_count (video.list)
 // TikTok gives no reach, saves or account-level views: the card sums the
 // views of the videos posted in the last 28 days and says so.
+//
+// YouTube (Data API v3, token from lib/team-goals/youtube-store.ts):
+//   GET /channels?part=snippet,statistics,contentDetails&mine=true   subscribers (rounded by YouTube), videos, views, uploads playlist
+//   GET /playlistItems?part=contentDetails&playlistId=<uploads>        upload dates (50 per page)
+//   GET /videos?part=snippet,statistics,contentDetails&id=...          views, likes, comments, duration
+// 1 quota unit each (10 000 a day by default). A Short is a video of 3
+// minutes or less (the API has no « is Short » flag; Roogo only posts
+// vertical Shorts, so duration is the test).
 
 export const SOCIAL_GRAPH_VERSION = "v25.0";
 const GRAPH_HOST = "https://graph.facebook.com";
@@ -45,9 +54,9 @@ export const CADENCE_POSTS = 60;
 export const INSIGHT_POSTS = 12;
 const CONCURRENCY = 4;
 
-export type Network = "facebook" | "instagram" | "tiktok";
+export type Network = "facebook" | "instagram" | "tiktok" | "youtube";
 
-export type PostFormat = "reel" | "video" | "photo" | "carrousel" | "texte" | "autre";
+export type PostFormat = "reel" | "short" | "video" | "photo" | "carrousel" | "texte" | "autre";
 
 export type SocialPost = {
   network: Network;
@@ -104,9 +113,9 @@ export type AccountSnapshot = {
   totals: AccountTotals | null;
   /** False when the per-post statistics could not be read (permission, token). */
   insightsAvailable: boolean;
-  /** TikTok only: lifetime likes and video count from the profile. */
-  profileTotals: { likes: number | null; videos: number | null } | null;
-  /** True when the account is simply not connected yet (TikTok), not an error. */
+  /** TikTok: lifetime likes and video count. YouTube: video count and lifetime views (no likes). */
+  profileTotals: { likes: number | null; videos: number | null; views?: number | null } | null;
+  /** True when the account is simply not connected yet (TikTok, YouTube), not an error. */
   notConnected: boolean;
   /** French, shown on the card. */
   warnings: string[];
@@ -119,6 +128,7 @@ export type SocialSnapshot = {
   facebook: AccountSnapshot;
   instagram: AccountSnapshot;
   tiktok: AccountSnapshot;
+  youtube: AccountSnapshot;
   /** Env names missing (names only). */
   missing: string[];
 };
@@ -937,6 +947,242 @@ export async function readTikTok(deps: TikTokDeps, access: TikTokAccessLike, log
   return acc;
 }
 
+// --- YouTube -----------------------------------------------------------------
+
+export const YOUTUBE_API = "https://www.googleapis.com/youtube/v3";
+/** Uploads read for the rhythm chart (8 weeks) and the 28-day views. */
+export const YOUTUBE_MAX_VIDEOS = 60;
+const YOUTUBE_PAGE_SIZE = 50;
+/** YouTube Shorts are up to 3 minutes long (since 2024-10-15). */
+export const SHORT_MAX_SECONDS = 180;
+export const YOUTUBE_NOT_CONNECTED = "YouTube n'est pas encore connecté. Le fondateur le connecte depuis Statistiques.";
+
+/** The shape getFreshYouTubeAccess (lib/team-goals/youtube-store.ts) returns. */
+export type YouTubeAccessLike = { ok: true; token: string; scope: string } | { ok: false; error: string; notConnected?: boolean };
+
+export class YouTubeApiError extends Error {
+  /** Google's errors[0].reason (quotaExceeded, insufficientPermissions...) or details[0].reason. */
+  readonly reason: string | null;
+  readonly httpStatus: number;
+  constructor(reason: string | null, httpStatus: number, message: string) {
+    super(message);
+    this.name = "YouTubeApiError";
+    this.reason = reason;
+    this.httpStatus = httpStatus;
+  }
+}
+
+/** French text for the YouTube card. Never includes a token or a URL. */
+export function frenchYouTubeError(error: unknown, what: "chaîne" | "vidéos"): string {
+  if (error instanceof YouTubeApiError) {
+    const r = error.reason ?? "";
+    if (error.httpStatus === 401 || r === "authError") {
+      return "Le jeton YouTube a expiré ou a été révoqué. Le fondateur reconnecte YouTube ci-dessous.";
+    }
+    if (r === "quotaExceeded" || r === "dailyLimitExceeded") {
+      return "Le quota YouTube du jour est atteint. Les chiffres reviendront demain.";
+    }
+    if (r === "insufficientPermissions" || r === "ACCESS_TOKEN_SCOPE_INSUFFICIENT") {
+      return `Permission YouTube manquante pour lire ${what === "chaîne" ? "la chaîne" : "les vidéos"} (youtube.readonly). Le fondateur reconnecte YouTube ci-dessous.`;
+    }
+    if (r === "rateLimitExceeded" || r === "userRateLimitExceeded" || error.httpStatus === 429) {
+      return "YouTube limite les lectures pour le moment. Les chiffres reviendront au prochain rafraîchissement.";
+    }
+    if (r === "accessNotConfigured" || r === "SERVICE_DISABLED") {
+      return "L'API YouTube Data v3 n'est pas activée dans le projet Google Cloud.";
+    }
+    if (error.httpStatus >= 500) return "YouTube ne répond pas pour le moment. Réessayez plus tard.";
+    const detail = error.message.replace(/https?:\/\/\S+/g, "[lien]").slice(0, 140);
+    return `Erreur YouTube${r ? ` (${r})` : ""} : ${detail || "réponse inattendue"}`;
+  }
+  return "Pas de réponse de YouTube. Réessayez plus tard.";
+}
+
+function youtubeLogShape(error: unknown) {
+  if (error instanceof YouTubeApiError) return { status: error.httpStatus, reason: error.reason, message: error.message.slice(0, 200) };
+  return { kind: "network", message: error instanceof Error ? error.message.slice(0, 200) : String(error) };
+}
+
+/** One Data API GET. Google answers errors as { error: { code, message, errors: [{ reason }], details: [{ reason }] } }. */
+export async function youtubeCall(fetchImpl: FetchLike, token: string, path: string, query: Record<string, string>): Promise<Json> {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), TIMEOUT_MS);
+  try {
+    let res;
+    try {
+      res = await fetchImpl(`${YOUTUBE_API}/${path}?${new URLSearchParams(query).toString()}`, {
+        method: "GET",
+        headers: { Authorization: `Bearer ${token}` },
+        signal: controller.signal,
+        cache: "no-store",
+      });
+    } catch (error) {
+      const aborted = error instanceof Error && error.name === "AbortError";
+      throw new Error(aborted ? `pas de réponse en ${TIMEOUT_MS / 1000} s` : "erreur réseau");
+    }
+    let data: Json = {};
+    try {
+      data = ((await res.json()) ?? {}) as Json;
+    } catch {
+      data = {};
+    }
+    const err = data.error as { message?: unknown; errors?: { reason?: unknown }[]; details?: { reason?: unknown }[] } | undefined;
+    if (!res.ok || err) {
+      const reason = [err?.errors?.[0]?.reason, err?.details?.[0]?.reason].find((r): r is string => typeof r === "string") ?? null;
+      throw new YouTubeApiError(reason, res.status, typeof err?.message === "string" && err.message ? err.message : `HTTP ${res.status}`);
+    }
+    return data;
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/** Seconds of an ISO 8601 duration (« PT1M5S » is 65), or null. */
+export function isoDurationSeconds(value: unknown): number | null {
+  if (typeof value !== "string" || value === "P" || value === "PT") return null;
+  const m = /^P(?:(\d+)D)?(?:T(?:(\d+)H)?(?:(\d+)M)?(?:(\d+(?:\.\d+)?)S)?)?$/.exec(value);
+  if (!m) return null;
+  const [, d, h, min, sec] = m;
+  return Number(d ?? 0) * 86400 + Number(h ?? 0) * 3600 + Number(min ?? 0) * 60 + Math.round(Number(sec ?? 0));
+}
+
+/** One YouTube video as a post row. YouTube gives no reach, shares or saves. */
+export function parseYouTubeVideo(video: Json): SocialPost | null {
+  const id = str(video.id);
+  const snippet = (video.snippet ?? {}) as Json;
+  const stats = (video.statistics ?? {}) as Json;
+  const published = str(snippet.publishedAt);
+  if (!id || !published || !Number.isFinite(Date.parse(published))) return null;
+  const seconds = isoDurationSeconds((video.contentDetails as Json | undefined)?.duration);
+  const short = seconds !== null && seconds > 0 && seconds <= SHORT_MAX_SECONDS;
+  const thumbs = (snippet.thumbnails ?? {}) as Record<string, { url?: unknown } | undefined>;
+  const likes = num(stats.likeCount);
+  const comments = num(stats.commentCount);
+  return {
+    network: "youtube",
+    id,
+    permalink: short ? `https://www.youtube.com/shorts/${id}` : `https://www.youtube.com/watch?v=${id}`,
+    createdAt: new Date(published).toISOString(),
+    caption: shortCaption(str(snippet.title) ?? ""),
+    thumbnail: str(thumbs.medium?.url) ?? str(thumbs.high?.url) ?? str(thumbs.default?.url),
+    format: short ? "short" : "video",
+    reach: null,
+    views: num(stats.viewCount),
+    likes,
+    comments,
+    shares: null,
+    saves: null,
+    interactions: likes === null && comments === null ? null : (likes ?? 0) + (comments ?? 0),
+    engagementRate: null,
+  };
+}
+
+export type YouTubeDeps = { fetch: FetchLike; now?: () => Date };
+
+/**
+ * The YouTube card. Never throws: not connected is a calm state, a failed
+ * channel read is the card's error, a failed video list keeps the subscriber
+ * count and shows a warning. « Dernières publications » shows the Shorts;
+ * the rhythm and the 28-day views count every upload.
+ */
+export async function readYouTube(deps: YouTubeDeps, access: YouTubeAccessLike, log: Logger = () => {}): Promise<AccountSnapshot> {
+  const now = deps.now?.() ?? new Date();
+  const acc = emptyAccount("youtube", access.ok, now);
+  if (!access.ok) {
+    if (access.notConnected) {
+      acc.notConnected = true;
+      acc.error = YOUTUBE_NOT_CONNECTED;
+    } else {
+      acc.error = `YouTube ne peut pas être lu : ${access.error}`;
+    }
+    return acc;
+  }
+
+  let uploads: string | null = null;
+  try {
+    const data = await youtubeCall(deps.fetch, access.token, "channels", { part: "snippet,statistics,contentDetails", mine: "true" });
+    const item = Array.isArray(data.items) ? (data.items[0] as Json | undefined) : undefined;
+    if (!item) {
+      acc.error = "Ce compte Google n'a pas de chaîne YouTube. Le fondateur reconnecte YouTube avec le compte de la chaîne Roogo.";
+      return acc;
+    }
+    const snippet = (item.snippet ?? {}) as Json;
+    const stats = (item.statistics ?? {}) as Json;
+    acc.name = str(snippet.title);
+    acc.handle = str(snippet.customUrl)?.replace(/^@/, "") ?? null;
+    acc.followers = stats.hiddenSubscriberCount === true ? null : num(stats.subscriberCount);
+    acc.profileTotals = { likes: null, videos: num(stats.videoCount), views: num(stats.viewCount) };
+    uploads = str(((item.contentDetails as Json | undefined)?.relatedPlaylists as Json | undefined)?.uploads);
+    acc.ok = true;
+    if (stats.hiddenSubscriberCount === true) {
+      acc.warnings.push("La chaîne cache son nombre d'abonnés : l'afficher dans YouTube Studio pour que l'objectif se lise.");
+    }
+  } catch (error) {
+    log("[social-insights] youtube channel read failed", youtubeLogShape(error));
+    acc.error = frenchYouTubeError(error, "chaîne");
+    return acc;
+  }
+
+  const posts: SocialPost[] = [];
+  let listFailed = false;
+  if (uploads) {
+    try {
+      const oldest = now.getTime() - 60 * DAY;
+      const ids: string[] = [];
+      let pageToken: string | null = null;
+      for (let page = 0; page < Math.ceil(YOUTUBE_MAX_VIDEOS / YOUTUBE_PAGE_SIZE); page += 1) {
+        const query: Record<string, string> = { part: "contentDetails", playlistId: uploads, maxResults: String(YOUTUBE_PAGE_SIZE) };
+        if (pageToken) query.pageToken = pageToken;
+        const data = await youtubeCall(deps.fetch, access.token, "playlistItems", query);
+        const items = Array.isArray(data.items) ? (data.items as Json[]) : [];
+        let reachedOld = false;
+        for (const it of items) {
+          const details = (it.contentDetails ?? {}) as Json;
+          const id = str(details.videoId);
+          const at = Date.parse(str(details.videoPublishedAt) ?? "");
+          if (!id) continue;
+          if (Number.isFinite(at) && at < oldest) reachedOld = true;
+          ids.push(id);
+        }
+        const next = str(data.nextPageToken);
+        if (!next || reachedOld || !items.length || ids.length >= YOUTUBE_MAX_VIDEOS) break;
+        pageToken = next;
+      }
+      const wanted = [...new Set(ids)].slice(0, YOUTUBE_MAX_VIDEOS);
+      for (let i = 0; i < wanted.length; i += YOUTUBE_PAGE_SIZE) {
+        const data = await youtubeCall(deps.fetch, access.token, "videos", {
+          part: "snippet,statistics,contentDetails",
+          id: wanted.slice(i, i + YOUTUBE_PAGE_SIZE).join(","),
+          maxResults: String(YOUTUBE_PAGE_SIZE),
+        });
+        const items = Array.isArray(data.items) ? (data.items as Json[]) : [];
+        posts.push(...items.map(parseYouTubeVideo).filter((p): p is SocialPost => p !== null));
+      }
+    } catch (error) {
+      listFailed = true;
+      log("[social-insights] youtube video list failed", youtubeLogShape(error));
+      acc.warnings.push(frenchYouTubeError(error, "vidéos"));
+    }
+  }
+  const unique = [...new Map(posts.map((p) => [p.id, p])).values()].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+  acc.cadence = cadenceOf(unique.map((p) => p.createdAt), now);
+  acc.postCount = unique.length;
+  acc.posts = unique.filter((p) => p.format === "short").slice(0, INSIGHT_POSTS);
+  acc.insightsAvailable = unique.some((p) => p.views !== null);
+  acc.totals = listFailed && !unique.length ? null : { reach: null, views: recentViews(unique, now, 28), interactions: null };
+  return acc;
+}
+
+/** Where the YouTube part of the snapshot comes from (server: getFreshYouTubeAccess and fetch). */
+export type YouTubeSource = { access: () => Promise<YouTubeAccessLike>; fetch: FetchLike };
+
+function youtubePlaceholder(now: Date, error: string, notConnected: boolean): AccountSnapshot {
+  const acc = emptyAccount("youtube", !notConnected, now);
+  acc.notConnected = notConnected;
+  acc.error = error;
+  return acc;
+}
+
 /** Where the TikTok part of the snapshot comes from (server: getFreshTikTokAccess and fetch). */
 export type TikTokSource = { access: () => Promise<TikTokAccessLike>; fetch: TikTokFetchLike };
 
@@ -954,6 +1200,7 @@ export async function readSocialSnapshot(
   missing: string[],
   log: Logger = () => {},
   tiktok?: TikTokSource,
+  youtube?: YouTubeSource,
 ): Promise<SocialSnapshot> {
   const now = deps.now?.() ?? new Date();
   // Each network is read on its own: a TikTok failure never blanks Meta, and the reverse.
@@ -967,8 +1214,24 @@ export async function readSocialSnapshot(
       return tiktokPlaceholder(now, "TikTok ne peut pas être lu pour le moment. Réessayez plus tard.", false);
     }
   };
-  const [facebook, instagram, tiktokAccount] = await Promise.all([readFacebook(deps, cfg, log), readInstagram(deps, cfg, log), readTikTokSafely()]);
-  return { fetchedAt: now.toISOString(), facebook, instagram, tiktok: tiktokAccount, missing };
+  // YouTube the same way: its failure stays on the YouTube card.
+  const readYouTubeSafely = async (): Promise<AccountSnapshot> => {
+    if (!youtube) return youtubePlaceholder(now, YOUTUBE_NOT_CONNECTED, true);
+    try {
+      const access = await youtube.access();
+      return await readYouTube({ fetch: youtube.fetch, now: () => now }, access, log);
+    } catch (error) {
+      log("[social-insights] youtube read crashed", youtubeLogShape(error));
+      return youtubePlaceholder(now, "YouTube ne peut pas être lu pour le moment. Réessayez plus tard.", false);
+    }
+  };
+  const [facebook, instagram, tiktokAccount, youtubeAccount] = await Promise.all([
+    readFacebook(deps, cfg, log),
+    readInstagram(deps, cfg, log),
+    readTikTokSafely(),
+    readYouTubeSafely(),
+  ]);
+  return { fetchedAt: now.toISOString(), facebook, instagram, tiktok: tiktokAccount, youtube: youtubeAccount, missing };
 }
 
 /**
@@ -978,11 +1241,12 @@ export async function readSocialSnapshot(
  */
 export function followerReadingsOf(
   snapshot: SocialSnapshot,
-): { metric: "facebook_followers" | "instagram_followers" | "tiktok_followers"; ok: true; value: number }[] {
+): { metric: "facebook_followers" | "instagram_followers" | "tiktok_followers" | "youtube_subscribers"; ok: true; value: number }[] {
   const pairs = [
     ["facebook_followers", snapshot.facebook],
     ["instagram_followers", snapshot.instagram],
     ["tiktok_followers", snapshot.tiktok],
+    ["youtube_subscribers", snapshot.youtube],
   ] as const;
   return pairs
     .filter(([, account]) => account?.ok && typeof account.followers === "number")
@@ -991,7 +1255,7 @@ export function followerReadingsOf(
 
 /** A snapshot worth caching: at least one account was read. */
 export function isCacheable(snapshot: SocialSnapshot): boolean {
-  return snapshot.facebook.ok || snapshot.instagram.ok || snapshot.tiktok.ok;
+  return snapshot.facebook.ok || snapshot.instagram.ok || snapshot.tiktok.ok || !!snapshot.youtube?.ok;
 }
 
 // --- Follower history (team_goal_readings) -------------------------------------

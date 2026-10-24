@@ -5,6 +5,17 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### YouTube connects like TikTok: one founder connection, with upload asked up front — 2026-10-23
+
+**Decision:** The Roogo YouTube channel is connected once by the founder from the YouTube card of Studio › Statistiques, with Google OAuth asking both `youtube.readonly` and `youtube.upload` (PRD 1.4, approved by Salif 2026-10-23), `access_type=offline` and `prompt=consent`. Tokens live in the existing `social_tokens` table (provider `youtube`, migration 106), sealed with `SOCIAL_TOKENS_KEY`, exactly like TikTok. Subscribers become the goal metric `youtube_subscribers` (« Abonnés YouTube »), read on connect, on every fresh Statistiques snapshot and nightly, with the same rule as the other networks: an automatic reading of the day is inserted or refreshed, a manual one is never overwritten. The goal itself (« 500 abonnés YouTube » by 31 December 2026) is created by the founder in the app, not by a migration.
+
+**Why:** Asking upload now means « Publier partout » (PRD 2) can post Shorts without a second consent screen. Reusing the TikTok shape (table, sealing, card states, founder-only routes, readings) keeps one way of connecting a network. PKCE is added on top of the state cookie because Google supports it for web clients and it costs nothing.
+
+**Details:** « Dernières publications » lists Shorts only, defined as uploads of 3 minutes or less (the Data API has no « is Short » flag; Roogo only posts vertical Shorts). The rhythm and the 28-day views count every upload. YouTube rounds subscriber counts (3 significant figures above 1 000); the card says « Arrondi par YouTube ». A Google app in « Testing » gives refresh tokens that die after 7 days: the card shows it when Google sends `refresh_token_expires_in`, and every `invalid_grant` names the 7-day limit; the real fix is publishing the OAuth app « In production ».
+
+**Ruled out:** A separate `youtube_tokens` table. Creating the goal row in the migration (Salif creates it). Counting long videos in « Dernières publications ». Reading YouTube Analytics (non-goal in the PRD).
+
+**Status:** Branch `feat/youtube-connexion`, not merged, migration 106 not run, no real Google call made during development.
 ### Publier une vidéo: one upload to Drive, every network, after Salif's OK — 2026-10-23
 
 **Decision:** PRDs 2 and 3 of the vault note « PRD - YouTube et Publier partout (octobre 2026) », approved by Salif on 2026-10-23, built for Facebook, Instagram and TikTok (YouTube Shorts listed as « à connecter » until PRD 1). One finished vertical video (9:16, MP4/MOV, at most 3 minutes and 500 MB) is uploaded once from Studio › Publier, archived in Drive « Vidéos finales », sent to Salif as a task, and published on every ticked network right after his « Valider » (a date stays possible). One model call writes a base and one text per network; price, place, phones and roogobf.com are inserted and checked by code, never trusted from the model.

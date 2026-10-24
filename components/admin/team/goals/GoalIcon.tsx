@@ -1,10 +1,11 @@
 // Goal icons from the approved canvas: real platform logos for TikTok,
-// Facebook and Instagram, the Roogo logo for users, a house for sales, a key
+// Facebook, Instagram and YouTube, the Roogo logo for users, a house for sales, a key
 // for rentals and a house-plus for new listings.
 
 import { cn } from "@/lib/utils";
 import type { GoalIcon as GoalIconKind } from "@/lib/team-goals/core";
 import { TikTokMark } from "../../TikTokMark";
+import { YouTubeMark } from "../../YouTubeMark";
 
 export function GoalIcon({ kind, size = 36, className }: { kind: GoalIconKind; size?: number; className?: string }) {
   const box = cn("inline-flex shrink-0 items-center justify-center rounded-[10px]", className);
@@ -46,6 +47,13 @@ export function GoalIcon({ kind, size = 36, className }: { kind: GoalIconKind; s
             <circle cx="12" cy="12" r="4" />
             <circle cx="17.5" cy="6.5" r="1" fill="#FFFFFF" stroke="none" />
           </svg>
+        </span>
+      );
+    case "youtube":
+      return (
+        // Same drawing as the Studio logo (components/admin/YouTubeMark.tsx).
+        <span aria-hidden="true" style={style} className={cn(box, "bg-white shadow-[inset_0_0_0_1px_#EAE1D5]")}>
+          <YouTubeMark size={Math.round(size * 0.66)} />
         </span>
       );
     case "vente":

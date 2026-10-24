@@ -14,6 +14,7 @@ import { createClerkClient } from "@clerk/backend";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { redis } from "@/lib/rate-limit";
 import { isTikTokConnected } from "./tiktok-store";
+import { isYouTubeConnected } from "./youtube-store";
 import { accountsGapLine, cachedClerkAccounts, type CacheStore, type ListClerkUsers } from "./clerk-users";
 import { propertyLabel } from "@/lib/team-tasks/sources";
 import type { Person } from "@/lib/team-tasks/core";
@@ -218,6 +219,8 @@ export type GoalView = {
   manual: boolean;
   /** TikTok goal while TikTok is not connected: the founder gets « Connecter TikTok dans Statistiques ». */
   needsTikTokConnection: boolean;
+  /** YouTube goal while YouTube is not connected: the founder gets « Connecter YouTube dans Statistiques ». */
+  needsYouTubeConnection: boolean;
   /** « Prochaine marche » (founder only): the next target once reached, or for the next period once ended. */
   nextStep: NextStep | null;
   levers: LeverView[];
@@ -282,6 +285,8 @@ type Loaded = {
   listings?: PropertyBits[];
   /** A TikTok account is connected: its readings come in every night. */
   tiktokConnected?: boolean;
+  /** The YouTube channel is connected: its readings come in every night. */
+  youtubeConnected?: boolean;
 };
 
 type UsersLoaded = {
@@ -495,7 +500,8 @@ function metricFor(goal: GoalRow, window: GoalWindow, ctx: Ctx, loaded: Loaded):
     }
     case "tiktok_followers":
     case "facebook_followers":
-    case "instagram_followers": {
+    case "instagram_followers":
+    case "youtube_subscribers": {
       const readings = loaded.readings?.get(goal.metric) ?? [];
       const last = readingAt(readings, at);
       const pace = readingPace(readings, today);
@@ -634,6 +640,7 @@ async function loadMetrics(goals: GoalRow[], ctx: Ctx, readings?: ReadingRow[]):
     });
   }
   if (metrics.has("tiktok_followers")) jobs.push(isTikTokConnected().then((v) => { loaded.tiktokConnected = v; }));
+  if (metrics.has("youtube_subscribers")) jobs.push(isYouTubeConnected().then((v) => { loaded.youtubeConnected = v; }));
   if (metrics.has("properties_under_contract")) guard(["properties_under_contract"], async () => { loaded.contracts = await loadContracts(); });
   if (metrics.has("properties_sold")) guard(["properties_sold"], async () => { loaded.sales = await loadSales(); });
   if (metrics.has("properties_listed_in_period")) {
@@ -795,7 +802,7 @@ export async function goalsFromRows(
   });
 
   const views: GoalView[] = goals.map((goal) => {
-    const def = metricDefFor(goal.metric, { tiktokConnected: loaded.tiktokConnected });
+    const def = metricDefFor(goal.metric, { tiktokConnected: loaded.tiktokConnected, youtubeConnected: loaded.youtubeConnected });
     const window = windows.get(goal.id)!;
     const metric = failed.includes(goal.metric)
       ? { current: null, actualPerDay: null, paceText: "Le chiffre n’a pas pu se charger. Rechargez la page.", listTitle: "", evidence: [], history: [] }
@@ -840,6 +847,7 @@ export async function goalsFromRows(
       history: metric.history,
       manual: def.manual,
       needsTikTokConnection: goal.metric === "tiktok_followers" && !loaded.tiktokConnected,
+      needsYouTubeConnection: goal.metric === "youtube_subscribers" && !loaded.youtubeConnected,
       nextStep: nextStepFor({
         canManage: base.canManage,
         goal,

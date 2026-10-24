@@ -14,8 +14,9 @@ import type { SocialHistory } from "@/lib/social/insights-server";
 import { StudioHeader } from "../StudioHeader";
 import { NetworkIcon } from "../calendrier/NetworkIcons";
 import { TikTokConnectPanel, TikTokConnectedFooter, type TikTokAdmin } from "./TikTokConnection";
+import { YouTubeConnectPanel, YouTubeConnectedFooter, type YouTubeAdmin } from "./YouTubeConnection";
 
-export type { TikTokAdmin };
+export type { TikTokAdmin, YouTubeAdmin };
 
 type Payload = { snapshot: SocialSnapshot; history: SocialHistory };
 
@@ -23,9 +24,10 @@ const NUMBER = new Intl.NumberFormat("fr-FR");
 const fmt = (n: number | null | undefined) => (n === null || n === undefined ? "–" : NUMBER.format(n));
 const pct = (r: number | null) => (r === null ? "–" : `${(r * 100).toLocaleString("fr-FR", { maximumFractionDigits: 1 })} %`);
 
-const NETWORK_NAME: Record<Network, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok" };
+const NETWORK_NAME: Record<Network, string> = { facebook: "Facebook", instagram: "Instagram", tiktok: "TikTok", youtube: "YouTube" };
 const FORMAT_LABEL: Record<PostFormat, string> = {
   reel: "Reel",
+  short: "Short",
   video: "Vidéo",
   photo: "Photo",
   carrousel: "Carrousel",
@@ -53,7 +55,7 @@ function daysLabel(days: number | null) {
   return `Dernière publication il y a ${days} jours`;
 }
 
-export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: TikTokAdmin }) {
+export function SocialStats({ initial, tiktok, youtube }: { initial: Payload; tiktok: TikTokAdmin; youtube: YouTubeAdmin }) {
   const [data, setData] = useState<Payload>(initial);
   const [busy, setBusy] = useState(false);
   const [note, setNote] = useState<string | null>(null);
@@ -71,7 +73,7 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
         return;
       }
       setData({ snapshot: body.snapshot, history: body.history });
-      setNote(body.refreshed ? "Chiffres relus chez Meta et TikTok." : "Les chiffres ont moins de 10 minutes : ils sont déjà à jour.");
+      setNote(body.refreshed ? "Chiffres relus chez Meta, TikTok et YouTube." : "Les chiffres ont moins de 10 minutes : ils sont déjà à jour.");
     } catch (error) {
       setNote(`Actualisation impossible : ${error instanceof Error ? error.message : "erreur réseau"}.`);
     } finally {
@@ -80,7 +82,9 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
   }
 
   const posts = useMemo(() => {
-    const all = [...snapshot.facebook.posts, ...snapshot.instagram.posts, ...(snapshot.tiktok?.posts ?? [])].sort((a, b) => b.createdAt.localeCompare(a.createdAt));
+    const all = [...snapshot.facebook.posts, ...snapshot.instagram.posts, ...(snapshot.tiktok?.posts ?? []), ...(snapshot.youtube?.posts ?? [])].sort((a, b) =>
+      b.createdAt.localeCompare(a.createdAt),
+    );
     return filter === "tous" ? all : all.filter((p) => p.network === filter);
   }, [snapshot, filter]);
 
@@ -105,7 +109,7 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
 
       <h2 className="mt-4 text-2xl font-bold tracking-tight md:text-[28px]">Nos réseaux sociaux</h2>
       <p className="mt-1 max-w-2xl text-[14px] text-neutral-600">
-        Abonnés, publications et rythme de publication de la Page Facebook, du compte Instagram et du compte TikTok. Les chiffres viennent de Meta et de TikTok et sont relus toutes les 6 heures.
+        Abonnés, publications et rythme de publication de la Page Facebook, du compte Instagram, du compte TikTok et de la chaîne YouTube. Les chiffres viennent de Meta, de TikTok et de YouTube et sont relus toutes les 6 heures.
       </p>
 
       {note && (
@@ -120,10 +124,11 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
         </Banner>
       )}
 
-      <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
+      <div className="mt-4 grid gap-3 md:grid-cols-2">
         <AccountCard account={snapshot.facebook} trend={history.facebook} />
         <AccountCard account={snapshot.instagram} trend={history.instagram} />
         {snapshot.tiktok && <AccountCard account={snapshot.tiktok} trend={history.tiktok ?? EMPTY_TREND} tiktokAdmin={tiktok} />}
+        {snapshot.youtube && <AccountCard account={snapshot.youtube} trend={history.youtube ?? EMPTY_TREND} youtubeAdmin={youtube} />}
       </div>
       {history.error && <Banner tone="warn">{history.error}</Banner>}
 
@@ -132,8 +137,12 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
           <h2 id="posts-title" className="text-lg font-bold">
             Dernières publications
           </h2>
-          <div role="radiogroup" aria-label="Réseau" className="ml-auto inline-flex rounded-full bg-[rgba(255,255,255,0.7)] p-1">
-            {(["tous", "facebook", "instagram", "tiktok"] as const).map((key) => (
+          <div
+            role="radiogroup"
+            aria-label="Réseau"
+            className="ml-auto inline-flex max-w-full overflow-x-auto rounded-full bg-[rgba(255,255,255,0.7)] p-1 [scrollbar-width:none]"
+          >
+            {(["tous", "facebook", "instagram", "tiktok", "youtube"] as const).map((key) => (
               <button
                 key={key}
                 type="button"
@@ -141,12 +150,12 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
                 aria-checked={filter === key}
                 onClick={() => setFilter(key)}
                 className={cn(
-                  "inline-flex h-10 items-center gap-1.5 rounded-full px-3 text-sm font-semibold md:h-9",
+                  "inline-flex h-10 shrink-0 items-center gap-1.5 rounded-full px-3 text-sm font-semibold md:h-9",
                   filter === key ? "bg-[rgba(201,106,46,0.12)] text-[#A8521D]" : "text-neutral-600 hover:text-neutral-900",
                 )}
               >
                 {key !== "tous" && <NetworkIcon network={key} size={14} label={false} />}
-                {key === "tous" ? "Tous" : NETWORK_NAME[key]}
+                {key === "tous" ? "Tous" : <span className="sr-only sm:not-sr-only">{NETWORK_NAME[key]}</span>}
               </button>
             ))}
           </div>
@@ -163,7 +172,7 @@ export function SocialStats({ initial, tiktok }: { initial: Payload; tiktok: Tik
           </ul>
         )}
         <p className="mt-3 text-[12px] text-neutral-500">
-          Portée : comptes uniques touchés. Vues : lectures de la vidéo ou affichages. Engagement : interactions divisées par la portée. Un tiret veut dire que Meta ou TikTok ne donne pas ce chiffre. TikTok ne donne ni la portée ni les enregistrements.
+          Portée : comptes uniques touchés. Vues : lectures de la vidéo ou affichages. Engagement : interactions divisées par la portée. Un tiret veut dire que Meta, TikTok ou YouTube ne donne pas ce chiffre. TikTok ne donne ni la portée ni les enregistrements. YouTube ne donne ni la portée, ni les partages, ni les enregistrements ; seuls les Shorts (3 minutes ou moins) sont listés.
         </p>
       </section>
     </div>
@@ -205,7 +214,17 @@ function Sparkline({ points }: { points: { date: string; value: number }[] }) {
   );
 }
 
-function AccountCard({ account, trend, tiktokAdmin }: { account: AccountSnapshot; trend: FollowerTrend; tiktokAdmin?: TikTokAdmin }) {
+function AccountCard({
+  account,
+  trend,
+  tiktokAdmin,
+  youtubeAdmin,
+}: {
+  account: AccountSnapshot;
+  trend: FollowerTrend;
+  tiktokAdmin?: TikTokAdmin;
+  youtubeAdmin?: YouTubeAdmin;
+}) {
   const { cadence } = account;
   const maxWeek = Math.max(1, ...cadence.weeks.map((w) => w.count));
   return (
@@ -221,6 +240,8 @@ function AccountCard({ account, trend, tiktokAdmin }: { account: AccountSnapshot
       {account.notConnected ? (
         tiktokAdmin ? (
           <TikTokConnectPanel admin={tiktokAdmin} />
+        ) : youtubeAdmin ? (
+          <YouTubeConnectPanel admin={youtubeAdmin} />
         ) : (
           <p className="mt-4 rounded-2xl bg-[#FBF7F2] px-3 py-3 text-[13px] text-neutral-700">{account.error}</p>
         )
@@ -232,6 +253,7 @@ function AccountCard({ account, trend, tiktokAdmin }: { account: AccountSnapshot
             <div>
               <p className="text-[12px] font-semibold uppercase tracking-wide text-neutral-500">Abonnés</p>
               <p className="text-[34px] font-extrabold leading-none tabular-nums">{fmt(account.followers)}</p>
+              {account.network === "youtube" && <p className="mt-1 text-[11px] text-neutral-500">Arrondi par YouTube</p>}
               {trend.delta !== null && trend.since && (
                 <p
                   className={cn(
@@ -252,6 +274,12 @@ function AccountCard({ account, trend, tiktokAdmin }: { account: AccountSnapshot
             <dl className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-[#FBF7F2] p-3 text-center">
               <Stat label="J'aime total" value={fmt(account.profileTotals?.likes)} />
               <Stat label="Vidéos" value={fmt(account.profileTotals?.videos)} />
+              <Stat label="Vues des vidéos des 28 derniers jours" value={fmt(account.totals?.views)} wrap />
+            </dl>
+          ) : account.network === "youtube" ? (
+            <dl className="mt-4 grid grid-cols-3 gap-2 rounded-2xl bg-[#FBF7F2] p-3 text-center">
+              <Stat label="Vidéos" value={fmt(account.profileTotals?.videos)} />
+              <Stat label="Vues totales" value={fmt(account.profileTotals?.views)} />
               <Stat label="Vues des vidéos des 28 derniers jours" value={fmt(account.totals?.views)} wrap />
             </dl>
           ) : (
@@ -295,6 +323,7 @@ function AccountCard({ account, trend, tiktokAdmin }: { account: AccountSnapshot
         </Banner>
       ))}
       {account.network === "tiktok" && !account.notConnected && tiktokAdmin && <TikTokConnectedFooter admin={tiktokAdmin} />}
+      {account.network === "youtube" && !account.notConnected && youtubeAdmin && <YouTubeConnectedFooter admin={youtubeAdmin} broken={!!account.error} />}
     </section>
   );
 }

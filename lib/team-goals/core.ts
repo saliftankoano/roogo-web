@@ -111,14 +111,15 @@ export const GOAL_METRICS = [
   "tiktok_followers",
   "facebook_followers",
   "instagram_followers",
+  "youtube_subscribers",
 ] as const;
 export type GoalMetric = (typeof GOAL_METRICS)[number];
 
-export const MANUAL_METRICS = ["tiktok_followers", "facebook_followers", "instagram_followers"] as const;
+export const MANUAL_METRICS = ["tiktok_followers", "facebook_followers", "instagram_followers", "youtube_subscribers"] as const;
 export type ManualMetric = (typeof MANUAL_METRICS)[number];
 
 /** Icon shown with the goal: real platform logos, the Roogo logo, a house for sales, a key for rentals, a house-plus for listings. */
-export type GoalIcon = "app" | "tiktok" | "facebook" | "instagram" | "vente" | "location" | "annonce";
+export type GoalIcon = "app" | "tiktok" | "facebook" | "instagram" | "youtube" | "vente" | "location" | "annonce";
 
 export type MetricDef = {
   family: string;
@@ -182,6 +183,17 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
     source: "Lu chaque nuit",
     measure: "Abonnés du compte Instagram @roogo.burkina, lus automatiquement chaque nuit chez Instagram. Si la lecture ne passe pas, le chiffre se saisit à la main avec la capture d’écran en preuve.",
   },
+  youtube_subscribers: {
+    family: "YouTube",
+    icon: "youtube",
+    pick: "Abonnés YouTube",
+    title: (n) => `${formatCount(n)} abonnés YouTube`,
+    unit: ["abonné", "abonnés"],
+    kind: "stock",
+    manual: true,
+    source: "Saisi à la main",
+    measure: "YouTube n’est pas encore connecté : pour l’instant le chiffre est saisi à la main depuis la chaîne, avec la capture d’écran en preuve.",
+  },
   properties_sold: {
     family: "Ventes",
     icon: "vente",
@@ -218,13 +230,21 @@ export const METRICS: Record<GoalMetric, MetricDef> = {
 };
 
 /**
- * The definition shown for a goal. TikTok joins the nightly automatic
- * readings only once the founder has connected the account (« Connecter
- * TikTok », lib/team-goals/tiktok-store.ts); until then it stays manual.
+ * The definition shown for a goal. TikTok and YouTube join the nightly
+ * automatic readings only once the founder has connected the account
+ * (« Connecter TikTok », lib/team-goals/tiktok-store.ts; « Connecter
+ * YouTube », lib/team-goals/youtube-store.ts); until then they stay manual.
  * Manual entry stays open as the fallback either way.
  */
-export function metricDefFor(metric: GoalMetric, opts: { tiktokConnected?: boolean } = {}): MetricDef {
+export function metricDefFor(metric: GoalMetric, opts: { tiktokConnected?: boolean; youtubeConnected?: boolean } = {}): MetricDef {
   const def = METRICS[metric];
+  if (metric === "youtube_subscribers" && opts.youtubeConnected) {
+    return {
+      ...def,
+      source: "Lu chaque nuit",
+      measure: "Le chiffre est lu automatiquement chaque nuit chez YouTube (chaîne Roogo). YouTube arrondit le nombre d’abonnés. Si la lecture ne passe pas, il se saisit à la main avec la capture d’écran en preuve.",
+    };
+  }
   if (metric === "tiktok_followers" && opts.tiktokConnected) {
     return {
       ...def,
@@ -242,6 +262,7 @@ export const CATALOG_ORDER: GoalMetric[] = [
   "users",
   "tiktok_followers",
   "facebook_followers",
+  "youtube_subscribers",
   "properties_sold",
   "properties_under_contract",
 ];
@@ -654,6 +675,7 @@ const AUTO_PLATFORM: Partial<Record<GoalMetric, string>> = {
   facebook_followers: "Facebook",
   instagram_followers: "Instagram",
   tiktok_followers: "TikTok",
+  youtube_subscribers: "YouTube",
 };
 
 /** Under a reading in the drawer: « Lu automatiquement sur Facebook » or « Saisi par Salif ». */
