@@ -334,7 +334,7 @@ export default function AdminListingDetail({
       { key: "parking", label: "Parking" },
       { key: "propertyType", label: "Type de bien" },
       { key: "period", label: "Période" },
-      { key: "virtualTourUrl", label: "Visite virtuelle Kuula" },
+      { key: "virtualTourUrl", label: "Visite virtuelle Kuula (facultatif)" },
     ];
 
     fields.forEach(({ key, label }) => {
@@ -1367,7 +1367,8 @@ export default function AdminListingDetail({
                   onChange={(e) =>
                     handleEditChange("description", e.target.value)
                   }
-                  className="w-full h-40 p-4 text-neutral-600 leading-relaxed bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
+                  rows={10}
+                  className="min-h-64 w-full resize-y p-4 text-neutral-600 leading-relaxed bg-neutral-50 border border-neutral-200 rounded-2xl focus:ring-2 focus:ring-primary/20 focus:border-primary outline-none transition-all"
                 />
               ) : (
                 <p className="text-neutral-600 leading-relaxed whitespace-pre-wrap">
