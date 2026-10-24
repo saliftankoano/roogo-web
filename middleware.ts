@@ -105,6 +105,7 @@ const isPublicRoute = createRouteMatcher([
   "/carrieres",
   "/carrieres/(.*)", // Job offers with their application form (anonymous)
   "/confidentialite",
+  "/studio/confidentialite(.*)", // Roogo Studio (internal tool) privacy note for the YouTube API audit, unlinked
   "/conditions-utilisation",
   "/plan-du-site",
   "/robots.txt",

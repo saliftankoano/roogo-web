@@ -13,6 +13,8 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out:** A separate title column (a migration for one line of text). Loading the whole file in memory (`uploadYouTubeShort`, kept for small files and tests). Publishing YouTube from calendar posts (only uploaded vertical videos are Shorts). Asking for a quota increase now (premature at our volume).
 
+**Policy page:** The customer privacy policy and terms do not mention YouTube (Salif, 2026-10-24, council recommendation approved): YouTube is used only by the internal Studio on Roogo's own channel, so its audit gets a separate short note at `/studio/confidentialite` (FR, with `/en`), public but unlinked, noindex and out of the sitemap. It says tokens and cached statistics are deleted when the connection is removed and the daily subscriber count of Roogo's own channel is kept as internal goal history, which is what the code does.
+
 **Status:** Branch `feat/publier-youtube`, not merged. No real upload made; the end-to-end Short (private) is to be checked by Salif after deploy.
 
 ### YouTube connects like TikTok: one founder connection, with upload asked up front — 2026-10-23
