@@ -26,7 +26,7 @@ export default function PrivacyPageEn() {
           </div>
 
           <div className="prose prose-sm max-w-none text-neutral-600 space-y-8">
-            <p className="text-sm italic">Last updated: April 20, 2026</p>
+            <p className="text-sm italic">Last updated: October 24, 2026</p>
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
@@ -172,7 +172,51 @@ export default function PrivacyPageEn() {
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
-                5. Data Sharing Between Users
+                5. YouTube API Services
+              </h2>
+              <p>
+                Roogo&apos;s internal Studio, used only by the Roogo team,
+                uses YouTube API Services for two purposes only: publishing
+                Roogo&apos;s own videos to Roogo&apos;s own YouTube channel,
+                and reading the public statistics of that channel. It does not
+                access any other channel or any data of platform users.
+              </p>
+              <p className="mt-3">
+                By using these features, Roogo is bound by the 
+                <a href="https://www.youtube.com/t/terms" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">YouTube Terms of Service</a>
+                . Data obtained through YouTube is also subject to the 
+                <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Google Privacy Policy</a>
+                .
+              </p>
+              <ul className="list-disc pl-6 space-y-2 mt-3">
+                <li>
+                  <strong>Data used:</strong> the Roogo channel&apos;s
+                  statistics (subscriber count, video count and view count) and
+                  the videos Roogo publishes to its channel (title,
+                  description, link).
+                </li>
+                <li>
+                  <strong>Use and storage:</strong> this data is stored only
+                  for the Studio&apos;s internal dashboard and is never sold or
+                  shared. It is refreshed every 6 hours.
+                </li>
+                <li>
+                  <strong>Deletion:</strong> it is deleted when the YouTube
+                  connection is removed in the Studio, or at the latest within
+                  30 days.
+                </li>
+                <li>
+                  <strong>Revoking access:</strong> Roogo&apos;s access to the
+                  Google account can be revoked at any time from the 
+                  <a href="https://myaccount.google.com/permissions" target="_blank" rel="noopener noreferrer" className="text-orange-600 hover:underline">Google Account permissions page</a>
+                  , or by disconnecting YouTube in the Studio.
+                </li>
+              </ul>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-bold text-neutral-900 mb-3">
+                6. Data Sharing Between Users
               </h2>
               <p>
                 Your contact details (name, phone, email) are only shared with
@@ -185,7 +229,7 @@ export default function PrivacyPageEn() {
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
-                6. Data Retention
+                7. Data Retention
               </h2>
               <ul className="list-disc pl-6 space-y-2">
                 <li>
@@ -208,7 +252,7 @@ export default function PrivacyPageEn() {
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
-                7. Your Rights
+                8. Your Rights
               </h2>
               <p>
                 In accordance with Burkinabè data protection law and GDPR
@@ -257,7 +301,7 @@ export default function PrivacyPageEn() {
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
-                8. Security
+                9. Security
               </h2>
               <p>
                 Roogo implements appropriate technical and organizational
@@ -271,7 +315,7 @@ export default function PrivacyPageEn() {
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
-                9. Minors
+                10. Minors
               </h2>
               <p>
                 Roogo is not intended for persons under 18 years of age. We do
@@ -282,7 +326,7 @@ export default function PrivacyPageEn() {
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
-                10. Changes to This Policy
+                11. Changes to This Policy
               </h2>
               <p>
                 We may update this policy from time to time. For material
@@ -295,7 +339,7 @@ export default function PrivacyPageEn() {
 
             <section>
               <h2 className="text-xl font-bold text-neutral-900 mb-3">
-                11. Governing Law
+                12. Governing Law
               </h2>
               <p>
                 This policy is governed by the laws of Burkina Faso. Any

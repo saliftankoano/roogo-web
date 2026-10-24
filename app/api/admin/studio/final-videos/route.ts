@@ -19,6 +19,7 @@ import {
   roleOf,
   tiktokPublishStatus,
   toDtos,
+  youtubePublishStatus,
   type PublicationRow,
 } from "@/lib/studio/publishing-server";
 
@@ -36,9 +37,8 @@ export async function GET(req: Request) {
   if (!staff) return errorResponse("Forbidden", 403, req);
   const role = roleOf(staff);
   const meta = metaStatus();
-  const tiktok = await tiktokPublishStatus();
-  // PRD 1 adds the YouTube connection; until then it is listed, not tickable.
-  const destinations = destinationOptions({ facebook: meta.facebook, instagram: meta.instagram, tiktok, youtube: null });
+  const [tiktok, youtube] = await Promise.all([tiktokPublishStatus(), youtubePublishStatus()]);
+  const destinations = destinationOptions({ facebook: meta.facebook, instagram: meta.instagram, tiktok, youtube });
 
   let query = supabaseAdmin.from("studio_final_videos").select(FINAL_VIDEO_COLUMNS).order("created_at", { ascending: false }).limit(30);
   if (role !== "founder") query = query.eq("uploaded_by", staff.id);
@@ -61,6 +61,7 @@ export async function GET(req: Request) {
       me: { id: staff.id, role },
       destinations,
       tiktok,
+      youtube,
       driveConfigured: isDriveConfigured(),
       slots: publishSlots(),
       items: videos.map((v) => ({ video: toFinalVideoDto(v), post: byVideo.get(v.id) ?? null })),

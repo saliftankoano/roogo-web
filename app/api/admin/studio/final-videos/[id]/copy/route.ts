@@ -49,8 +49,8 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!body) return errorResponse("Requête invalide", 400, req);
   const asked = Array.isArray(body.networks) ? body.networks.filter(isDestination) : [];
   const only = isDestination(body.only) ? body.only : null;
-  // YouTube texts come with PRD 1; until then only the three connected networks.
-  const networks = (only ? [only] : asked).filter((n): n is CopyNetwork => n !== "youtube");
+  // One call for every ticked network, YouTube Shorts included (title on the first line).
+  const networks: CopyNetwork[] = only ? [only] : asked;
   if (!networks.length) return errorResponse("Choisissez au moins un réseau.", 400, req);
   const propertyId = typeof body.propertyId === "string" && UUID.test(body.propertyId) ? body.propertyId : video.property_id;
   const title = typeof body.title === "string" && body.title.trim() ? body.title.trim().slice(0, 160) : video.title;

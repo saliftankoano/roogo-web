@@ -5,6 +5,7 @@ import { ArrowsClockwiseIcon, CheckIcon, WarningIcon, XIcon } from "@phosphor-ic
 import { Switch } from "@/components/ui/switch";
 import { cn } from "@/lib/utils";
 import {
+  COPY_RULES,
   DESTINATION_LABELS,
   copySummary,
   finalizeNetworkCopy,
@@ -130,6 +131,8 @@ function Editor({
   const summary = copySummary(target, final.text, final.hashtags, facts);
   const errors = final.checks.filter((c) => c.level === "error");
   const warnings = final.checks.filter((c) => c.level === "warning");
+  const titleMax = COPY_RULES[target].titleMax;
+  const titleLength = titleMax ? [...(final.text.split("\n")[0] ?? "")].length : 0;
   const tick = (ok: boolean | null, text: string) =>
     ok === null ? null : (
       <span className={cn("inline-flex items-center gap-1 text-[12px] font-semibold", ok ? "text-[#245C33]" : "text-[#8E2A1E]")}>
@@ -143,6 +146,14 @@ function Editor({
       <label className="sr-only" htmlFor={`copy-${target}`}>
         {label}
       </label>
+      {titleMax ? (
+        <p className="flex items-baseline justify-between gap-2 text-[12px] text-neutral-600">
+          <span>Première ligne : le titre YouTube (type de bien, lieu, prix). Le reste devient la description.</span>
+          <span className={cn("shrink-0 tabular-nums", titleLength > titleMax ? "font-bold text-[#8E2A1E]" : "text-neutral-400")}>
+            {titleLength} / {titleMax}
+          </span>
+        </p>
+      ) : null}
       <textarea
         id={`copy-${target}`}
         value={draft.text}

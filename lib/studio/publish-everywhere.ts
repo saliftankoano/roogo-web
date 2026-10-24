@@ -9,9 +9,9 @@
 import type { Network, NetworkResult, PublicationResults } from "./publishing";
 
 // ---------------------------------------------------------------------------
-// Destinations. YouTube Shorts is listed now so the surface, the copy rules
-// and the database already know it (PRD 1 adds the connection); until it is
-// connected it shows as « YouTube Shorts (à connecter) », never ticked.
+// Destinations. YouTube Shorts (2026-10-24) can be ticked once the channel is
+// connected with youtube.upload (canUpload); otherwise it is shown disabled
+// with the reason, like the other networks.
 // ---------------------------------------------------------------------------
 
 export const DESTINATIONS = ["facebook", "instagram", "tiktok", "youtube"] as const;
@@ -48,7 +48,7 @@ export type DestinationStatusInput = {
   facebook: boolean;
   instagram: boolean;
   tiktok: { enabled: boolean; reason: string | null } | null;
-  /** PRD 1. Null until the YouTube connection exists. */
+  /** lib/social/youtube-token-server.ts youtubePublishStatus(). */
   youtube?: { enabled: boolean; reason: string | null } | null;
 };
 
@@ -75,9 +75,9 @@ export function destinationOptions(input: DestinationStatusInput): DestinationOp
     },
     {
       id: "youtube",
-      label: input.youtube?.enabled ? DESTINATION_LABELS.youtube : `${DESTINATION_LABELS.youtube} (à connecter)`,
+      label: DESTINATION_LABELS.youtube,
       available: Boolean(input.youtube?.enabled),
-      reason: input.youtube?.enabled ? null : input.youtube?.reason ?? "YouTube n'est pas encore connecté. Salif le connectera depuis Studio › Statistiques.",
+      reason: input.youtube?.enabled ? null : input.youtube?.reason ?? "La chaîne YouTube n'est pas connectée (Studio, Statistiques, Connecter YouTube).",
     },
   ];
 }
@@ -87,9 +87,9 @@ export function defaultTicks(options: readonly DestinationOption[]): Destination
   return options.filter((o) => o.available).map((o) => o.id);
 }
 
-/** What the team ticked, minus anything that cannot be published (never YouTube before PRD 1). */
+/** What the team ticked, minus anything that cannot be published. */
 export function ticksToNetworks(ticks: readonly string[], options: readonly DestinationOption[]): Network[] {
-  const allowed = new Set(options.filter((o) => o.available && o.id !== "youtube").map((o) => o.id));
+  const allowed = new Set(options.filter((o) => o.available).map((o) => o.id));
   return [...new Set(ticks)].filter((t): t is Network => allowed.has(t as Destination));
 }
 
@@ -331,8 +331,10 @@ export type CopyRules = {
   factsOnOwnLines: boolean;
   /** What the model is asked for, in French. */
   brief: string;
-  /** YouTube: the title field, later (PRD 1). */
+  /** YouTube: the first line is the video title, at most this many characters. */
   titleMax?: number;
+  /** A hashtag the network always carries (YouTube: #Shorts). */
+  requiredTag?: string;
   /** TikTok: the first paragraph is the hook. */
   hookMax?: number;
 };
@@ -368,12 +370,14 @@ export const COPY_RULES: Record<CopyTarget, CopyRules> = {
     brief: "TikTok : une seule accroche courte (une ligne, moins de 150 caractères), qui donne envie de regarder jusqu'au bout. Entre 3 et 5 hashtags.",
   },
   youtube: {
-    hashtagsMin: 2,
-    hashtagsMax: 3,
+    hashtagsMin: 3,
+    hashtagsMax: 5,
     maxChars: 5000,
     factsOnOwnLines: true,
     titleMax: 100,
-    brief: "YouTube Shorts : un titre cherchable de 100 caractères au plus en première ligne, puis une courte description. 2 ou 3 hashtags.",
+    requiredTag: "#Shorts",
+    brief:
+      "YouTube Shorts : en première ligne seule, le titre de la vidéo, 100 caractères au plus, écrit comme ce que les gens tapent dans la recherche : le type de bien, le lieu et le prix (par exemple « Villa 4 chambres à vendre à Ouaga 2000, 85 000 000 FCFA »). Puis une ligne vide et une description de 2 ou 3 phrases simples. Entre 3 et 5 hashtags, dont #Shorts.",
   },
 };
 
@@ -511,6 +515,19 @@ export function finalizeNetworkCopy(target: CopyTarget, draft: CopyDraft, facts:
     .replace(/(^|\n),\s*/g, "$1")
     .replace(/roogo\.bf\b/gi, "roogobf.com");
 
+  if (rules.titleMax) {
+    // YouTube: the first line is the title. « Titre : » and quotes are removed;
+    // a title that is too long is cut at a word.
+    const parts = text.replace(/^\s+/, "").split("\n");
+    let title = (parts[0] ?? "").replace(/^\s*titre\s*:\s*/i, "").replace(/^[«"\s]+|[»"\s]+$/g, "").replace(/\s+/g, " ").trim();
+    if (title.length > rules.titleMax) {
+      title = shortenTitle(title, rules.titleMax);
+      fixes.push(`Titre YouTube raccourci à ${rules.titleMax} caractères.`);
+    }
+    parts[0] = title;
+    text = parts.join("\n");
+  }
+
   const tagsFromText: string[] = [];
   let removedOtherPhone = false;
   let lines = text.split("\n").filter((line) => {
@@ -561,6 +578,10 @@ export function finalizeNetworkCopy(target: CopyTarget, draft: CopyDraft, facts:
 
   // Hashtags within the network's range.
   let hashtags = normalizeTags([...(draft.hashtags ?? []), ...tagsFromText]);
+  if (rules.requiredTag && !hashtags.some((t) => t.toLowerCase() === rules.requiredTag!.toLowerCase())) {
+    // #Shorts first, so the cut to the maximum below never removes it.
+    hashtags = [rules.requiredTag, ...hashtags];
+  }
   if (hashtags.length > rules.hashtagsMax) {
     hashtags = hashtags.slice(0, rules.hashtagsMax);
     fixes.push(`Hashtags limités à ${rules.hashtagsMax}.`);
@@ -630,10 +651,44 @@ export function copyProblems(target: CopyTarget, text: string, hashtags: readonl
     if (hook.length > rules.hookMax) out.push({ code: "hook", level: "warning", message: `L'accroche TikTok fait ${hook.length} caractères : visez moins de ${rules.hookMax}.` });
   }
   if (rules.titleMax) {
-    const title = text.split("\n")[0] ?? "";
+    const title = (text.split("\n")[0] ?? "").trim();
     if (title.length > rules.titleMax) out.push({ code: "title", level: "error", message: `Le titre YouTube fait ${title.length} caractères pour ${rules.titleMax} au plus.` });
+    if (title && facts.place && !mentions(title, facts.place)) {
+      out.push({ code: "title-place", level: "warning", message: `Le titre YouTube gagne à citer le lieu (${facts.place}) : c'est ce que les gens cherchent.` });
+    }
+    if (title && facts.price != null && !amountsIn(title).some((a) => a === facts.price)) {
+      out.push({ code: "title-price", level: "warning", message: "Le titre YouTube gagne à citer le prix de l'annonce." });
+    }
+  }
+  if (rules.requiredTag && !hashtags.some((t) => t.toLowerCase() === rules.requiredTag!.toLowerCase())) {
+    out.push({ code: "required-tag", level: "warning", message: `Ajoutez ${rules.requiredTag} aux hashtags.` });
   }
   return out;
+}
+
+/** Cuts a title at a word so it fits in `max` characters (no trailing comma or dash). */
+export function shortenTitle(title: string, max: number): string {
+  const chars = [...title];
+  if (chars.length <= max) return title;
+  const cut = chars.slice(0, max + 1).join("");
+  const atWord = cut.slice(0, cut.lastIndexOf(" ") > max * 0.6 ? cut.lastIndexOf(" ") : max);
+  return [...atWord].slice(0, max).join("").replace(/[\s,;:.\-|]+$/u, "");
+}
+
+/**
+ * The two fields of a YouTube upload from the stored YouTube text: the title
+ * is the first line (100 characters at most), the description is the rest
+ * (contact line and roogobf.com included, added by finalizeNetworkCopy), then
+ * the hashtags, with #Shorts always there.
+ */
+export function youtubeShortFields(draft: CopyDraft, fallbackTitle: string): { title: string; description: string } {
+  const lines = String(draft.text ?? "").replace(/\r\n?/g, "\n").trim().split("\n");
+  const first = (lines[0] ?? "").replace(/^\s*titre\s*:\s*/i, "").replace(/\s+/g, " ").trim();
+  const title = shortenTitle(first || fallbackTitle.trim() || "Roogo", COPY_RULES.youtube.titleMax!);
+  const rest = lines.slice(1).join("\n").replace(/\n{3,}/g, "\n\n").trim();
+  const tags = normalizeTags(draft.hashtags ?? []);
+  if (!tags.some((t) => t.toLowerCase() === "#shorts")) tags.push("#Shorts");
+  return { title, description: copyPostText(rest, tags) };
 }
 
 /** Exactly what goes out: the text, a blank line, the hashtags. */

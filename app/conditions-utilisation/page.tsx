@@ -18,7 +18,7 @@ export default function TermsPage() {
 
           <div className="prose prose-sm max-w-none text-neutral-600 space-y-6">
             <p className="text-sm italic">
-              Version 2.0 — Dernière mise à jour : 30 août 2026
+              Version 2.1, dernière mise à jour : 24 octobre 2026
             </p>
 
             <section>
@@ -95,6 +95,26 @@ export default function TermsPage() {
                 ne peut être tenu responsable des vices cachés des propriétés ou
                 du comportement des utilisateurs une fois la mise en relation
                 effectuée.
+              </p>
+            </section>
+
+            <section>
+              <h2 className="text-xl font-bold text-neutral-900 mb-3">
+                6. Services YouTube
+              </h2>
+              <p>
+                Certaines fonctions de Roogo reposent sur YouTube. Utiliser une
+                fonction de Roogo qui s&apos;appuie sur YouTube implique
+                d&apos;accepter les{" "}
+                <a
+                  href="https://www.youtube.com/t/terms"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-orange-600 hover:underline"
+                >
+                  Conditions d&apos;utilisation de YouTube
+                </a>
+                .
               </p>
             </section>
           </div>
