@@ -10,7 +10,11 @@ export function RequiredMark() {
 
 export function OptionalMark() {
   return (
-    <span className="text-xs font-medium text-neutral-400"> (facultatif)</span>
+    // normal-case: some labels are uppercase; the mark stays « (facultatif) ».
+    <span className="text-xs font-medium normal-case tracking-normal text-neutral-400">
+      {" "}
+      (facultatif)
+    </span>
   );
 }
 

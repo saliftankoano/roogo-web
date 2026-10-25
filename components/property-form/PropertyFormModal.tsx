@@ -2113,17 +2113,10 @@ export const PropertyFormModal: React.FC<PropertyFormModalProps> = ({
               : "Récapitulatif du paiement"}
           </h4>
           <div className="mt-4 space-y-2 text-sm">
+            {/* Packs and add-ons are no longer offered (2026-10-24). */}
             <div className="flex justify-between text-neutral-600">
-              <span>Pack choisi</span>
-              <span className="font-extrabold text-neutral-950">
-                {formatAmount(baseFeeAmount + commissionAmount)}
-              </span>
-            </div>
-            <div className="flex justify-between text-neutral-600">
-              <span>Options supplémentaires</span>
-              <span className="font-extrabold text-neutral-950">
-                {formatAmount(addOnsAmount)}
-              </span>
+              <span>Publication</span>
+              <span className="font-extrabold text-neutral-950">Gratuite</span>
             </div>
             {isFreeMonthlyListing && (
               <div className="flex justify-between text-neutral-600">
