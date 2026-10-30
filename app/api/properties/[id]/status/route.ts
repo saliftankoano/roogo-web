@@ -214,6 +214,19 @@ export async function PATCH(
     const { data: updatedRows, error } = await updateQuery.select("id");
     const didTransition = !error && (!isGoingLive || Boolean(updatedRows?.length));
 
+    // The « not rejected » guard stopped the write: documents were refused
+    // while this publish was on its way. Say so instead of a silent success.
+    if (!error && isSaleGoingLive && !didTransition && !wasAlreadyLive) {
+      return NextResponse.json(
+        {
+          code: "sale_ownership_rejected",
+          error:
+            "Les documents de propriété viennent d'être refusés. La vente ne peut pas être mise en ligne.",
+        },
+        { status: 409 },
+      );
+    }
+
     if (!error && didTransition) {
       await captureServerEvent(user.clerk_id || user.id, "property_listing_published", {
         property_id: propertyId,

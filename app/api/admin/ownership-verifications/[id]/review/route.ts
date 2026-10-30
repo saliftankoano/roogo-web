@@ -144,6 +144,21 @@ export async function POST(
       return NextResponse.json({ error: "Failed to update property" }, { status: 500 });
     }
 
+    // Again now that "rejected" is written: a publish that slipped in between
+    // the first offline step and this write is undone here. From now on the
+    // publish route's « not rejected » guard keeps it offline.
+    if (decision === "reject") {
+      const { error: recheckError } = await supabaseAdmin
+        .from("properties")
+        .update({ status: "en_attente" })
+        .eq("id", submission.property_id)
+        .eq("listing_type", "vendre")
+        .eq("status", "en_ligne");
+      if (recheckError) {
+        console.error("Second offline step after rejection failed:", recheckError);
+      }
+    }
+
 
     // Tell the seller their documents were reviewed, unless the dossier is
     // held by a staff member because the owner has no account.
