@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 import { requireStaffSupabaseUser } from "@/lib/identity-verifications";
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { notifyUserWithTemplate } from "@/lib/push-notifications";
+import { secondApproverError } from "@/lib/sale-go-live";
 
 type OwnershipSubmissionForReview = {
   id: string;
@@ -73,6 +74,32 @@ export async function POST(
         { error: "Ajoutez au moins un document avant d'approuver le dossier." },
         { status: 409 },
       );
+    }
+
+    // Second person rule (lib/sale-go-live.ts): whoever filed a staff-held
+    // dossier, or put the sale online without the checks, cannot approve it.
+    if (decision === "approve") {
+      const { data: sale, error: saleError } = await supabaseAdmin
+        .from("properties")
+        .select("agent_id, sale_checks_skipped_by")
+        .eq("id", submission.property_id)
+        .maybeSingle<{ agent_id: string | null; sale_checks_skipped_by: string | null }>();
+      if (saleError) {
+        console.error("Ownership review: sale lookup failed:", saleError.code);
+        return NextResponse.json({ error: "Failed to load property" }, { status: 500 });
+      }
+      const secondApprover = secondApproverError({
+        reviewerId: authResult.supabaseUser.id,
+        filerId: submission.user_id,
+        ownerId: sale?.agent_id ?? null,
+        publishedWithoutChecksBy: sale?.sale_checks_skipped_by ?? null,
+      });
+      if (secondApprover) {
+        return NextResponse.json(
+          { code: "second_approver_required", error: secondApprover },
+          { status: 403 },
+        );
+      }
     }
 
     const now = new Date().toISOString();

@@ -70,3 +70,32 @@ export function saleGoLiveDecision(input: SaleGoLiveInput): SaleGoLiveDecision {
 
   return { ok: true, skipped };
 }
+
+export type DossierApprovalInput = {
+  /** Who is approving the documents now. */
+  reviewerId: string;
+  /** submission.user_id: the owner, or the staff member who filed for an owner without an account. */
+  filerId: string;
+  /** properties.agent_id: the owner's account, null when the owner has none. */
+  ownerId: string | null;
+  /** properties.sale_checks_skipped_by: who put the sale online without the checks, if anyone. */
+  publishedWithoutChecksBy: string | null;
+};
+
+/**
+ * Second person rule (Salif, 2026-10-30): on a sale that skipped the checks
+ * or whose dossier a staff member filed, the documents are approved by
+ * someone else than that staff member, so one person can never publish,
+ * file and approve alone. Refusing is always allowed. Returns the error to
+ * show, or null when the approval may go ahead.
+ */
+export function secondApproverError(input: DossierApprovalInput): string | null {
+  const staffHeld = input.filerId !== input.ownerId;
+  if (staffHeld && input.reviewerId === input.filerId) {
+    return "Vous avez déposé ce dossier : une autre personne de l'équipe doit l'approuver.";
+  }
+  if (input.publishedWithoutChecksBy && input.reviewerId === input.publishedWithoutChecksBy) {
+    return "Vous avez mis cette vente en ligne sans vérifications : une autre personne de l'équipe doit approuver ses documents.";
+  }
+  return null;
+}
