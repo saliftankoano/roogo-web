@@ -54,6 +54,8 @@ export type Property = {
   longitude?: number | null;
   listingType?: "louer" | "vendre";
   ownershipVerified?: boolean;
+  /** unsubmitted | pending | approved | rejected (sale listings). Admin view only. */
+  ownershipVerificationStatus?: string | null;
   /** Status vendu (migration 093): notary signature date and sale price. Admin view only. */
   soldAt?: string | null;
   soldPrice?: number | null;

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { MagnifyingGlassIcon, MegaphoneIcon } from "@phosphor-icons/react";
+import { formatCurrency } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { RequestForBrief } from "@/lib/studio/request-brief";
 
@@ -12,8 +13,7 @@ type Props = {
   disabled?: boolean;
 };
 
-const budgetOf = (r: StudioRequest) =>
-  `${new Intl.NumberFormat("fr-FR").format(r.budget_max)} FCFA max`;
+const budgetOf = (r: StudioRequest) => `${formatCurrency(r.budget_max)} max`;
 
 /** The open property requests (« demandes spécifiques »), newest first. */
 export function RequestPicker({ onPick, disabled }: Props) {
@@ -25,10 +25,11 @@ export function RequestPicker({ onPick, disabled }: Props) {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch("/api/property-requests");
+        // Public fields of the requests still in progress, no client contact.
+        const res = await fetch("/api/property-requests?view=studio");
         if (!res.ok) throw new Error(`requests ${res.status}`);
         const data = (await res.json()) as { requests: StudioRequest[] };
-        if (!cancelled) setItems(data.requests.filter((r) => r.status !== "closed"));
+        if (!cancelled) setItems(data.requests);
       } catch {
         if (!cancelled) setFailed(true);
       }

@@ -58,6 +58,7 @@ function mapAdminProperty(row: PropertyDetailsRow) {
     is_test: Boolean(row.is_test),
     virtualTourUrl: asString(row.virtual_tour_url),
     listingType: asString(row.listing_type),
+    ownershipVerificationStatus: asString(row.ownership_verification_status) || null,
     agentId: asString(row.agent_id) || null,
     agent: {
       full_name: asString(row.agent_name) || "Utilisateur inconnu",

@@ -16,12 +16,32 @@ export type RequestForBrief = {
   min_bedrooms: number | null;
 };
 
+// Same output as formatCurrency (lib/format.ts) with plain spaces between
+// thousands, since the brief feeds a voice-over script. Kept local because
+// this module runs under the Node test runner, which cannot load "../format".
 const fcfa = (value: number) =>
-  `${new Intl.NumberFormat("fr-FR").format(value).replace(/ | /g, " ")} FCFA`;
+  `${new Intl.NumberFormat("fr-FR", { maximumFractionDigits: 0 })
+    .format(value)
+    .replace(/[\u202f\u00a0]/g, " ")} FCFA`;
 
-/** « Demande : Villa à Ouaga 2000 », the project's title in the history. */
+const REQUEST_TITLE_PREFIX = "Demande : ";
+
+/** Asks for a fresh call-out script in a project started from a request. */
+export const REQUEST_REDRAFT =
+  "Écris un nouveau script d'appel à propriétaires pour cette demande.";
+
+/**
+ * « Demande : Villa à Ouaga 2000 », the project's title in the history.
+ * Normalised exactly like the conversations API stores a title (long dash
+ * replaced, 80 characters), so an existing project can be found by its title.
+ */
 export function requestProjectTitle(request: Pick<RequestForBrief, "title">): string {
-  return `Demande : ${request.title}`.slice(0, 120);
+  return `${REQUEST_TITLE_PREFIX}${request.title}`.trim().replace(/\u2014/g, ",").slice(0, 80);
+}
+
+/** Whether a project was started from a request (it has no property). */
+export function isRequestProjectTitle(title: string | null | undefined): boolean {
+  return (title ?? "").startsWith(REQUEST_TITLE_PREFIX);
 }
 
 /** The first message of a project started from a request. */

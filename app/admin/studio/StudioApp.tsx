@@ -27,7 +27,12 @@ import { HistoryPanel } from "./HistoryPanel";
 import { ProjectPanel, type CenterView } from "./ProjectPanel";
 import { PropertyPicker } from "./PropertyPicker";
 import type { StudioRequest } from "./RequestPicker";
-import { requestBrief, requestProjectTitle } from "@/lib/studio/request-brief";
+import {
+  REQUEST_REDRAFT,
+  isRequestProjectTitle,
+  requestBrief,
+  requestProjectTitle,
+} from "@/lib/studio/request-brief";
 import { StudioEditor } from "./StudioEditor";
 import { useJobs } from "./StudioTools";
 import { StudioHeader } from "./StudioHeader";
@@ -403,10 +408,19 @@ export function StudioApp() {
 
   // Choosing a request starts its own project and the first call-out script at
   // once, like choosing a property. The request is not linked to a listing.
+  // If you already have a project for it, that one opens instead: no duplicate
+  // project and no second paid draft.
   async function pickRequest(request: StudioRequest) {
     setError(null);
+    const title = requestProjectTitle(request);
+    const list = await loadConversations();
+    const existing = list.find((item) => item.isMine && item.title === title);
+    if (existing) {
+      await open(existing.id, "chat");
+      return;
+    }
     newConversation();
-    const id = await createConversation(undefined, requestProjectTitle(request));
+    const id = await createConversation(undefined, title);
     if (!id) return;
     activeRef.current = id;
     setActiveId(id);
@@ -464,7 +478,13 @@ export function StudioApp() {
       await pickProperty(property);
       return;
     }
-    if ((detail?.artifacts.length ?? 0) > 0 && detail?.property?.id !== property.id) {
+    // A request project keeps its request: a property opens its own project.
+    const isRequestProject =
+      !detail?.property && isRequestProjectTitle(detail?.conversation.title);
+    if (
+      isRequestProject ||
+      ((detail?.artifacts.length ?? 0) > 0 && detail?.property?.id !== property.id)
+    ) {
       setError(null);
       const id = await createConversation(property.id);
       if (!id) return;
@@ -666,6 +686,11 @@ export function StudioApp() {
           highlightId={highlightId}
           onSend={(text: string) => void sendText(text)}
           onAskScript={() => {
+            // A request project has no property: ask again from the request.
+            if (!detail?.property && isRequestProjectTitle(detail?.conversation.title)) {
+              void sendText(REQUEST_REDRAFT);
+              return;
+            }
             if (!detail?.property) {
               setSwitching(true);
               return;

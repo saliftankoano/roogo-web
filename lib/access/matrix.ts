@@ -662,7 +662,7 @@ export const AREAS: Area[] = [
       {
         id: "listing-status",
         action: "Mettre une annonce en ligne",
-        detail: "Une annonce ne passe en ligne qu’une fois ses documents de propriété validés. Le ou la Conseiller(ère) prépare, l’Assistant(e) ou le Directeur met en ligne. Les autres statuts, « Vendu » à part, restent ouverts à tout le personnel.",
+        detail: "Une vente ne passe en ligne qu’avec ses documents de propriété validés, sauf pour le Directeur et le Fondateur (règle suivante). Le ou la Conseiller(ère) prépare, l’Assistant(e) ou le Directeur met en ligne. Les autres statuts, « Vendu » à part, restent ouverts à tout le personnel.",
         access: UP_TO_ASSISTANT,
         capability: "listings.publish",
         enforcedBy: ["serveur"],
@@ -672,7 +672,7 @@ export const AREAS: Area[] = [
       {
         id: "listing-sale-without-checks",
         action: "Mettre une vente en ligne sans les vérifications de vente",
-        detail: "Pour un propriétaire qui ne peut pas utiliser l’application : sans compte rattaché, sans documents validés et sans mandat signé. Chaque mise en ligne de ce type est enregistrée avec son auteur et les vérifications passées.",
+        detail: "Pour un propriétaire qui ne peut pas utiliser l’application : sans compte rattaché, sans documents validés et sans mandat signé. Des documents refusés bloquent toujours la mise en ligne. Chaque mise en ligne de ce type est enregistrée avec son auteur et les vérifications passées.",
         access: DIRECTOR_AND_FOUNDER,
         capability: "listings.publishWithoutSaleChecks",
         enforcedBy: ["serveur"],

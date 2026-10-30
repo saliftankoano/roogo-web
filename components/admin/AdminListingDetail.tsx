@@ -746,6 +746,12 @@ export default function AdminListingDetail({
 
   const isDailyListing = isDailyRental(listing);
   const isSaleListing = listing.listingType === "vendre";
+  // Sale checks the server would skip for a Directeur (the mandate is checked
+  // on the server only, so it is not listed here).
+  const saleChecksMissing = [
+    saleIntake?.status === "unlinked" ? "propriétaire rattaché" : null,
+    listing.ownershipVerificationStatus !== "approved" ? "documents validés" : null,
+  ].filter((item): item is string => item !== null);
   // A due date in the past with no payment recorded (on or off Roogo).
   const isLeaseDueDatePast = Boolean(
     activeLease?.rent.nextDueDate &&
@@ -795,12 +801,22 @@ export default function AdminListingDetail({
 
                   {pendingStatus === "en_ligne" &&
                     isSaleListing &&
+                    listing.ownershipVerificationStatus === "rejected" && (
+                      <p className="w-full rounded-xl border border-red-200 bg-red-50 p-3 text-left text-xs text-red-800">
+                        Les documents de propriété ont été refusés. Cette vente
+                        ne peut pas être mise en ligne, même par le Directeur.
+                      </p>
+                    )}
+                  {pendingStatus === "en_ligne" &&
+                    isSaleListing &&
+                    listing.ownershipVerificationStatus !== "rejected" &&
+                    saleChecksMissing.length > 0 &&
                     staffAccess.can("listings.publishWithoutSaleChecks") && (
                       <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900">
-                        En tant que Directeur ou Fondateur, vous pouvez mettre
-                        cette vente en ligne même sans propriétaire rattaché,
-                        sans documents validés ou sans mandat signé. Cette mise
-                        en ligne sera enregistrée à votre nom.
+                        Il manque : {saleChecksMissing.join(", ")}. En tant que
+                        Directeur ou Fondateur, vous pouvez mettre cette vente
+                        en ligne quand même, avec ou sans mandat signé. Cette
+                        mise en ligne sera enregistrée à votre nom.
                       </p>
                     )}
 

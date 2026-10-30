@@ -145,6 +145,22 @@ export async function PATCH(
       }
     }
 
+    // Documents a staff member reviewed and refused are a scam signal, not a
+    // missing step: nobody can put that sale online, Directeur included.
+    if (
+      isSaleGoingLive &&
+      existingProperty.ownership_verification_status === "rejected"
+    ) {
+      return NextResponse.json(
+        {
+          code: "sale_ownership_rejected",
+          error:
+            "Les documents de propriété ont été refusés. La vente ne peut pas être mise en ligne.",
+        },
+        { status: 409 },
+      );
+    }
+
     // Compliance gate: a sale listing cannot go live until its ownership documents
     // have been staff-approved. This is the core anti-scam guarantee.
     if (
@@ -168,12 +184,18 @@ export async function PATCH(
     // Mandate gate: a sale listing also needs a signed mandate (the owner agreed to
     // Roogo's sale price + exclusivity) before it can go live.
     if (isSaleGoingLive) {
-      const { data: signedMandate } = await supabaseAdmin
+      // limit(1): a re-signed mandate leaves two signed rows, which is fine.
+      const { data: signedMandates, error: mandateError } = await supabaseAdmin
         .from("property_mandates")
         .select("id")
         .eq("property_id", propertyId)
         .eq("status", "signed")
-        .maybeSingle();
+        .limit(1);
+      if (mandateError) {
+        console.error("Error fetching mandate before publishing:", mandateError);
+        return NextResponse.json({ error: "Mandate check failed" }, { status: 500 });
+      }
+      const signedMandate = signedMandates?.[0] ?? null;
       if (!signedMandate && bypassSaleChecks) {
         skippedSaleChecks.push("signed_mandate");
       } else if (!signedMandate) {

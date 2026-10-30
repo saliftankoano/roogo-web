@@ -31,7 +31,7 @@ Format de réponse:
 
   const property = facts
     ? `Voici les informations du bien. Elles sont la seule source de faits:\n${facts}`
-    : "Aucun bien n'est sélectionné. Demande à l'équipe de choisir un bien ou de te donner les informations.";
+    : "Aucun bien n'est sélectionné. Si le premier message de l'équipe décrit une demande de client (appel à propriétaires), ses informations sont la seule source de faits. Sinon, demande à l'équipe de choisir un bien ou de te donner les informations.";
 
   return [rules, glossary, property].filter(Boolean).join("\n\n");
 }
