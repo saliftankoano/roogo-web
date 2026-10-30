@@ -1,5 +1,6 @@
 -- Studio projects started from a property request (« demande spécifique »,
--- Salif 2026-10-30). Run after 107 (107_fix_record_property_view), BEFORE deploying the code that reads
+-- Salif 2026-10-30). Number 107 is taken by 107_fix_record_property_view (already
+-- run, on its own branch). Run 108 BEFORE merging the code that reads
 -- studio_conversations.property_request_id (roogo-web PR #109).
 --
 -- A project points to its request by id, not by title: titles are not unique
@@ -14,3 +15,13 @@ ALTER TABLE public.studio_conversations
 CREATE UNIQUE INDEX IF NOT EXISTS studio_conversations_user_request_open_idx
   ON public.studio_conversations (user_id, property_request_id)
   WHERE property_request_id IS NOT NULL AND archived_at IS NULL;
+
+-- A sale put online by a Directeur or the Fondateur without the sale checks
+-- (owner link, approved documents, signed mandate) keeps a lasting record on
+-- the listing: which checks were skipped, by whom and when. The admin listing
+-- page shows it; PostHog and the server log are not the only trace.
+ALTER TABLE public.properties
+  ADD COLUMN IF NOT EXISTS sale_checks_skipped TEXT[],
+  ADD COLUMN IF NOT EXISTS sale_checks_skipped_by UUID
+    REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS sale_checks_skipped_at TIMESTAMPTZ;

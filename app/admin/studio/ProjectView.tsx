@@ -235,7 +235,7 @@ export function ProjectView({
             icon={FilmSlateIcon}
             title="Vidéo"
             meta={video ? [video.title, seconds(video)].filter(Boolean).join(" · ") : null}
-            action={canWrite && hasSubject ? { label: "Éditeur", onClick: open("editor") } : undefined}
+            action={canWrite && property ? { label: "Éditeur", onClick: open("editor") } : undefined}
           >
             {video?.url ? (
               <div className="grid gap-2">
@@ -252,7 +252,11 @@ export function ProjectView({
               </div>
             ) : (
               <p className="text-xs text-neutral-500">
-                {voice ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur." : "Possible dès maintenant avec une musique, sans voix off."}
+                {fromRequest
+                  ? "Le montage demande un bien. Pour une demande : script, voix off et visuels."
+                  : voice
+                    ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur."
+                    : "Possible dès maintenant avec une musique, sans voix off."}
               </p>
             )}
           </Tile>

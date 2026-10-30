@@ -119,6 +119,29 @@ export async function POST(
       return NextResponse.json({ error: "Failed to update property" }, { status: 500 });
     }
 
+    // Refused documents block a sale for everyone. A Directeur may have put it
+    // online before any documents existed (sale checks bypass): take it back
+    // offline now, it waits in « en attente » until new documents are approved.
+    if (decision === "reject") {
+      const { data: unpublished, error: unpublishError } = await supabaseAdmin
+        .from("properties")
+        .update({ status: "en_attente" })
+        .eq("id", submission.property_id)
+        .eq("listing_type", "vendre")
+        .eq("status", "en_ligne")
+        .select("id");
+      if (unpublishError) {
+        console.error("Taking a rejected sale offline failed:", unpublishError);
+        return NextResponse.json(
+          { error: "Documents refusés, mais la vente n'a pas pu être retirée du site." },
+          { status: 500 },
+        );
+      }
+      if (unpublished?.length) {
+        console.info("Rejected sale taken offline", { propertyId: submission.property_id });
+      }
+    }
+
     // Tell the seller their documents were reviewed.
     notifyUserWithTemplate(
       submission.user_id,

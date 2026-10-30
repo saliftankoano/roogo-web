@@ -266,7 +266,7 @@ export function StudioApp() {
       void loadVoices();
       void loadBudget();
       const list = await loadConversations();
-      // « Faire une vidéo » on a request opens /admin/studio?demande=<id>: start
+      // « Préparer dans le Studio » on a request opens /admin/studio?demande=<id>: start
       // that request's project instead of reopening the latest one.
       const url = new URL(window.location.href);
       const requestId = url.searchParams.get("demande");
@@ -403,8 +403,8 @@ export function StudioApp() {
 
   // Choosing a request opens your project for it (one per person and per
   // request, found or created by the server in one step) and sends the
-  // call-out brief if that project has no message yet. A second click while
-  // the first is running is ignored, so it never pays for two drafts.
+  // call-out brief when the server says so (new project, or an old one left
+  // empty). A second click while the first is running is ignored.
   const pickingRequestRef = useRef(false);
   async function pickRequest(requestId: string) {
     if (pickingRequestRef.current) return;
@@ -419,7 +419,7 @@ export function StudioApp() {
       });
       const data = (await res.json().catch(() => ({}))) as {
         id?: string;
-        messageCount?: number;
+        sendBrief?: boolean;
         brief?: string;
         error?: string;
       };
@@ -429,7 +429,7 @@ export function StudioApp() {
       }
       void loadConversations();
       await open(data.id, "chat");
-      if (!data.messageCount) await send(data.id, data.brief);
+      if (data.sendBrief) await send(data.id, data.brief);
     } finally {
       pickingRequestRef.current = false;
       setPickingRequest(false);

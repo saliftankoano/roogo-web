@@ -278,6 +278,19 @@ export async function PATCH(
         actorId: user.id,
         skipped: skippedSaleChecks,
       });
+      // Lasting record on the listing (migration 108). Best effort: the sale is
+      // already online, so a failure here is logged, not returned.
+      const { error: recordError } = await supabaseAdmin
+        .from("properties")
+        .update({
+          sale_checks_skipped: skippedSaleChecks,
+          sale_checks_skipped_by: user.id,
+          sale_checks_skipped_at: new Date().toISOString(),
+        })
+        .eq("id", propertyId);
+      if (recordError) {
+        console.error("Recording the skipped sale checks failed:", recordError.code);
+      }
       await captureServerEvent(user.clerk_id || user.id, "sale_published_without_checks", {
         property_id: propertyId,
         actor_id: user.id,

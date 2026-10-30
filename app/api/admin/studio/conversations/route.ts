@@ -75,13 +75,16 @@ async function requestProject(req: Request, staffId: string, requestId: string) 
     .from("property_requests")
     .select(PUBLIC_REQUEST_COLUMNS)
     .eq("id", requestId)
-    .maybeSingle<RequestForBrief & { id: string }>();
+    .maybeSingle<RequestForBrief & { id: string; status: string }>();
   if (!request) return errorResponse("Demande introuvable", 404, req);
+  if (request.status === "closed") {
+    return errorResponse("Cette demande est fermée.", 409, req);
+  }
 
   const findOpen = () =>
     supabaseAdmin
       .from("studio_conversations")
-      .select("id, title")
+      .select("id, title, created_at")
       .eq("user_id", staffId)
       .eq("property_request_id", request.id)
       .is("archived_at", null)
@@ -97,7 +100,7 @@ async function requestProject(req: Request, staffId: string, requestId: string) 
         property_request_id: request.id,
         title: requestProjectTitle(request),
       })
-      .select("id, title")
+      .select("id, title, created_at")
       .single();
     // 23505: a second click won the race; use the project it created.
     if (error?.code === "23505") ({ data: project } = await findOpen());
@@ -111,19 +114,25 @@ async function requestProject(req: Request, staffId: string, requestId: string) 
   }
   if (!project) return errorResponse("Le projet n'a pas pu être créé.", 500, req);
 
-  // An earlier first draft that never got through (too long, rate limit,
-  // network) leaves an empty project: the caller sends the brief again.
+  // An earlier first draft that never got through (rate limit, network)
+  // leaves an empty project: the brief is sent again (see sendBrief).
   const { count } = await supabaseAdmin
     .from("studio_messages")
     .select("id", { count: "exact", head: true })
     .eq("conversation_id", project.id);
+
+  // Send the brief from the caller that created the project, or into an old
+  // project that stayed empty. A project created seconds ago by another tab
+  // is left to that tab, so two tabs never pay for two first drafts.
+  const ageMs = Date.now() - new Date(project.created_at).getTime();
+  const sendBrief = created || ((count ?? 0) === 0 && ageMs > 60_000);
 
   return cors(
     NextResponse.json(
       {
         id: project.id,
         title: project.title,
-        messageCount: count ?? 0,
+        sendBrief,
         brief: requestBrief(request),
       },
       { status: created ? 201 : 200 },

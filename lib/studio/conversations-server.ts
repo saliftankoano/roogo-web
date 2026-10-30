@@ -16,8 +16,6 @@ export type ConversationRow = {
   id: string;
   user_id: string;
   property_id: string | null;
-  /** Set when the project was started from a property request (migration 108). */
-  property_request_id: string | null;
   title: string;
   voice_key: string | null;
   created_at: string;
@@ -26,7 +24,25 @@ export type ConversationRow = {
 };
 
 export const CONVERSATION_COLUMNS =
-  "id, user_id, property_id, property_request_id, title, voice_key, created_at, updated_at, archived_at";
+  "id, user_id, property_id, title, voice_key, created_at, updated_at, archived_at";
+
+/**
+ * The request a project was started from (studio_conversations.property_request_id,
+ * migration 108), or null. Read on its own and never in CONVERSATION_COLUMNS, so
+ * every other Studio route keeps working if the code ships before the migration.
+ */
+export async function loadProjectRequestId(conversationId: string): Promise<string | null> {
+  const { data, error } = await supabaseAdmin
+    .from("studio_conversations")
+    .select("property_request_id")
+    .eq("id", conversationId)
+    .maybeSingle<{ property_request_id: string | null }>();
+  if (error) {
+    console.error("Studio: request link unavailable (migration 108?)", error.code);
+    return null;
+  }
+  return data?.property_request_id ?? null;
+}
 
 type Viewer = { id: string; user_type: string | null };
 

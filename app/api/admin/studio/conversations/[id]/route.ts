@@ -7,6 +7,7 @@ import {
   canReadConversation,
   canWriteConversation,
   loadConversation,
+  loadProjectRequestId,
   loadPropertyRow,
   propertyLabels,
 } from "@/lib/studio/conversations-server";
@@ -97,7 +98,7 @@ export async function GET(req: Request, { params }: Ctx) {
         id: conv.id,
         title: conv.title,
         propertyId: conv.property_id,
-        propertyRequestId: conv.property_request_id ?? null,
+        propertyRequestId: conv.property_id ? null : await loadProjectRequestId(conv.id),
         voiceKey: conv.voice_key,
         isMine: conv.user_id === staff.id,
       },
@@ -136,7 +137,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
 
   if (typeof body?.property_id === "string") {
     // A request project keeps its request; a property gets its own project.
-    if (conv.property_request_id) {
+    if (!conv.property_id && (await loadProjectRequestId(conv.id))) {
       return errorResponse("Ce projet part d'une demande : choisissez le bien dans un nouveau projet.", 409, req);
     }
     const property = await loadPropertyRow(body.property_id);

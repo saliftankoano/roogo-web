@@ -970,12 +970,14 @@ export default function PropertyRequestsPage() {
                     </h2>
                   </div>
                   <div className="flex shrink-0 flex-wrap justify-end gap-2">
-                    <Link
-                      href={`/admin/studio?demande=${detail.request.id}`}
-                      className={`inline-flex items-center justify-center rounded-full font-bold ${buttonVariants.primary} ${buttonSizes.sm}`}
-                    >
-                      Faire une vidéo
-                    </Link>
+                    {detail.request.status !== "closed" && (
+                      <Link
+                        href={`/admin/studio?demande=${detail.request.id}`}
+                        className={`inline-flex items-center justify-center rounded-full font-bold ${buttonVariants.primary} ${buttonSizes.sm}`}
+                      >
+                        Préparer dans le Studio
+                      </Link>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"

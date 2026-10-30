@@ -207,6 +207,13 @@ const getPropertyTypeLabel = (type?: string) => {
 // (/proprietes/[slug]) when the viewer is staff-like, so the address bar
 // always holds the shareable public link. Security lives in the API routes;
 // this render is gated server-side in the page and client-side below.
+/** The sale checks a Directeur can skip, as recorded on the listing. */
+const SKIPPED_CHECK_LABELS: Record<string, string> = {
+  owner_link: "propriétaire rattaché",
+  ownership_documents: "documents validés",
+  signed_mandate: "mandat signé",
+};
+
 export default function AdminListingDetail({
   propertyId,
   canMarkSold = false,
@@ -746,12 +753,12 @@ export default function AdminListingDetail({
 
   const isDailyListing = isDailyRental(listing);
   const isSaleListing = listing.listingType === "vendre";
-  // Sale checks the server would skip for a Directeur (the mandate is checked
-  // on the server only, so it is not listed here).
+  // Sale checks the server would skip for a Directeur, tested like the server.
   const saleChecksMissing = [
     // Same test as the server: no owner account on the listing.
     !listing.agentId ? "propriétaire rattaché" : null,
     listing.ownershipVerificationStatus !== "approved" ? "documents validés" : null,
+    listing.hasSignedMandate === false ? "mandat signé" : null,
   ].filter((item): item is string => item !== null);
   // A due date in the past with no payment recorded (on or off Roogo).
   const isLeaseDueDatePast = Boolean(
@@ -816,8 +823,8 @@ export default function AdminListingDetail({
                       <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900">
                         Il manque : {saleChecksMissing.join(", ")}. En tant que
                         Directeur ou Fondateur, vous pouvez mettre cette vente
-                        en ligne quand même, avec ou sans mandat signé. Cette
-                        mise en ligne sera enregistrée à votre nom.
+                        en ligne quand même. Cette mise en ligne sera
+                        enregistrée à votre nom.
                       </p>
                     )}
 
@@ -1572,6 +1579,27 @@ export default function AdminListingDetail({
               </div>
             )}
           </section>
+
+          {isSaleListing && listing.saleChecksSkipped && (
+            <section className="rounded-[32px] border border-amber-200 bg-amber-50 p-6">
+              <span className="inline-flex rounded-full bg-amber-200 px-3 py-1 text-[10px] font-black uppercase tracking-wider text-amber-900">
+                Publiée sans vérifications
+              </span>
+              <p className="mt-3 text-sm font-semibold text-neutral-800">
+                Mise en ligne sans :{" "}
+                {listing.saleChecksSkipped.checks
+                  .map((check) => SKIPPED_CHECK_LABELS[check] ?? check)
+                  .join(", ")}
+                {listing.saleChecksSkipped.by
+                  ? `, par ${listing.saleChecksSkipped.by}`
+                  : ""}
+                {listing.saleChecksSkipped.at
+                  ? ` le ${new Date(listing.saleChecksSkipped.at).toLocaleDateString("fr-FR")}`
+                  : ""}
+                .
+              </p>
+            </section>
+          )}
 
           {isSaleListing && <StaffSaleLadder propertyId={listing.id} />}
 
