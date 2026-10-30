@@ -13,7 +13,7 @@ import {
   PlusIcon,
   ArrowClockwiseIcon,
 } from "@phosphor-icons/react";
-import { Button } from "@/components/ui/Button";
+import { Button, buttonSizes, buttonVariants } from "@/components/ui/Button";
 import {
   isNewerRequestVersion,
   mergeRequestDraft,
@@ -969,14 +969,22 @@ export default function PropertyRequestsPage() {
                       {detail.request.title}
                     </h2>
                   </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => openEditor(detail.request)}
-                    disabled={editor?.saving}
-                  >
-                    Modifier
-                  </Button>
+                  <div className="flex shrink-0 flex-wrap justify-end gap-2">
+                    <Link
+                      href={`/admin/studio?demande=${detail.request.id}`}
+                      className={`inline-flex items-center justify-center rounded-full font-bold ${buttonVariants.primary} ${buttonSizes.sm}`}
+                    >
+                      Faire une vidéo
+                    </Link>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => openEditor(detail.request)}
+                      disabled={editor?.saving}
+                    >
+                      Modifier
+                    </Button>
+                  </div>
                 </div>
                 <p className="mt-3 whitespace-pre-wrap text-sm">
                   {detail.request.description}

@@ -793,6 +793,17 @@ export default function AdminListingDetail({
                     ?
                   </p>
 
+                  {pendingStatus === "en_ligne" &&
+                    isSaleListing &&
+                    staffAccess.can("listings.publishWithoutSaleChecks") && (
+                      <p className="w-full rounded-xl border border-amber-200 bg-amber-50 p-3 text-left text-xs text-amber-900">
+                        En tant que Directeur ou Fondateur, vous pouvez mettre
+                        cette vente en ligne même sans propriétaire rattaché,
+                        sans documents validés ou sans mandat signé. Cette mise
+                        en ligne sera enregistrée à votre nom.
+                      </p>
+                    )}
+
                   {pendingStatus === "vendu" && (
                     <div className="w-full space-y-3 rounded-xl border border-neutral-200 bg-neutral-50 p-3 text-left">
                       <p className="text-xs text-neutral-600">

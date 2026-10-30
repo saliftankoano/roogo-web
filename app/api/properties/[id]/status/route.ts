@@ -121,48 +121,62 @@ export async function PATCH(
       }
     }
 
-    if (
-      isGoingLive &&
-      existingProperty.listing_type === "vendre" &&
-      !existingProperty.agent_id
-    ) {
-      return NextResponse.json(
-        {
-          code: "sale_owner_link_required",
-          error:
-            "Rattachez d'abord l'annonce au compte du propriétaire avant la mise en ligne.",
-        },
-        { status: 409 },
-      );
+    // Directeur and Fondateur may put a sale online without the three sale
+    // checks below, for an owner who cannot use the app (Salif, 2026-10-30).
+    // Every such publication is recorded with who did it and what was skipped.
+    const isSaleGoingLive =
+      isGoingLive && existingProperty.listing_type === "vendre";
+    const bypassSaleChecks =
+      isSaleGoingLive && userCan(user, "listings.publishWithoutSaleChecks");
+    const skippedSaleChecks: string[] = [];
+
+    if (isSaleGoingLive && !existingProperty.agent_id) {
+      if (bypassSaleChecks) {
+        skippedSaleChecks.push("owner_link");
+      } else {
+        return NextResponse.json(
+          {
+            code: "sale_owner_link_required",
+            error:
+              "Rattachez d'abord l'annonce au compte du propriétaire avant la mise en ligne.",
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // Compliance gate: a sale listing cannot go live until its ownership documents
     // have been staff-approved. This is the core anti-scam guarantee.
     if (
-      isGoingLive &&
-      existingProperty.listing_type === "vendre" &&
+      isSaleGoingLive &&
       existingProperty.ownership_verification_status !== "approved"
     ) {
-      return NextResponse.json(
-        {
-          code: "sale_ownership_verification_required",
-          error:
-            "Les documents de propriété doivent être vérifiés avant la mise en ligne.",
-        },
-        { status: 409 },
-      );
+      if (bypassSaleChecks) {
+        skippedSaleChecks.push("ownership_documents");
+      } else {
+        return NextResponse.json(
+          {
+            code: "sale_ownership_verification_required",
+            error:
+              "Les documents de propriété doivent être vérifiés avant la mise en ligne.",
+          },
+          { status: 409 },
+        );
+      }
     }
 
     // Mandate gate: a sale listing also needs a signed mandate (the owner agreed to
     // Roogo's sale price + exclusivity) before it can go live.
-    if (isGoingLive && existingProperty.listing_type === "vendre") {
+    if (isSaleGoingLive) {
       const { data: signedMandate } = await supabaseAdmin
         .from("property_mandates")
         .select("id")
         .eq("property_id", propertyId)
         .eq("status", "signed")
         .maybeSingle();
-      if (!signedMandate) {
+      if (!signedMandate && bypassSaleChecks) {
+        skippedSaleChecks.push("signed_mandate");
+      } else if (!signedMandate) {
         return NextResponse.json(
           {
             code: "sale_mandate_required",
@@ -233,6 +247,20 @@ export async function PATCH(
         status_change: `to_${status}`,
         actor_type: user.user_type,
         is_boost_refresh: isGoingLive,
+      });
+    }
+
+    if (!error && didTransition && skippedSaleChecks.length > 0) {
+      console.info("Sale published without sale checks", {
+        propertyId,
+        actorId: user.id,
+        skipped: skippedSaleChecks,
+      });
+      await captureServerEvent(user.clerk_id || user.id, "sale_published_without_checks", {
+        property_id: propertyId,
+        actor_id: user.id,
+        actor_staff_level: user.staff_level ?? null,
+        skipped_checks: skippedSaleChecks,
       });
     }
 

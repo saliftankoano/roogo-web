@@ -17,7 +17,7 @@
 //
 // No runtime imports: the test loads this file directly with Node.
 
-export const LAST_REVIEWED = "2026-10-22";
+export const LAST_REVIEWED = "2026-10-30";
 
 export type Level = "fondateur" | "directeur" | "assistant" | "conseillere" | "stagiaire";
 
@@ -83,12 +83,12 @@ export const LEVEL_CARDS: LevelCard[] = [
  * (the "legacy" level of lib/staff-access.ts); once it is on, it acts as
  * Conseiller(ère). The test checks LEGACY_MISSING against the code.
  */
-export const LEGACY_MISSING = ["finances.view", "settings.manage", "studio.moderateGlossary", "team.manage"];
+export const LEGACY_MISSING = ["finances.view", "listings.publishWithoutSaleChecks", "settings.manage", "studio.moderateGlossary", "team.manage"];
 
 export const UNLEVELED = {
   title: "Compte staff sans niveau",
   whileOff:
-    "Tant que l’interrupteur des niveaux (STAFF_LEVELS_ENFORCED) n’est pas activé sur le serveur, un compte staff sans niveau garde l’accès d’avant les niveaux : tout sauf Finances, Paramètres et l’onglet Niveaux et invitations. Les colonnes ci-dessous s’appliquent dès qu’une personne a un niveau.",
+    "Tant que l’interrupteur des niveaux (STAFF_LEVELS_ENFORCED) n’est pas activé sur le serveur, un compte staff sans niveau garde l’accès d’avant les niveaux : tout sauf Finances, Paramètres, l’onglet Niveaux et invitations et la mise en ligne d’une vente sans vérifications. Les colonnes ci-dessous s’appliquent dès qu’une personne a un niveau.",
   whenOn:
     "L’interrupteur des niveaux est activé : un compte staff sans niveau a les droits d’un(e) Conseiller(ère).",
 };
@@ -667,6 +667,16 @@ export const AREAS: Area[] = [
         capability: "listings.publish",
         enforcedBy: ["serveur"],
         files: ["app/api/properties/[id]/status/route.ts", "app/api/properties/route.ts"],
+        titleMatters: true,
+      },
+      {
+        id: "listing-sale-without-checks",
+        action: "Mettre une vente en ligne sans les vérifications de vente",
+        detail: "Pour un propriétaire qui ne peut pas utiliser l’application : sans compte rattaché, sans documents validés et sans mandat signé. Chaque mise en ligne de ce type est enregistrée avec son auteur et les vérifications passées.",
+        access: DIRECTOR_AND_FOUNDER,
+        capability: "listings.publishWithoutSaleChecks",
+        enforcedBy: ["serveur"],
+        files: ["app/api/properties/[id]/status/route.ts"],
         titleMatters: true,
       },
       {

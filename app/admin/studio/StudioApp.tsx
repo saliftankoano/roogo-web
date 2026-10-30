@@ -26,6 +26,8 @@ import { GlossaryPanel } from "./GlossaryPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { ProjectPanel, type CenterView } from "./ProjectPanel";
 import { PropertyPicker } from "./PropertyPicker";
+import type { StudioRequest } from "./RequestPicker";
+import { requestBrief, requestProjectTitle } from "@/lib/studio/request-brief";
 import { StudioEditor } from "./StudioEditor";
 import { useJobs } from "./StudioTools";
 import { StudioHeader } from "./StudioHeader";
@@ -264,6 +266,17 @@ export function StudioApp() {
       void loadVoices();
       void loadBudget();
       const list = await loadConversations();
+      // « Faire une vidéo » on a request opens /admin/studio?demande=<id>: start
+      // that request's project instead of reopening the latest one.
+      const url = new URL(window.location.href);
+      const requestId = url.searchParams.get("demande");
+      if (requestId) {
+        url.searchParams.delete("demande");
+        window.history.replaceState(null, "", url.toString());
+        setBooted(true);
+        setStartRequestId(requestId);
+        return;
+      }
       const first = list.find((item) => item.isMine) ?? list[0];
       if (first) await open(first.id, first.kind === "visual" ? "visuals" : "chat");
       setBooted(true);
@@ -387,6 +400,36 @@ export function StudioApp() {
     }
     await send(id, text);
   }
+
+  // Choosing a request starts its own project and the first call-out script at
+  // once, like choosing a property. The request is not linked to a listing.
+  async function pickRequest(request: StudioRequest) {
+    setError(null);
+    newConversation();
+    const id = await createConversation(undefined, requestProjectTitle(request));
+    if (!id) return;
+    activeRef.current = id;
+    setActiveId(id);
+    await loadDetail(id);
+    await send(id, requestBrief(request));
+  }
+  const pickRequestRef = useRef(pickRequest);
+  pickRequestRef.current = pickRequest;
+
+  const [startRequestId, setStartRequestId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!startRequestId) return;
+    setStartRequestId(null);
+    void (async () => {
+      const res = await fetch(`/api/property-requests/${encodeURIComponent(startRequestId)}`);
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok || !data.request) {
+        setError(data.error ?? "La demande n'a pas pu être chargée.");
+        return;
+      }
+      await pickRequestRef.current(data.request as StudioRequest);
+    })();
+  }, [startRequestId]);
 
   // Choosing a property in an empty project starts the first draft at once.
   async function pickProperty(property: PropertySummary) {
@@ -630,6 +673,7 @@ export function StudioApp() {
             void sendText(FIRST_DRAFT_REQUEST);
           }}
           onPickProperty={(p: PropertySummary) => void pickProperty(p)}
+          onPickRequest={(r: StudioRequest) => void pickRequest(r)}
           onView={openView}
           card={cardProps}
         />
