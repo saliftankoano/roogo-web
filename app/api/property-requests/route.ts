@@ -18,6 +18,17 @@ export async function GET(req: Request) {
     const { user, error: authError } = await requestActor(req);
     if (!user) return authError;
     const staff = isStaffOrFounder(user);
+    // Studio's request picker: public fields of the requests still in
+    // progress, without the client's name, contact or internal notes.
+    if (staff && new URL(req.url).searchParams.get("view") === "studio") {
+      const { data, error } = await supabaseAdmin
+        .from("property_requests")
+        .select(PUBLIC_REQUEST_COLUMNS)
+        .neq("status", "closed")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return requestJson(req, { requests: data || [] });
+    }
     if (staff) {
       const { data, error } = await supabaseAdmin
         .from("property_requests")

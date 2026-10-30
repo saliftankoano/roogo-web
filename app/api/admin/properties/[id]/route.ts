@@ -58,6 +58,7 @@ function mapAdminProperty(row: PropertyDetailsRow) {
     is_test: Boolean(row.is_test),
     virtualTourUrl: asString(row.virtual_tour_url),
     listingType: asString(row.listing_type),
+    ownershipVerificationStatus: asString(row.ownership_verification_status) || null,
     agentId: asString(row.agent_id) || null,
     agent: {
       full_name: asString(row.agent_name) || "Utilisateur inconnu",
@@ -198,10 +199,50 @@ export async function GET(
     }
     const soldRow = soldError ? null : (sold as { sold_at: string | null; sold_price: number | null } | null);
 
+    // Sale checks for the publish popup and the « publiée sans vérifications »
+    // record (migration 108; before it runs the record is simply absent).
+    const isSale = data.listing_type === "vendre";
+    const [{ data: skipped, error: skippedError }, { data: mandates }] = isSale
+      ? await Promise.all([
+          supabaseAdmin
+            .from("properties")
+            .select("sale_checks_skipped, sale_checks_skipped_at, skipped_by:sale_checks_skipped_by(full_name)")
+            .eq("id", id)
+            .maybeSingle(),
+          supabaseAdmin
+            .from("property_mandates")
+            .select("id")
+            .eq("property_id", id)
+            .eq("status", "signed")
+            .limit(1),
+        ])
+      : [{ data: null, error: null }, { data: null }];
+    if (skippedError && skippedError.code !== "42703") {
+      console.error("Error fetching skipped sale checks:", skippedError.code);
+    }
+    const skippedRow = skippedError
+      ? null
+      : (skipped as {
+          sale_checks_skipped: string[] | null;
+          sale_checks_skipped_at: string | null;
+          skipped_by: { full_name: string | null } | { full_name: string | null }[] | null;
+        } | null);
+    const skippedBy = Array.isArray(skippedRow?.skipped_by)
+      ? skippedRow?.skipped_by[0]
+      : skippedRow?.skipped_by;
+
     return cors(
       NextResponse.json({
         property: {
           ...mapAdminProperty(data),
+          hasSignedMandate: isSale ? Boolean(mandates?.length) : null,
+          saleChecksSkipped: skippedRow?.sale_checks_skipped?.length
+            ? {
+                checks: skippedRow.sale_checks_skipped,
+                at: skippedRow.sale_checks_skipped_at,
+                by: skippedBy?.full_name ?? null,
+              }
+            : null,
           soldAt: soldRow?.sold_at ?? null,
           soldPrice: soldRow?.sold_price == null ? null : Number(soldRow.sold_price),
           saleIntake: intake ?? null,

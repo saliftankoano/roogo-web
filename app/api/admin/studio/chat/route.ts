@@ -71,6 +71,21 @@ export async function POST(req: Request) {
     .limit(HISTORY_LIMIT);
   const priorMessages = (history ?? []).reverse();
 
+  // A project without a property (one started from a request) carries its
+  // facts in its first message: keep that message in view however long the
+  // conversation gets, so the assistant never loses the request.
+  if (!property && (history?.length ?? 0) >= HISTORY_LIMIT) {
+    const { data: first } = await supabaseAdmin
+      .from("studio_messages")
+      .select("role, content")
+      .eq("conversation_id", conv.id)
+      .eq("role", "user")
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (first && priorMessages[0]?.content !== first.content) priorMessages.unshift(first);
+  }
+
   await supabaseAdmin
     .from("studio_messages")
     .insert({ conversation_id: conv.id, role: "user", content: message });

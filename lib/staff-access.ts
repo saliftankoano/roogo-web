@@ -52,6 +52,7 @@ export type StaffCapability =
   | "listings.view"
   | "listings.write"
   | "listings.publish"
+  | "listings.publishWithoutSaleChecks"
   | "listings.delete"
   | "identity.review"
   | "identity.status"
@@ -95,6 +96,9 @@ export const STAFF_CAPABILITY_MATRIX: Record<StaffCapability, LevelList> = {
   "listings.write": [F, D, A, C, L],
   // An advisor creates and edits listings; the Assistant or Director puts them online.
   "listings.publish": [F, D, A, L],
+  // Put a sale online without the owner's account, verified documents or
+  // signed mandate, for owners who cannot use the app (Salif, 2026-10-30).
+  "listings.publishWithoutSaleChecks": [F, D],
   "listings.delete": [F, D, L],
   "identity.review": [F, D, A, L],
   "identity.status": [F, D, A, C, L],

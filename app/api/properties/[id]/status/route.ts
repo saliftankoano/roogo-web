@@ -7,6 +7,7 @@ import { getStaffOrFounder, userCan } from "@/lib/api-auth";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { soldTransition } from "@/lib/property-status";
 import { checkListingQuality, listingQualityError } from "@/lib/listing-quality";
+import { saleGoLiveDecision, type SaleCheck } from "@/lib/sale-go-live";
 import { isDirectorOrFounder, levelFor, titleFromStaffLevel } from "@/lib/team-tasks/core";
 
 /** Directeur or Fondateur: the account type for the founder, the staff level otherwise. */
@@ -121,58 +122,40 @@ export async function PATCH(
       }
     }
 
-    if (
-      isGoingLive &&
-      existingProperty.listing_type === "vendre" &&
-      !existingProperty.agent_id
-    ) {
-      return NextResponse.json(
-        {
-          code: "sale_owner_link_required",
-          error:
-            "Rattachez d'abord l'annonce au compte du propriétaire avant la mise en ligne.",
-        },
-        { status: 409 },
-      );
-    }
-
-    // Compliance gate: a sale listing cannot go live until its ownership documents
-    // have been staff-approved. This is the core anti-scam guarantee.
-    if (
-      isGoingLive &&
-      existingProperty.listing_type === "vendre" &&
-      existingProperty.ownership_verification_status !== "approved"
-    ) {
-      return NextResponse.json(
-        {
-          code: "sale_ownership_verification_required",
-          error:
-            "Les documents de propriété doivent être vérifiés avant la mise en ligne.",
-        },
-        { status: 409 },
-      );
-    }
-
-    // Mandate gate: a sale listing also needs a signed mandate (the owner agreed to
-    // Roogo's sale price + exclusivity) before it can go live.
-    if (isGoingLive && existingProperty.listing_type === "vendre") {
-      const { data: signedMandate } = await supabaseAdmin
+    // Sale checks (lib/sale-go-live.ts): owner account linked, ownership
+    // documents approved, signed mandate. Directeur and Fondateur may skip
+    // them (Salif, 2026-10-30); refused documents block everyone. Every skip
+    // is recorded below with who did it and what was skipped.
+    const isSaleGoingLive =
+      isGoingLive && existingProperty.listing_type === "vendre";
+    let skippedSaleChecks: SaleCheck[] = [];
+    if (isSaleGoingLive) {
+      // limit(1): a re-signed mandate leaves two signed rows, which is fine.
+      const { data: signedMandates, error: mandateError } = await supabaseAdmin
         .from("property_mandates")
         .select("id")
         .eq("property_id", propertyId)
         .eq("status", "signed")
-        .maybeSingle();
-      if (!signedMandate) {
+        .limit(1);
+      if (mandateError) {
+        console.error("Error fetching mandate before publishing:", mandateError);
+        return NextResponse.json({ error: "Mandate check failed" }, { status: 500 });
+      }
+      const decision = saleGoLiveDecision({
+        agentId: existingProperty.agent_id,
+        ownershipStatus: existingProperty.ownership_verification_status,
+        hasSignedMandate: Boolean(signedMandates?.length),
+        canSkipChecks: userCan(user, "listings.publishWithoutSaleChecks"),
+      });
+      if (!decision.ok) {
         return NextResponse.json(
-          {
-            code: "sale_mandate_required",
-            error:
-              "Le mandat de vente doit être signé par le propriétaire avant la mise en ligne.",
-          },
+          { code: decision.code, error: decision.error },
           { status: 409 },
         );
       }
+      skippedSaleChecks = decision.skipped;
     }
+
     // Bookability gate: a live hotel must have at least one active room type,
     // mirroring the guard that blocks deleting the last one. Without this, an
     // approved hotel would advertise a price with zero bookable inventory.
@@ -223,9 +206,26 @@ export async function PATCH(
     if (isGoingLive) {
       updateQuery = updateQuery.neq("status", "en_ligne");
     }
+    // Documents refused between the checks above and this write still win.
+    if (isSaleGoingLive) {
+      updateQuery = updateQuery.neq("ownership_verification_status", "rejected");
+    }
 
     const { data: updatedRows, error } = await updateQuery.select("id");
     const didTransition = !error && (!isGoingLive || Boolean(updatedRows?.length));
+
+    // The « not rejected » guard stopped the write: documents were refused
+    // while this publish was on its way. Say so instead of a silent success.
+    if (!error && isSaleGoingLive && !didTransition && !wasAlreadyLive) {
+      return NextResponse.json(
+        {
+          code: "sale_ownership_rejected",
+          error:
+            "Les documents de propriété viennent d'être refusés. La vente ne peut pas être mise en ligne.",
+        },
+        { status: 409 },
+      );
+    }
 
     if (!error && didTransition) {
       await captureServerEvent(user.clerk_id || user.id, "property_listing_published", {
@@ -233,6 +233,33 @@ export async function PATCH(
         status_change: `to_${status}`,
         actor_type: user.user_type,
         is_boost_refresh: isGoingLive,
+      });
+    }
+
+    if (!error && didTransition && skippedSaleChecks.length > 0) {
+      console.info("Sale published without sale checks", {
+        propertyId,
+        actorId: user.id,
+        skipped: skippedSaleChecks,
+      });
+      // Lasting record on the listing (migration 108). Best effort: the sale is
+      // already online, so a failure here is logged, not returned.
+      const { error: recordError } = await supabaseAdmin
+        .from("properties")
+        .update({
+          sale_checks_skipped: skippedSaleChecks,
+          sale_checks_skipped_by: user.id,
+          sale_checks_skipped_at: new Date().toISOString(),
+        })
+        .eq("id", propertyId);
+      if (recordError) {
+        console.error("Recording the skipped sale checks failed:", recordError.code);
+      }
+      await captureServerEvent(user.clerk_id || user.id, "sale_published_without_checks", {
+        property_id: propertyId,
+        actor_id: user.id,
+        actor_staff_level: user.staff_level ?? null,
+        skipped_checks: skippedSaleChecks,
       });
     }
 

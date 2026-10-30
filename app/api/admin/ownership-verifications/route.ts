@@ -45,7 +45,9 @@ async function listAssistedSubmissionCandidates(req: Request) {
     `,
     )
     .eq("listing_type", "vendre")
-    .not("agent_id", "is", null)
+    // Sales with no owner account are included: a Directeur may have put one
+    // online without the sale checks, and its documents must still be filed
+    // and reviewed by the team (council review of PR #109, 2026-10-30).
     .in("ownership_verification_status", ["unsubmitted", "rejected"])
     .order("created_at", { ascending: false })
     .limit(100);
@@ -191,12 +193,6 @@ export async function POST(req: Request) {
         { status: 400 },
       );
     }
-    if (!property.agent_id) {
-      return NextResponse.json(
-        { error: "Rattachez d'abord cette vente à son propriétaire." },
-        { status: 409 },
-      );
-    }
     if (property.ownership_verification_status === "approved") {
       return NextResponse.json(
         { error: "Les documents de cette annonce sont déjà approuvés." },
@@ -237,7 +233,9 @@ export async function POST(req: Request) {
       .from("property_ownership_submissions")
       .insert({
         property_id: property.id,
-        user_id: property.agent_id,
+        // No owner account yet: the staff member who files the dossier holds
+        // it (documents are staff uploads either way).
+        user_id: property.agent_id ?? authResult.supabaseUser.id,
         documents: [],
         status: "pending",
       })

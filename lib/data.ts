@@ -54,6 +54,14 @@ export type Property = {
   longitude?: number | null;
   listingType?: "louer" | "vendre";
   ownershipVerified?: boolean;
+  /** unsubmitted | pending | approved | rejected (sale listings). Admin view only. */
+  ownershipVerificationStatus?: string | null;
+  /** The owner's account (properties.agent_id); null for a sale not yet linked. Admin view only. */
+  agentId?: string | null;
+  /** Sale listings: whether a signed mandate exists. Admin view only. */
+  hasSignedMandate?: boolean | null;
+  /** Sale put online without some sale checks (migration 108). Admin view only. */
+  saleChecksSkipped?: { checks: string[]; at: string | null; by: string | null } | null;
   /** Status vendu (migration 093): notary signature date and sale price. Admin view only. */
   soldAt?: string | null;
   soldPrice?: number | null;

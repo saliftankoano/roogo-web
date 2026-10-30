@@ -19,6 +19,7 @@ import { ArtifactCard, type CardProps } from "./ArtifactsPanel";
 import { Composer, LiveReply, Message, OldScript } from "./ChatView";
 import { FieldMediaPanel } from "./FieldMediaPanel";
 import { PropertyPicker } from "./PropertyPicker";
+import { RequestPicker, type StudioRequest } from "./RequestPicker";
 import { PublicationCard } from "./publishing/PublicationCard";
 import type { Artifact, ConversationDetail, PropertySummary } from "./studio-types";
 import type { CenterView } from "./ProjectPanel";
@@ -45,6 +46,8 @@ export function ProjectView({
   onSend,
   onAskScript,
   onPickProperty,
+  onPickRequest,
+  pickingRequest,
   onView,
   card,
 }: {
@@ -59,10 +62,15 @@ export function ProjectView({
   onSend: (text: string) => void;
   onAskScript: () => void;
   onPickProperty: (property: PropertySummary) => void;
+  onPickRequest: (request: StudioRequest) => void;
+  pickingRequest: boolean;
   onView: (view: CenterView, from?: HTMLElement) => void;
   card: Omit<CardProps, "artifact">;
 }) {
   const property = detail?.property ?? null;
+  // A project started from a request has no property but has its subject.
+  const fromRequest = !property && Boolean(detail?.conversation.propertyRequestId);
+  const hasSubject = Boolean(property) || fromRequest;
   const artifacts = detail?.artifacts ?? [];
   const messages = (detail?.messages ?? []).filter((m) => m.content.trim());
 
@@ -74,13 +82,9 @@ export function ProjectView({
   const images = artifacts.filter((a) => a.kind === "image").sort(newestFirst);
   const video = artifacts.filter((a) => a.kind === "video").sort(newestFirst)[0] ?? null;
 
-  if (!property && canWrite && !artifacts.length) {
+  if (!hasSubject && canWrite && !artifacts.length && !messages.length) {
     return (
-      <div className="mx-auto grid w-full max-w-xl gap-3 px-4 py-10">
-        <h2 className="text-center text-lg font-bold text-neutral-900">Pour quel bien ?</h2>
-        <p className="text-center text-sm text-neutral-600">Le premier script s&apos;écrit dès que vous choisissez.</p>
-        <PropertyPicker disabled={sending} onPick={onPickProperty} />
-      </div>
+      <StartPicker sending={sending || pickingRequest} onPickProperty={onPickProperty} onPickRequest={onPickRequest} />
     );
   }
 
@@ -136,9 +140,13 @@ export function ProjectView({
             ) : (
               <div className="grid gap-3 rounded-[22px] border border-dashed border-[rgba(74,52,36,0.18)] bg-white/45 p-4">
                 <p className="text-sm text-neutral-600">
-                  {property ? "Roogo écrit le script à partir de l'annonce." : "Choisissez d'abord un bien."}
+                  {property
+                    ? "Roogo écrit le script à partir de l'annonce."
+                    : fromRequest
+                      ? "Roogo écrit l'appel à propriétaires à partir de la demande."
+                      : "Choisissez d'abord un bien."}
                 </p>
-                {canWrite && property && (
+                {canWrite && hasSubject && (
                   <button
                     type="button"
                     onClick={onAskScript}
@@ -185,7 +193,7 @@ export function ProjectView({
             title="Voix off"
             meta={voice ? [voice.title.replace(/^Voix off \(|\)$/g, ""), seconds(voice)].filter(Boolean).join(" · ") : null}
             muted={!voice && !script}
-            action={canWrite && property ? { label: voice ? "Ouvrir" : "Créer", onClick: open("voiceover") } : undefined}
+            action={canWrite && hasSubject ? { label: voice ? "Ouvrir" : "Créer", onClick: open("voiceover") } : undefined}
           >
             {voice?.url ? (
               <div className="grid gap-2">
@@ -202,7 +210,7 @@ export function ProjectView({
             icon={ImageSquareIcon}
             title="Visuels"
             meta={images.length ? String(images.length) : null}
-            action={canWrite && property ? { label: images.length ? "Ouvrir" : "Créer", onClick: open("visuals") } : undefined}
+            action={canWrite && hasSubject ? { label: images.length ? "Ouvrir" : "Créer", onClick: open("visuals") } : undefined}
           >
             {images.length ? (
               <button type="button" onClick={open("visuals")} className="grid cursor-pointer grid-cols-3 gap-1.5" aria-label="Ouvrir les visuels">
@@ -244,7 +252,11 @@ export function ProjectView({
               </div>
             ) : (
               <p className="text-xs text-neutral-500">
-                {voice ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur." : "Possible dès maintenant avec une musique, sans voix off."}
+                {fromRequest
+                  ? "Le montage demande un bien. Pour une demande : script, voix off et visuels."
+                  : voice
+                    ? "Photos, voix off et fin Roogo, assemblées dans l'éditeur."
+                    : "Possible dès maintenant avec une musique, sans voix off."}
               </p>
             )}
           </Tile>
@@ -425,6 +437,58 @@ export function ProjectSkeleton() {
           ))}
         </div>
       </div>
+    </div>
+  );
+}
+
+/**
+ * A new project starts from a listing or from a property request (« demande
+ * spécifique », Salif 2026-10-30). Either way the first script is written as
+ * soon as something is picked.
+ */
+function StartPicker({
+  sending,
+  onPickProperty,
+  onPickRequest,
+}: {
+  sending: boolean;
+  onPickProperty: (property: PropertySummary) => void;
+  onPickRequest: (request: StudioRequest) => void;
+}) {
+  const [from, setFrom] = useState<"bien" | "demande">("bien");
+  return (
+    <div className="mx-auto grid w-full max-w-xl gap-3 px-4 py-10">
+      <h2 className="text-center text-lg font-bold text-neutral-900">
+        {from === "bien" ? "Pour quel bien ?" : "Pour quelle demande ?"}
+      </h2>
+      <p className="text-center text-sm text-neutral-600">Le premier script s&apos;écrit dès que vous choisissez.</p>
+      <div role="tablist" aria-label="Partir de" className="mx-auto flex rounded-full bg-neutral-100 p-1">
+        {(
+          [
+            ["bien", "Un bien"],
+            ["demande", "Une demande"],
+          ] as const
+        ).map(([key, label]) => (
+          <button
+            key={key}
+            type="button"
+            role="tab"
+            aria-selected={from === key}
+            onClick={() => setFrom(key)}
+            className={cn(
+              "rounded-full px-5 py-2 text-sm font-bold transition-colors",
+              from === key ? "bg-white text-neutral-900 shadow-sm" : "text-neutral-500 hover:text-neutral-800",
+            )}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+      {from === "bien" ? (
+        <PropertyPicker disabled={sending} onPick={onPickProperty} />
+      ) : (
+        <RequestPicker disabled={sending} onPick={onPickRequest} />
+      )}
     </div>
   );
 }
