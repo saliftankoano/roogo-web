@@ -749,7 +749,8 @@ export default function AdminListingDetail({
   // Sale checks the server would skip for a Directeur (the mandate is checked
   // on the server only, so it is not listed here).
   const saleChecksMissing = [
-    saleIntake?.status === "unlinked" ? "propriétaire rattaché" : null,
+    // Same test as the server: no owner account on the listing.
+    !listing.agentId ? "propriétaire rattaché" : null,
     listing.ownershipVerificationStatus !== "approved" ? "documents validés" : null,
   ].filter((item): item is string => item !== null);
   // A due date in the past with no payment recorded (on or off Roogo).

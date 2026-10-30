@@ -56,6 +56,8 @@ export type Property = {
   ownershipVerified?: boolean;
   /** unsubmitted | pending | approved | rejected (sale listings). Admin view only. */
   ownershipVerificationStatus?: string | null;
+  /** The owner's account (properties.agent_id); null for a sale not yet linked. Admin view only. */
+  agentId?: string | null;
   /** Status vendu (migration 093): notary signature date and sale price. Admin view only. */
   soldAt?: string | null;
   soldPrice?: number | null;

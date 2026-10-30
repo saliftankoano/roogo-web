@@ -11,6 +11,8 @@ import {
 import { loadVoiceByKey } from "@/lib/studio/voices-server";
 import { projectContains, projectKind, projectSummary, type ArtifactRow } from "@/lib/studio/history";
 import { isVoiceUsable } from "@/lib/studio/voices";
+import { PUBLIC_REQUEST_COLUMNS } from "@/lib/property-requests";
+import { requestBrief, requestProjectTitle, type RequestForBrief } from "@/lib/studio/request-brief";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -64,11 +66,82 @@ export async function GET(req: Request) {
   return cors(NextResponse.json({ conversations }), req);
 }
 
+// A project started from a property request: one open project per person and
+// per request (unique index of migration 108), found or created in one step.
+// The brief is built here from the request's public fields only, so the
+// browser never needs the client's name or contact.
+async function requestProject(req: Request, staffId: string, requestId: string) {
+  const { data: request } = await supabaseAdmin
+    .from("property_requests")
+    .select(PUBLIC_REQUEST_COLUMNS)
+    .eq("id", requestId)
+    .maybeSingle<RequestForBrief & { id: string }>();
+  if (!request) return errorResponse("Demande introuvable", 404, req);
+
+  const findOpen = () =>
+    supabaseAdmin
+      .from("studio_conversations")
+      .select("id, title")
+      .eq("user_id", staffId)
+      .eq("property_request_id", request.id)
+      .is("archived_at", null)
+      .maybeSingle();
+
+  let { data: project } = await findOpen();
+  let created = false;
+  if (!project) {
+    const { data, error } = await supabaseAdmin
+      .from("studio_conversations")
+      .insert({
+        user_id: staffId,
+        property_request_id: request.id,
+        title: requestProjectTitle(request),
+      })
+      .select("id, title")
+      .single();
+    // 23505: a second click won the race; use the project it created.
+    if (error?.code === "23505") ({ data: project } = await findOpen());
+    else if (error || !data) {
+      console.error("Studio: create request project failed", error?.code);
+      return errorResponse("Le projet n'a pas pu être créé.", 500, req);
+    } else {
+      project = data;
+      created = true;
+    }
+  }
+  if (!project) return errorResponse("Le projet n'a pas pu être créé.", 500, req);
+
+  // An earlier first draft that never got through (too long, rate limit,
+  // network) leaves an empty project: the caller sends the brief again.
+  const { count } = await supabaseAdmin
+    .from("studio_messages")
+    .select("id", { count: "exact", head: true })
+    .eq("conversation_id", project.id);
+
+  return cors(
+    NextResponse.json(
+      {
+        id: project.id,
+        title: project.title,
+        messageCount: count ?? 0,
+        brief: requestBrief(request),
+      },
+      { status: created ? 201 : 200 },
+    ),
+    req,
+  );
+}
+
 export async function POST(req: Request) {
   const staff = await getStaffOrFounder(req);
   if (!staff) return errorResponse("Forbidden", 403, req);
 
   const body = await req.json().catch(() => null);
+
+  if (typeof body?.property_request_id === "string") {
+    return requestProject(req, staff.id, body.property_request_id);
+  }
+
   let title = "Nouvelle conversation";
   let propertyId: string | null = null;
 

@@ -63,6 +63,8 @@ export type ConversationDetail = {
     id: string;
     title: string;
     propertyId: string | null;
+    /** Set when the project was started from a property request. */
+    propertyRequestId: string | null;
     voiceKey: string | null;
     isMine: boolean;
   };

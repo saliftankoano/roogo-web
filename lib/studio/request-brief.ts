@@ -31,20 +31,23 @@ export const REQUEST_REDRAFT =
   "Écris un nouveau script d'appel à propriétaires pour cette demande.";
 
 /**
- * « Demande : Villa à Ouaga 2000 », the project's title in the history.
- * Normalised exactly like the conversations API stores a title (long dash
- * replaced, 80 characters), so an existing project can be found by its title.
+ * « Demande : Villa à Ouaga 2000 », the project's title in the history
+ * (long dash replaced, 80 characters, like every Studio title). The project
+ * is linked to its request by id (studio_conversations.property_request_id).
  */
 export function requestProjectTitle(request: Pick<RequestForBrief, "title">): string {
   return `${REQUEST_TITLE_PREFIX}${request.title}`.trim().replace(/\u2014/g, ",").slice(0, 80);
 }
 
-/** Whether a project was started from a request (it has no property). */
-export function isRequestProjectTitle(title: string | null | undefined): boolean {
-  return (title ?? "").startsWith(REQUEST_TITLE_PREFIX);
-}
 
-/** The first message of a project started from a request. */
+// The chat refuses messages over 2000 characters; a request description can
+// be 4000. The rest of the brief takes about 400, so the description is cut.
+const MAX_DESCRIPTION = 1200;
+
+const shortened = (text: string) =>
+  text.length <= MAX_DESCRIPTION ? text : `${text.slice(0, MAX_DESCRIPTION).trimEnd()}...`;
+
+/** The first message of a project started from a request. Under 2000 characters. */
 export function requestBrief(request: RequestForBrief): string {
   const place = request.neighborhood?.trim()
     ? `${request.neighborhood.trim()}, ${request.city}`
@@ -64,7 +67,7 @@ export function requestBrief(request: RequestForBrief): string {
     `Un client cherche : ${request.property_type} ${wants}, à ${place}.`,
     `Budget : ${budget}.`,
     needs.length ? `Il lui faut ${needs.join(" et ")}.` : null,
-    `Ce qu'il veut : ${request.description.trim()}`,
+    `Ce qu'il veut : ${shortened(request.description.trim())}`,
     "Les propriétaires qui ont ce bien doivent appeler Roogo.",
   ]
     .filter(Boolean)

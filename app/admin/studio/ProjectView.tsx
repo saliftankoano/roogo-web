@@ -47,6 +47,7 @@ export function ProjectView({
   onAskScript,
   onPickProperty,
   onPickRequest,
+  pickingRequest,
   onView,
   card,
 }: {
@@ -62,10 +63,14 @@ export function ProjectView({
   onAskScript: () => void;
   onPickProperty: (property: PropertySummary) => void;
   onPickRequest: (request: StudioRequest) => void;
+  pickingRequest: boolean;
   onView: (view: CenterView, from?: HTMLElement) => void;
   card: Omit<CardProps, "artifact">;
 }) {
   const property = detail?.property ?? null;
+  // A project started from a request has no property but has its subject.
+  const fromRequest = !property && Boolean(detail?.conversation.propertyRequestId);
+  const hasSubject = Boolean(property) || fromRequest;
   const artifacts = detail?.artifacts ?? [];
   const messages = (detail?.messages ?? []).filter((m) => m.content.trim());
 
@@ -77,9 +82,9 @@ export function ProjectView({
   const images = artifacts.filter((a) => a.kind === "image").sort(newestFirst);
   const video = artifacts.filter((a) => a.kind === "video").sort(newestFirst)[0] ?? null;
 
-  if (!property && canWrite && !artifacts.length && !messages.length) {
+  if (!hasSubject && canWrite && !artifacts.length && !messages.length) {
     return (
-      <StartPicker sending={sending} onPickProperty={onPickProperty} onPickRequest={onPickRequest} />
+      <StartPicker sending={sending || pickingRequest} onPickProperty={onPickProperty} onPickRequest={onPickRequest} />
     );
   }
 
@@ -135,9 +140,13 @@ export function ProjectView({
             ) : (
               <div className="grid gap-3 rounded-[22px] border border-dashed border-[rgba(74,52,36,0.18)] bg-white/45 p-4">
                 <p className="text-sm text-neutral-600">
-                  {property ? "Roogo écrit le script à partir de l'annonce." : "Choisissez d'abord un bien."}
+                  {property
+                    ? "Roogo écrit le script à partir de l'annonce."
+                    : fromRequest
+                      ? "Roogo écrit l'appel à propriétaires à partir de la demande."
+                      : "Choisissez d'abord un bien."}
                 </p>
-                {canWrite && property && (
+                {canWrite && hasSubject && (
                   <button
                     type="button"
                     onClick={onAskScript}
@@ -184,7 +193,7 @@ export function ProjectView({
             title="Voix off"
             meta={voice ? [voice.title.replace(/^Voix off \(|\)$/g, ""), seconds(voice)].filter(Boolean).join(" · ") : null}
             muted={!voice && !script}
-            action={canWrite && property ? { label: voice ? "Ouvrir" : "Créer", onClick: open("voiceover") } : undefined}
+            action={canWrite && hasSubject ? { label: voice ? "Ouvrir" : "Créer", onClick: open("voiceover") } : undefined}
           >
             {voice?.url ? (
               <div className="grid gap-2">
@@ -201,7 +210,7 @@ export function ProjectView({
             icon={ImageSquareIcon}
             title="Visuels"
             meta={images.length ? String(images.length) : null}
-            action={canWrite && property ? { label: images.length ? "Ouvrir" : "Créer", onClick: open("visuals") } : undefined}
+            action={canWrite && hasSubject ? { label: images.length ? "Ouvrir" : "Créer", onClick: open("visuals") } : undefined}
           >
             {images.length ? (
               <button type="button" onClick={open("visuals")} className="grid cursor-pointer grid-cols-3 gap-1.5" aria-label="Ouvrir les visuels">
@@ -226,7 +235,7 @@ export function ProjectView({
             icon={FilmSlateIcon}
             title="Vidéo"
             meta={video ? [video.title, seconds(video)].filter(Boolean).join(" · ") : null}
-            action={canWrite && property ? { label: "Éditeur", onClick: open("editor") } : undefined}
+            action={canWrite && hasSubject ? { label: "Éditeur", onClick: open("editor") } : undefined}
           >
             {video?.url ? (
               <div className="grid gap-2">

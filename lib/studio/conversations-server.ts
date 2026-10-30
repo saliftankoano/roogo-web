@@ -16,6 +16,8 @@ export type ConversationRow = {
   id: string;
   user_id: string;
   property_id: string | null;
+  /** Set when the project was started from a property request (migration 108). */
+  property_request_id: string | null;
   title: string;
   voice_key: string | null;
   created_at: string;
@@ -24,7 +26,7 @@ export type ConversationRow = {
 };
 
 export const CONVERSATION_COLUMNS =
-  "id, user_id, property_id, title, voice_key, created_at, updated_at, archived_at";
+  "id, user_id, property_id, property_request_id, title, voice_key, created_at, updated_at, archived_at";
 
 type Viewer = { id: string; user_type: string | null };
 

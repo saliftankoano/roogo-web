@@ -97,6 +97,7 @@ export async function GET(req: Request, { params }: Ctx) {
         id: conv.id,
         title: conv.title,
         propertyId: conv.property_id,
+        propertyRequestId: conv.property_request_id ?? null,
         voiceKey: conv.voice_key,
         isMine: conv.user_id === staff.id,
       },
@@ -134,6 +135,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const update: Record<string, unknown> = { updated_at: new Date().toISOString() };
 
   if (typeof body?.property_id === "string") {
+    // A request project keeps its request; a property gets its own project.
+    if (conv.property_request_id) {
+      return errorResponse("Ce projet part d'une demande : choisissez le bien dans un nouveau projet.", 409, req);
+    }
     const property = await loadPropertyRow(body.property_id);
     if (!property) return errorResponse("Bien introuvable", 404, req);
     // A project belongs to one property (Salif, 2026-10-10): once it has results,

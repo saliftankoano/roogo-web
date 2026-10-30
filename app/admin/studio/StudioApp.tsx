@@ -27,12 +27,7 @@ import { HistoryPanel } from "./HistoryPanel";
 import { ProjectPanel, type CenterView } from "./ProjectPanel";
 import { PropertyPicker } from "./PropertyPicker";
 import type { StudioRequest } from "./RequestPicker";
-import {
-  REQUEST_REDRAFT,
-  isRequestProjectTitle,
-  requestBrief,
-  requestProjectTitle,
-} from "@/lib/studio/request-brief";
+import { REQUEST_REDRAFT } from "@/lib/studio/request-brief";
 import { StudioEditor } from "./StudioEditor";
 import { useJobs } from "./StudioTools";
 import { StudioHeader } from "./StudioHeader";
@@ -406,27 +401,41 @@ export function StudioApp() {
     await send(id, text);
   }
 
-  // Choosing a request starts its own project and the first call-out script at
-  // once, like choosing a property. The request is not linked to a listing.
-  // If you already have a project for it, that one opens instead: no duplicate
-  // project and no second paid draft.
-  async function pickRequest(request: StudioRequest) {
+  // Choosing a request opens your project for it (one per person and per
+  // request, found or created by the server in one step) and sends the
+  // call-out brief if that project has no message yet. A second click while
+  // the first is running is ignored, so it never pays for two drafts.
+  const pickingRequestRef = useRef(false);
+  async function pickRequest(requestId: string) {
+    if (pickingRequestRef.current) return;
+    pickingRequestRef.current = true;
+    setPickingRequest(true);
     setError(null);
-    const title = requestProjectTitle(request);
-    const list = await loadConversations();
-    const existing = list.find((item) => item.isMine && item.title === title);
-    if (existing) {
-      await open(existing.id, "chat");
-      return;
+    try {
+      const res = await fetch("/api/admin/studio/conversations", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ property_request_id: requestId }),
+      });
+      const data = (await res.json().catch(() => ({}))) as {
+        id?: string;
+        messageCount?: number;
+        brief?: string;
+        error?: string;
+      };
+      if (!res.ok || !data.id || !data.brief) {
+        setError(data.error ?? "Le projet de cette demande n'a pas pu être ouvert.");
+        return;
+      }
+      void loadConversations();
+      await open(data.id, "chat");
+      if (!data.messageCount) await send(data.id, data.brief);
+    } finally {
+      pickingRequestRef.current = false;
+      setPickingRequest(false);
     }
-    newConversation();
-    const id = await createConversation(undefined, title);
-    if (!id) return;
-    activeRef.current = id;
-    setActiveId(id);
-    await loadDetail(id);
-    await send(id, requestBrief(request));
   }
+  const [pickingRequest, setPickingRequest] = useState(false);
   const pickRequestRef = useRef(pickRequest);
   pickRequestRef.current = pickRequest;
 
@@ -434,21 +443,30 @@ export function StudioApp() {
   useEffect(() => {
     if (!startRequestId) return;
     setStartRequestId(null);
-    void (async () => {
-      const res = await fetch(`/api/property-requests/${encodeURIComponent(startRequestId)}`);
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok || !data.request) {
-        setError(data.error ?? "La demande n'a pas pu être chargée.");
-        return;
-      }
-      await pickRequestRef.current(data.request as StudioRequest);
-    })();
+    void pickRequestRef.current(startRequestId);
   }, [startRequestId]);
+
+  const isRequestProject = !detail?.property && Boolean(detail?.conversation.propertyRequestId);
+
+  // « Écrire le script »: a request project asks again from its request; a
+  // project without a property or a request first asks for a property.
+  function askScript() {
+    if (isRequestProject) {
+      void sendText(REQUEST_REDRAFT);
+      return;
+    }
+    if (!detail?.property) {
+      setSwitching(true);
+      return;
+    }
+    void sendText(FIRST_DRAFT_REQUEST);
+  }
 
   // Choosing a property in an empty project starts the first draft at once.
   async function pickProperty(property: PropertySummary) {
     setError(null);
-    let id = activeId;
+    // A request project keeps its request: the property gets its own project.
+    let id = isRequestProject ? null : activeId;
     if (!id) {
       id = await createConversation(property.id);
       if (!id) return;
@@ -479,8 +497,6 @@ export function StudioApp() {
       return;
     }
     // A request project keeps its request: a property opens its own project.
-    const isRequestProject =
-      !detail?.property && isRequestProjectTitle(detail?.conversation.title);
     if (
       isRequestProject ||
       ((detail?.artifacts.length ?? 0) > 0 && detail?.property?.id !== property.id)
@@ -685,20 +701,10 @@ export function StudioApp() {
           canWrite={canWrite}
           highlightId={highlightId}
           onSend={(text: string) => void sendText(text)}
-          onAskScript={() => {
-            // A request project has no property: ask again from the request.
-            if (!detail?.property && isRequestProjectTitle(detail?.conversation.title)) {
-              void sendText(REQUEST_REDRAFT);
-              return;
-            }
-            if (!detail?.property) {
-              setSwitching(true);
-              return;
-            }
-            void sendText(FIRST_DRAFT_REQUEST);
-          }}
+          onAskScript={askScript}
           onPickProperty={(p: PropertySummary) => void pickProperty(p)}
-          onPickRequest={(r: StudioRequest) => void pickRequest(r)}
+          onPickRequest={(r: StudioRequest) => void pickRequest(r.id)}
+          pickingRequest={pickingRequest}
           onView={openView}
           card={cardProps}
         />
@@ -786,14 +792,10 @@ export function StudioApp() {
             canWrite={canWrite}
             card={cardProps}
             onAskScript={() => {
-              // One click: with a property the request goes straight out and the
-              // script streams into the chat; without one, pick the property first.
-              if (!detail?.property) {
-                setSwitching(true);
-                return;
-              }
-              setView("chat");
-              void sendText(FIRST_DRAFT_REQUEST);
+              // One click: the request goes straight out and the script streams
+              // into the chat; without a property or a request, pick one first.
+              if (detail?.property || isRequestProject) setView("chat");
+              askScript();
             }}
             onManage={() => setView("voices")}
           />
