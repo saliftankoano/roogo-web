@@ -737,6 +737,7 @@ export const AREAS: Area[] = [
       {
         id: "ownership",
         action: "Voir les documents de propriété et les valider ou refuser",
+        detail: "Une deuxième personne approuve : celui ou celle qui a déposé le dossier d’un propriétaire sans compte, ou mis la vente en ligne sans vérifications, ne peut pas approuver ses documents (refuser reste possible).",
         access: { fondateur: "oui", directeur: "oui", assistant: "oui", conseillere: "lecture", stagiaire: "non" },
         notes: { conseillere: "le statut seulement" },
         capability: "ownership.review",
