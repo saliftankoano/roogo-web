@@ -128,6 +128,18 @@ function getDisplayName(user: OwnershipUser | null) {
   return user?.full_name || user?.email || "Vendeur sans nom";
 }
 
+/**
+ * A sale with no owner account has no seller; its dossier is held by the
+ * staff member who filed it. Say so instead of naming them as the seller.
+ */
+function sellerLabel(user: OwnershipUser | null) {
+  if (!user) return "Propriétaire sans compte";
+  if (user.user_type === "staff" || user.user_type === "founder") {
+    return `Propriétaire sans compte (dossier de ${getDisplayName(user)})`;
+  }
+  return getDisplayName(user);
+}
+
 function propertyLabel(property: OwnershipProperty | null) {
   if (!property) return "Bien inconnu";
   return `${property.property_type} · ${property.quartier}, ${property.city}`;
@@ -667,8 +679,9 @@ export default function AdminOwnershipVerificationsPage() {
                     filteredCandidates.map((property) => (
                       <option key={property.id} value={property.id}>
                         {property.quartier}, {property.city} ·{" "}
-                        {getDisplayName(property.seller)} ·{" "}
+                        {sellerLabel(property.seller)} ·{" "}
                         {Number(property.price || 0).toLocaleString("fr-FR")} FCFA
+                        {property.status === "en_ligne" ? " · déjà en ligne" : ""}
                       </option>
                     ))
                   )}
@@ -752,7 +765,7 @@ export default function AdminOwnershipVerificationsPage() {
                       {propertyLabel(submission.property)}
                     </p>
                     <p className="mt-0.5 truncate text-xs font-bold uppercase tracking-wider text-neutral-400">
-                      {getDisplayName(submission.users)} ·{" "}
+                      {sellerLabel(submission.users)} ·{" "}
                       {formatDate(submission.submitted_at)}
                     </p>
                     <span
@@ -806,7 +819,7 @@ export default function AdminOwnershipVerificationsPage() {
                     </span>
                   </div>
                   <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm font-bold text-neutral-500">
-                    <span>Vendeur : {getDisplayName(detail.users)}</span>
+                    <span>Vendeur : {sellerLabel(detail.users)}</span>
                     <span>{detail.users?.phone || "Téléphone non renseigné"}</span>
                     <span>Soumis le {formatDate(detail.submitted_at)}</span>
                   </div>

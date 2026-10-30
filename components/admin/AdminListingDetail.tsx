@@ -1586,6 +1586,11 @@ export default function AdminListingDetail({
                 Publiée sans vérifications
               </span>
               <p className="mt-3 text-sm font-semibold text-neutral-800">
+                {saleChecksMissing.length > 0
+                  ? `Il manque encore : ${saleChecksMissing.join(", ")}.`
+                  : "Tout est en ordre depuis."}
+              </p>
+              <p className="mt-1 text-xs text-neutral-600">
                 Mise en ligne sans :{" "}
                 {listing.saleChecksSkipped.checks
                   .map((check) => SKIPPED_CHECK_LABELS[check] ?? check)

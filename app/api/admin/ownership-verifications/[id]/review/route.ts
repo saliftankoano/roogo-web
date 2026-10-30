@@ -78,6 +78,31 @@ export async function POST(
     const now = new Date().toISOString();
     const nextStatus = decision === "approve" ? "approved" : "rejected";
 
+    // Refused documents block a sale for everyone. A Directeur may have put it
+    // online before any documents existed (sale checks bypass): take it back
+    // offline first, so a failure leaves the dossier pending and the review
+    // can simply be retried. It waits in « en attente » until new documents
+    // are approved.
+    if (decision === "reject") {
+      const { data: unpublished, error: unpublishError } = await supabaseAdmin
+        .from("properties")
+        .update({ status: "en_attente" })
+        .eq("id", submission.property_id)
+        .eq("listing_type", "vendre")
+        .eq("status", "en_ligne")
+        .select("id");
+      if (unpublishError) {
+        console.error("Taking a rejected sale offline failed:", unpublishError);
+        return NextResponse.json(
+          { error: "La vente n'a pas pu être retirée du site. Réessayez le refus." },
+          { status: 500 },
+        );
+      }
+      if (unpublished?.length) {
+        console.info("Rejected sale taken offline", { propertyId: submission.property_id });
+      }
+    }
+
     const { error: submissionError } = await supabaseAdmin
       .from("property_ownership_submissions")
       .update({
@@ -119,31 +144,15 @@ export async function POST(
       return NextResponse.json({ error: "Failed to update property" }, { status: 500 });
     }
 
-    // Refused documents block a sale for everyone. A Directeur may have put it
-    // online before any documents existed (sale checks bypass): take it back
-    // offline now, it waits in « en attente » until new documents are approved.
-    if (decision === "reject") {
-      const { data: unpublished, error: unpublishError } = await supabaseAdmin
-        .from("properties")
-        .update({ status: "en_attente" })
-        .eq("id", submission.property_id)
-        .eq("listing_type", "vendre")
-        .eq("status", "en_ligne")
-        .select("id");
-      if (unpublishError) {
-        console.error("Taking a rejected sale offline failed:", unpublishError);
-        return NextResponse.json(
-          { error: "Documents refusés, mais la vente n'a pas pu être retirée du site." },
-          { status: 500 },
-        );
-      }
-      if (unpublished?.length) {
-        console.info("Rejected sale taken offline", { propertyId: submission.property_id });
-      }
-    }
 
-    // Tell the seller their documents were reviewed.
-    notifyUserWithTemplate(
+    // Tell the seller their documents were reviewed, unless the dossier is
+    // held by a staff member because the owner has no account.
+    const { data: owner } = await supabaseAdmin
+      .from("properties")
+      .select("agent_id")
+      .eq("id", submission.property_id)
+      .maybeSingle();
+    if (owner?.agent_id && owner.agent_id === submission.user_id) notifyUserWithTemplate(
       submission.user_id,
       "payments",
       decision === "approve"

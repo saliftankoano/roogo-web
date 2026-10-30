@@ -7,6 +7,7 @@ import { getStaffOrFounder, userCan } from "@/lib/api-auth";
 import { translatePropertyIfNeeded } from "@/lib/property-translations";
 import { soldTransition } from "@/lib/property-status";
 import { checkListingQuality, listingQualityError } from "@/lib/listing-quality";
+import { saleGoLiveDecision, type SaleCheck } from "@/lib/sale-go-live";
 import { isDirectorOrFounder, levelFor, titleFromStaffLevel } from "@/lib/team-tasks/core";
 
 /** Directeur or Fondateur: the account type for the founder, the staff level otherwise. */
@@ -121,68 +122,13 @@ export async function PATCH(
       }
     }
 
-    // Directeur and Fondateur may put a sale online without the three sale
-    // checks below, for an owner who cannot use the app (Salif, 2026-10-30).
-    // Every such publication is recorded with who did it and what was skipped.
+    // Sale checks (lib/sale-go-live.ts): owner account linked, ownership
+    // documents approved, signed mandate. Directeur and Fondateur may skip
+    // them (Salif, 2026-10-30); refused documents block everyone. Every skip
+    // is recorded below with who did it and what was skipped.
     const isSaleGoingLive =
       isGoingLive && existingProperty.listing_type === "vendre";
-    const bypassSaleChecks =
-      isSaleGoingLive && userCan(user, "listings.publishWithoutSaleChecks");
-    const skippedSaleChecks: string[] = [];
-
-    if (isSaleGoingLive && !existingProperty.agent_id) {
-      if (bypassSaleChecks) {
-        skippedSaleChecks.push("owner_link");
-      } else {
-        return NextResponse.json(
-          {
-            code: "sale_owner_link_required",
-            error:
-              "Rattachez d'abord l'annonce au compte du propriétaire avant la mise en ligne.",
-          },
-          { status: 409 },
-        );
-      }
-    }
-
-    // Documents a staff member reviewed and refused are a scam signal, not a
-    // missing step: nobody can put that sale online, Directeur included.
-    if (
-      isSaleGoingLive &&
-      existingProperty.ownership_verification_status === "rejected"
-    ) {
-      return NextResponse.json(
-        {
-          code: "sale_ownership_rejected",
-          error:
-            "Les documents de propriété ont été refusés. La vente ne peut pas être mise en ligne.",
-        },
-        { status: 409 },
-      );
-    }
-
-    // Compliance gate: a sale listing cannot go live until its ownership documents
-    // have been staff-approved. This is the core anti-scam guarantee.
-    if (
-      isSaleGoingLive &&
-      existingProperty.ownership_verification_status !== "approved"
-    ) {
-      if (bypassSaleChecks) {
-        skippedSaleChecks.push("ownership_documents");
-      } else {
-        return NextResponse.json(
-          {
-            code: "sale_ownership_verification_required",
-            error:
-              "Les documents de propriété doivent être vérifiés avant la mise en ligne.",
-          },
-          { status: 409 },
-        );
-      }
-    }
-
-    // Mandate gate: a sale listing also needs a signed mandate (the owner agreed to
-    // Roogo's sale price + exclusivity) before it can go live.
+    let skippedSaleChecks: SaleCheck[] = [];
     if (isSaleGoingLive) {
       // limit(1): a re-signed mandate leaves two signed rows, which is fine.
       const { data: signedMandates, error: mandateError } = await supabaseAdmin
@@ -195,20 +141,21 @@ export async function PATCH(
         console.error("Error fetching mandate before publishing:", mandateError);
         return NextResponse.json({ error: "Mandate check failed" }, { status: 500 });
       }
-      const signedMandate = signedMandates?.[0] ?? null;
-      if (!signedMandate && bypassSaleChecks) {
-        skippedSaleChecks.push("signed_mandate");
-      } else if (!signedMandate) {
+      const decision = saleGoLiveDecision({
+        agentId: existingProperty.agent_id,
+        ownershipStatus: existingProperty.ownership_verification_status,
+        hasSignedMandate: Boolean(signedMandates?.length),
+        canSkipChecks: userCan(user, "listings.publishWithoutSaleChecks"),
+      });
+      if (!decision.ok) {
         return NextResponse.json(
-          {
-            code: "sale_mandate_required",
-            error:
-              "Le mandat de vente doit être signé par le propriétaire avant la mise en ligne.",
-          },
+          { code: decision.code, error: decision.error },
           { status: 409 },
         );
       }
+      skippedSaleChecks = decision.skipped;
     }
+
     // Bookability gate: a live hotel must have at least one active room type,
     // mirroring the guard that blocks deleting the last one. Without this, an
     // approved hotel would advertise a price with zero bookable inventory.
@@ -258,6 +205,10 @@ export async function PATCH(
 
     if (isGoingLive) {
       updateQuery = updateQuery.neq("status", "en_ligne");
+    }
+    // Documents refused between the checks above and this write still win.
+    if (isSaleGoingLive) {
+      updateQuery = updateQuery.neq("ownership_verification_status", "rejected");
     }
 
     const { data: updatedRows, error } = await updateQuery.select("id");
