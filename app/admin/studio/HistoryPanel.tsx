@@ -173,7 +173,7 @@ export function HistoryPanel({
               className="absolute right-0 top-12 z-20 w-56 rounded-2xl border border-white/80 bg-white/95 p-1.5 shadow-xl backdrop-blur-xl"
             >
               {[
-                { label: "Conversation", hint: "Script et voix d'un bien", icon: ChatsCircleIcon, run: onNewChat },
+                { label: "Conversation", hint: "Script et voix d'un bien ou d'une demande", icon: ChatsCircleIcon, run: onNewChat },
                 { label: "Visuel", hint: "Affiche, voeux, annonce", icon: ImageSquareIcon, run: onNewVisual },
               ].map((option) => (
                 <button
