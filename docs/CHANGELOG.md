@@ -8,7 +8,8 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-30
 
-- **YouTube Shorts go public at the Studio time** (web, branch `fix/youtube-scheduled-public`, not merged, no migration): a Short whose `scheduled_at` is still ahead is uploaded `private` with `status.publishAt` (ISO 8601 UTC), so YouTube publishes it at that time; a due Short is uploaded `public`. `YOUTUBE_PUBLIC_UPLOADS` now defaults to public and only `false` keeps Shorts private. When YouTube answers « private » to a public request (API audit lock), the result note says so.
+- **TikTok: videos from 10 to 20 MB no longer fail with « The chunk size is invalid »** (web, branch `fix/tiktok-chunk-size`, not merged, no migration): `chunkPlan` sends any video under 20 MB as one chunk with `chunk_size = video_size`. Before, a 17 MB video was declared as one 10 MB chunk (floor(17/10) = 1) and TikTok refused it. From 20 MB, 10 MB chunks with the remainder in the last one, as before.
+- **YouTube Shorts go public at the Studio time** (web, PR #111 merged 2026-10-31, no migration): a Short whose `scheduled_at` is still ahead is uploaded `private` with `status.publishAt` (ISO 8601 UTC), so YouTube publishes it at that time; a due Short is uploaded `public`. `YOUTUBE_PUBLIC_UPLOADS` now defaults to public and only `false` keeps Shorts private. When YouTube answers « private » to a public request (API audit lock), the result note says so.
 
 ## 2026-10-24
 
