@@ -44,7 +44,7 @@ import { rangeSource } from "./range-source";
 import { tiktokAccessToken, tiktokPublishStatus } from "@/lib/social/tiktok-token-server";
 import { loadTikTokSettings } from "@/lib/social/tiktok-settings-server";
 import { COPY as TIKTOK_COPY, fetchCreatorInfo, postInfoFields, settingsProblems } from "@/lib/social/tiktok-post-settings";
-import { MAX_QUOTA_RETRIES, publishYouTubeShort, youtubePrivacy, type YouTubeResume } from "@/lib/social/youtube-upload";
+import { MAX_QUOTA_RETRIES, publishYouTubeShort, youtubeVisibility, type YouTubeResume } from "@/lib/social/youtube-upload";
 import { youtubeAccessToken, youtubePublishStatus } from "@/lib/social/youtube-token-server";
 import {
   copyPostText,
@@ -479,11 +479,13 @@ export async function runPublishingWorker(
   // YouTube Shorts (lib/social/youtube-upload.ts): resumable upload in 8 MiB
   // chunks (multiples of 256 KiB) read one at a time from the signed Drive
   // link. The session URL and the next byte are saved after every chunk; a run
-  // that reaches the deadline stops and the next one continues. Private until
-  // the YouTube API audit (YOUTUBE_PUBLIC_UPLOADS=true then publishes public).
+  // that reaches the deadline stops and the next one continues. Public when the
+  // Studio time has come, private with publishAt when it is still ahead
+  // (youtubeVisibility); YOUTUBE_PUBLIC_UPLOADS=false keeps everything private.
   const publishToYouTube = async (
     media: PublishMedia,
     fields: { title: string; description: string },
+    scheduledAt: string,
     resume: YouTubeResume | null,
     onProgress: (partial: NetworkResult) => Promise<void>,
   ): Promise<NetworkResult> => {
@@ -503,7 +505,7 @@ export async function runPublishingWorker(
       {
         title: fields.title,
         description: fields.description,
-        privacyStatus: youtubePrivacy(process.env),
+        ...youtubeVisibility(process.env, scheduledAt, new Date()),
         width: media.width ?? null,
         height: media.height ?? null,
         durationSeconds: media.durationSeconds ?? null,
@@ -562,7 +564,7 @@ export async function runPublishingWorker(
         } else {
           const previous = results.youtube;
           const draft = row.same_text ? base : textForNetwork("youtube", copy, base);
-          result = await publishToYouTube(media, youtubeShortFields(draft, row.title), (previous?.resume as YouTubeResume | null | undefined) ?? null, async (partial) => {
+          result = await publishToYouTube(media, youtubeShortFields(draft, row.title), row.scheduled_at, (previous?.resume as YouTubeResume | null | undefined) ?? null, async (partial) => {
             results.youtube = { ...partial, auto_retries: previous?.auto_retries };
             await save();
           });

@@ -14,6 +14,15 @@ out. Newest first. For what shipped and when, see
 **Ruled out:** saving defaults or « last used » settings (TikTok forbids preset values); showing the panel on the staff upload screen (the founder approves and owns the TikTok connection).
 
 **Caveat:** TikTok's guidelines exclude internal tools that post to the team's own accounts; the panel removes the screen reason for refusal, not that one. Meanwhile `TIKTOK_POST_MODE=draft` is set in production (2026-10-31), so TikTok posts go to the account's drafts and the panel does not show until direct mode is turned back on.
+### YouTube Shorts follow the Studio time instead of staying private — 2026-10-30
+
+**Decision:** Salif wants each Studio video to go public on YouTube at its scheduled time with nobody touching YouTube Studio. The upload asks for `public` when the post is due and for `private` + `status.publishAt` = `scheduled_at` (UTC) when the time is at least 2 minutes ahead. `YOUTUBE_PUBLIC_UPLOADS` flips meaning: unset = follow the schedule, `false` = kill switch (always private).
+
+**Why:** Videos arrived private because the flag was never set in production, so the code itself asked for `private`. The Studio stores `scheduled_at` as timestamptz in UTC, which is also Ouagadougou time (UTC+0), so it maps to `publishAt` directly. The worker only uploads posts that are due, so today almost every upload is `public`; `publishAt` covers a run that starts before the time and any future early upload.
+
+**Caveat:** Until the Google Cloud project passes the YouTube API Services audit, YouTube locks API uploads private whatever we send. The upload response is read and the note says « YouTube a gardé la vidéo privée » in that case, so the audit stays the last blocker if it shows up.
+
+**Status:** PR #111, merged 2026-10-31. Existing private Shorts are not changed.
 
 ### YouTube Shorts in Publier: private until the audit, resumable across runs, quota retried next day — 2026-10-24
 
