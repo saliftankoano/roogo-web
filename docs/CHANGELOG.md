@@ -9,8 +9,10 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 ## 2026-10-31
 
 - **TikTok panel on the approval screen** (web, branch `feat/tiktok-posting-screen`, not merged, migration 109 run by Salif 2026-10-31): in direct mode, when a video goes to TikTok, Salif sees the account (fresh creator info), picks who can see it (no default), comments, duets and stitches (off by default, greyed out when the account disabled them), the commercial content disclosure, and TikTok's Music Usage Confirmation above « Valider ». The choices are saved in `tiktok_settings` and the publisher sends exactly them, after reading creator info again. Replaces the hard-coded `SELF_ONLY`. Built for the TikTok Content Posting API audit (vault PRD « TikTok posting screen for the audit »).
+
 ## 2026-10-30
 
+- **TikTok: videos from 10 to 20 MB no longer fail with « The chunk size is invalid »** (web, PR #112 merged 2026-10-31, no migration): `chunkPlan` sends any video under 20 MB as one chunk with `chunk_size = video_size`. Before, a 17 MB video was declared as one 10 MB chunk (floor(17/10) = 1) and TikTok refused it. From 20 MB, 10 MB chunks with the remainder in the last one, as before.
 - **YouTube Shorts go public at the Studio time** (web, PR #111 merged 2026-10-31, no migration): a Short whose `scheduled_at` is still ahead is uploaded `private` with `status.publishAt` (ISO 8601 UTC), so YouTube publishes it at that time; a due Short is uploaded `public`. `YOUTUBE_PUBLIC_UPLOADS` now defaults to public and only `false` keeps Shorts private. When YouTube answers « private » to a public request (API audit lock), the result note says so.
 
 ## 2026-10-24

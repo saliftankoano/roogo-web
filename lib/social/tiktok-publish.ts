@@ -43,13 +43,18 @@ const MB = 1024 * 1024;
 /**
  * TikTok's rules: a video under 5 MB goes in one chunk; otherwise every chunk
  * is 5 to 64 MB, total_chunk_count = floor(video_size / chunk_size), and the
- * last chunk carries the remainder (up to 128 MB). We use 10 MB chunks for
- * anything above 10 MB, so a function never holds more than one chunk (under
- * 20 MB) in memory, whatever the video size (« Publier une vidéo » allows 500 MB).
+ * last chunk carries the remainder (up to 128 MB). We use 10 MB chunks from
+ * 20 MB, so a function never holds more than one chunk (under 20 MB) in
+ * memory, whatever the video size (« Publier une vidéo » allows 500 MB).
+ *
+ * Under 20 MB the video goes whole, with chunk_size = video_size: with 10 MB
+ * chunks, floor() would give one chunk smaller than the file, and TikTok
+ * answers « invalid_params: The chunk size is invalid » (a 17 MB video on
+ * 2026-10-30). A single chunk must be the whole file.
  */
 export const CHUNK_SIZE = 10 * MB;
-/** Kept for callers of the first version; a single chunk now stops at CHUNK_SIZE. */
-export const SINGLE_CHUNK_MAX = CHUNK_SIZE;
+/** Largest video sent as one chunk: below two chunks, floor() would give one chunk smaller than the file. */
+export const SINGLE_CHUNK_MAX = 2 * CHUNK_SIZE - 1;
 export const MAX_VIDEO_BYTES = 4 * 1024 * MB;
 /** TikTok's upload_url is valid one hour; we resume within 55 minutes, else start a new upload. */
 export const UPLOAD_URL_TTL_MS = 55 * 60_000;
@@ -71,7 +76,7 @@ export function chunkRange(index: number, videoSize: number, chunkSize: number, 
 export function chunkPlan(videoSize: number): ChunkPlan {
   if (!Number.isInteger(videoSize) || videoSize <= 0) throw new Error("ROOGO:La vidéo est vide.");
   if (videoSize > MAX_VIDEO_BYTES) throw new Error("ROOGO:La vidéo dépasse la taille acceptée par TikTok.");
-  if (videoSize <= CHUNK_SIZE) return { videoSize, chunkSize: videoSize, totalChunkCount: 1, ranges: [{ start: 0, end: videoSize - 1 }] };
+  if (videoSize <= SINGLE_CHUNK_MAX) return { videoSize, chunkSize: videoSize, totalChunkCount: 1, ranges: [{ start: 0, end: videoSize - 1 }] };
   const total = Math.floor(videoSize / CHUNK_SIZE);
   const ranges = Array.from({ length: total }, (_, i) => chunkRange(i, videoSize, CHUNK_SIZE, total));
   return { videoSize, chunkSize: CHUNK_SIZE, totalChunkCount: total, ranges };
