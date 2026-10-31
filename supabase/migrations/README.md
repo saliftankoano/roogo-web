@@ -1,5 +1,9 @@
 # Database migration execution ledger
 
+## TikTok posting choices — 2026-10-31
+
+- [ ] [109_studio_tiktok_settings.sql](./109_studio_tiktok_settings.sql): **to run by Salif.** Adds the nullable `studio_publications.tiktok_settings` (JSONB): the privacy, interactions and commercial disclosure the founder picks on the TikTok panel at approval, with who and when. Nothing is written by the migration. Safe to run twice and before the code ships (the current code never reads it). Until it runs, the new code still works, but approving a TikTok post in direct mode answers « migration 109 à lancer » (draft mode is not affected). Numbered 109 because 107 and 108 are taken. Branch `feat/tiktok-posting-screen`.
+
 ## YouTube connection and the « Abonnés YouTube » goal — 2026-10-23
 
 - [x] [106_youtube_connection_executed.sql](./106_youtube_connection_executed.sql) — **run by Salif on 2026-10-23.** Run after 100 (`social_tokens`). `social_tokens.provider` accepts `youtube` next to `tiktok`; `team_goals.metric` and `team_goal_readings.metric` accept `youtube_subscribers`. No data written, no goal created (the founder creates « 500 abonnés YouTube » in the app). Safe to run twice and for every app version. Until it runs, « Connecter YouTube » comes back with « La migration 106 n'est pas encore passée » and the « Abonnés YouTube » goal cannot be saved. Numbered 106 because 105 is the parallel `feat/publier-partout` branch (and 102 the studio carousels branch). Branch `feat/youtube-connexion`.

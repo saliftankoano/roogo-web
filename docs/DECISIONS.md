@@ -5,6 +5,16 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### TikTok posts carry the founder's choices from a TikTok-compliant panel — 2026-10-31
+
+**Decision:** Salif decided to submit the TikTok Content Posting API audit and approved the PRD « TikTok posting screen for the audit » (vault, 2026-10-31). In direct mode the approval screen shows TikTok's required controls (creator info, privacy with no default, interactions off by default, commercial disclosure, Music Usage Confirmation), the choices are saved at approval (`tiktok_settings`, migration 109), and the publisher posts exactly them. Consent is given at approval, also for posts scheduled later. Panel in French. « Moi seulement » is disabled when the video is branded content.
+
+**Why:** TikTok audits the posting screen against its Content Sharing Guidelines; the Studio skipped every control and hard-coded `SELF_ONLY` with all interactions on, so the audit could not pass and nobody chose what TikTok received.
+
+**Ruled out:** saving defaults or « last used » settings (TikTok forbids preset values); showing the panel on the staff upload screen (the founder approves and owns the TikTok connection).
+
+**Caveat:** TikTok's guidelines exclude internal tools that post to the team's own accounts; the panel removes the screen reason for refusal, not that one. Meanwhile `TIKTOK_POST_MODE=draft` is set in production (2026-10-31), so TikTok posts go to the account's drafts and the panel does not show until direct mode is turned back on.
+
 ### YouTube Shorts in Publier: private until the audit, resumable across runs, quota retried next day — 2026-10-24
 
 **Decision:** YouTube Shorts joins Facebook, Instagram and TikTok as a « Publier une vidéo » destination when the channel is connected with `youtube.upload`. Uploads are `private` unless `YOUTUBE_PUBLIC_UPLOADS=true`, which is set only after the Google Cloud project passes the YouTube API Services audit. The YouTube text keeps one field: its first line is the title (100 characters, searchable: type, place, price), the rest is the description. Uploads are streamed from the Drive copy in 8 MiB chunks with the session URL and next byte saved after each chunk. On `quotaExceeded` the network is « Échec » with a French message and the worker retries it by itself after the next quota reset (08:00 UTC), at most 3 days in a row.

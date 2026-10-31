@@ -25,6 +25,8 @@ import { NetworkTexts } from "./NetworkTexts";
 import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
 import type { YouTubePublishInfo } from "@/lib/social/youtube-upload";
 import { YouTubeNote } from "./YouTubeNote";
+import { TikTokDeclaration, TikTokPanel, tiktokBlockers, useTikTokPanel } from "./TikTokPanel";
+import { EMPTY_CHOICES, settingsSummary, type TikTokChoices } from "@/lib/social/tiktok-post-settings";
 
 type View = "preview" | "return" | "approved";
 
@@ -80,6 +82,18 @@ export function ApprovalPreview({
 
   const post = done ?? items[index] ?? null;
   const total = items.length;
+
+  // TikTok panel (PRD « TikTok posting screen for the audit »): direct mode
+  // only, for a video with TikTok ticked. Fresh creator info for each post,
+  // and the choices start empty every time (TikTok forbids defaults).
+  const tiktokTicked = Boolean(post && post.networks.includes("tiktok") && post.mediaType === "video" && tiktok?.enabled && tiktok.mode === "direct");
+  const tiktokState = useTikTokPanel(view === "preview" && post ? post.id : null, tiktokTicked);
+  const [tiktokChoices, setTiktokChoices] = useState<TikTokChoices>(EMPTY_CHOICES);
+  const [approvedTikTok, setApprovedTikTok] = useState<string | null>(null);
+  useEffect(() => setTiktokChoices(EMPTY_CHOICES), [post?.id]);
+  const tiktokDuration = post?.finalVideo?.durationSeconds ?? null;
+  const tiktokBlock = tiktokTicked ? tiktokBlockers(tiktokState, tiktokChoices, tiktokDuration) : [];
+  const tiktokPanelOn = tiktokTicked && tiktokState.kind !== "off";
 
   useLayoutEffect(() => {
     if (!mounted || !motionOn()) return;
@@ -169,8 +183,21 @@ export function ApprovalPreview({
   }
 
   async function approve() {
-    const saved = await patch("approve", { action: "approve" });
+    const withTikTok = tiktokPanelOn && tiktokState.kind === "ready";
+    const saved = await patch("approve", withTikTok ? { action: "approve", tiktok: tiktokChoices } : { action: "approve" });
     if (!saved) return;
+    setApprovedTikTok(
+      withTikTok && tiktokChoices.privacyLevel
+        ? settingsSummary({
+            privacy_level: tiktokChoices.privacyLevel,
+            allow_comment: tiktokChoices.allowComment,
+            allow_duet: tiktokChoices.allowDuet,
+            allow_stitch: tiktokChoices.allowStitch,
+            your_brand: tiktokChoices.yourBrand,
+            branded_content: tiktokChoices.brandedContent,
+          })
+        : null,
+    );
     setDone(saved);
     setItems((list) => list.filter((p) => p.id !== saved.id));
     setView("approved");
@@ -295,6 +322,12 @@ export function ApprovalPreview({
             ? `${post.submittedByName} le verra dans le Studio.`
             : "L'équipe le verra dans le Studio."}
         </p>
+        {approvedTikTok && done.networks.includes("tiktok") && (
+          <p className="flex max-w-sm items-center justify-center gap-1.5 text-[13px] text-neutral-600">
+            <NetworkIcon network="tiktok" size={14} label={false} />
+            <span>TikTok : {approvedTikTok}</span>
+          </p>
+        )}
         {!items.length && (
           <p className="text-sm text-neutral-500">
             Tout est validé pour le moment.
@@ -532,7 +565,11 @@ export function ApprovalPreview({
             </button>
           )}
         </div>
-        {(tiktok?.enabled || post.networks.includes("tiktok")) && <TikTokNote info={tiktok} />}
+        {tiktokPanelOn ? (
+          <TikTokPanel state={tiktokState} choices={tiktokChoices} onChange={setTiktokChoices} durationSec={tiktokDuration} disabled={busy !== null} />
+        ) : (
+          (tiktok?.enabled || post.networks.includes("tiktok")) && <TikTokNote info={tiktok} />
+        )}
         {post.networks.includes("youtube") && <YouTubeNote info={youtube} />}
 
         {uploaded ? (
@@ -614,7 +651,12 @@ export function ApprovalPreview({
       </div>
     );
     footer = (
-      // « Demander une modification » is long: on a phone the two buttons stack, Valider on top.
+      <>
+      {tiktokPanelOn && tiktokState.kind === "ready" && <TikTokDeclaration choices={tiktokChoices} />}
+      {tiktokBlock.length > 0 && (
+        <p className="mb-2 text-[12px] font-semibold leading-snug text-[#A8521D]">TikTok : {tiktokBlock[0]}</p>
+      )}
+      {/* « Demander une modification » is long: on a phone the two buttons stack, Valider on top. */}
       <div className={cn("flex gap-2", uploaded && "flex-col-reverse sm:flex-row")}>
         <button
           type="button"
@@ -627,12 +669,13 @@ export function ApprovalPreview({
         <button
           type="button"
           onClick={() => void approve()}
-          disabled={busy !== null || editing}
+          disabled={busy !== null || editing || tiktokBlock.length > 0}
           className={cn("h-12 rounded-full bg-[#C96A2E] text-[15px] font-bold text-white hover:bg-[#B85E26] disabled:opacity-50", uploaded ? "shrink-0 sm:flex-1" : "flex-[1.6]")}
         >
           {busy === "approve" ? "Validation…" : now ? "Valider et publier" : "Valider et programmer"}
         </button>
       </div>
+      </>
     );
   }
 

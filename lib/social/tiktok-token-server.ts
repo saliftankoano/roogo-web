@@ -42,8 +42,19 @@ async function loadRow(): Promise<{ row: TokenRow | null; tableReady: boolean }>
   }
 }
 
+/**
+ * Local preview only (never in production): STUDIO_TIKTOK_DEMO=1 shows the
+ * TikTok panel with a sample account (lib/social/tiktok-settings-server.ts)
+ * so the approval screen can be checked without TikTok keys. Approval is
+ * refused while it is on, and nothing is ever sent to TikTok.
+ */
+export function tiktokDemo(): boolean {
+  return process.env.NODE_ENV !== "production" && process.env.STUDIO_TIKTOK_DEMO === "1";
+}
+
 /** Whether a validated video may target TikTok, with the French reason when not. Never throws. */
 export async function tiktokPublishStatus(): Promise<TikTokPublishInfo> {
+  if (tiktokDemo()) return tiktokPublishInfo({ clientKey: true, tokensKey: true, tableReady: true, connected: true, scope: "video.publish", mode: "direct" });
   const mode = tiktokPostMode(process.env);
   const clientKey = Boolean(process.env.TIKTOK_CLIENT_KEY?.trim());
   // Feature flag: no TikTok key, no database read at all.
@@ -54,6 +65,7 @@ export async function tiktokPublishStatus(): Promise<TikTokPublishInfo> {
 
 /** A usable access token for publishing (renewed when close to expiry), or the French reason. The token is never logged. */
 export async function tiktokAccessToken(now = new Date()): Promise<{ token: string } | { error: string }> {
+  if (tiktokDemo()) return { error: "Mode démo local : rien n'est envoyé à TikTok." };
   const info = await tiktokPublishStatus();
   if (!info.enabled) return { error: info.reason ?? "TikTok n'est pas disponible." };
   const access = await getFreshTikTokAccess(now);
