@@ -8,7 +8,7 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-10-31
 
-- **TikTok panel on the approval screen** (web, branch `feat/tiktok-posting-screen`, not merged, migration 109 to run): in direct mode, when a video goes to TikTok, Salif sees the account (fresh creator info), picks who can see it (no default), comments, duets and stitches (off by default, greyed out when the account disabled them), the commercial content disclosure, and TikTok's Music Usage Confirmation above « Valider ». The choices are saved in `tiktok_settings` and the publisher sends exactly them, after reading creator info again. Replaces the hard-coded `SELF_ONLY`. Built for the TikTok Content Posting API audit (vault PRD « TikTok posting screen for the audit »).
+- **TikTok panel on the approval screen** (web, branch `feat/tiktok-posting-screen`, not merged, migration 109 run by Salif 2026-10-31): in direct mode, when a video goes to TikTok, Salif sees the account (fresh creator info), picks who can see it (no default), comments, duets and stitches (off by default, greyed out when the account disabled them), the commercial content disclosure, and TikTok's Music Usage Confirmation above « Valider ». The choices are saved in `tiktok_settings` and the publisher sends exactly them, after reading creator info again. Replaces the hard-coded `SELF_ONLY`. Built for the TikTok Content Posting API audit (vault PRD « TikTok posting screen for the audit »).
 
 ## 2026-10-24
 
