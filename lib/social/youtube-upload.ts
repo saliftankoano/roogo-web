@@ -20,7 +20,15 @@
 //
 // Quota: one videos.insert costs 1 600 units of the 10 000 a day. Until the
 // Google Cloud project passes the YouTube API Services audit, videos uploaded
-// through the API are locked private by YouTube whatever privacyStatus says.
+// through the API are locked private by YouTube whatever privacyStatus says:
+// the final answer then carries status.privacyStatus « private » and the
+// result note says so (privacyNote).
+//
+// Visibility (2026-10-30, youtubeVisibility): a post whose Studio time is
+// still ahead goes up « private » with status.publishAt (ISO 8601 UTC), so
+// YouTube makes it public itself at that time; a post that is due goes up
+// « public ». The Studio stores scheduled_at as timestamptz in UTC, which is
+// also Ouagadougou time (UTC+0, no daylight saving).
 //
 // No imports: node:test loads this file directly with a fake fetch
 // (youtube-upload.test.mjs). The token is sent in the Authorization header
@@ -42,6 +50,8 @@ export type ShortInput = {
   title: string;
   description: string;
   privacyStatus: PrivacyStatus;
+  /** ISO 8601 UTC: YouTube turns the video public at this time (privacyStatus must be « private »). */
+  publishAt?: string | null;
   /** Known from the uploaded file; #Shorts is added only when the video is vertical and 3 minutes or less. */
   width?: number | null;
   height?: number | null;
@@ -96,7 +106,13 @@ export function buildShortMetadata(input: ShortInput) {
   const tags = (input.tags ?? []).map((t) => clean(t)).filter(Boolean).slice(0, 30);
   return {
     snippet: { title, description, categoryId: input.categoryId ?? "22", ...(tags.length ? { tags } : {}) },
-    status: { privacyStatus: input.privacyStatus, selfDeclaredMadeForKids: false, embeddable: true },
+    status: {
+      // YouTube only accepts publishAt on a private video.
+      privacyStatus: input.publishAt ? ("private" as const) : input.privacyStatus,
+      ...(input.publishAt ? { publishAt: input.publishAt } : {}),
+      selfDeclaredMadeForKids: false,
+      embeddable: true,
+    },
   };
 }
 
@@ -237,9 +253,14 @@ export async function uploadYouTubeShort(
 // « Publier une vidéo »: chunked, resumable across runs (2026-10-24).
 // ---------------------------------------------------------------------------
 
-/** Until the YouTube API audit, YouTube locks API uploads private anyway. */
-export const YOUTUBE_PRIVATE_NOTE = "YouTube : publication privée tant que l'application n'est pas validée par YouTube";
-export const YOUTUBE_PUBLIC_NOTE = "YouTube : publication publique en Short";
+/** YOUTUBE_PUBLIC_UPLOADS=false: every Short stays private. */
+export const YOUTUBE_PRIVATE_NOTE = "YouTube : publication privée (YOUTUBE_PUBLIC_UPLOADS=false sur le serveur)";
+export const YOUTUBE_PUBLIC_NOTE = "YouTube : le Short devient public à l'heure prévue dans le Studio";
+/** YouTube answered « private » although public or a publishAt was asked: the API audit lock. */
+export const YOUTUBE_LOCKED_NOTE =
+  "YouTube a gardé la vidéo privée : le projet Google Cloud n'a pas encore passé l'audit de l'API YouTube. Elle doit être rendue publique dans YouTube Studio";
+/** A Studio time less than this ahead is treated as « now » (publishAt must be in the future when YouTube reads it). */
+export const PUBLISH_AT_MIN_LEAD_MS = 2 * 60_000;
 /** Google keeps a resumable session about a week; we resume within 6 days, else start again. */
 export const SESSION_TTL_MS = 6 * 24 * 3600_000;
 /** Do not start a chunk when less than this is left before the run's deadline. */
@@ -252,9 +273,39 @@ export const MAX_QUOTA_RETRIES = 3;
 export const QUOTA_ERROR =
   "Quota YouTube du jour atteint (une vidéo coûte 1 600 unités sur 10 000 par jour). Nouvel essai automatique demain à partir de 8 h.";
 
-/** YOUTUBE_PUBLIC_UPLOADS=true (after the API audit) publishes public; private otherwise. */
+/** Public by default; YOUTUBE_PUBLIC_UPLOADS=false keeps every Short private (kill switch). */
 export function youtubePrivacy(env: Record<string, string | undefined>): PrivacyStatus {
-  return env.YOUTUBE_PUBLIC_UPLOADS?.trim().toLowerCase() === "true" ? "public" : "private";
+  return env.YOUTUBE_PUBLIC_UPLOADS?.trim().toLowerCase() === "false" ? "private" : "public";
+}
+
+/**
+ * privacyStatus and publishAt for a post scheduled at `scheduledAt` (the
+ * Studio's scheduled_at, UTC): a time still ahead gives « private » plus
+ * publishAt so YouTube publishes it then; a time now or past gives « public ».
+ */
+export function youtubeVisibility(
+  env: Record<string, string | undefined>,
+  scheduledAt: string | null | undefined,
+  now: Date,
+): { privacyStatus: PrivacyStatus; publishAt: string | null } {
+  if (youtubePrivacy(env) === "private") return { privacyStatus: "private", publishAt: null };
+  const at = scheduledAt ? Date.parse(scheduledAt) : NaN;
+  if (Number.isFinite(at) && at - now.getTime() >= PUBLISH_AT_MIN_LEAD_MS) {
+    return { privacyStatus: "private", publishAt: new Date(at).toISOString().replace(/\.\d{3}Z$/, "Z") };
+  }
+  return { privacyStatus: "public", publishAt: null };
+}
+
+/** The result note, from what was asked and what YouTube answered (status of the video resource). */
+export function privacyNote(input: Pick<ShortInput, "privacyStatus" | "publishAt">, answered: { privacyStatus?: unknown; publishAt?: unknown } | null): string {
+  const askedPublic = input.privacyStatus === "public" || !!input.publishAt;
+  const got = typeof answered?.privacyStatus === "string" ? answered.privacyStatus : null;
+  if (askedPublic && got === "private" && !answered?.publishAt) return YOUTUBE_LOCKED_NOTE;
+  if (input.publishAt) {
+    const when = new Date(input.publishAt).toLocaleString("fr-FR", { timeZone: "UTC", dateStyle: "short", timeStyle: "short" });
+    return `Programmée sur YouTube : publique le ${when} (heure de Ouagadougou)`;
+  }
+  return input.privacyStatus === "public" ? "Publiée en Short" : "Publiée en privé (visible par la chaîne seulement)";
 }
 
 export function youtubeNote(privacy: PrivacyStatus): string {
@@ -346,9 +397,11 @@ function shortsUrl(videoId: string) {
   return `https://youtube.com/shorts/${videoId}`;
 }
 
-async function idOf(res: { json: () => Promise<unknown> }): Promise<string | null> {
-  const body = (await res.json().catch(() => null)) as { id?: unknown } | null;
-  return typeof body?.id === "string" && body.id ? body.id : null;
+type Answered = { id: string; status: { privacyStatus?: unknown; publishAt?: unknown } | null };
+
+async function idOf(res: { json: () => Promise<unknown> }): Promise<Answered | null> {
+  const body = (await res.json().catch(() => null)) as { id?: unknown; status?: Answered["status"] } | null;
+  return typeof body?.id === "string" && body.id ? { id: body.id, status: body.status ?? null } : null;
 }
 
 /**
@@ -372,12 +425,12 @@ export async function publishYouTubeShort(
   const sleep = deps.sleep ?? ((ms: number) => new Promise<void>((r) => setTimeout(r, ms)));
   const chunk = Math.max(CHUNK_UNIT, Math.floor((deps.chunkSize ?? DEFAULT_CHUNK_SIZE) / CHUNK_UNIT) * CHUNK_UNIT);
   const auth = { Authorization: `Bearer ${token}` };
-  const done = (videoId: string): YouTubeNetworkResult => ({
+  const done = ({ id: videoId, status }: Answered): YouTubeNetworkResult => ({
     status: "published",
     remote_id: videoId,
     permalink: shortsUrl(videoId),
     published_at: new Date(clock()).toISOString(),
-    note: input.privacyStatus === "public" ? "Publiée en Short" : "Publiée en privé (visible par la chaîne seulement)",
+    note: privacyNote(input, status),
     resume: null,
     retry_after: null,
   });
@@ -390,7 +443,7 @@ export async function publishYouTubeShort(
   let resume = opts.resume && Date.parse(opts.resume.expires_at) > clock() ? { ...opts.resume } : null;
 
   // Probe: how much of an earlier session arrived?
-  const probe = async (r: YouTubeResume): Promise<"gone" | "unknown" | { id: string } | { next: number } | { failed: YouTubeNetworkResult }> => {
+  const probe = async (r: YouTubeResume): Promise<"gone" | "unknown" | { id: Answered } | { next: number } | { failed: YouTubeNetworkResult }> => {
     try {
       const res = await deps.fetch(r.session_url, { method: "PUT", headers: { ...auth, "Content-Range": `bytes */${r.total}` } });
       if (res.status === 200 || res.status === 201) {

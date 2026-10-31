@@ -5,6 +5,16 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### YouTube Shorts follow the Studio time instead of staying private — 2026-10-30
+
+**Decision:** Salif wants each Studio video to go public on YouTube at its scheduled time with nobody touching YouTube Studio. The upload asks for `public` when the post is due and for `private` + `status.publishAt` = `scheduled_at` (UTC) when the time is at least 2 minutes ahead. `YOUTUBE_PUBLIC_UPLOADS` flips meaning: unset = follow the schedule, `false` = kill switch (always private).
+
+**Why:** Videos arrived private because the flag was never set in production, so the code itself asked for `private`. The Studio stores `scheduled_at` as timestamptz in UTC, which is also Ouagadougou time (UTC+0), so it maps to `publishAt` directly. The worker only uploads posts that are due, so today almost every upload is `public`; `publishAt` covers a run that starts before the time and any future early upload.
+
+**Caveat:** Until the Google Cloud project passes the YouTube API Services audit, YouTube locks API uploads private whatever we send. The upload response is read and the note says « YouTube a gardé la vidéo privée » in that case, so the audit stays the last blocker if it shows up.
+
+**Status:** Branch `fix/youtube-scheduled-public`, not merged. Existing private Shorts are not changed.
+
 ### YouTube Shorts in Publier: private until the audit, resumable across runs, quota retried next day — 2026-10-24
 
 **Decision:** YouTube Shorts joins Facebook, Instagram and TikTok as a « Publier une vidéo » destination when the channel is connected with `youtube.upload`. Uploads are `private` unless `YOUTUBE_PUBLIC_UPLOADS=true`, which is set only after the Google Cloud project passes the YouTube API Services audit. The YouTube text keeps one field: its first line is the title (100 characters, searchable: type, place, price), the rest is the description. Uploads are streamed from the Drive copy in 8 MiB chunks with the session URL and next byte saved after each chunk. On `quotaExceeded` the network is « Échec » with a French message and the worker retries it by itself after the next quota reset (08:00 UTC), at most 3 days in a row.
