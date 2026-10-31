@@ -30,8 +30,8 @@ export type Network = (typeof NETWORKS)[number];
  * saved and validated, lib/social/tiktok-token-server.ts); its posts stay
  * private until TikTok audits the Roogo app. YouTube Shorts (2026-10-24) only
  * for « Publier une vidéo » posts, when the channel is connected with
- * youtube.upload (lib/social/youtube-token-server.ts); private until the
- * YouTube API audit (YOUTUBE_PUBLIC_UPLOADS).
+ * youtube.upload (lib/social/youtube-token-server.ts); public at the
+ * Studio time (youtubeVisibility), private with YOUTUBE_PUBLIC_UPLOADS=false.
  */
 export const PUBLISHABLE_NETWORKS: readonly Network[] = ["facebook", "instagram", "tiktok", "youtube"];
 
