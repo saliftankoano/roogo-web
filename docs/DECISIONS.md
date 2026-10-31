@@ -5,6 +5,15 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### TikTok posts carry the founder's choices from a TikTok-compliant panel — 2026-10-31
+
+**Decision:** Salif decided to submit the TikTok Content Posting API audit and approved the PRD « TikTok posting screen for the audit » (vault, 2026-10-31). In direct mode the approval screen shows TikTok's required controls (creator info, privacy with no default, interactions off by default, commercial disclosure, Music Usage Confirmation), the choices are saved at approval (`tiktok_settings`, migration 109), and the publisher posts exactly them. Consent is given at approval, also for posts scheduled later. Panel in French. « Moi seulement » is disabled when the video is branded content.
+
+**Why:** TikTok audits the posting screen against its Content Sharing Guidelines; the Studio skipped every control and hard-coded `SELF_ONLY` with all interactions on, so the audit could not pass and nobody chose what TikTok received.
+
+**Ruled out:** saving defaults or « last used » settings (TikTok forbids preset values); showing the panel on the staff upload screen (the founder approves and owns the TikTok connection).
+
+**Caveat:** TikTok's guidelines exclude internal tools that post to the team's own accounts; the panel removes the screen reason for refusal, not that one. Meanwhile `TIKTOK_POST_MODE=draft` is set in production (2026-10-31), so TikTok posts go to the account's drafts and the panel does not show until direct mode is turned back on.
 ### YouTube Shorts follow the Studio time instead of staying private — 2026-10-30
 
 **Decision:** Salif wants each Studio video to go public on YouTube at its scheduled time with nobody touching YouTube Studio. The upload asks for `public` when the post is due and for `private` + `status.publishAt` = `scheduled_at` (UTC) when the time is at least 2 minutes ahead. `YOUTUBE_PUBLIC_UPLOADS` flips meaning: unset = follow the schedule, `false` = kill switch (always private).
@@ -13,7 +22,7 @@ out. Newest first. For what shipped and when, see
 
 **Caveat:** Until the Google Cloud project passes the YouTube API Services audit, YouTube locks API uploads private whatever we send. The upload response is read and the note says « YouTube a gardé la vidéo privée » in that case, so the audit stays the last blocker if it shows up.
 
-**Status:** Branch `fix/youtube-scheduled-public`, not merged. Existing private Shorts are not changed.
+**Status:** PR #111, merged 2026-10-31. Existing private Shorts are not changed.
 
 ### YouTube Shorts in Publier: private until the audit, resumable across runs, quota retried next day — 2026-10-24
 

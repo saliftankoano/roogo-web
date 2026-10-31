@@ -42,6 +42,8 @@ import {
 import { publishTikTok, tiktokPostMode, type TikTokResume } from "@/lib/social/tiktok-publish";
 import { rangeSource } from "./range-source";
 import { tiktokAccessToken, tiktokPublishStatus } from "@/lib/social/tiktok-token-server";
+import { loadTikTokSettings } from "@/lib/social/tiktok-settings-server";
+import { COPY as TIKTOK_COPY, fetchCreatorInfo, postInfoFields, settingsProblems } from "@/lib/social/tiktok-post-settings";
 import { MAX_QUOTA_RETRIES, publishYouTubeShort, youtubeVisibility, type YouTubeResume } from "@/lib/social/youtube-upload";
 import { youtubeAccessToken, youtubePublishStatus } from "@/lib/social/youtube-token-server";
 import {
@@ -243,6 +245,13 @@ export async function staffDirectory(): Promise<Array<{ id: string; name: string
 // The worker (Vercel cron)
 // ---------------------------------------------------------------------------
 
+/** Seconds of the post's video when the Studio knows it (« Publier une vidéo »), else null. */
+export async function videoDurationOf(row: Pick<PublicationRow, "final_video_id">): Promise<number | null> {
+  if (!row.final_video_id) return null;
+  const video = await loadFinalVideo(row.final_video_id);
+  return video?.duration_seconds == null ? null : Number(video.duration_seconds);
+}
+
 async function mediaFor(row: PublicationRow): Promise<{ media: PublishMedia | null; error: string | null }> {
   if (row.media_type === "text") return { media: { kind: "text" }, error: null };
   if (row.final_video_id) {
@@ -417,12 +426,14 @@ export async function runPublishingWorker(
   };
 
   // TikTok (lib/social/tiktok-publish.ts), private until TikTok's audit:
+  // direct mode posts the choices saved at approval (tiktok_settings, 109).
   // PULL_FROM_URL when TIKTOK_PULL_URL_PREFIX covers the signed link, else
   // FILE_UPLOAD in 10 MB chunks read one at a time from the signed URL with
   // Range requests (never the whole file in memory). An upload that cannot
   // finish before this run's deadline is saved and continued by the next run.
   const deadline = started + (opts.runBudgetMs ?? DEFAULT_RUN_BUDGET_MS);
   const publishToTikTok = async (
+    rowId: string,
     media: PublishMedia,
     text: string,
     existingPublishId: string | null,
@@ -432,6 +443,22 @@ export async function runPublishingWorker(
     if (media.kind !== "video") return { status: "failed", error: "TikTok ne publie que des vidéos depuis Roogo." };
     const access = await tiktokAccessToken();
     if ("error" in access) return { status: "failed", error: access.error };
+    const mode = tiktokPostMode(process.env);
+    // Direct mode (PRD « TikTok posting screen for the audit »): exactly what
+    // Salif chose at approval, checked against the account's creator info read
+    // again now. An upload already started keeps its settings (TikTok has them).
+    let postInfo: ReturnType<typeof postInfoFields> | null = null;
+    if (mode === "direct" && !existingPublishId) {
+      const saved = await loadTikTokSettings(rowId);
+      if (!saved.settings) {
+        return { status: "failed", error: saved.ready ? TIKTOK_COPY.missing : "Les réglages TikTok ne sont pas encore installés (migration 109 à lancer)." };
+      }
+      const creator = await fetchCreatorInfo((url, init) => fetch(url, init), access.token);
+      if (!creator.ok) return { status: "failed", error: creator.error };
+      const problems = settingsProblems(saved.settings, creator.creator, media.durationSeconds ?? null);
+      if (problems.length) return { status: "failed", error: problems[0] };
+      postInfo = postInfoFields(saved.settings);
+    }
     return publishTikTok(
       {
         fetch: (url, init) => fetch(url, init as RequestInit),
@@ -445,7 +472,7 @@ export async function runPublishingWorker(
       },
       access.token,
       text,
-      { mode: tiktokPostMode(process.env), existingPublishId, resume },
+      { mode, existingPublishId, resume, postInfo },
     );
   };
 
@@ -544,7 +571,7 @@ export async function runPublishingWorker(
           if (previous?.auto_retries) result = { ...result, auto_retries: previous.auto_retries };
         }
       } else if (network === "tiktok") {
-        result = await publishToTikTok(media, text, results.tiktok?.container_id ?? null, (results.tiktok?.resume as TikTokResume | null | undefined) ?? null, async (partial) => {
+        result = await publishToTikTok(row.id, media, text, results.tiktok?.container_id ?? null, (results.tiktok?.resume as TikTokResume | null | undefined) ?? null, async (partial) => {
           results.tiktok = partial;
           await save();
         });

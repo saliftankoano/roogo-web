@@ -22,8 +22,11 @@ import {
   roleOf,
   runPublishingWorker,
   toDtos,
+  videoDurationOf,
   type PublicationRow,
 } from "@/lib/studio/publishing-server";
+import { creatorInfoNow, saveTikTokSettings, tiktokDemo, tiktokPanelRequired } from "@/lib/social/tiktok-settings-server";
+import { COPY as TIKTOK_COPY, choiceProblems, parseChoices, toSettings } from "@/lib/social/tiktok-post-settings";
 
 export async function OPTIONS(req: Request) {
   return corsOptions(req);
@@ -106,6 +109,20 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (target === "valide") {
       const problems = await approvalProblems(row);
       if (problems.length) return cors(NextResponse.json({ error: problems[0].message, problems }, { status: 422 }), req);
+      // TikTok panel (PRD « TikTok posting screen for the audit »): in direct
+      // mode the founder's choices are checked against fresh creator info and
+      // saved before the post is approved; the publisher sends exactly them.
+      if (row.networks.includes("tiktok") && row.media_type === "video" && (await tiktokPanelRequired())) {
+        if (tiktokDemo()) return errorResponse("Mode démo local : la validation est désactivée, rien n'est envoyé.", 422, req);
+        const choices = parseChoices(body.tiktok);
+        if (!choices) return errorResponse(TIKTOK_COPY.pickPrivacy, 422, req);
+        const creator = await creatorInfoNow();
+        if (!creator.ok) return errorResponse(creator.error, 422, req);
+        const tiktokProblems = choiceProblems(choices, creator.creator, await videoDurationOf(row));
+        if (tiktokProblems.length) return errorResponse(tiktokProblems[0], 422, req);
+        const saved = await saveTikTokSettings(id, row.status, toSettings(choices, creator.creator, staff.id, nowIso));
+        if (!saved.ok) return errorResponse(saved.error, 409, req);
+      }
       update = {
         status: "valide",
         approved_by: staff.id,

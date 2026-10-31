@@ -2,8 +2,9 @@
 // API only (https://developers.tiktok.com/doc/content-posting-api-get-started):
 //
 // - Direct Post (scope video.publish): POST /v2/post/publish/video/init/ with
-//   privacy_level SELF_ONLY. TikTok keeps every post of an unaudited app
-//   private (visible by the account only) until the app passes TikTok's audit.
+//   exactly the privacy, interactions and commercial disclosure Salif chose
+//   on the approval screen (lib/social/tiktok-post-settings.ts, 2026-10-31).
+//   TikTok keeps every post of an unaudited app private until it is audited.
 // - Upload to drafts (scope video.upload): POST /v2/post/publish/inbox/video/init/.
 //   The video lands in the TikTok app's notifications, the account owner
 //   finishes and publishes it there. Chosen with TIKTOK_POST_MODE=draft.
@@ -276,7 +277,20 @@ export async function publishTikTok(
   deps: TikTokPublishDeps,
   token: string,
   caption: string,
-  opts: { mode: TikTokPostMode; existingPublishId?: string | null; resume?: TikTokResume | null },
+  opts: {
+    mode: TikTokPostMode;
+    existingPublishId?: string | null;
+    resume?: TikTokResume | null;
+    /** Direct mode: the post_info fields saved at approval (postInfoFields). Required to start a direct upload. */
+    postInfo?: {
+      privacy_level: string;
+      disable_comment: boolean;
+      disable_duet: boolean;
+      disable_stitch: boolean;
+      brand_content_toggle: boolean;
+      brand_organic_toggle: boolean;
+    } | null;
+  },
 ): Promise<TikTokNetworkResult> {
   const clock = deps.clock ?? (() => Date.now());
   const timeLeft = () => (deps.deadline == null ? Infinity : deps.deadline - clock());
@@ -286,8 +300,16 @@ export async function publishTikTok(
   if (opts.resume && !resume) publishId = null;
   // Only an upload TikTok fully received is worth checking again on a retry.
   let uploaded = Boolean(publishId) && !resume;
-  const note = opts.mode === "direct" ? "Publiée en privé (visible par le compte seulement)" : "Dans les brouillons TikTok, à publier depuis l'application";
+  const note =
+    opts.mode === "draft"
+      ? "Dans les brouillons TikTok, à publier depuis l'application"
+      : opts.postInfo?.privacy_level === "SELF_ONLY"
+        ? "Publiée en privé (visible par le compte seulement)"
+        : "Publiée sur TikTok";
   try {
+    if (!publishId && opts.mode === "direct" && !opts.postInfo) {
+      return { status: "failed", container_id: null, error: "Réglages TikTok manquants : « Annuler » la validation puis valider à nouveau en remplissant le panneau TikTok." };
+    }
     if (!publishId) {
       const pull = pullUrlAllowed(deps.video.url, deps.pullUrlPrefix);
       let source_info: Json;
@@ -301,7 +323,7 @@ export async function publishTikTok(
       const init =
         opts.mode === "direct"
           ? await tiktokJson(deps.fetch, token, "/v2/post/publish/video/init/", {
-              post_info: { title: tiktokTitle(caption), privacy_level: "SELF_ONLY", disable_duet: false, disable_comment: false, disable_stitch: false },
+              post_info: { title: tiktokTitle(caption), ...opts.postInfo },
               source_info,
             })
           : await tiktokJson(deps.fetch, token, "/v2/post/publish/inbox/video/init/", { source_info });
