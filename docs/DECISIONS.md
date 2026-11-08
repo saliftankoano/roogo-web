@@ -5,6 +5,30 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### Supabase accepts Clerk session tokens (Third-Party Auth) — 2026-11-08
+
+**Decision:** Supabase project `txbxvpyftgpebgnuazaf` trusts Clerk production (`https://clerk.roogobf.com`) through Supabase Third-Party Auth, and Clerk's Supabase integration adds `role: authenticated` to session tokens. Clients send the normal Clerk session token; no JWT template. Salif enabled both on 2026-11-08.
+
+**Why:** Supabase rejected Clerk tokens (`PGRST301`) and served RLS-gated reads as anonymous: the founder review count was 0, and mobile 1.20.0 profile, Mes propriétés, favourites and editing came back empty. After enabling, the founder account loaded À vérifier 9 / En ligne 45 / Expirées 3 and its profile (mobile simulator, 2026-11-08).
+
+**Ruled out / alternatives:** A Clerk JWT template signed with the Supabase JWT secret (deprecated by Supabase; shares the secret with Clerk).
+
+**Status:** Live. Precondition for migration 095 (see the users table entry). Mobile side: roogo `docs/DECISIONS.md`.
+
+---
+
+### Sale price simulator for staff and owners; NULL mandate percentages are missing, not +0 % — 2026-10-18
+
+**Decision:** Staff get an interactive simulator in `components/admin/StaffSaleLadder.tsx`: five steps (« Prix proprio », +10 % Minimum équipe, +15 % Repère, +20 % Objectif, +30 % Prix affiché), a slider from 90 % to 140 % of the owner's price, « L'équipe décide » / « Accord de Salif » at the chosen price, and a five-colour split bar (owner green, notary blue, buyer's intermediary amber 2 %, seller's sponsor violet 1 %, Roogo orange) with switches for the two helper fees. Owners of a sale listing see `components/sale/OwnerSalePayout.tsx` on `/mes-proprietes/[id]`: their price, the online price, then Prix affiché / Objectif / Minimum with what they receive and the full split bar, with no approval wording. `GET /api/properties/[id]/owner-sale` serves it to the owner (`agent_id`) or staff only. Stored mandate percentages are read by `lib/sale-ladder-snapshot.ts`: NULL or blank means missing and an all-zero snapshot is ignored, so the live ladder config applies.
+
+**Why:** Salif, 2026-10-18: the first panel was a wall of numbers; owners should see at a glance what they receive at each step, with colour per party and motion (vault « Design philosophy », « Color psychology »). Mobile 1.20.0 testing showed every rung at « +0 % » on VEN-023 because `Number(null)` is 0 for mandates sent before migration 075; that also made the price guard's team floor the owner's price.
+
+**Ruled out / alternatives:** Hiding Roogo's share from owners (first draft; Salif chose the full breakdown bar with the « s'il amène l'acheteur » / « s'il vous a fait connaître Roogo » labels). Showing approval rules to owners.
+
+**Status:** Merged as PR #76 on 2026-10-21, deployed to production, no migration. Mobile counterpart roogo PR #36.
+
+---
+
 ### TikTok posts carry the founder's choices from a TikTok-compliant panel — 2026-10-31
 
 **Decision:** Salif decided to submit the TikTok Content Posting API audit and approved the PRD « TikTok posting screen for the audit » (vault, 2026-10-31). In direct mode the approval screen shows TikTok's required controls (creator info, privacy with no default, interactions off by default, commercial disclosure, Music Usage Confirmation), the choices are saved at approval (`tiktok_settings`, migration 109), and the publisher posts exactly them. Consent is given at approval, also for posts scheduled later. Panel in French. « Moi seulement » is disabled when the video is branded content.
@@ -185,7 +209,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** Column revokes alone (old apps `select *` on `users` and would break the same way, while every row stayed listable). A policy that shows only owners of live listings (still exposes those rows' WhatsApp, IP and preferences to anyone). A single migration (it would cut old apps off profile, favourites and "Mes propriétés" the day it runs). Moving the reads to new API routes (the authenticated Supabase client already exists and support chat already relies on it).
 
-**Status:** Branch `fix/users-table-exposure` (web and mobile), not merged, not run. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
+**Status:** Merged; migration 094 run by Salif (2026-10-17). Since 2026-11-08 Supabase accepts Clerk session tokens (see the entry below), which 095 depends on. 095 is not run: on 2026-11-06, 84% of Android installs (476 of 565) were on 1.21.1 and 16% on 1.19.0 or older, which would lose their own-row reads; iPhone adoption not yet checked. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
 
 ---
 
