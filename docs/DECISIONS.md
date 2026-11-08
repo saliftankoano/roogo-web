@@ -13,7 +13,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** A Clerk JWT template signed with the Supabase JWT secret (deprecated by Supabase; shares the secret with Clerk).
 
-**Status:** Live. Precondition for migration 095 (see the users table entry). Mobile side: roogo `docs/DECISIONS.md`.
+**Status:** Settled. Live since 2026-11-08. Precondition for migration 095 (see the users table entry). Mobile side: roogo `docs/DECISIONS.md`.
 
 ---
 
@@ -25,7 +25,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** Hiding Roogo's share from owners (first draft; Salif chose the full breakdown bar with the « s'il amène l'acheteur » / « s'il vous a fait connaître Roogo » labels). Showing approval rules to owners.
 
-**Status:** Merged as PR #76 on 2026-10-21, deployed to production, no migration. Mobile counterpart roogo PR #36.
+**Status:** Settled. Merged as PR #76 on 2026-10-21, deployed to production, no migration. Mobile counterpart roogo PR #36.
 
 ---
 
@@ -209,7 +209,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** Column revokes alone (old apps `select *` on `users` and would break the same way, while every row stayed listable). A policy that shows only owners of live listings (still exposes those rows' WhatsApp, IP and preferences to anyone). A single migration (it would cut old apps off profile, favourites and "Mes propriétés" the day it runs). Moving the reads to new API routes (the authenticated Supabase client already exists and support chat already relies on it).
 
-**Status:** Merged; migration 094 run by Salif (2026-10-17). Since 2026-11-08 Supabase accepts Clerk session tokens (see the entry below), which 095 depends on. 095 is not run: on 2026-11-06, 84% of Android installs (476 of 565) were on 1.21.1 and 16% on 1.19.0 or older, which would lose their own-row reads; iPhone adoption not yet checked. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
+**Status:** Open until migration 095 runs. Merged; migration 094 run by Salif (2026-10-17). Since 2026-11-08 Supabase accepts Clerk session tokens (see the entry below), which 095 depends on. 095 is not run: on 2026-11-06, 84% of Android installs (476 of 565) were on 1.21.1 and 16% on 1.19.0 or older, which would lose their own-row reads; iPhone adoption not yet checked. Open: the anon key can still read every `properties` column, including `seller_asking_price` of sale listings, and agent contacts of non-live listings through the view; listed as follow-ups in the PR.
 
 ---
 
