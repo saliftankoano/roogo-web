@@ -5,6 +5,18 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### The public listing view obeys the reader's RLS; owner cards live in `agent_cards` — 2026-11-08
+
+**Decision:** Salif approved replacing the SECURITY DEFINER `public_property_details` (094) with a `security_invoker` view (migration 110). Public owner fields are copied from `users` into `agent_cards` by trigger and readable only while the owner has a rental listing en_ligne, locked or finalized; the favorites count goes through a definer function in the non-exposed `private` schema.
+
+**Why:** With owner's rights the view skipped RLS on every table under it, so anyone with the anon key read it as the database owner. Owner cards were the only reason for those rights.
+
+**Ruled out:** moving the definer view to another schema behind an invoker wrapper (silences the advisor, same behaviour); tightening `properties` to published-only in the same change (the mobile app still reads an owner's pending listings with the anon key in `services/userService.ts`).
+
+**Status:** Settled. Run on production 2026-11-08 (migration 110). Migration 095 can now close the `users` table without blanking owner cards.
+
+---
+
 ### Supabase accepts Clerk session tokens (Third-Party Auth) — 2026-11-08
 
 **Decision:** Supabase project `txbxvpyftgpebgnuazaf` trusts Clerk production (`https://clerk.roogobf.com`) through Supabase Third-Party Auth, and Clerk's Supabase integration adds `role: authenticated` to session tokens. Clients send the normal Clerk session token; no JWT template. Salif enabled both on 2026-11-08.
