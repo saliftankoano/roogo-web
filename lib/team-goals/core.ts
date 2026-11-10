@@ -81,6 +81,17 @@ export function suggestTitle(title: string, oldTarget: number, newTarget: number
   return `${lead[1]}${formatCount(newTarget)}${title.slice(lead[0].length)}`;
 }
 
+/**
+ * The title as shown: when it starts with a number that is not the target
+ * (a title written before the target changed, « 1 000 abonnés TikTok » at
+ * 5 000), the target replaces it. Custom titles without a leading number are
+ * shown as written. Display only: the stored title is fixed on the next edit.
+ */
+export function displayTitle(title: string, target: number): string {
+  if (!Number.isFinite(target)) return title;
+  return suggestTitle(title, target, target) ?? title;
+}
+
 /** "16 octobre", "1er août", or "16 octobre 2025" when the year differs from `yearOf`. */
 export function dayLabel(key: string, yearOf?: string): string {
   const d = startOf(key);
