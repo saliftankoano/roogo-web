@@ -233,6 +233,64 @@ async function fetchClerkUsersByIds(clerkIds: Array<string | null | undefined>) 
   return users;
 }
 
+type RawUserRow = {
+  id: string;
+  clerk_id: string | null;
+  full_name: string | null;
+  email: string | null;
+  phone: string | null;
+  avatar_url: string | null;
+  user_type: string;
+  company_name: string | null;
+  professional_link: string | null;
+  whatsapp: string | null;
+  preferred_city: string | null;
+  budget_max: number | null;
+  service_areas: string[] | null;
+  portfolio_size: string | null;
+  referral_source: string | null;
+  preferences: Record<string, unknown> | null;
+  created_at: string;
+  signup_city: string | null;
+  signup_country: string | null;
+  signup_ip: string | null;
+  signup_captured_at: string | null;
+  signup_device_type: string | null;
+  signup_device_is_mobile: boolean | null;
+  signup_browser_name: string | null;
+  signup_browser_version: string | null;
+};
+
+const SUPABASE_PAGE_SIZE = 1000;
+const ID_CHUNK_SIZE = 150;
+
+// Supabase caps every select at 1000 rows by default, so page through results.
+async function fetchAllRows<T>(
+  build: (from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const rows: T[] = [];
+  for (let from = 0; ; from += SUPABASE_PAGE_SIZE) {
+    const { data, error } = await build(from, from + SUPABASE_PAGE_SIZE - 1);
+    if (error) throw error;
+    rows.push(...(data ?? []));
+    if (!data || data.length < SUPABASE_PAGE_SIZE) break;
+  }
+  return rows;
+}
+
+// Query a table by id lists in chunks (keeps URLs short) and pages each chunk.
+async function fetchByIds<T>(
+  ids: string[],
+  build: (chunk: string[], from: number, to: number) => PromiseLike<{ data: T[] | null; error: unknown }>,
+): Promise<T[]> {
+  const out: T[] = [];
+  for (let i = 0; i < ids.length; i += ID_CHUNK_SIZE) {
+    const chunk = ids.slice(i, i + ID_CHUNK_SIZE);
+    out.push(...(await fetchAllRows((from, to) => build(chunk, from, to))));
+  }
+  return out;
+}
+
 export async function GET() {
   try {
     const { userId } = await auth();
@@ -249,7 +307,8 @@ export async function GET() {
     }
 
     const supabase = getSupabaseClient();
-    let usersQuery = supabase
+    const buildUsersQuery = (from: number, to: number) => {
+      let q = supabase
       .from("users")
       .select(
         `
@@ -279,13 +338,23 @@ export async function GET() {
         signup_browser_name,
         signup_browser_version
       `,
-      );
-    if (!seesEveryone) {
-      usersQuery = usersQuery.in("user_type", ["owner", "agent"]);
+      )
+      ;
+      if (!seesEveryone) {
+        q = q.in("user_type", ["owner", "agent"]);
+      }
+      return q
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: true })
+        .range(from, to);
+    };
+    let rawUsers: RawUserRow[] = [];
+    let error: unknown = null;
+    try {
+      rawUsers = await fetchAllRows<RawUserRow>((from, to) => buildUsersQuery(from, to));
+    } catch (e) {
+      error = e;
     }
-    const { data: rawUsers, error } = await usersQuery.order("created_at", {
-      ascending: false,
-    });
 
     if (error) {
       console.error("Error fetching all users:", error);
@@ -309,15 +378,22 @@ export async function GET() {
       favoritesRes,
       clerkUsersData,
     ] = await Promise.all([
-      supabase.from("properties").select("agent_id").in("agent_id", userIds),
-      supabase.from("applications").select("user_id").in("user_id", userIds),
-      supabase
-        .from("rental_agreements")
-        .select("owner_id, renter_id")
-        .or(
-          `owner_id.in.(${userIds.join(",")}),renter_id.in.(${userIds.join(",")})`,
-        ),
-      supabase.from("favorites").select("user_id").in("user_id", userIds),
+      fetchByIds<{ agent_id: string | null }>(userIds, (c, f, t) =>
+        supabase.from("properties").select("agent_id").in("agent_id", c).range(f, t),
+      ).then((data) => ({ data })),
+      fetchByIds<{ user_id: string | null }>(userIds, (c, f, t) =>
+        supabase.from("applications").select("user_id").in("user_id", c).range(f, t),
+      ).then((data) => ({ data })),
+      fetchByIds<{ owner_id: string | null; renter_id: string | null }>(userIds, (c, f, t) =>
+        supabase
+          .from("rental_agreements")
+          .select("owner_id, renter_id")
+          .or(`owner_id.in.(${c.join(",")}),renter_id.in.(${c.join(",")})`)
+          .range(f, t),
+      ).then((data) => ({ data })),
+      fetchByIds<{ user_id: string | null }>(userIds, (c, f, t) =>
+        supabase.from("favorites").select("user_id").in("user_id", c).range(f, t),
+      ).then((data) => ({ data })),
       (async () => {
         try {
           return await fetchClerkUsersByIds(rawUsers.map((user) => user.clerk_id));
