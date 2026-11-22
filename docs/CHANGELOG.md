@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-11-22
+
+- **Style guide gets « Application mobile »** (web, branch `feat/style-guide-mobile`, not merged, no migration): section 12 of `/admin/style-guide` (staff only) lists the mobile targets from the redesign: one Pressable with a 0,98 press, 44 px touch zones, the 56 px primary button, the 160 / 260 / 420 ms motion and sheet spring, the haptics map, text rules, tab bar, sheet and skeleton. Each rule sits next to what the Expo app does today (read from the code on 2026-11-22). These are targets, not shipped in the app.
+
 ## 2026-11-08
 
 - **Supabase accepts Clerk logins** (Supabase + Clerk dashboard settings by Salif, no code, no migration): RLS-gated reads from the app and the site now run as the signed-in user instead of anonymous. Founder review counts and mobile profile / Mes propriétés load again. [Decision](./DECISIONS.md#supabase-accepts-clerk-session-tokens-third-party-auth--2026-11-08).

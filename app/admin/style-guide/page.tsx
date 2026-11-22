@@ -12,6 +12,7 @@ import { FormsSection } from "./_components/FormsSection";
 import { TablesSection } from "./_components/TablesSection";
 import { BadgesSection } from "./_components/BadgesSection";
 import { FeedbackSection } from "./_components/FeedbackSection";
+import { MobileSection } from "./_components/MobileSection";
 
 export const metadata: Metadata = {
   title: "Guide de style",
@@ -30,6 +31,7 @@ const entries: GuideTocEntry[] = [
   { id: "tableaux", number: "09", label: "Tableaux" },
   { id: "badges", number: "10", label: "Badges et statuts" },
   { id: "dialogues", number: "11", label: "Dialogues et retours" },
+  { id: "mobile", number: "12", label: "Application mobile" },
 ];
 
 export default function StyleGuidePage() {
@@ -66,6 +68,7 @@ export default function StyleGuidePage() {
         <TablesSection />
         <BadgesSection />
         <FeedbackSection />
+        <MobileSection />
       </StyleGuideShell>
     </div>
   );
