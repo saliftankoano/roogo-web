@@ -241,6 +241,9 @@ export type BriefingItem = {
   goalId?: string | null;
   goalTitle?: string | null;
   leverId?: string | null;
+  /** 111: a step of a Visites 3D three-contact sequence (2 = call back, 3 = WhatsApp message). */
+  prospectId?: string | null;
+  prospectStep?: 2 | 3 | null;
 };
 
 export type StaffTaskRow = {
@@ -284,6 +287,9 @@ export type StaffTaskRow = {
   settled_by?: string | null;
   sender_seen_at?: string | null;
   owner_seen_at?: string | null;
+  /** 111: Visites 3D follow-up of a business (« prospect »). */
+  prospect_id?: string | null;
+  prospect_step?: 2 | 3 | null;
 };
 
 export function isOpen(item: Pick<BriefingItem, "status">) {
@@ -420,6 +426,8 @@ export function rowToItem(row: StaffTaskRow, names: PersonNames, goalTitles?: Ma
     goalId: row.goal_id ?? null,
     goalTitle: row.goal_id ? (goalTitles?.get(row.goal_id) ?? null) : null,
     leverId: row.lever_id ?? null,
+    prospectId: row.prospect_id ?? null,
+    prospectStep: row.prospect_step ?? null,
   };
 }
 

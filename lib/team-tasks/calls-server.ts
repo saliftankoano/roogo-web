@@ -23,6 +23,8 @@ import {
   type StaffTaskRow,
 } from "./core";
 import { propertyLabel } from "./sources";
+import { PROSPECT_KIND_LABELS, sequenceLabel, weekStats, type WeekStats } from "./prospects";
+import { toProspectCallView, type ProspectCallView, type ProspectNoteRow, type ProspectRow } from "./prospects-server";
 import { getTeamPeople, type ServiceResult, type Viewer } from "./server";
 
 const fail = (status: number, error: string) => ({ ok: false as const, status, error });
@@ -45,7 +47,7 @@ type CallNoteRow = {
   property_id: string | null;
   visit_request_id: string | null;
   subject_user_id: string | null;
-  subject_kind: CallSubject;
+  subject_kind: CallSubject | "visite_3d";
   subject_label: string | null;
   author_id: string;
   outcome: CallOutcome;
@@ -54,6 +56,14 @@ type CallNoteRow = {
   next_at: string | null;
   follow_up_task_id: string | null;
   created_at: string;
+} & Partial<Omit<ProspectNoteRow, "id" | "task_id" | "author_id" | "notes" | "created_at">>;
+
+/** The five points of a Visites 3D call, and where its business stands. */
+export type ThreeDView = ProspectCallView & {
+  prospectId: string;
+  kindLabel: string;
+  stateLabel: string;
+  state: ProspectRow["sequence_state"] | null;
 };
 
 export type CallNoteView = {
@@ -66,9 +76,10 @@ export type CallNoteView = {
   notes: string;
   next: string;
   subject: string;
-  subjectKind: CallSubject;
+  subjectKind: CallSubject | "visite_3d";
   href: string | null;
   link: string | null;
+  threeD?: ThreeDView;
 };
 
 export type CallContext = {
@@ -132,7 +143,7 @@ function toView(note: CallNoteRow, people: Person[], now: Date): CallNoteView {
     notes: note.notes ?? "",
     next: nextLabel(note, people, author?.level, now),
     subject: note.subject_label ?? "Appel",
-    subjectKind: note.subject_kind,
+    subjectKind: note.prospect_id ? "visite_3d" : note.subject_kind,
     ...linkOf(note),
   };
 }
@@ -373,14 +384,38 @@ export async function saveCallNote(viewer: Viewer, input: CallNoteInput, now = n
   return { ok: true, value: { id: note.id as string, followUpId } };
 }
 
-export type CallLogFilter = "tous" | "demandes" | "proprietaires" | "ventes";
-const FILTER_KIND: Record<Exclude<CallLogFilter, "tous">, CallSubject> = {
+export type CallLogFilter = "tous" | "visites3d" | "demandes" | "proprietaires" | "ventes";
+const FILTER_KIND: Record<Exclude<CallLogFilter, "tous">, CallSubject | "visite_3d"> = {
+  visites3d: "visite_3d",
   demandes: "demande",
   proprietaires: "proprietaire",
   ventes: "vente",
 };
 
-export type CallLogPayload = { ready: boolean; notes: CallNoteView[]; counts: Record<CallLogFilter, number> };
+export type SequenceCounts = { enCours: number; oui: number; non: number; aReprendre: number };
+
+export type CallLogPayload = {
+  ready: boolean;
+  notes: CallNoteView[];
+  counts: Record<CallLogFilter, number>;
+  /** False until migration 111 runs: the « Visites 3D » filter shows a notice. */
+  ready3d: boolean;
+  /** This week's Visites 3D numbers (PRD 1.8). */
+  week3d: WeekStats | null;
+  sequences: SequenceCounts | null;
+};
+
+/** Every Visites 3D business (for the states and the sequence counts). Not ready before migration 111. */
+async function loadProspects(): Promise<{ ready: boolean; map: Map<string, ProspectRow> }> {
+  const map = new Map<string, ProspectRow>();
+  const { data, error } = await supabaseAdmin.from("staff_prospects").select("*").order("updated_at", { ascending: false }).limit(1000);
+  if (error) {
+    if (isMissing(error)) return { ready: false, map };
+    throw error;
+  }
+  for (const row of (data ?? []) as ProspectRow[]) map.set(row.id, row);
+  return { ready: true, map };
+}
 
 /** « Notes d’appels »: every note of the team, newest first. Directeur and founder only. */
 export async function getCallLog(viewer: Viewer, now = new Date()): Promise<ServiceResult<CallLogPayload>> {
@@ -389,19 +424,52 @@ export async function getCallLog(viewer: Viewer, now = new Date()): Promise<Serv
     supabaseAdmin.from("staff_call_notes").select("*").order("created_at", { ascending: false }).limit(300),
     getTeamPeople(viewer),
   ]);
-  const empty = { tous: 0, demandes: 0, proprietaires: 0, ventes: 0 };
+  const empty = { tous: 0, visites3d: 0, demandes: 0, proprietaires: 0, ventes: 0 };
   if (error) {
-    if (isMissing(error)) return { ok: true, value: { ready: false, notes: [], counts: empty } };
+    if (isMissing(error)) return { ok: true, value: { ready: false, notes: [], counts: empty, ready3d: false, week3d: null, sequences: null } };
     return writeError(error, "log");
   }
-  const notes = ((data ?? []) as CallNoteRow[]).map((note) => toView(note, people, now));
+  const rows = (data ?? []) as CallNoteRow[];
+  const prospects = await loadProspects();
+  const notes = rows.map((note) => {
+    const view = toView(note, people, now);
+    if (!note.prospect_id) return view;
+    const prospect = prospects.map.get(note.prospect_id) ?? null;
+    const threeD: ThreeDView = {
+      ...toProspectCallView(note as unknown as ProspectNoteRow, people, now),
+      prospectId: note.prospect_id,
+      kindLabel: prospect ? PROSPECT_KIND_LABELS[prospect.kind] : "Entreprise",
+      state: prospect?.sequence_state ?? null,
+      stateLabel: prospect ? sequenceLabel(prospect.sequence_state, prospect.contacts_count) : "",
+    };
+    return { ...view, subjectKind: "visite_3d" as const, next: threeD.stateLabel || view.next, href: null, link: null, threeD };
+  });
+  const threeDRows = rows.filter((note) => note.prospect_id) as unknown as ProspectNoteRow[];
+  const sequences: SequenceCounts = { enCours: 0, oui: 0, non: 0, aReprendre: 0 };
+  for (const p of prospects.map.values()) {
+    if (p.contacts_count === 0) continue;
+    if (p.sequence_state === "en_cours") sequences.enCours += 1;
+    else if (p.sequence_state === "oui") sequences.oui += 1;
+    else if (p.sequence_state === "non") sequences.non += 1;
+    else sequences.aReprendre += 1;
+  }
   const counts = { ...empty, tous: notes.length };
-  for (const [filter, kind] of Object.entries(FILTER_KIND) as [Exclude<CallLogFilter, "tous">, CallSubject][]) {
+  for (const [filter, kind] of Object.entries(FILTER_KIND) as [Exclude<CallLogFilter, "tous">, CallSubject | "visite_3d"][]) {
     counts[filter] = notes.filter((n) => n.subjectKind === kind).length;
   }
-  return { ok: true, value: { ready: true, notes, counts } };
+  return {
+    ok: true,
+    value: {
+      ready: true,
+      notes,
+      counts,
+      ready3d: prospects.ready,
+      week3d: prospects.ready ? weekStats(threeDRows as Parameters<typeof weekStats>[0], dayKey(now)) : null,
+      sequences: prospects.ready ? sequences : null,
+    },
+  };
 }
 
-export function filterKind(filter: CallLogFilter): CallSubject | null {
+export function filterKind(filter: CallLogFilter): CallSubject | "visite_3d" | null {
   return filter === "tous" ? null : FILTER_KIND[filter];
 }

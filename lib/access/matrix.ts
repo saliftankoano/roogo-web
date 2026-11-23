@@ -17,7 +17,7 @@
 //
 // No runtime imports: the test loads this file directly with Node.
 
-export const LAST_REVIEWED = "2026-10-30";
+export const LAST_REVIEWED = "2026-11-22";
 
 export type Level = "fondateur" | "directeur" | "assistant" | "conseillere" | "stagiaire";
 
@@ -83,7 +83,7 @@ export const LEVEL_CARDS: LevelCard[] = [
  * (the "legacy" level of lib/staff-access.ts); once it is on, it acts as
  * Conseiller(ère). The test checks LEGACY_MISSING against the code.
  */
-export const LEGACY_MISSING = ["finances.view", "listings.publishWithoutSaleChecks", "settings.manage", "studio.moderateGlossary", "team.manage"];
+export const LEGACY_MISSING = ["callGoals.manage", "finances.view", "listings.publishWithoutSaleChecks", "settings.manage", "studio.moderateGlossary", "team.manage"];
 
 export const UNLEVELED = {
   title: "Compte staff sans niveau",
@@ -248,6 +248,47 @@ export const AREAS: Area[] = [
         enforcedBy: ["serveur", "page"],
         files: ["lib/team-tasks/calls-server.ts", "app/admin/notes-appels/page.tsx", "app/api/admin/call-notes/route.ts"],
         titleMatters: true,
+      },
+      {
+        id: "prospect-call",
+        action: "Noter un appel Visites 3D (« Nouvel appel 3D »)",
+        detail: "Ajouter une entreprise, noter les cinq points de l’appel. Le rappel du jour 2 et le message WhatsApp du jour 7 arrivent dans ses tâches, la série s’arrête sur oui ou non.",
+        access: ALL,
+        enforcedBy: ["serveur"],
+        files: ["app/api/admin/prospects/route.ts", "app/api/admin/prospects/calls/route.ts", "lib/team-tasks/prospects-server.ts"],
+        titleMatters: false,
+        capability: "prospects.call",
+      },
+      {
+        id: "prospect-read",
+        action: "Lire l’historique d’une entreprise Visites 3D",
+        detail: "Chacun lit ses propres appels. Le Directeur et le Fondateur lisent tous les appels, aussi dans Notes d’appels, filtre « Visites 3D ».",
+        access: ALL,
+        notes: { fondateur: "tous", directeur: "tous", assistant: "les siens", conseillere: "les siens", stagiaire: "les siens" },
+        enforcedBy: ["serveur"],
+        files: ["lib/team-tasks/prospects-server.ts", "lib/team-tasks/prospects.ts"],
+        titleMatters: true,
+      },
+      {
+        id: "call-goal-read",
+        action: "Voir les appels du jour et de la semaine contre l’objectif",
+        detail: "Dans Mon espace pour soi. Le Directeur et le Fondateur voient chacun sur L’équipe.",
+        access: ALL,
+        notes: { fondateur: "tous", directeur: "tous", assistant: "les siens", conseillere: "les siens", stagiaire: "les siens" },
+        enforcedBy: ["serveur"],
+        files: ["app/api/admin/call-goals/route.ts", "lib/team-tasks/prospects-server.ts"],
+        titleMatters: true,
+        capability: "prospects.call",
+      },
+      {
+        id: "call-goal-set",
+        action: "Fixer l’objectif d’appels quotidien d’une personne",
+        detail: "Chaque changement est inscrit avec qui et quand. Le Directeur voit les objectifs sans les changer.",
+        access: FOUNDER_ONLY,
+        enforcedBy: ["serveur"],
+        files: ["app/api/admin/call-goals/route.ts", "lib/team-tasks/prospects-server.ts"],
+        titleMatters: true,
+        capability: "callGoals.manage",
       },
       {
         id: "task-delete",

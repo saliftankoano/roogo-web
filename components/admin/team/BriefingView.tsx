@@ -14,6 +14,8 @@ import type { GoalsPayload } from "@/lib/team-goals/server";
 import { TaskComposer, type ComposerGoal } from "./TaskComposer";
 import { AsksBlock, MyAsksBlock, ReplyCards, type AskAction } from "./AsksBlock";
 import { CallPanel } from "./CallPanel";
+import { CallsStrip, useCallGoals } from "./CallsStrip";
+import { Prospect3DCall, type Prospect3DPreset } from "./Prospect3DCall";
 import { EndOfDayCard } from "./DayReport";
 import type { MyDayReportPayload } from "@/lib/team-tasks/day-reports-server";
 import { GoalsOverlays, GoalsStrip, LeversTally, MyShare, PrincipleBand, useGoalsUi } from "./goals/GoalsStrip";
@@ -114,6 +116,19 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
   const { data, overrides, busy, error, refresh, run, toggle } = useBriefing(initial);
   const [composerOpen, setComposerOpen] = useState(false);
   const [callTaskId, setCallTaskId] = useState<string | null>(null);
+  // « Nouvel appel 3D », or a Visites 3D follow-up task opened from the list.
+  const [threeD, setThreeD] = useState<Prospect3DPreset | null>(null);
+  const [threeDOpen, setThreeDOpen] = useState(false);
+  const callGoals = useCallGoals();
+  /** A Visites 3D step opens the 3D call form, any other call task « Appeler et noter ». */
+  const openCall = (item: ViewItem) => {
+    if (item.prospectId) {
+      setThreeD({ prospectId: item.prospectId, taskId: item.taskId, channel: item.prospectStep === 3 ? "whatsapp" : "appel" });
+      setThreeDOpen(true);
+      return;
+    }
+    setCallTaskId(item.taskId);
+  };
   const goalsUi = useGoalsUi(initial.goals ?? emptyGoals(initial));
   const rootRef = useRef<HTMLDivElement>(null);
   useEntrance(rootRef, "[data-anim]", []);
@@ -129,7 +144,7 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
   /** A call task opens « Appeler et noter » instead of being ticked (it needs a result first). */
   const toggleOrCall = (item: ViewItem) => {
     if (item.isCall && item.taskId && !isDone(item, overrides)) {
-      setCallTaskId(item.taskId);
+      openCall(item);
       return;
     }
     return toggle(item).then(refreshGoals);
@@ -231,14 +246,21 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
 
       <div className="grid grid-cols-1 items-start gap-5 lg:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <main className="flex min-w-0 flex-col gap-3">
+          <CallsStrip
+            data={callGoals.data}
+            onNew={() => {
+              setThreeD(null);
+              setThreeDOpen(true);
+            }}
+          />
           {dayReport && <EndOfDayCard initial={dayReport} onSaved={refreshAll} />}
           {data.fieldNotices.length > 0 && <FieldNotices notices={data.fieldNotices} canSeeTeam={data.canSeeTeam} />}
           <div className="grid grid-cols-1 gap-3 md:grid-cols-[repeat(auto-fit,minmax(300px,1fr))]">
             {openLate.map((item) => (
-              <LateCard key={item.key} item={item} busy={!!busy[item.key]} onDone={() => toggleOrCall(item)} onCall={() => setCallTaskId(item.taskId)} />
+              <LateCard key={item.key} item={item} busy={!!busy[item.key]} onDone={() => toggleOrCall(item)} onCall={() => openCall(item)} />
             ))}
             {data.next && !isDone(data.next, overrides) && (
-              <NowCard item={data.next} busy={!!busy[data.next.key]} onDone={() => toggleOrCall(data.next!)} onCall={() => setCallTaskId(data.next!.taskId)} />
+              <NowCard item={data.next} busy={!!busy[data.next.key]} onDone={() => toggleOrCall(data.next!)} onCall={() => openCall(data.next!)} />
             )}
           </div>
 
@@ -264,7 +286,7 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
                 viewerId={data.viewer.id}
                 viewerIsFounder={data.viewer.level === "fondateur"}
                 onToggle={() => toggleOrCall(item)}
-                onCall={() => setCallTaskId(item.taskId)}
+                onCall={() => openCall(item)}
                 onPostpone={() => run(item.key, () => callApi(`/api/admin/team-tasks/${item.taskId}`, { method: "PATCH", body: JSON.stringify({ action: "postpone" }) }))}
                 onDelete={() => run(item.key, () => callApi(`/api/admin/team-tasks/${item.taskId}`, { method: "DELETE" }))}
               />
@@ -354,6 +376,16 @@ export function BriefingView({ initial, dayReport = null, socialInbox = null }: 
         />
       )}
       <CallPanel taskId={callTaskId} onClose={() => setCallTaskId(null)} onSaved={refreshAll} />
+      <Prospect3DCall
+        open={threeDOpen}
+        preset={threeD}
+        callerName={data.viewer.firstName}
+        onClose={() => setThreeDOpen(false)}
+        onSaved={() => {
+          void refreshAll();
+          void callGoals.refresh();
+        }}
+      />
       <GoalsOverlays ui={goalsUi} />
     </div>
   );
@@ -430,7 +462,7 @@ function CallChip() {
 }
 
 /** « Appeler et noter »: the call panel, where a call task gets its result before it can be done. */
-function CallButton({ onCall, dark = false }: { onCall: () => void; dark?: boolean }) {
+function CallButton({ onCall, dark = false, whatsapp = false }: { onCall: () => void; dark?: boolean; whatsapp?: boolean }) {
   return (
     <button
       type="button"
@@ -441,7 +473,7 @@ function CallButton({ onCall, dark = false }: { onCall: () => void; dark?: boole
       )}
     >
       <PhoneIcon size={16} weight="bold" aria-hidden="true" />
-      Appeler et noter
+      {whatsapp ? "Écrire et noter" : "Appeler et noter"}
     </button>
   );
 }
@@ -479,7 +511,7 @@ function LateCard({ item, busy, onDone, onCall }: { item: ViewItem; busy: boolea
       <GoalChip item={item} />
       <span className="flex-1" />
       <div className="flex flex-wrap gap-2">
-        {item.isCall && item.taskId ? <CallButton onCall={onCall} dark /> : <PrimaryAction item={item} dark />}
+        {item.isCall && item.taskId ? <CallButton onCall={onCall} dark whatsapp={item.prospectStep === 3} /> : <PrimaryAction item={item} dark />}
         {item.isCall && item.href && (
           <Link href={item.href} className="inline-flex h-12 items-center rounded-full border border-[#E8B9B0] bg-white px-4 text-sm font-bold text-[#1F1A16] no-underline lg:h-11">
             {item.actionLabel}
@@ -510,7 +542,7 @@ function NowCard({ item, busy, onDone, onCall }: { item: ViewItem; busy: boolean
       {item.sub && <span className="text-sm leading-snug text-[#6B625B] [overflow-wrap:anywhere]">{item.sub}</span>}
       <GoalChip item={item} />
       <div className="flex flex-wrap gap-2">
-        {item.isCall && item.taskId ? <CallButton onCall={onCall} /> : <PrimaryAction item={item} />}
+        {item.isCall && item.taskId ? <CallButton onCall={onCall} whatsapp={item.prospectStep === 3} /> : <PrimaryAction item={item} />}
         <DoneButton item={item} busy={busy} onDone={onDone} tone="now" />
       </div>
     </section>
@@ -606,7 +638,7 @@ function TaskRow({
             className="inline-flex h-11 cursor-pointer items-center gap-1.5 rounded-full bg-[#1F1A16] px-3.5 text-[13px] font-extrabold text-white lg:h-10"
           >
             <PhoneIcon size={14} weight="bold" aria-hidden="true" />
-            Appeler et noter
+            {item.prospectStep === 3 ? "Écrire et noter" : "Appeler et noter"}
           </button>
         )}
         {hasDetail && (

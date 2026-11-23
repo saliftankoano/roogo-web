@@ -17,6 +17,12 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Now
 
+- [ ] **Visites 3D call tracking** — callers log each business call with five points, follow the three contacts, and see their daily goal. Built 2026-11-22 on branch `feat/visites-3d-call-tracking` ([system](./SYSTEM.md#how-does-visites-3d-call-tracking-work--nouvel-appel-3d--2026-11-22)); not merged, not deployed.
+  - [ ] Salif runs migration 111, then sets Moubarak's goal (20) on L’équipe.
+  - [ ] Moubarak needs a staff account with a level to open Mon espace (open since 2026-10-02).
+  - [ ] Test day with Moubarak on his phone: a call logged in under one minute (PRD guardrail).
+  - [ ] Later: hand a sequence to another caller, four-week history per caller, lower goal on shoot days.
+
 - [ ] **Roll out staff access levels** — a person's level decides what they can do in the back office; the founder and directors invite people and the founder reads the journal. Built 2026-10-16 (see [system behavior](./SYSTEM.md#how-do-staff-access-levels-work) and [decision](./DECISIONS.md#staff-access-by-job-title-with-invitations-instead-of-a-shared-code--2026-10-11)); pull request pending merge, not deployed.
   - [x] **Migration 089 executed 2026-10-16** (confirmed by Salif; [ledger](../supabase/migrations/README.md)).
   - [ ] **Assign levels** on `/admin/acces/niveaux` to every real staff member (Ablassé: director), invite Rokiatou (advisor) and Moubarak (assistant), then set `STAFF_LEVELS_ENFORCED=true` and delete `STAFF_REGISTRATION_SECRET`.
