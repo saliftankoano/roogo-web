@@ -18,7 +18,8 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 ## Now
 
 - [ ] **Visites 3D call tracking** — callers log each business call with five points, follow the three contacts, and see their daily goal. Built 2026-11-22 on branch `feat/visites-3d-call-tracking` ([system](./SYSTEM.md#how-does-visites-3d-call-tracking-work--nouvel-appel-3d--2026-11-22)); not merged, not deployed.
-  - [ ] Salif runs migration 111, then sets Moubarak's goal (20) on L’équipe.
+  - [x] Migration 111 run by Salif on 2026-11-22.
+  - [ ] Salif sets Moubarak's goal (20) on L’équipe.
   - [ ] Moubarak needs a staff account with a level to open Mon espace (open since 2026-10-02).
   - [ ] Test day with Moubarak on his phone: a call logged in under one minute (PRD guardrail).
   - [ ] Later: hand a sequence to another caller, four-week history per caller, lower goal on shoot days.
