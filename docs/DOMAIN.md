@@ -44,6 +44,14 @@ The job title that decides what a staff member can do in the back office: Fondat
 
 The only way to become staff: a signed link from the founder or a director, tied to one email address and one level, valid 7 days. It replaces the shared staff code.
 
+### Prospect (Visites 3D)
+
+A business called to sell a 3D tour (restaurant, hôtel, salle de fête, promoteur), stored in `staff_prospects`. Not a Roogo user and not a property request. Each prospect gets up to three contacts (day 0 call, day 2 call back, day 7 WhatsApp message) unless it says oui or non first; after three it is « à reprendre plus tard ».
+
+### Objectif d’appels quotidien
+
+The number of logged calls a caller should make each working day (Monday to Friday), set by the founder per person. Every logged call counts, follow-ups included, whatever its result. Started at 20 on 2026-11-22.
+
 ## Customer payments
 
 ### PawaPay deposit

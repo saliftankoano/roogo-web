@@ -44,6 +44,7 @@ This directory owns the backend's numbered SQL migrations. An executed database 
 ## Field media and the field visit sheet — 2026-10-17 record
 
 - [x] [086_studio_field_media_executed.sql](./086_studio_field_media_executed.sql) — **executed on Roogo (confirmed by Salif; verified read-only on 2026-10-17: `studio_field_media` exists and has rows).** Studio index of field photos and videos uploaded to the shared Drive.
+- [x] [111_visites_3d_call_tracking_executed.sql](./111_visites_3d_call_tracking_executed.sql) — **executed on Roogo (confirmed by Salif on 2026-11-22: « mig ran »; not independently verified).** Visites 3D call tracking: `staff_prospects`, the five points on `staff_call_notes`, `prospect_id`/`prospect_step` on `staff_tasks`, `staff_call_goals` and `staff_call_goal_changes`. RLS on, no policies; service role only. The header still says "NOT EXECUTED"; bytes kept as run.
 - [x] [090_field_visits_executed.sql](./090_field_visits_executed.sql) — **executed on Roogo after 086 and 089_staff_tasks (confirmed by Salif; verified read-only on 2026-10-17: `field_visits` exists with rows, `studio_field_media.field_visit_id` and `staff_tasks.field_visit_id` exist).** The in-app Fiche de visite. Its header still says 086 is not applied: that comment is historical and the bytes stay as run.
 
 ## Staff briefing and team board — 2026-10-17 record

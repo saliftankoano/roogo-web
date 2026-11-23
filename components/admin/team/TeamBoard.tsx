@@ -14,6 +14,9 @@ import { SetupNotice } from "./BriefingView";
 import { TaskComposer } from "./TaskComposer";
 import { DeclareAbsenceButton, DeclareAbsenceDrawer, ReportChipButton, ReportDrawer, WeekReportsSummary } from "./TeamReports";
 import type { TeamDayReports, TeamReportPerson } from "@/lib/team-tasks/day-reports-server";
+import type { CallGoalsPayload } from "@/lib/team-tasks/prospects-server";
+import { countLabel } from "@/lib/team-tasks/prospects";
+import { useCallGoals } from "./CallsStrip";
 import {
   Avatar,
   CreamBackdrop,
@@ -95,8 +98,15 @@ export function TeamBoard({ initial, todayKey, viewerName, viewerLevelLabel, day
     animatePanel(panelRef.current);
   }, [tab]);
 
+  const callGoals = useCallGoals();
   const actions: ColumnActions = {
     busy,
+    calls: callGoals.data,
+    onSetGoal: (userId, dailyTarget) =>
+      run(`goal:${userId}`, async () => {
+        await callApi("/api/admin/call-goals", { method: "PUT", body: JSON.stringify({ userId, dailyTarget }) });
+        await callGoals.refresh();
+      }),
     viewerId: data.viewerId,
     viewerIsFounder: data.viewerIsFounder,
     assignees: data.assignees,
@@ -300,6 +310,9 @@ type ColumnActions = {
   /** « Fin de journée » status of a person today, when the reports are loaded. */
   reportOf: (personId: string) => TeamReportPerson | null;
   onOpenReport: (personId: string) => void;
+  /** Daily call goals and counts (migration 111). Null while loading. */
+  calls: CallGoalsPayload | null;
+  onSetGoal: (userId: string, dailyTarget: number | null) => void;
 };
 
 function Column({ column, actions, variant }: { column: BoardViewColumn; actions: ColumnActions; variant: "phone" | "desktop" }) {
@@ -364,6 +377,8 @@ function Column({ column, actions, variant }: { column: BoardViewColumn; actions
           </span>
         </div>
       </div>
+
+      {person && !person.isFounder && <CallsLine personId={person.id} firstName={person.firstName} actions={actions} desktop={desktop} />}
 
       {column.asks.length > 0 && (
         <AsksBlock
@@ -563,5 +578,97 @@ function PastWeeks({ weeks }: { weeks: BoardPayload["pastWeeks"] }) {
         );
       })}
     </section>
+  );
+}
+
+/**
+ * « Appels » on a column: today and this week against the daily goal (PRD
+ * « Objectif d’appels quotidien » 2.4). The founder sets or removes the goal
+ * here; the Directeur only reads it.
+ */
+function CallsLine({ personId, firstName, actions, desktop }: { personId: string; firstName: string; actions: ColumnActions; desktop: boolean }) {
+  const [editing, setEditing] = useState(false);
+  const [value, setValue] = useState("");
+  const inputId = useId();
+  const data = actions.calls;
+  if (!data || !data.ready) return null;
+  const row = data.team?.find((r) => r.person.id === personId) ?? null;
+  const goal = row?.count.goal ?? null;
+  if (!row && !data.canManage) return null;
+  const busy = !!actions.busy[`goal:${personId}`];
+  const count = row?.count;
+  return (
+    <div className={cn("flex flex-col gap-1.5 rounded-xl px-2.5 py-2", desktop ? "bg-[#FBF7F1]" : "border border-[#EAE1D5] bg-white")}>
+      <div className="flex items-center gap-2">
+        <PhoneIcon size={14} weight="bold" aria-hidden="true" className="shrink-0 text-[#8A4924]" />
+        <span className="text-[11px] font-extrabold uppercase tracking-[0.05em] text-[#6B625B]">Appels</span>
+        <span className="flex-1" />
+        {data.canManage && !editing && (
+          <button
+            type="button"
+            onClick={() => {
+              setValue(goal ? String(goal) : "20");
+              setEditing(true);
+            }}
+            className="inline-flex min-h-11 cursor-pointer items-center text-xs font-extrabold text-[#8A4924] lg:min-h-0"
+          >
+            {goal ? "Changer l’objectif" : "Fixer un objectif"}
+          </button>
+        )}
+      </div>
+      {count && (count.goal || count.week > 0) && (
+        <span className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-sm">
+          <span className={cn("font-extrabold tabular-nums", count.goal && count.today >= count.goal && "text-[#2F7A48]")}>
+            {countLabel(count.today, count.goal)} <span className="text-xs font-bold text-[#6B625B]">aujourd’hui</span>
+          </span>
+          <span className="font-extrabold tabular-nums">
+            {countLabel(count.week, count.weekTarget)} <span className="text-xs font-bold text-[#6B625B]">semaine</span>
+          </span>
+        </span>
+      )}
+      {count && !count.goal && count.week === 0 && <span className="text-xs text-[#6B625B]">Pas d’objectif d’appels.</span>}
+      {!count && <span className="text-xs text-[#6B625B]">Pas d’objectif d’appels.</span>}
+      {editing && (
+        <form
+          className="flex flex-wrap items-center gap-2"
+          onSubmit={(event) => {
+            event.preventDefault();
+            actions.onSetGoal(personId, value.trim() ? Number(value) : null);
+            setEditing(false);
+          }}
+        >
+          <label htmlFor={inputId} className="text-xs text-[#6B625B]">Appels par jour pour {firstName}</label>
+          <input
+            id={inputId}
+            type="number"
+            min={1}
+            max={200}
+            inputMode="numeric"
+            value={value}
+            onChange={(event) => setValue(event.target.value)}
+            className="h-11 w-20 rounded-xl border border-[#E2D8CC] bg-white px-3 text-[16px] lg:h-9 lg:text-sm"
+          />
+          <button type="submit" disabled={busy} className="h-11 cursor-pointer rounded-full bg-[#1F1A16] px-3.5 text-xs font-extrabold text-white lg:h-9">
+            Enregistrer
+          </button>
+          {goal && (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                actions.onSetGoal(personId, null);
+                setEditing(false);
+              }}
+              className="h-11 cursor-pointer rounded-full border border-[#E2D8CC] bg-white px-3.5 text-xs font-extrabold lg:h-9"
+            >
+              Retirer
+            </button>
+          )}
+          <button type="button" onClick={() => setEditing(false)} className="h-11 cursor-pointer px-2 text-xs font-bold text-[#6B625B] lg:h-9">
+            Annuler
+          </button>
+        </form>
+      )}
+    </div>
   );
 }

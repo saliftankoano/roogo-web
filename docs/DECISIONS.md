@@ -5,6 +5,14 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### Visites 3D calls are call notes on a new « prospect » record — 2026-11-22
+
+**Decision:** a business called for Visites 3D is a row of a new `staff_prospects` table, and each call is a `staff_call_notes` row (subject `visite_3d`) with five structured columns. Follow-ups are ordinary `staff_tasks`. Every logged call counts toward the daily goal, whatever its result.
+
+**Why:** the PRDs (approved by Salif 2026-11-22) ask to reuse 092 and the task system, not build a second one. Businesses are not users: putting them in `users` or `property_requests` would pollute user counts and goals (PRD open question 1). Counting every call, follow-ups included, is Salif's rule (« 20 a day, follow-ups counted »).
+
+**Ruled out:** a separate call table (two places to read call history), a CRM pipeline (non-goal), requiring all five points (a « pas de réponse » must take two taps, PRD open question 2).
+
 ### Supabase accepts Clerk session tokens (Third-Party Auth) — 2026-11-08
 
 **Decision:** Supabase project `txbxvpyftgpebgnuazaf` trusts Clerk production (`https://clerk.roogobf.com`) through Supabase Third-Party Auth, and Clerk's Supabase integration adds `role: authenticated` to session tokens. Clients send the normal Clerk session token; no JWT template. Salif enabled both on 2026-11-08.

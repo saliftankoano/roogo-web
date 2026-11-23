@@ -78,6 +78,8 @@ export type StaffCapability =
   | "studio.cloneVoice"
   | "studio.moderateGlossary"
   | "social.inbox"
+  | "prospects.call"
+  | "callGoals.manage"
   | "team.manage";
 
 type LevelList = readonly EffectiveStaffLevel[];
@@ -126,6 +128,12 @@ export const STAFF_CAPABILITY_MATRIX: Record<StaffCapability, LevelList> = {
   // Studio > Réseaux: read and answer comments and direct messages as the Roogo
   // Page / account (Salif, 2026-10-21: Conseiller and above).
   "social.inbox": [F, D, A, C, L],
+  // Visites 3D: log calls to businesses (« Nouvel appel 3D »), every staff
+  // member who sells 3D tours (PRD approved by Salif, 2026-11-22).
+  "prospects.call": [F, D, A, C, S, L],
+  // Set or remove a caller's daily call goal. The Directeur reads, the
+  // founder changes (PRD « Objectif d'appels quotidien » 2.1 and 2.6).
+  "callGoals.manage": [F],
   "team.manage": [F, D],
 };
 
