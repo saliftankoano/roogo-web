@@ -3,6 +3,7 @@ import { headers } from "next/headers";
 import Script from "next/script";
 import { Geist, Geist_Mono } from "next/font/google";
 import { ClerkProvider } from "@clerk/nextjs";
+import { frFR } from "@clerk/localizations";
 import "./globals.css";
 import { NavHandler } from "../components/NavHandler";
 import JsonLd from "../components/JsonLd";
@@ -105,7 +106,7 @@ export default async function RootLayout({
     : {};
 
   return (
-    <ClerkProvider {...clerkSatelliteProps}>
+    <ClerkProvider localization={frFR} {...clerkSatelliteProps}>
       <html lang="fr">
         <head>
           {enableGoogleAnalytics && (
