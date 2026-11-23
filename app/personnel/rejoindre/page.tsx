@@ -1,7 +1,7 @@
 "use client";
 
 import { Suspense, useState } from "react";
-import { useUser, SignIn, useAuth } from "@clerk/nextjs";
+import { useUser, SignIn, SignUp, useAuth } from "@clerk/nextjs";
 import { useRouter, useSearchParams } from "next/navigation";
 import {
   ArrowRightIcon,
@@ -9,6 +9,19 @@ import {
   EnvelopeSimpleIcon,
   ShieldCheckIcon,
 } from "@phosphor-icons/react";
+
+const clerkAppearance = {
+  elements: {
+    rootBox: "w-full",
+    card: "shadow-none border-none w-full",
+    headerTitle: "hidden",
+    headerSubtitle: "hidden",
+    socialButtonsBlockButton:
+      "rounded-full border-neutral-200 hover:bg-neutral-50",
+    formButtonPrimary: "bg-primary hover:bg-primary/90 rounded-full",
+    footerActionLink: "text-primary hover:text-primary/80",
+  },
+};
 
 export default function StaffJoinPage() {
   return (
@@ -23,7 +36,15 @@ function StaffJoin() {
   const { signOut } = useAuth();
   const router = useRouter();
   // Access is given by invitation (founder or director, from /admin/acces/niveaux).
-  const invitationToken = useSearchParams().get("invitation") ?? "";
+  const searchParams = useSearchParams();
+  const invitationToken = searchParams.get("invitation") ?? "";
+  // Account creation stays on this page so the invitation survives it: the
+  // site-wide sign-up page always sends new accounts to /bienvenue.
+  const isCreatingAccount = searchParams.get("compte") === "nouveau";
+  const joinUrl = invitationToken
+    ? `/personnel/rejoindre?invitation=${encodeURIComponent(invitationToken)}`
+    : "/personnel/rejoindre";
+  const createAccountUrl = `${joinUrl}${invitationToken ? "&" : "?"}compte=nouveau`;
 
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
@@ -103,27 +124,23 @@ function StaffJoin() {
               </div>
             </div>
             <div className="p-6 flex justify-center">
-              <SignIn
-                appearance={{
-                  elements: {
-                    rootBox: "w-full",
-                    card: "shadow-none border-none w-full",
-                    headerTitle: "hidden",
-                    headerSubtitle: "hidden",
-                    socialButtonsBlockButton:
-                      "rounded-full border-neutral-200 hover:bg-neutral-50",
-                    formButtonPrimary:
-                      "bg-primary hover:bg-primary/90 rounded-full",
-                    footerActionLink: "text-primary hover:text-primary/80",
-                  },
-                }}
-                routing="hash"
-                forceRedirectUrl={
-                  invitationToken
-                    ? `/personnel/rejoindre?invitation=${encodeURIComponent(invitationToken)}`
-                    : "/personnel/rejoindre"
-                }
-              />
+              {isCreatingAccount ? (
+                <SignUp
+                  appearance={clerkAppearance}
+                  routing="hash"
+                  signInUrl={joinUrl}
+                  forceRedirectUrl={joinUrl}
+                  signInForceRedirectUrl={joinUrl}
+                />
+              ) : (
+                <SignIn
+                  appearance={clerkAppearance}
+                  routing="hash"
+                  signUpUrl={createAccountUrl}
+                  forceRedirectUrl={joinUrl}
+                  signUpForceRedirectUrl={joinUrl}
+                />
+              )}
             </div>
           </div>
         ) : success ? (
