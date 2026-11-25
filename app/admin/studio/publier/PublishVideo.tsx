@@ -310,6 +310,10 @@ export function PublishVideo() {
   const scheduledIso = when === "date" ? new Date(`${date}T${time}:00.000Z`).toISOString() : null;
   const canSend = Boolean(video && copy && chosen.length && copy.base.text.trim() && !blocking.length && busy === null && (when === "approval" || (scheduledIso && new Date(scheduledIso).getTime() > Date.now())));
 
+  // Salif is the approver: his own videos skip « Envoyer à Salif » and open
+  // straight in the validation screen (TikTok choices, checks, « Valider »).
+  const isFounder = data?.me.role === "founder";
+
   async function sendToSalif() {
     if (!video || !copy) return;
     setBusy("send");
@@ -331,8 +335,10 @@ export function PublishVideo() {
         }),
       });
       if (!res.ok) throw new Error(await readError(res));
+      const { post } = (await res.json().catch(() => ({}))) as { post?: Post };
       notifyApprovalsChanged();
-      setToast({ id: Date.now(), text: "Envoyée à Salif. Il la voit dans ses tâches sur Accueil." });
+      if (isFounder && post) setPreview(post);
+      else setToast({ id: Date.now(), text: "Envoyée à Salif. Il la voit dans ses tâches sur Accueil." });
       resetComposer();
       if (wanted) router.replace("/admin/studio/publier");
       void load();
@@ -453,7 +459,7 @@ export function PublishVideo() {
       <div className="mx-auto mt-4 grid max-w-[1120px] gap-6 px-1 pb-24 md:mt-6">
         <div>
           <h2 className="text-[22px] font-extrabold tracking-[-0.01em] text-[#1F1A16] md:text-[26px]">{fixing?.post ? "Corriger la vidéo" : "Publier une vidéo"}</h2>
-          <p className="mt-1 text-[14px] text-neutral-600">Une vidéo verticale, tous les réseaux, après l&apos;accord de Salif.</p>
+          <p className="mt-1 text-[14px] text-neutral-600">{isFounder ? "Une vidéo verticale, tous les réseaux, après votre validation." : "Une vidéo verticale, tous les réseaux, après l'accord de Salif."}</p>
         </div>
 
         {loadError && (
@@ -613,7 +619,7 @@ export function PublishVideo() {
                       when === w ? "bg-white text-[#1F1A16] ring-2 ring-[#C96A2E]" : "bg-white/60 text-neutral-600 ring-1 ring-[rgba(74,52,36,0.12)]",
                     )}
                   >
-                    {w === "approval" ? "Dès que Salif valide" : "À une date et une heure"}
+                    {w === "approval" ? (isFounder ? "Dès que vous validez" : "Dès que Salif valide") : "À une date et une heure"}
                   </button>
                 ))}
               </div>
@@ -621,7 +627,7 @@ export function PublishVideo() {
                 <div className="grid grid-cols-[minmax(0,1fr)_auto] gap-2">
                   <input type="date" aria-label="Date" value={date} min={todayPlus(0)} onChange={(e) => setDate(e.target.value)} className="h-11 min-w-0 rounded-xl border border-neutral-200 bg-white px-3 text-[15px] outline-none focus:border-[#C96A2E]" />
                   <TimeSelect24h value={time} onChange={setTime} label="Heure de Ouagadougou" fromHour={6} toHour={22} />
-                  <p className="col-span-2 text-[12px] text-neutral-500">Heure de Ouagadougou. Si Salif valide après, la vidéo part tout de suite.</p>
+                  <p className="col-span-2 text-[12px] text-neutral-500">Heure de Ouagadougou. {isFounder ? "Si vous validez après" : "Si Salif valide après"}, la vidéo part tout de suite.</p>
                 </div>
               )}
             </section>
@@ -649,7 +655,7 @@ export function PublishVideo() {
                   disabled={!canSend}
                   className="h-12 min-w-0 flex-1 rounded-full bg-[#C96A2E] px-6 text-[15px] font-bold text-white hover:bg-[#B85E26] disabled:opacity-50 sm:flex-none"
                 >
-                  {busy === "send" ? "Envoi…" : fixing?.post ? "Renvoyer à Salif" : "Envoyer à Salif"}
+                  {busy === "send" ? (isFounder ? "Préparation…" : "Envoi…") : isFounder ? "Vérifier et publier" : fixing?.post ? "Renvoyer à Salif" : "Envoyer à Salif"}
                 </button>
               </div>
             </div>
