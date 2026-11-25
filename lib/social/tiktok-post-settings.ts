@@ -74,28 +74,6 @@ export const EMPTY_CHOICES: TikTokChoices = {
   brandedContent: false,
 };
 
-/**
- * Salif's defaults (2026-11-25): « Moi seulement » when offered (the only level
- * until the audit), comments on when the account allows them, and « Contenu
- * commercial · Votre marque » since every Roogo video promotes Roogo's own
- * services. Duos and collages stay off. Not used in the audit demo, where
- * TikTok's guidelines want no preset privacy and the disclosure off.
- */
-export function defaultChoices(creator: CreatorInfo): TikTokChoices {
-  const privacyLevel = creator.privacyLevelOptions.includes("SELF_ONLY")
-    ? "SELF_ONLY"
-    : creator.privacyLevelOptions.length === 1
-      ? creator.privacyLevelOptions[0]
-      : null;
-  return {
-    ...EMPTY_CHOICES,
-    privacyLevel,
-    allowComment: !creator.commentDisabled,
-    commercial: true,
-    yourBrand: true,
-  };
-}
-
 /** Saved in studio_publications.tiktok_settings (migration 109). */
 export type TikTokSettings = {
   privacy_level: PrivacyLevel;
