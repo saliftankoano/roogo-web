@@ -8,13 +8,17 @@ import {
   canRetry,
   canReturn,
   cleanReturnInput,
+  finalStatus,
   isNetwork,
   retryResults,
+  summarizeErrors,
   submitProblems,
   statusAfterEdit,
   type PublicationStatus,
 } from "@/lib/studio/publishing";
 import { scheduledAtOnApproval } from "@/lib/studio/publish-everywhere";
+import { canMarkManual, manualTikTokResults } from "@/lib/studio/tiktok-handoff";
+import { moveFinalVideoIfPublished } from "@/lib/studio/final-videos-server";
 import {
   PUBLICATION_COLUMNS,
   approvalProblems,
@@ -66,15 +70,16 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const row = await loadRow(id);
   if (!row) return errorResponse("Publication introuvable", 404, req);
   if (row.claimed_at) return errorResponse("Publication en cours : attendez la fin avant de modifier.", 409, req);
-  if (row.status === "publie") return errorResponse("Cette publication est déjà en ligne.", 409, req);
-
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   if (!body) return errorResponse("Requête invalide", 400, req);
   const role = roleOf(staff);
   const action = typeof body.action === "string" ? body.action : null;
+  // « C'est publié » for a TikTok posted by hand is the one change a post already online accepts.
+  if (row.status === "publie" && action !== "tiktok_manual") return errorResponse("Cette publication est déjà en ligne.", 409, req);
   const nowIso = new Date().toISOString();
   let update: Record<string, unknown> = {};
   let startNow = false;
+  let movedOnline = false;
 
   if (action === "return") {
     // "Renvoyer" (founder): back to the team with a required comment. The
@@ -91,6 +96,18 @@ export async function PATCH(req: Request, { params }: Ctx) {
       review_comment: input.comment,
       review_tags: input.tags,
     };
+  } else if (action === "tiktok_manual") {
+    // TikTok by hand: the team posted the video in the TikTok app (the Studio
+    // cannot, until TikTok audits the app). Only TikTok's result changes.
+    if (!canMarkManual({ status: row.status, networks: row.networks, results: row.results ?? {} })) {
+      return errorResponse("TikTok ne peut pas être marqué publié pour le moment.", 409, req);
+    }
+    const results = manualTikTokResults(row.results ?? {}, nowIso);
+    const status = finalStatus(row.networks, results);
+    update = { results };
+    if (status === "publie" && row.status !== "publie") Object.assign(update, { status, published_at: nowIso, last_error: null });
+    else if (row.status === "echec") update.last_error = summarizeErrors(results) ?? row.last_error;
+    movedOnline = status === "publie" && row.status !== "publie";
   } else if (action === "retry") {
     if (!canRetry(role, row.status, Boolean(row.approved_by))) return errorResponse("Seule une publication en échec peut être relancée.", 409, req);
     // « Réessayer » on one network (PRD 2.7) or on every network that failed.
@@ -167,6 +184,15 @@ export async function PATCH(req: Request, { params }: Ctx) {
   }
   if (!data?.length) return errorResponse("La publication a changé entre-temps. Rechargez la page.", 409, req);
   const [post] = await toDtos(data as PublicationRow[]);
+  if (movedOnline && row.final_video_id) {
+    // Out everywhere now, so the Drive copy moves to « Publié » like after a normal run.
+    try {
+      const saved = data[0] as PublicationRow;
+      await moveFinalVideoIfPublished(row.final_video_id, { status: "publie", networks: saved.networks, results: saved.results ?? {} });
+    } catch (error) {
+      console.error("Studio: Drive move after manual TikTok failed", id, error instanceof Error ? error.message : "unknown");
+    }
+  }
   if (startNow) {
     // The cron (every 10 minutes) stays the safety net; the claim makes a double run harmless.
     after(async () => {

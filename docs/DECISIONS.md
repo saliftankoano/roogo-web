@@ -5,6 +5,16 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### TikTok goes out by hand through the team WhatsApp group — 2026-11-25
+
+**Decision:** Until TikTok audits the app, a Studio video reaches TikTok by hand: from « Mes vidéos », « Envoyer sur WhatsApp » opens WhatsApp with a ready message (Drive link, text and hashtags to paste), a person picks the Roogo team group and sends it, a team member posts the video in the TikTok app, then presses « C'est publié » in the Studio. Salif also decided to submit the app for TikTok's audit and see (2026-11-25).
+
+**Why:** TikTok refuses every Studio post on public @roogo.226 (`unaudited_client_can_only_post_to_private_accounts`), so the choice was between TikTok silently missing videos and a handoff the team already knows (the WhatsApp group). A person always presses send: Roogo's WhatsApp is never written to by software.
+
+**Ruled out / alternatives:** sending to the group automatically (WhatsApp's business API is not made for ordinary groups, and it breaks the rule above); a new column or table for the manual state (it is stored as TikTok's own result, `note: "Publiée à la main"`, so no migration and the same list shows it); waiting for the audit (TikTok says it does not accept internal tools, so approval is uncertain).
+
+**Status:** Settled as the stopgap. Reopens when TikTok answers the audit: approved means `TIKTOK_APP_AUDITED=true`, TikTok ticked by default again and this line disappears for posts the Studio sends itself. How it works: [system](./SYSTEM.md#how-does-publier-une-vidéo-work-2026-10-23).
+
 ### Studio TikTok: back to direct posting, « Moi seulement » until the audit, Salif's panel defaults — 2026-11-24 / 2026-11-25
 
 **Decision:** Production `TIKTOK_POST_MODE` went from `draft` to `direct` on 2026-11-24 (Salif). Until `TIKTOK_APP_AUDITED=true`, the approval panel offers only « Moi seulement » and the worker sends `SELF_ONLY` even when older saved settings say « Public » ([#124](https://github.com/saliftankoano/roogo-web/pull/124)). The panel starts pre-filled with Salif's defaults: « Moi seulement », comments on (when the account allows), « Contenu commercial · Votre marque » on, duos and collages off ([#125](https://github.com/saliftankoano/roogo-web/pull/125)). The team makes each video public by hand in TikTok Studio on the web.
