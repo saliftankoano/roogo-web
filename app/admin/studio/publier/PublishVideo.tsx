@@ -128,6 +128,15 @@ export function PublishVideo() {
     void load();
   }, [load]);
 
+  // While a post is being sent or retried, read the list again every 5 s so the
+  // pending text gives way to the result without a manual « Actualiser ».
+  const anyInFlight = Boolean(data?.items.some((i) => inFlight(i.post)));
+  useEffect(() => {
+    if (!anyInFlight) return;
+    const timer = window.setInterval(() => void load(), 5000);
+    return () => window.clearInterval(timer);
+  }, [anyInFlight, load]);
+
   // The founder's task links here with ?publication=<id>.
   const wanted = params?.get("publication") ?? null;
   const handledLink = useRef<string | null>(null);
@@ -758,6 +767,18 @@ const STATUS_TONE: Record<string, string> = {
   "Publication en cours": "bg-[#E1EFF8] text-[#1F5F80]",
 };
 
+/** A failed network that was put back in the queue by « Réessayer »: its old error is no longer the news. */
+function isRetrying(post: Post, n: Network): boolean {
+  const r = post.results[n];
+  return r?.status === "failed" && !r.held && (post.status === "valide" || post.publishing);
+}
+
+/** Something is being sent or retried: the list refreshes by itself until the result is in. */
+function inFlight(post: Post | null): boolean {
+  if (!post) return false;
+  return post.publishing || post.networks.some((n) => isRetrying(post, n as Network));
+}
+
 /** Same rule as the server (postBlocksRemoval): nothing online, nothing being sent. */
 function canRemove(post: Post | null): boolean {
   if (!post) return true;
@@ -868,6 +889,8 @@ function MyVideos({
                               </a>
                             )}
                           </>
+                        ) : isRetrying(post, n) ? (
+                          <span className="text-[#1F5F80]" aria-live="polite">Nouvel essai en cours…</span>
                         ) : r?.status === "failed" ? (
                           <>
                             <span className="min-w-0 text-[#8E2A1E]">{r.error ?? "Échec"}</span>
