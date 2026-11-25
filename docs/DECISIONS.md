@@ -23,6 +23,8 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** sending to the group automatically (WhatsApp's business API is not made for ordinary groups, and it breaks the rule above); a new column or table for the manual state (it is stored as TikTok's own result, `note: "Publiée à la main"`, so no migration and the same list shows it); waiting for the audit (TikTok says it does not accept internal tools, so approval is uncertain).
 
+A wrong link or a wrong video is corrected by the founder with « Annuler », which puts the line back as it was (2026-11-25).
+
 **Status:** Settled as the stopgap. Reopens when TikTok answers the audit: approved means `TIKTOK_APP_AUDITED=true`, TikTok ticked by default again and this line disappears for posts the Studio sends itself. How it works: [system](./SYSTEM.md#how-does-publier-une-vidéo-work-2026-10-23).
 
 ### Studio TikTok: back to direct posting, « Moi seulement » until the audit, Salif's panel defaults — 2026-11-24 / 2026-11-25

@@ -524,6 +524,11 @@ export type NetworkResult = {
    */
   retry_after?: string | null;
   auto_retries?: number;
+  /**
+   * TikTok marked « Publiée à la main »: the result it replaced (a failed try,
+   * or null when TikTok was not ticked), so « Annuler » puts it back.
+   */
+  manual_before?: NetworkResult | null;
 };
 
 export type PublicationResults = Partial<Record<Network, NetworkResult>>;

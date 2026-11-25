@@ -17,7 +17,7 @@ import {
   type PublicationStatus,
 } from "@/lib/studio/publishing";
 import { scheduledAtOnApproval } from "@/lib/studio/publish-everywhere";
-import { TIKTOK_LINK_ERROR, canMarkManual, manualTikTokResults, parseTikTokLink } from "@/lib/studio/tiktok-handoff";
+import { TIKTOK_LINK_ERROR, canMarkManual, canUndoManual, manualTikTokResults, parseTikTokLink, undoManualTikTok } from "@/lib/studio/tiktok-handoff";
 import { moveFinalVideoIfPublished } from "@/lib/studio/final-videos-server";
 import {
   PUBLICATION_COLUMNS,
@@ -75,7 +75,7 @@ export async function PATCH(req: Request, { params }: Ctx) {
   const role = roleOf(staff);
   const action = typeof body.action === "string" ? body.action : null;
   // « C'est publié » for a TikTok posted by hand is the one change a post already online accepts.
-  if (row.status === "publie" && action !== "tiktok_manual") return errorResponse("Cette publication est déjà en ligne.", 409, req);
+  if (row.status === "publie" && action !== "tiktok_manual" && action !== "tiktok_manual_undo") return errorResponse("Cette publication est déjà en ligne.", 409, req);
   const nowIso = new Date().toISOString();
   let update: Record<string, unknown> = {};
   let startNow = false;
@@ -111,6 +111,18 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (status === "publie" && row.status !== "publie") Object.assign(update, { status, published_at: nowIso, last_error: null });
     else if (row.status === "echec") update.last_error = summarizeErrors(results) ?? row.last_error;
     movedOnline = status === "publie" && row.status !== "publie";
+  } else if (action === "tiktok_manual_undo") {
+    // « Annuler » a TikTok marked by hand (wrong link, wrong video): founder only.
+    if (role !== "founder") return errorResponse("Seul un fondateur peut annuler « Publiée à la main ».", 403, req);
+    if (!canUndoManual({ status: row.status, networks: row.networks, results: row.results ?? {} })) {
+      return errorResponse("Rien à annuler pour TikTok sur cette publication.", 409, req);
+    }
+    const results = undoManualTikTok(row.results ?? {});
+    update = { results };
+    // TikTok was ticked: without it the post is no longer out everywhere.
+    if (row.networks.includes("tiktok")) {
+      Object.assign(update, { status: finalStatus(row.networks, results), published_at: null, last_error: summarizeErrors(results) ?? "TikTok : à publier à la main." });
+    }
   } else if (action === "retry") {
     if (!canRetry(role, row.status, Boolean(row.approved_by))) return errorResponse("Seule une publication en échec peut être relancée.", 409, req);
     // « Réessayer » on one network (PRD 2.7) or on every network that failed.

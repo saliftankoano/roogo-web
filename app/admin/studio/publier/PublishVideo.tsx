@@ -34,7 +34,7 @@ import {
   type DestinationOption,
 } from "@/lib/studio/publish-everywhere";
 import { formatBytes } from "@/lib/studio/field-media-rules";
-import { TIKTOK_LINK_ERROR, canMarkManual, handoffCopy, handoffMessage, parseTikTokLink, tiktokHandoff, whatsappShareUrl } from "@/lib/studio/tiktok-handoff";
+import { TIKTOK_LINK_ERROR, canMarkManual, canUndoManual, handoffCopy, handoffMessage, parseTikTokLink, tiktokHandoff, whatsappShareUrl } from "@/lib/studio/tiktok-handoff";
 import { StudioHeader } from "../StudioHeader";
 import { readVideoShape, uploadResumableToDrive, UploadError } from "../field-upload";
 import { DestinationIcon } from "../calendrier/NetworkIcons";
@@ -417,6 +417,26 @@ export function PublishVideo() {
     }
   }
 
+  /** « Annuler » (founder): a TikTok marked by hand goes back to « À publier à la main ». */
+  async function undoTikTokDone(post: Post) {
+    if (!window.confirm(`Annuler « Publiée à la main » pour « ${post.title} » ? Le lien enregistré est retiré.`)) return;
+    setBusy(`undo-${post.id}`);
+    try {
+      const res = await fetch(`/api/admin/studio/publications/${post.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "tiktok_manual_undo" }),
+      });
+      if (!res.ok) throw new Error(await readError(res));
+      setToast({ id: Date.now(), text: "TikTok : de nouveau à publier à la main." });
+      void load();
+    } catch (e) {
+      setToast({ id: Date.now(), text: e instanceof Error ? e.message : "Annulation impossible", tone: "warn" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function retry(post: Post, network: Network) {
     setBusy(`retry-${post.id}-${network}`);
     try {
@@ -693,7 +713,7 @@ export function PublishVideo() {
           </div>
         </div>
 
-        <MyVideos data={data} busy={busy} onRetry={retry} onManual={(post, link) => void markTikTokDone(post, link)} onFix={startFix} onRemove={(item) => void removeFromList(item)} onPreview={setPreview} onReload={() => void load()} />
+        <MyVideos data={data} busy={busy} onRetry={retry} onManual={(post, link) => void markTikTokDone(post, link)} onUndoManual={(post) => void undoTikTokDone(post)} onFix={startFix} onRemove={(item) => void removeFromList(item)} onPreview={setPreview} onReload={() => void load()} />
       </div>
 
       {preview && data && (
@@ -898,6 +918,7 @@ function MyVideos({
   busy,
   onRetry,
   onManual,
+  onUndoManual,
   onFix,
   onRemove,
   onPreview,
@@ -907,6 +928,7 @@ function MyVideos({
   busy: string | null;
   onRetry: (post: Post, n: Network) => void;
   onManual: (post: Post, link: string) => void;
+  onUndoManual: (post: Post) => void;
   onFix: (item: Item) => void;
   onRemove: (item: Item) => void;
   onPreview: (post: Post) => void;
@@ -997,6 +1019,16 @@ function MyVideos({
                                 <ArrowSquareOutIcon size={12} weight="bold" />
                               </a>
                             )}
+                            {n === "tiktok" && founder && canUndoManual(post) && (
+                              <button
+                                type="button"
+                                onClick={() => onUndoManual(post)}
+                                disabled={busy !== null}
+                                className="h-9 rounded-full px-3 text-[12px] font-bold text-neutral-600 ring-1 ring-[rgba(74,52,36,0.18)] disabled:opacity-50"
+                              >
+                                {busy === `undo-${post.id}` ? "Annulation…" : "Annuler"}
+                              </button>
+                            )}
                           </>
                         ) : isRetrying(post, n) ? (
                           <span className="text-[#1F5F80]" aria-live="polite">Nouvel essai en cours…</span>
@@ -1034,6 +1066,16 @@ function MyVideos({
                               <ArrowSquareOutIcon size={12} weight="bold" />
                             </a>
                           )}
+                          {founder && canUndoManual(post) && (
+                              <button
+                                type="button"
+                                onClick={() => onUndoManual(post)}
+                                disabled={busy !== null}
+                                className="h-9 rounded-full px-3 text-[12px] font-bold text-neutral-600 ring-1 ring-[rgba(74,52,36,0.18)] disabled:opacity-50"
+                              >
+                                {busy === `undo-${post.id}` ? "Annulation…" : "Annuler"}
+                              </button>
+                            )}
                         </>
                       ) : (
                         <>
