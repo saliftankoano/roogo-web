@@ -410,6 +410,16 @@ and review state independently govern what the user may submit or edit.
 
 **Evidence:** [#124](https://github.com/saliftankoano/roogo-web/pull/124), [decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
 
+### TikTok à la main
+
+**Meaning:** A Studio video posted on TikTok by a team member in the TikTok app, after the Studio handed it over in the team WhatsApp group. In « Mes vidéos » it reads « À publier à la main », then « Publiée à la main ».
+
+**Origin:** Coined 2026-11-25 by Salif's decision, while TikTok refuses posts from the unaudited app.
+
+**Why it matters for building:** « Publiée » on a TikTok line does not always mean the Studio posted it: a manual one has no TikTok id or link. The Studio never sends the WhatsApp message itself.
+
+**Evidence:** [decision](./DECISIONS.md#tiktok-goes-out-by-hand-through-the-team-whatsapp-group--2026-11-25), [system](./SYSTEM.md#how-does-publier-une-vidéo-work-2026-10-23).
+
 ## Team goals and calls
 
 ### Compte rendu (fin de journée)

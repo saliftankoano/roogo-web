@@ -55,7 +55,7 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 ## Later
 
-- [ ] **Public TikToks from the Studio** — parked 2026-11-25: TikTok refuses every Studio post on @roogo.226 (even « Moi seulement ») until the app is audited, so TikTok is no longer ticked by default and the team posts TikToks in the app. Done when: TikTok audits the app (never submitted; may be refused as an internal tool), then set `TIKTOK_APP_AUDITED=true` and tick TikTok by default again. [Decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
+- [ ] **Public TikToks from the Studio** — parked 2026-11-25: TikTok refuses every Studio post on @roogo.226 (even « Moi seulement ») until the app is audited, so TikTok is no longer ticked by default and the team posts TikToks in the app. Meanwhile TikToks go out [by hand through WhatsApp](./DECISIONS.md#tiktok-goes-out-by-hand-through-the-team-whatsapp-group--2026-11-25). Salif decided 2026-11-25 to submit the audit anyway. Done when: TikTok audits the app (not submitted yet; may be refused as an internal tool), then set `TIKTOK_APP_AUDITED=true` and tick TikTok by default again. [Decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
 
 No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
