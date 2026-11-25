@@ -26,7 +26,7 @@ import type { TikTokPublishInfo } from "@/lib/social/tiktok-publish";
 import type { YouTubePublishInfo } from "@/lib/social/youtube-upload";
 import { YouTubeNote } from "./YouTubeNote";
 import { TikTokDeclaration, TikTokPanel, tiktokBlockers, useTikTokPanel } from "./TikTokPanel";
-import { EMPTY_CHOICES, settingsSummary, type TikTokChoices } from "@/lib/social/tiktok-post-settings";
+import { EMPTY_CHOICES, defaultChoices, settingsSummary, type TikTokChoices } from "@/lib/social/tiktok-post-settings";
 
 type View = "preview" | "return" | "approved";
 
@@ -85,12 +85,17 @@ export function ApprovalPreview({
 
   // TikTok panel (PRD « TikTok posting screen for the audit »): direct mode
   // only, for a video with TikTok ticked. Fresh creator info for each post,
-  // and the choices start empty every time (TikTok forbids defaults).
+  // choices start from Salif's defaults once the account is read (empty in the audit demo).
   const tiktokTicked = Boolean(post && post.networks.includes("tiktok") && post.mediaType === "video" && tiktok?.enabled && tiktok.mode === "direct");
   const tiktokState = useTikTokPanel(view === "preview" && post ? post.id : null, tiktokTicked);
   const [tiktokChoices, setTiktokChoices] = useState<TikTokChoices>(EMPTY_CHOICES);
   const [approvedTikTok, setApprovedTikTok] = useState<string | null>(null);
   useEffect(() => setTiktokChoices(EMPTY_CHOICES), [post?.id]);
+  // Once the account is read, start from Salif's defaults (each post, never in the audit demo).
+  const tiktokCreator = tiktokState.kind === "ready" && !tiktokState.demo ? tiktokState.creator : null;
+  useEffect(() => {
+    if (tiktokCreator) setTiktokChoices(defaultChoices(tiktokCreator));
+  }, [tiktokCreator]);
   const tiktokDuration = post?.finalVideo?.durationSeconds ?? null;
   const tiktokBlock = tiktokTicked ? tiktokBlockers(tiktokState, tiktokChoices, tiktokDuration) : [];
   const tiktokPanelOn = tiktokTicked && tiktokState.kind !== "off";
