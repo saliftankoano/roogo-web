@@ -43,7 +43,7 @@ import { publishTikTok, tiktokPostMode, type TikTokResume } from "@/lib/social/t
 import { rangeSource } from "./range-source";
 import { tiktokAccessToken, tiktokPublishStatus } from "@/lib/social/tiktok-token-server";
 import { loadTikTokSettings } from "@/lib/social/tiktok-settings-server";
-import { COPY as TIKTOK_COPY, fetchCreatorInfo, postInfoFields, settingsProblems } from "@/lib/social/tiktok-post-settings";
+import { COPY as TIKTOK_COPY, fetchCreatorInfo, postInfoFields, privateUntilAudit, restrictToAudit, settingsProblems, tiktokAppAudited } from "@/lib/social/tiktok-post-settings";
 import { MAX_QUOTA_RETRIES, publishYouTubeShort, youtubeVisibility, type YouTubeResume } from "@/lib/social/youtube-upload";
 import { youtubeAccessToken, youtubePublishStatus } from "@/lib/social/youtube-token-server";
 import {
@@ -455,9 +455,11 @@ export async function runPublishingWorker(
       }
       const creator = await fetchCreatorInfo((url, init) => fetch(url, init), access.token);
       if (!creator.ok) return { status: "failed", error: creator.error };
-      const problems = settingsProblems(saved.settings, creator.creator, media.durationSeconds ?? null);
+      const audited = tiktokAppAudited(process.env);
+      const settings = privateUntilAudit(saved.settings, audited);
+      const problems = settingsProblems(settings, restrictToAudit(creator.creator, audited), media.durationSeconds ?? null);
       if (problems.length) return { status: "failed", error: problems[0] };
-      postInfo = postInfoFields(saved.settings);
+      postInfo = postInfoFields(settings);
     }
     return publishTikTok(
       {

@@ -8,7 +8,7 @@
 
 import { supabaseAdmin } from "@/lib/supabase-admin";
 import { tiktokAccessToken, tiktokDemo, tiktokPublishStatus } from "./tiktok-token-server";
-import { fetchCreatorInfo, readSettings, type CreatorInfoResult, type TikTokSettings } from "./tiktok-post-settings";
+import { fetchCreatorInfo, readSettings, restrictToAudit, tiktokAppAudited, type CreatorInfoResult, type TikTokSettings } from "./tiktok-post-settings";
 
 export { tiktokDemo };
 
@@ -31,7 +31,8 @@ export async function creatorInfoNow(): Promise<CreatorInfoResult> {
   if (tiktokDemo()) return DEMO_CREATOR;
   const access = await tiktokAccessToken();
   if ("error" in access) return { ok: false, cannotPost: false, code: "not_connected", error: access.error };
-  return fetchCreatorInfo((url, init) => fetch(url, init), access.token);
+  const result = await fetchCreatorInfo((url, init) => fetch(url, init), access.token);
+  return result.ok ? { ok: true, creator: restrictToAudit(result.creator, tiktokAppAudited(process.env)) } : result;
 }
 
 /** Direct mode with TikTok usable: the panel is required at approval. */

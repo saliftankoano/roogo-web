@@ -8,6 +8,7 @@ Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./RO
 
 ## 2026-11-25
 
+- **TikTok: private until the audit** (web, branch `fix/tiktok-private-until-audit`, no migration): TikTok refused a Studio post set to « Public » (`unaudited_client_can_only_post_to_private_accounts`). Until `TIKTOK_APP_AUDITED=true`, the validation panel offers « Moi seulement » only, and saved settings asking for another level post privately instead of failing (so a failed post can be retried as is).
 - **Publier: Salif's own videos open straight in validation** (web, branch `fix/publier-founder-validate`, no migration): for the founder the button reads « Vérifier et publier » instead of « Envoyer à Salif »; it saves the post and opens the validation screen (TikTok choices, checks, « Valider ») right away. Choices read « Dès que vous validez ». Staff flow unchanged.
 - **Publier: « Changer de vidéo » and « Retirer »** (web, branch `fix/publier-changer-retirer`, no migration): under the preview, « Changer de vidéo » stops the upload, removes the wrong file and reopens the picker; « Retirer » removes it. In « Mes vidéos », each video never sent to Salif has « Retirer » (with a confirmation). The Drive file goes to the bin (30 days), the row is deleted; refused once a post uses the video; only the uploader or the founder. `DELETE /api/admin/studio/final-videos/[id]`.
 

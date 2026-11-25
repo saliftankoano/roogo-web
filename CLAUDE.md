@@ -163,6 +163,7 @@ META_IG_ACCOUNT_ID      # @roogo.burkina Instagram business account id (17841436
 TIKTOK_CLIENT_KEY       # server only: TikTok developer app (Login Kit, scope user.info.stats)
 TIKTOK_CLIENT_SECRET    # server only, never logged
 TIKTOK_REDIRECT_URI     # optional; default <site>/api/admin/social/tiktok/callback (must be registered in the TikTok app)
+TIKTOK_APP_AUDITED      # optional; "true" only once TikTok has audited the app. Unset: Studio TikTok posts are « Moi seulement » (TikTok refuses anything else)
 SOCIAL_TOKENS_KEY       # 32 random bytes, base64 (openssl rand -base64 32): encrypts social_tokens; without it TikTok and YouTube cannot be connected
 YOUTUBE_CLIENT_ID       # server only: Google Cloud OAuth client (Web application), scopes youtube.readonly + youtube.upload
 YOUTUBE_CLIENT_SECRET   # server only, never logged
