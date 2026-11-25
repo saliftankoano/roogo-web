@@ -39,8 +39,28 @@ export function canMarkManual(post: HandoffPost): boolean {
 
 /** The stored result for a TikTok posted by hand. Nothing else in the results changes. */
 export function manualTikTokResults(results: PublicationResults, nowIso: string, permalink: string): PublicationResults {
-  const done: NetworkResult = { status: "published", note: MANUAL_NOTE, permalink, published_at: nowIso, error: null, held: false };
+  const done: NetworkResult = {
+    status: "published",
+    note: MANUAL_NOTE,
+    permalink,
+    published_at: nowIso,
+    error: null,
+    held: false,
+    manual_before: results.tiktok ?? null,
+  };
   return { ...results, tiktok: done };
+}
+
+/** « Annuler » (founder): only a TikTok marked by hand, and never while a run holds the post. */
+export function canUndoManual(post: HandoffPost): boolean {
+  return tiktokHandoff(post) === "done" && !post.publishing && (post.status === "publie" || post.status === "echec");
+}
+
+/** Back to what TikTok's line said before « C'est publié »: the failed try, or nothing. */
+export function undoManualTikTok(results: PublicationResults): PublicationResults {
+  const { tiktok, ...rest } = results;
+  const before = tiktok?.manual_before ?? null;
+  return before ? { ...rest, tiktok: before } : rest;
 }
 
 export const TIKTOK_LINK_ERROR = "Collez le lien de la vidéo sur TikTok (dans TikTok : Partager, puis Copier le lien).";
