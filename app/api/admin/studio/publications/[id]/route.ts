@@ -17,7 +17,7 @@ import {
   type PublicationStatus,
 } from "@/lib/studio/publishing";
 import { scheduledAtOnApproval } from "@/lib/studio/publish-everywhere";
-import { canMarkManual, manualTikTokResults } from "@/lib/studio/tiktok-handoff";
+import { TIKTOK_LINK_ERROR, canMarkManual, manualTikTokResults, parseTikTokLink } from "@/lib/studio/tiktok-handoff";
 import { moveFinalVideoIfPublished } from "@/lib/studio/final-videos-server";
 import {
   PUBLICATION_COLUMNS,
@@ -102,7 +102,10 @@ export async function PATCH(req: Request, { params }: Ctx) {
     if (!canMarkManual({ status: row.status, networks: row.networks, results: row.results ?? {} })) {
       return errorResponse("TikTok ne peut pas être marqué publié pour le moment.", 409, req);
     }
-    const results = manualTikTokResults(row.results ?? {}, nowIso);
+    // The proof it is online: the video's TikTok link (Salif, 2026-11-25).
+    const link = parseTikTokLink(body.link);
+    if (!link) return errorResponse(TIKTOK_LINK_ERROR, 400, req);
+    const results = manualTikTokResults(row.results ?? {}, nowIso, link);
     const status = finalStatus(row.networks, results);
     update = { results };
     if (status === "publie" && row.status !== "publie") Object.assign(update, { status, published_at: nowIso, last_error: null });

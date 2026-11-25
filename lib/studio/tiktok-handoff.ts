@@ -38,9 +38,34 @@ export function canMarkManual(post: HandoffPost): boolean {
 }
 
 /** The stored result for a TikTok posted by hand. Nothing else in the results changes. */
-export function manualTikTokResults(results: PublicationResults, nowIso: string): PublicationResults {
-  const done: NetworkResult = { status: "published", note: MANUAL_NOTE, published_at: nowIso, error: null, held: false };
+export function manualTikTokResults(results: PublicationResults, nowIso: string, permalink: string): PublicationResults {
+  const done: NetworkResult = { status: "published", note: MANUAL_NOTE, permalink, published_at: nowIso, error: null, held: false };
   return { ...results, tiktok: done };
+}
+
+export const TIKTOK_LINK_ERROR = "Collez le lien de la vidéo sur TikTok (dans TikTok : Partager, puis Copier le lien).";
+
+/**
+ * The proof that the video is online (Salif, 2026-11-25): the link TikTok
+ * gives with « Partager › Copier le lien ». A video link on tiktok.com or a
+ * short link (vm. / vt.tiktok.com); a profile or the home page is refused.
+ * Tracking parameters are dropped.
+ */
+export function parseTikTokLink(raw: unknown): string | null {
+  if (typeof raw !== "string") return null;
+  const found = raw.trim().match(/https?:\/\/\S+/i)?.[0] ?? `https://${raw.trim()}`;
+  let url: URL;
+  try {
+    url = new URL(found);
+  } catch {
+    return null;
+  }
+  const host = url.hostname.toLowerCase();
+  if (host !== "tiktok.com" && !host.endsWith(".tiktok.com")) return null;
+  const path = url.pathname.replace(/\/+$/, "");
+  const short = host === "vm.tiktok.com" || host === "vt.tiktok.com";
+  const ok = short ? /^\/[A-Za-z0-9]{5,}$/.test(path) : /^\/@[^/]+\/(video|photo)\/\d+$/.test(path) || /^\/t\/[A-Za-z0-9]{5,}$/.test(path);
+  return ok ? `https://${host}${path}${short ? "/" : ""}` : null;
 }
 
 type CopyLike = { text: string; hashtags: readonly string[] };
@@ -74,6 +99,8 @@ export function handoffMessage(input: { title: string; driveUrl: string; copy: C
     "",
     "Texte à coller :",
     text && tags && !text.includes(tags) ? `${text}\n\n${tags}` : text || tags,
+    "",
+    "Une fois publiée : copiez le lien TikTok et collez-le dans le Studio (C'est publié).",
   ]
     .join("\n")
     .trim();

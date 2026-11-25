@@ -7,7 +7,7 @@ out. Newest first. For what shipped and when, see
 
 ### TikTok goes out by hand through the team WhatsApp group — 2026-11-25
 
-**Decision:** Until TikTok audits the app, a Studio video reaches TikTok by hand: from « Mes vidéos », « Envoyer sur WhatsApp » opens WhatsApp with a ready message (Drive link, text and hashtags to paste), a person picks the Roogo team group and sends it, a team member posts the video in the TikTok app, then presses « C'est publié » in the Studio. Salif also decided to submit the app for TikTok's audit and see (2026-11-25).
+**Decision:** Until TikTok audits the app, a Studio video reaches TikTok by hand: from « Mes vidéos », « Envoyer sur WhatsApp » opens WhatsApp with a ready message (Drive link, text and hashtags to paste), a person picks the Roogo team group and sends it, a team member posts the video in the TikTok app, then presses « C'est publié » in the Studio and pastes the video's TikTok link, which is required as the proof it is online (Salif, 2026-11-25). Salif also decided to submit the app for TikTok's audit and see (2026-11-25).
 
 **Why:** TikTok refuses every Studio post on public @roogo.226 (`unaudited_client_can_only_post_to_private_accounts`), so the choice was between TikTok silently missing videos and a handoff the team already knows (the WhatsApp group). A person always presses send: Roogo's WhatsApp is never written to by software.
 
