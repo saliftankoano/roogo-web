@@ -107,6 +107,26 @@ export function parseCreatorInfo(data: Record<string, unknown>): CreatorInfo {
   };
 }
 
+/**
+ * Until TikTok audits the app, it refuses any post that is not « Moi seulement »
+ * (`unaudited_client_can_only_post_to_private_accounts`), even when
+ * creator_info lists every privacy level. So the panel offers « Moi seulement »
+ * only, and the worker posts privately, until `TIKTOK_APP_AUDITED=true`.
+ */
+export function tiktokAppAudited(env: Record<string, string | undefined>): boolean {
+  return env.TIKTOK_APP_AUDITED?.trim().toLowerCase() === "true";
+}
+
+export function restrictToAudit(creator: CreatorInfo, audited: boolean): CreatorInfo {
+  if (audited || !creator.privacyLevelOptions.includes("SELF_ONLY")) return creator;
+  return { ...creator, privacyLevelOptions: ["SELF_ONLY"] };
+}
+
+/** Saved settings made before the restriction (e.g. « Public ») post privately instead of failing. */
+export function privateUntilAudit(settings: TikTokSettings, audited: boolean): TikTokSettings {
+  return audited ? settings : { ...settings, privacy_level: "SELF_ONLY" };
+}
+
 /** Error codes of creator_info/query that mean « this account cannot post right now ». */
 const CANNOT_POST = new Set(["spam_risk_too_many_posts", "spam_risk_user_banned_from_posting", "reached_active_user_cap", "rate_limit_exceeded"]);
 
