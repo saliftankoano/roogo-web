@@ -49,7 +49,7 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 - [ ] **Turn on the Studio publishing calendar** — the team plans each visit's posts in the Studio and validated posts go out on Facebook and Instagram on their own. Built on branch `feat/studio-publishing-calendar` (2026-10-12). Done when: Salif approves the layout wireframe, the PR is merged (migrations 085 and 087 already ran on Roogo, [ledger](../supabase/migrations/README.md)), `META_GRAPH_TOKEN` (with the publish permissions), `META_PAGE_ID` and `META_IG_ACCOUNT_ID` are set in Vercel ([setup](./SYSTEM.md#setting-up-the-meta-connection-salif-once)), and one real post on each network is published from the calendar and recorded in the CHANGELOG.
 
-- [ ] **TikTok posting from the calendar** — the "TikTok (bientôt)" option becomes real. TikTok's Content Posting API keeps posts from unaudited apps private (`SELF_ONLY`), so public posting needs TikTok's audit first. Steps: (1) create an app at developers.tiktok.com under a Roogo developer account, add Login Kit and the Content Posting API with Direct Post, scopes `video.publish` and `user.info.basic`; (2) publish a privacy policy and terms page on roogobf.com and add them to the app; (3) build the flow in Sandbox with Roogo's own account (OAuth, `creator_info/query`, `post/publish/video/init` with `PULL_FROM_URL` from a verified roogobf.com domain, status polling), following TikTok's UX rules (creator nickname shown, privacy choice by the user, consent to music terms, no watermark added by us); (4) record a demo video of the full flow and submit the app for audit; (5) after approval (a few weeks), enable the option and store the refresh token encrypted, since TikTok user tokens expire. Until then the team posts from TikTok Studio.
+- [ ] **Public TikToks from the Studio** — a validated Studio video ends up public on @roogo.226. Status 2026-11-25: posting is built and live in direct mode, private only (« Moi seulement ») until an audit that was never submitted and that TikTok may refuse for an internal tool. Done when: one Studio video posted « Moi seulement » is switched to « Tout le monde » in TikTok Studio on the web; if TikTok refuses that, TikTok is unticked in the Studio and the team keeps posting in the app. [Decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
 
 ## Next
 
@@ -64,6 +64,8 @@ No additional ROO-20 follow-up has been accepted. Existing unrelated commitments
 - [ ] **A model pass on the spoken text, only if needed** — fixes pronunciations the rules still miss. Done when: real use shows words the tolerant rules miss; numbers must stay rule-only. [Decision](./DECISIONS.md#studio-pronunciation-the-glossary-guides-the-writer-rules-make-the-speech--2026-10-10).
 
 ## Recently completed
+
+- [x] **Publier fixes and TikTok private posting — 2026-11-25** — « Changer de vidéo » / « Retirer » (#122), « Vérifier et publier » for Salif (#123), « Moi seulement » until the audit (#124), panel defaults (#125); all live on production. [CHANGELOG](./CHANGELOG.md#2026-11-25).
 
 - [x] **French page addresses — 2026-10-11** — 9 renames with redirects; the payment return stays direct. [#58](https://github.com/saliftankoano/roogo-web/pull/58), [CHANGELOG](./CHANGELOG.md#2026-10-11).
 

@@ -390,6 +390,26 @@ and review state independently govern what the user may submit or edit.
 **Evidence:** [Decision](./DECISIONS.md#studio-music-roogo-tracks-and-generated-instrumentals-only--2026-10-11).
 
 
+### Brouillon TikTok (inbox upload)
+
+**Meaning:** What TikTok's API calls « upload as draft »: the video is sent to the account owner as a notification inside the TikTok phone app, to be finished and posted there. It is **not** in Profile › Drafts and does not appear on tiktok.com or in TikTok Studio on the web.
+
+**Origin:** TikTok Content Posting API term (`/v2/post/publish/inbox/video/init/`, status `SEND_TO_USER_INBOX`). The team read « brouillon » as the Drafts folder, which is why about ten Studio videos (Nov 2026) were never found.
+
+**Why it matters for building:** Never tell the team a Studio video is « dans les brouillons » without saying where: only the phone app's notifications. Unopened uploads block new ones (`spam_risk_too_many_pending_share`).
+
+**Evidence:** [decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25), [system](./SYSTEM.md#how-does-the-studio-publishing-calendar-post-to-facebook-and-instagram).
+
+### Moi seulement (TikTok privacy)
+
+**Meaning:** TikTok's « Only me » (`SELF_ONLY`): the post is on the account but visible only to its owner, until someone switches it to « Tout le monde » in TikTok Studio on the web or in the app.
+
+**Origin:** TikTok privacy level. For Roogo, the only level TikTok accepts from the Studio until the app is audited (2026-11-25).
+
+**Why it matters for building:** A Studio TikTok is not public when « Publiée »; someone must switch it. Sending any other level before `TIKTOK_APP_AUDITED=true` makes TikTok refuse the post. Branded content (« Contenu de marque ») cannot be « Moi seulement »; « Votre marque » can.
+
+**Evidence:** [#124](https://github.com/saliftankoano/roogo-web/pull/124), [decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
+
 ## Team goals and calls
 
 ### Compte rendu (fin de journée)

@@ -5,6 +5,36 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### Studio TikTok: back to direct posting, « Moi seulement » until the audit, Salif's panel defaults — 2026-11-24 / 2026-11-25
+
+**Decision:** Production `TIKTOK_POST_MODE` went from `draft` to `direct` on 2026-11-24 (Salif). Until `TIKTOK_APP_AUDITED=true`, the approval panel offers only « Moi seulement » and the worker sends `SELF_ONLY` even when older saved settings say « Public » ([#124](https://github.com/saliftankoano/roogo-web/pull/124)). The panel starts pre-filled with Salif's defaults: « Moi seulement », comments on (when the account allows), « Contenu commercial · Votre marque » on, duos and collages off ([#125](https://github.com/saliftankoano/roogo-web/pull/125)). The team makes each video public by hand in TikTok Studio on the web.
+
+**Why:** Draft mode never worked for this team. Checked 2026-11-24: about 10 Studio videos (3 to 15 Nov) reached `SEND_TO_USER_INBOX`, but an inbox upload is only a notification in the TikTok phone app, not Profile › Drafts nor tiktok.com, so nobody finished them; TikTok then refused one with `spam_risk_too_many_pending_share`; the Studio had published zero public TikToks. Direct posts at least land on @roogo.226 where the web shows them. On 2026-11-25 TikTok refused a direct post set to « Public » (`unaudited_client_can_only_post_to_private_accounts`): an unaudited app's post is refused, not made private, although creator info lists every privacy level. Defaults: every Roogo video promotes Roogo's own services, so « Votre marque » is the honest disclosure, and leaving it off on a sales video risks TikTok limiting it.
+
+**Ruled out / alternatives:** keeping draft mode (invisible to the team); unticking TikTok entirely (kept as the fallback if a private API post cannot be switched to « Everyone »); the 2026-10-31 rule of no preset values (TikTok's guideline for audited apps; it stays only in the `STUDIO_TIKTOK_DEMO` panel used to film an audit video). The audit itself was never submitted (portal checked 2026-11-24) and TikTok excludes internal tools, so it is not counted on.
+
+**Status:** Open. Reopens on the first test: if TikTok refuses switching a Studio post from « Moi seulement » to « Everyone », untick TikTok in the Studio. How it works: [system](./SYSTEM.md#how-does-the-studio-publishing-calendar-post-to-facebook-and-instagram) (TikTok and TikTok panel). Terms: [Brouillon TikTok](./DOMAIN.md#brouillon-tiktok-inbox-upload), [Moi seulement](./DOMAIN.md#moi-seulement-tiktok-privacy).
+
+### Salif's own videos skip « Envoyer à Salif » — 2026-11-25
+
+**Decision:** For the founder, Publier's button reads « Vérifier et publier »: it saves the post (status `a_valider`, as before) and opens the approval screen at once. Choices read « Dès que vous validez ». Staff are unchanged ([#123](https://github.com/saliftankoano/roogo-web/pull/123)).
+
+**Why:** Salif, 2026-11-25: « I am Salif », sending a video to himself was a pointless step.
+
+**Ruled out / alternatives:** approving directly on send. The approval screen holds the TikTok choices and the final checks, so it stays the single place where « Valider » happens. Closing it leaves the post « À valider » with « Voir et valider ».
+
+**Status:** Settled.
+
+### A wrong upload is removed, not hidden — 2026-11-25
+
+**Decision:** « Changer de vidéo » / « Retirer » under the preview and « Retirer » in « Mes vidéos » delete the `studio_final_videos` row and move its Drive file to the bin (30 days), only for videos never sent to Salif, only by the uploader or the founder ([#122](https://github.com/saliftankoano/roogo-web/pull/122)).
+
+**Why:** Salif uploaded the wrong video and could not get rid of it; unsent uploads (« WhatsApp Video … ») were piling up in the list and in « Vidéos finales ».
+
+**Ruled out / alternatives:** a « removed » status (needs a migration, and nothing references an unsent video); hard-deleting the Drive file (the bin keeps a way back); removing a video already sent (its post owns the file).
+
+**Status:** Settled.
+
 ### Visites 3D calls are call notes on a new « prospect » record — 2026-11-22
 
 **Decision:** a business called for Visites 3D is a row of a new `staff_prospects` table, and each call is a `staff_call_notes` row (subject `visite_3d`) with five structured columns. Follow-ups are ordinary `staff_tasks`. Every logged call counts toward the daily goal, whatever its result.
@@ -45,7 +75,8 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out:** saving defaults or « last used » settings (TikTok forbids preset values); showing the panel on the staff upload screen (the founder approves and owns the TikTok connection).
 
-**Caveat:** TikTok's guidelines exclude internal tools that post to the team's own accounts; the panel removes the screen reason for refusal, not that one. Meanwhile `TIKTOK_POST_MODE=draft` is set in production (2026-10-31), so TikTok posts go to the account's drafts and the panel does not show until direct mode is turned back on.
+**Caveat:** TikTok's guidelines exclude internal tools that post to the team's own accounts; the panel removes the screen reason for refusal, not that one. `TIKTOK_POST_MODE=draft` was set in production from 2026-10-31 to 2026-11-24; direct mode is back, with presets now on. Superseded in part by [the 2026-11-24 decision](#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
+
 ### YouTube Shorts follow the Studio time instead of staying private — 2026-10-30
 
 **Decision:** Salif wants each Studio video to go public on YouTube at its scheduled time with nobody touching YouTube Studio. The upload asks for `public` when the post is due and for `private` + `status.publishAt` = `scheduled_at` (UTC) when the time is at least 2 minutes ahead. `YOUTUBE_PUBLIC_UPLOADS` flips meaning: unset = follow the schedule, `false` = kill switch (always private).
