@@ -372,10 +372,11 @@ export function PublishVideo() {
   }
 
   async function removeFromList(item: Item) {
-    if (!window.confirm(`Retirer « ${item.video.title || item.video.driveName} » ? Le fichier part dans la corbeille du Drive.`)) return;
+    if (!window.confirm(`Retirer « ${item.post?.title || item.video.title || item.video.driveName} » ?${item.post ? " La publication en attente est supprimée." : ""} Le fichier part dans la corbeille du Drive.`)) return;
     setBusy(`remove-${item.video.id}`);
     try {
       await removeVideo(item.video.id);
+      if (item.post) notifyApprovalsChanged();
       if (fixing?.video.id === item.video.id || (upload.state === "ready" && upload.video.id === item.video.id)) resetComposer();
       setToast({ id: Date.now(), text: "Vidéo retirée. Le fichier est dans la corbeille du Drive." });
       void load();
@@ -757,6 +758,13 @@ const STATUS_TONE: Record<string, string> = {
   "Publication en cours": "bg-[#E1EFF8] text-[#1F5F80]",
 };
 
+/** Same rule as the server (postBlocksRemoval): nothing online, nothing being sent. */
+function canRemove(post: Post | null): boolean {
+  if (!post) return true;
+  if (post.publishing || !["a_faire", "a_valider", "valide"].includes(post.status)) return false;
+  return !Object.values(post.results ?? {}).some((r) => r?.status === "published");
+}
+
 function MyVideos({
   data,
   busy,
@@ -823,7 +831,7 @@ function MyVideos({
                       Continuer
                     </button>
                   )}
-                  {!post && (
+                  {canRemove(post) && (
                     <button
                       type="button"
                       onClick={() => onRemove(item)}
