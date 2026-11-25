@@ -319,6 +319,15 @@ export async function renameDriveFile(fileId: string, name: string): Promise<voi
   });
 }
 
+/** Moves a file to the shared drive's bin (recoverable there for 30 days). */
+export async function trashDriveFile(fileId: string): Promise<void> {
+  await driveJson(`${DRIVE_API}/files/${encodeURIComponent(fileId)}?supportsAllDrives=true&fields=id`, {
+    method: "PATCH",
+    headers: { "Content-Type": "application/json; charset=UTF-8" },
+    body: JSON.stringify({ trashed: true }),
+  });
+}
+
 /** Moves a file from one folder to another inside the shared drive (« Vidéos finales » to « Publié »). */
 export async function moveDriveFile(fileId: string, fromFolderId: string, toFolderId: string): Promise<{ parents: string[] }> {
   const params = new URLSearchParams({

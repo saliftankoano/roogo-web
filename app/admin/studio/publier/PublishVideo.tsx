@@ -343,6 +343,43 @@ export function PublishVideo() {
     }
   }
 
+  async function removeVideo(id: string): Promise<boolean> {
+    const res = await fetch(`/api/admin/studio/final-videos/${id}`, { method: "DELETE" });
+    if (!res.ok) throw new Error(await readError(res));
+    return true;
+  }
+
+  // « Changer de vidéo » / « Retirer » under the preview: stops the upload,
+  // removes the wrong file (Drive bin) and clears the form. With `pickNext`,
+  // the file picker opens right away (same click, so the browser allows it).
+  function discardCurrent(pickNext: boolean) {
+    const id = fixing && !fixing.post ? fixing.video.id : upload.state === "ready" ? upload.video.id : null;
+    resetComposer();
+    if (pickNext) inputRef.current?.click();
+    if (!id) return;
+    removeVideo(id)
+      .then(() => {
+        if (!pickNext) setToast({ id: Date.now(), text: "Vidéo retirée. Le fichier est dans la corbeille du Drive." });
+        void load();
+      })
+      .catch((e) => setToast({ id: Date.now(), text: e instanceof Error ? e.message : "Retrait impossible", tone: "warn" }));
+  }
+
+  async function removeFromList(item: Item) {
+    if (!window.confirm(`Retirer « ${item.video.title || item.video.driveName} » ? Le fichier part dans la corbeille du Drive.`)) return;
+    setBusy(`remove-${item.video.id}`);
+    try {
+      await removeVideo(item.video.id);
+      if (fixing?.video.id === item.video.id || (upload.state === "ready" && upload.video.id === item.video.id)) resetComposer();
+      setToast({ id: Date.now(), text: "Vidéo retirée. Le fichier est dans la corbeille du Drive." });
+      void load();
+    } catch (e) {
+      setToast({ id: Date.now(), text: e instanceof Error ? e.message : "Retrait impossible", tone: "warn" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function retry(post: Post, network: Network) {
     setBusy(`retry-${post.id}-${network}`);
     try {
@@ -396,6 +433,17 @@ export function PublishVideo() {
         </label>
       )}
       <UploadState upload={upload} file={file} video={video} onRetry={() => file && void pick(file)} onOther={() => inputRef.current?.click()} />
+      {(localUrl || video) && !fixing?.post && upload.state !== "refused" && upload.state !== "failed" && (
+        <div className="flex justify-center gap-2">
+          <button type="button" onClick={() => discardCurrent(true)} className="inline-flex h-11 items-center gap-1.5 rounded-full px-4 text-[14px] font-bold text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)] hover:bg-[#F6F1EA]">
+            <ArrowsClockwiseIcon size={14} weight="bold" />
+            Changer de vidéo
+          </button>
+          <button type="button" onClick={() => discardCurrent(false)} className="h-11 rounded-full px-4 text-[14px] font-bold text-[#8E2A1E] hover:bg-[#FBE3DF]">
+            Retirer
+          </button>
+        </div>
+      )}
     </div>
   );
 
@@ -608,7 +656,7 @@ export function PublishVideo() {
           </div>
         </div>
 
-        <MyVideos data={data} busy={busy} onRetry={retry} onFix={startFix} onPreview={setPreview} onReload={() => void load()} />
+        <MyVideos data={data} busy={busy} onRetry={retry} onFix={startFix} onRemove={(item) => void removeFromList(item)} onPreview={setPreview} onReload={() => void load()} />
       </div>
 
       {preview && data && (
@@ -708,6 +756,7 @@ function MyVideos({
   busy,
   onRetry,
   onFix,
+  onRemove,
   onPreview,
   onReload,
 }: {
@@ -715,6 +764,7 @@ function MyVideos({
   busy: string | null;
   onRetry: (post: Post, n: Network) => void;
   onFix: (item: Item) => void;
+  onRemove: (item: Item) => void;
   onPreview: (post: Post) => void;
   onReload: () => void;
 }) {
@@ -765,6 +815,16 @@ function MyVideos({
                   {!post && video.status === "ready" && (
                     <button type="button" onClick={() => onFix(item)} className="h-11 rounded-full bg-[#1F1A16] px-4 text-[13px] font-bold text-white md:h-9">
                       Continuer
+                    </button>
+                  )}
+                  {!post && (
+                    <button
+                      type="button"
+                      onClick={() => onRemove(item)}
+                      disabled={busy === `remove-${video.id}`}
+                      className="h-11 rounded-full px-4 text-[13px] font-bold text-[#8E2A1E] hover:bg-[#FBE3DF] disabled:opacity-50 md:h-9"
+                    >
+                      {busy === `remove-${video.id}` ? "Retrait…" : "Retirer"}
                     </button>
                   )}
                   {video.driveUrl && (
