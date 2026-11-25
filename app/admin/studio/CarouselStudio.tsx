@@ -421,6 +421,21 @@ export function CarouselStudio({
         )}
       </AnimatePresence>
 
+      <label className="grid max-w-2xl gap-1">
+        <span className="text-xs font-semibold text-neutral-600">Légende du post (Facebook et Instagram)</span>
+        <textarea
+          value={spec.caption}
+          disabled={!editable}
+          rows={5}
+          onChange={(e) => {
+            setView((v) => (v ? { ...v, spec: { ...v.spec, caption: e.target.value } } : v));
+            setDirty(true);
+            setNotice(null);
+          }}
+          className={field}
+        />
+      </label>
+
       {/* The strip: every slide, live. */}
       <div className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:thin] md:-mx-5 md:px-5" role="tablist" aria-label="Slides">
         {spec.slides.map((s, i) => (
@@ -504,7 +519,7 @@ export function CarouselStudio({
             </div>
           </section>
 
-          <section className="grid gap-4" aria-label="Réglages de la photo">
+          {slide.type !== "image" && (<section className="grid gap-4" aria-label="Réglages de la photo">
             <Slider label="Cadrage (haut ↔ bas)" value={posY / 100} min={0} max={1} step={0.01} disabled={!editable} onChange={(v) => updateSlide({ photo_position: `50% ${Math.round(v * 100)}%` })} />
             <Slider label="Luminosité" value={treatment.brightness} min={0.4} max={1.3} step={0.01} disabled={!editable} onChange={(v) => updateTreatment("brightness", v)} />
             {slide.type !== "cover" && (
@@ -521,9 +536,9 @@ export function CarouselStudio({
                 Réglages par défaut
               </button>
             )}
-          </section>
+          </section>)}
 
-          <section className="grid gap-3" aria-label="Textes de la slide">
+          {slide.type !== "image" && (<section className="grid gap-3" aria-label="Textes de la slide">
             <h3 className="text-sm font-bold text-neutral-900">Textes</h3>
             <p className="-mt-1.5 text-xs text-neutral-500">Entourez un mot d&apos;astérisques pour l&apos;italique orange : *trois personnes.*</p>
             <label className="grid gap-1">
@@ -569,7 +584,7 @@ export function CarouselStudio({
             {warnings.filter((w) => w.slide === selected + 1).map((w) => (
               <p key={w.message} className="text-xs font-semibold text-[#8a5a00]">{w.message}</p>
             ))}
-          </section>
+          </section>)}
         </div>
       </div>
 
