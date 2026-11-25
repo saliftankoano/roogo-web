@@ -35,6 +35,49 @@ type View = "preview" | "return" | "approved";
  * the full description Salif may edit, then "Renvoyer" or "Valider et
  * programmer". A centred modal on a computer, full screen on a phone.
  */
+/** Every slide of a Studio carousel: the current one large, with arrows, a counter and thumbnails of all slides. */
+function CarouselPreview({ title, slides }: { title: string; slides: string[] }) {
+  const [current, setCurrent] = useState(0);
+  const last = slides.length - 1;
+  const go = (n: number) => setCurrent(Math.max(0, Math.min(last, n)));
+  return (
+    <div className="mx-auto grid w-full max-w-[220px] gap-2.5 md:max-w-[300px]" aria-label={`Carrousel : ${title}, ${slides.length} slides`}>
+      <div className="relative">
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={slides[current]} alt={`Slide ${current + 1} sur ${slides.length}`} className="aspect-[4/5] w-full rounded-2xl object-cover" />
+        <span className="absolute right-2 top-2 rounded-full bg-black/60 px-2.5 py-0.5 text-xs font-bold tabular-nums text-white">
+          {current + 1} / {slides.length}
+        </span>
+        {current > 0 && (
+          <button type="button" onClick={() => go(current - 1)} aria-label="Slide précédente" className="absolute left-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-lg font-bold text-[#1F1A16] shadow">
+            ‹
+          </button>
+        )}
+        {current < last && (
+          <button type="button" onClick={() => go(current + 1)} aria-label="Slide suivante" className="absolute right-2 top-1/2 grid size-9 -translate-y-1/2 place-items-center rounded-full bg-white/90 text-lg font-bold text-[#1F1A16] shadow">
+            ›
+          </button>
+        )}
+      </div>
+      <div className="flex justify-center gap-1.5">
+        {slides.map((src, i) => (
+          <button
+            key={src}
+            type="button"
+            onClick={() => setCurrent(i)}
+            aria-label={`Voir la slide ${i + 1}`}
+            aria-current={i === current}
+            className={`w-10 overflow-hidden rounded-lg ring-2 ring-offset-1 ${i === current ? "ring-[#C96A2E]" : "ring-transparent opacity-70"}`}
+          >
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src={src} alt="" className="aspect-[4/5] w-full object-cover" />
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 export function ApprovalPreview({
   queue,
   startIndex = 0,
@@ -280,16 +323,7 @@ export function ApprovalPreview({
 
   const slides = post.artifact?.kind === "carousel" ? post.artifact.slides ?? [] : [];
   const video = slides.length ? (
-    // A Studio carousel: every slide, swiped like on Instagram (2026-10-22).
-    <div
-      className="mx-auto flex w-full max-w-[150px] snap-x snap-mandatory gap-2 overflow-x-auto rounded-2xl [scrollbar-width:none] md:max-w-[300px]"
-      aria-label={`Carrousel : ${post.title}, ${slides.length} slides`}
-    >
-      {slides.map((src, i) => (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img key={src} src={src} alt={`Slide ${i + 1}`} className="aspect-[4/5] w-full shrink-0 snap-center rounded-2xl object-cover" />
-      ))}
-    </div>
+    <CarouselPreview title={post.title} slides={slides} />
   ) : (
     <div className="relative mx-auto aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-2xl bg-[linear-gradient(160deg,#d4a985,#8a5a3a)] md:max-w-[300px]">
       {videoUrl ? (
