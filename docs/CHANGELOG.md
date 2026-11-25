@@ -6,6 +6,10 @@ What shipped, when. One line each, newest first. The _why_ lives in
 
 Unreleased work, including the ROO-20 draft PRs, is tracked in [ROADMAP.md](./ROADMAP.md). Do not infer a release from local validation or preview deployment.
 
+## 2026-11-25
+
+- **Publier: « Changer de vidéo » and « Retirer »** (web, branch `fix/publier-changer-retirer`, no migration): under the preview, « Changer de vidéo » stops the upload, removes the wrong file and reopens the picker; « Retirer » removes it. In « Mes vidéos », each video never sent to Salif has « Retirer » (with a confirmation). The Drive file goes to the bin (30 days), the row is deleted; refused once a post uses the video; only the uploader or the founder. `DELETE /api/admin/studio/final-videos/[id]`.
+
 ## 2026-11-22
 
 - **Visites 3D call tracking** (web, branch `feat/visites-3d-call-tracking`, not merged, migration 111 run by Salif 2026-11-22): « Nouvel appel 3D » in Mon espace logs a call to a business with five taps (who answered, problem question, objection, what interested them, result) and its words; the app plans the day-2 call back and the day-7 WhatsApp message and stops on oui or non; each caller sees « Appels aujourd’hui 12 / 20 », the founder sets the goal on L’équipe; « Notes d’appels » gets a « Visites 3D » filter with the week’s numbers and each business’s history. [How it works](./SYSTEM.md#how-does-visites-3d-call-tracking-work--nouvel-appel-3d--2026-11-22).

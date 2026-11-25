@@ -21,6 +21,7 @@ import {
   querySession,
   renameDriveFile,
   sharedDriveId,
+  trashDriveFile,
 } from "./google-drive";
 import {
   checkFinalVideo,
@@ -116,6 +117,34 @@ async function updateRow(id: string, patch: Partial<FinalVideoRow>): Promise<Fin
 
 export function markFinalVideoFailed(id: string, reason: string): Promise<FinalVideoRow> {
   return updateRow(id, { status: "failed", error: reason.slice(0, 500), upload_session_url: null });
+}
+
+export type RemoveResult = { ok: true } | { ok: false; status: number; error: string };
+
+/**
+ * « Retirer »: a wrong upload never sent to Salif. Refused once a post uses the
+ * video (the post keeps its file). The Drive file goes to the bin (30 days to
+ * recover it), then the row is deleted. A file already gone from Drive does not
+ * block the removal.
+ */
+export async function removeFinalVideo(row: FinalVideoRow): Promise<RemoveResult> {
+  const { count, error } = await supabaseAdmin
+    .from("studio_publications")
+    .select("id", { count: "exact", head: true })
+    .eq("final_video_id", row.id);
+  if (error) return { ok: false, status: 500, error: "Erreur du Studio" };
+  if ((count ?? 0) > 0) return { ok: false, status: 409, error: "Cette vidéo est déjà envoyée à Salif : elle ne peut plus être retirée ici." };
+  if (row.drive_file_id) {
+    try {
+      await trashDriveFile(row.drive_file_id);
+    } catch (e) {
+      const status = (e as { status?: number }).status;
+      if (status !== 404) throw e;
+    }
+  }
+  const { error: deleteError } = await supabaseAdmin.from("studio_final_videos").delete().eq("id", row.id);
+  if (deleteError) return { ok: false, status: 500, error: "Erreur du Studio" };
+  return { ok: true };
 }
 
 // ---------------------------------------------------------------------------

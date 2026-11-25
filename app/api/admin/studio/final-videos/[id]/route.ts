@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 import { cors, corsOptions, errorResponse } from "@/lib/api-helpers";
 import { getStaffOrFounder } from "@/lib/api-auth";
-import { loadFinalVideo, markFinalVideoFailed, toFinalVideoDto } from "@/lib/studio/final-videos-server";
+import { loadFinalVideo, markFinalVideoFailed, removeFinalVideo, toFinalVideoDto } from "@/lib/studio/final-videos-server";
+import { roleOf } from "@/lib/studio/publishing-server";
 import { DriveError, querySession } from "@/lib/studio/google-drive";
 
 export const maxDuration = 30;
@@ -39,6 +40,28 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   } catch (error) {
     if (error instanceof DriveError) return errorResponse(error.message, error.status, req);
     console.error("Studio: final video progress failed", error instanceof Error ? error.message : error);
+    return errorResponse("Erreur du Studio", 500, req);
+  }
+}
+
+// « Retirer » / « Changer de vidéo »: removes an upload that was never sent to
+// Salif. Only the person who uploaded it, or the founder.
+export async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  const staff = await getStaffOrFounder(req);
+  if (!staff) return errorResponse("Forbidden", 403, req);
+  const { id } = await params;
+  const row = await loadFinalVideo(id);
+  if (!row) return cors(NextResponse.json({ removed: true }), req);
+  if (row.uploaded_by !== staff.id && roleOf(staff) !== "founder") {
+    return errorResponse("Seule la personne qui a envoyé la vidéo peut la retirer.", 403, req);
+  }
+  try {
+    const result = await removeFinalVideo(row);
+    if (!result.ok) return errorResponse(result.error, result.status, req);
+    return cors(NextResponse.json({ removed: true }), req);
+  } catch (error) {
+    if (error instanceof DriveError) return errorResponse(error.message, error.status, req);
+    console.error("Studio: final video removal failed", error instanceof Error ? error.message : error);
     return errorResponse("Erreur du Studio", 500, req);
   }
 }
