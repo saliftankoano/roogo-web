@@ -555,8 +555,31 @@ export function StudioApp() {
     if (!files.length) return;
     setError(null);
     const json = files.find((f) => f.name === "carrousel.json") ?? files.find((f) => f.name.endsWith(".json"));
-    if (!json) return setError("Choisissez le dossier qui contient carrousel.json et ses photos.");
+    const images = files.filter((f) => /\.(jpe?g|png|webp)$/i.test(f.name)).sort((a, b) => a.name.localeCompare(b.name, "fr", { numeric: true }));
     let raw: unknown;
+    if (!json && images.length) {
+      // Finished posters (no carrousel.json): one full-bleed slide per image, in name order.
+      const folder = (images[0] as File & { webkitRelativePath?: string }).webkitRelativePath?.split("/")[0] ?? "";
+      const flatFiles = new Map(images.map((f, i) => [`photos/${String(i + 1).padStart(2, "0")}-${f.name}`, f]));
+      if (flatFiles.size < 2 || flatFiles.size > 10) return setError("Un carrousel compte de 2 à 10 images.");
+      activeRef.current = null;
+      setActiveId(null);
+      setDetail(null);
+      carouselPicked.current = true;
+      setCarouselDraft({
+        spec: {
+          file_title: folder || "Carrousel Roogo",
+          sources: [],
+          caption: "",
+          slides: [...flatFiles.keys()].map((photo) => ({ type: "image" as const, photo, title: "" })),
+        },
+        files: flatFiles,
+      });
+      setView("carousel");
+      setSheet(null);
+      return;
+    }
+    if (!json) return setError("Choisissez le dossier qui contient carrousel.json et ses photos, ou les images finies.");
     try {
       raw = JSON.parse(await json.text());
     } catch {

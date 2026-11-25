@@ -7,7 +7,8 @@
 // logo, colours and fonts. Rendered JPEG slides are outputs, rebuilt from it
 // after any change (Salif: "modular, not fixed assets").
 
-export const SLIDE_TYPES = ["cover", "point", "roogo", "cta"] as const;
+export const SLIDE_TYPES = ["cover", "point", "roogo", "cta", "image"] as const
+// "image" is a finished poster shown full-bleed, untouched (no text, shade or filter).;
 export type SlideType = (typeof SLIDE_TYPES)[number];
 
 export const SLIDE_WIDTH = 1080;
@@ -174,7 +175,7 @@ export function parseCarouselSpec(input: unknown): { spec: CarouselSpec | null; 
       whatsapp_line: str(s.whatsapp_line) || undefined,
     };
     if (!slide.photo) problems.push({ slide: n, message: `Slide ${n} : il manque la photo.`, blocking: true });
-    if (!slide.title.trim()) problems.push({ slide: n, message: `Slide ${n} : il manque le titre.`, blocking: true });
+    if (type !== "image" && !slide.title.trim()) problems.push({ slide: n, message: `Slide ${n} : il manque le titre.`, blocking: true });
     if (type === "point" && slide.number === undefined) problems.push({ slide: n, message: `Slide ${n} : il manque le numéro.`, blocking: true });
     if (type === "roogo" && !(slide.steps && slide.steps.length)) problems.push({ slide: n, message: `Slide ${n} : il manque les étapes Roogo.`, blocking: true });
     if (slide.photo_position && !/^[\d.]+% [\d.]+%$/.test(slide.photo_position)) {
@@ -188,14 +189,15 @@ export function parseCarouselSpec(input: unknown): { spec: CarouselSpec | null; 
     return slide;
   });
 
-  if (slides.length && slides[0].type !== "cover") problems.push({ slide: 1, message: "La première slide doit être la couverture.", blocking: false });
-  if (slides.length && slides[slides.length - 1].type !== "cta") problems.push({ slide: slides.length, message: "La dernière slide doit être l'appel à l'action.", blocking: false });
+  const flat = slides.length > 0 && slides.every((x) => x.type === "image");
+  if (!flat && slides.length && slides[0].type !== "cover") problems.push({ slide: 1, message: "La première slide doit être la couverture.", blocking: false });
+  if (!flat && slides.length && slides[slides.length - 1].type !== "cta") problems.push({ slide: slides.length, message: "La dernière slide doit être l'appel à l'action.", blocking: false });
 
   const caption = str(raw.caption).trim();
   if (!caption) problems.push({ slide: null, message: "Il manque la légende.", blocking: true });
   else if (!/roogobf\.com/i.test(caption)) problems.push({ slide: null, message: "La légende doit contenir roogobf.com.", blocking: false });
 
-  const sources = Array.isArray(raw.sources) ? raw.sources.map(str).filter(Boolean) : [];
+  const sources = flat ? ["Visuels finis importés"] : Array.isArray(raw.sources) ? raw.sources.map(str).filter(Boolean) : [];
   if (!sources.length) problems.push({ slide: null, message: "Ajoutez les sources des affirmations (sources).", blocking: false });
 
   const theme = (raw.theme && typeof raw.theme === "object" ? raw.theme : undefined) as CarouselTheme | undefined;
@@ -289,6 +291,9 @@ function slideHtml(s: CarouselSlide, i: number, n: number, brand: typeof DEFAULT
   const foot = `<div class="foot"><span>${escapeHtml(brand.site)}</span><span class="arrow">→</span></div>`;
   const label = s.label ?? "";
 
+  if (s.type === "image") {
+    return `<section class="s flat">${bg}</section>`;
+  }
   if (s.type === "cover") {
     return (
       `<section class="s cover"${treat}>${bg}<div class="in">${top(label, i, n)}` +
@@ -350,7 +355,7 @@ export function carouselSlidePage(spec: CarouselSpec, index: number, opts: Rende
   return (
     `<!doctype html><html lang="fr"><head><meta charset="utf-8">` +
     `<link href="${escapeHtml(fonts, true)}" rel="stylesheet" crossorigin="anonymous">` +
-    `<style>${CAROUSEL_CSS}${themeCss(spec.theme)}</style></head><body>${body}</body></html>`
+    `<style>${CAROUSEL_CSS}${themeCss(spec.theme)}.flat .bg{filter:none}</style></head><body>${body}</body></html>`
   );
 }
 

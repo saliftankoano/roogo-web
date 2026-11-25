@@ -854,6 +854,8 @@ sequenceDiagram
 - **Checks:** `parseCarouselSpec` refuses unknown slide types, missing photos or titles, bad framing, em dashes and emoji on slides, and warns above 30 words per slide or 10 slides. A saved spec may only use the carousel's own photos.
 - **Publishing:** media type `carousel` with the carousel as `artifact_id`; the worker signs the current slides in order and posts them to Facebook and Instagram. The description step reuses the carousel's caption through `finalizeCaption` (no AI call). Rendering new slides sends an approved post back to « à valider ».
 
+- **Finished posters:** « Nouveau > Carrousel » also accepts a folder of 2 to 10 JPEG, PNG or WEBP images with no `carrousel.json`. Each image becomes an `image` slide shown full-bleed, untouched, in name order; the caption is typed in the Studio. Rendering, planning, approval and posting are the same as for any carousel (2026-11-25).
+
 Why: [decision](./DECISIONS.md#social-carousels-in-the-studio-one-source-file-rendered-in-the-browser--2026-10-22).
 
 ## How does music play in a Studio video?
