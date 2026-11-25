@@ -12,10 +12,10 @@ export type SlideType = (typeof SLIDE_TYPES)[number];
 
 export const SLIDE_WIDTH = 1080;
 export const SLIDE_HEIGHT = 1350;
-export const MIN_SLIDES = 3;
+export const MIN_SLIDES = 2;
 /** Instagram publishes 2 to 10 images per carousel from the API. */
 export const MAX_PUBLISHED_SLIDES = 10;
-export const MAX_SLIDES = 20;
+export const MAX_SLIDES = MAX_PUBLISHED_SLIDES;
 export const WORD_TARGET = 30;
 
 export type PhotoTreatment = { saturation?: number; brightness?: number; shade?: number };
@@ -139,7 +139,7 @@ export function parseCarouselSpec(input: unknown): { spec: CarouselSpec | null; 
 
   const rawSlides = Array.isArray(raw.slides) ? raw.slides : [];
   if (rawSlides.length < MIN_SLIDES || rawSlides.length > MAX_SLIDES) {
-    problems.push({ slide: null, message: `Un carrousel compte de ${MIN_SLIDES} à ${MAX_SLIDES} slides (7 à 10 conseillées).`, blocking: true });
+    problems.push({ slide: null, message: `Un carrousel compte de ${MIN_SLIDES} à ${MAX_SLIDES} slides.`, blocking: true });
   } else if (rawSlides.length > MAX_PUBLISHED_SLIDES) {
     problems.push({ slide: null, message: `Instagram publie 10 slides au maximum depuis Roogo.`, blocking: false });
   }
