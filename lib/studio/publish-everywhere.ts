@@ -83,8 +83,14 @@ export function destinationOptions(input: DestinationStatusInput): DestinationOp
 }
 
 /** Every destination that can be ticked is ticked by default (PRD 2.2). */
+/**
+ * Networks ticked when a video is chosen. TikTok is never ticked by default
+ * (Salif, 2026-11-25): until the app is audited, TikTok refuses every Studio
+ * post on @roogo.226 (`unaudited_client_can_only_post_to_private_accounts`),
+ * so the team posts TikToks in the app. It stays available to tick by hand.
+ */
 export function defaultTicks(options: readonly DestinationOption[]): Destination[] {
-  return options.filter((o) => o.available).map((o) => o.id);
+  return options.filter((o) => o.available && o.id !== "tiktok").map((o) => o.id);
 }
 
 /** What the team ticked, minus anything that cannot be published. */

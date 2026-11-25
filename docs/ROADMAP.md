@@ -49,13 +49,13 @@ work continues in the **Feature Checklist** and detailed sections that follow.
 
 - [ ] **Turn on the Studio publishing calendar** — the team plans each visit's posts in the Studio and validated posts go out on Facebook and Instagram on their own. Built on branch `feat/studio-publishing-calendar` (2026-10-12). Done when: Salif approves the layout wireframe, the PR is merged (migrations 085 and 087 already ran on Roogo, [ledger](../supabase/migrations/README.md)), `META_GRAPH_TOKEN` (with the publish permissions), `META_PAGE_ID` and `META_IG_ACCOUNT_ID` are set in Vercel ([setup](./SYSTEM.md#setting-up-the-meta-connection-salif-once)), and one real post on each network is published from the calendar and recorded in the CHANGELOG.
 
-- [ ] **Public TikToks from the Studio** — a validated Studio video ends up public on @roogo.226. Status 2026-11-25: posting is built and live in direct mode, private only (« Moi seulement ») until an audit that was never submitted and that TikTok may refuse for an internal tool. Done when: one Studio video posted « Moi seulement » is switched to « Tout le monde » in TikTok Studio on the web; if TikTok refuses that, TikTok is unticked in the Studio and the team keeps posting in the app. [Decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
-
 ## Next
 
 - [ ] **Roll out the coordinated property-request workflow** — make the reviewed feature available with its backend dependencies in place. Done when: the paired PRs are merged, the matching web/API deployment is verified (Roogo migrations 068/069 are now operator-confirmed executed; another target requires its own history check), and only then the mobile counterpart is released and checked. No new environment variables are required. Staff must supply approved commission terms before opening calls. Record verified release evidence in [CHANGELOG.md](./CHANGELOG.md), then close this item. See the [product decision](./DECISIONS.md#property-requests-capture-explicit-agent-terms-before-listing-follow-up--2026-09-08).
 
 ## Later
+
+- [ ] **Public TikToks from the Studio** — parked 2026-11-25: TikTok refuses every Studio post on @roogo.226 (even « Moi seulement ») until the app is audited, so TikTok is no longer ticked by default and the team posts TikToks in the app. Done when: TikTok audits the app (never submitted; may be refused as an internal tool), then set `TIKTOK_APP_AUDITED=true` and tick TikTok by default again. [Decision](./DECISIONS.md#studio-tiktok-back-to-direct-posting--moi-seulement--until-the-audit-salifs-panel-defaults--2026-11-24--2026-11-25).
 
 No additional ROO-20 follow-up has been accepted. Existing unrelated commitments retain their context in the Feature Checklist below; this entry does not reprioritize them. Abandoned uploads are a [known limitation](./SYSTEM.md#what-survives-property-or-account-deletion), not a scheduled cleanup project.
 
