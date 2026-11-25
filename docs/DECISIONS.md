@@ -5,6 +5,16 @@ out. Newest first. For what shipped and when, see
 [`CHANGELOG.md`](./CHANGELOG.md); for how things work, see
 [`SYSTEM.md`](./SYSTEM.md).
 
+### TikTok panel: no preset choices, for the audit — 2026-11-25
+
+**Decision:** The approval panel starts empty again: no privacy level chosen, comments, duos, collages and « Contenu commercial » off. Salif picks each one on every TikTok post. This reverses the pre-filled defaults of [#125](https://github.com/saliftankoano/roogo-web/pull/125), decided the same morning.
+
+**Why:** Salif decided to submit the app to TikTok's audit. TikTok's posting rules (content-sharing-guidelines, read 2026-11-25) say the privacy status must have "no default value" and that no interaction setting "should be checked by default", with the commercial disclosure off. The demo video must show the real site, so production itself has to follow the rule, before and after the audit.
+
+**Ruled out / alternatives:** keeping the defaults only outside a demo mode (the reviewers see production, and showing them a different screen from the one used would be dishonest); keeping the defaults and submitting anyway (a near-certain refusal on this point alone).
+
+**Status:** Settled while the audit is pursued. The cost is small today: TikTok is unticked by default and goes out [by hand](#tiktok-goes-out-by-hand-through-the-team-whatsapp-group--2026-11-25). Reopens only if Salif drops the audit.
+
 ### TikTok goes out by hand through the team WhatsApp group — 2026-11-25
 
 **Decision:** Until TikTok audits the app, a Studio video reaches TikTok by hand: from « Mes vidéos », « Envoyer sur WhatsApp » opens WhatsApp with a ready message (Drive link, text and hashtags to paste), a person picks the Roogo team group and sends it, a team member posts the video in the TikTok app, then presses « C'est publié » in the Studio and pastes the video's TikTok link, which is required as the proof it is online (Salif, 2026-11-25). Salif also decided to submit the app for TikTok's audit and see (2026-11-25).
@@ -17,7 +27,7 @@ out. Newest first. For what shipped and when, see
 
 ### Studio TikTok: back to direct posting, « Moi seulement » until the audit, Salif's panel defaults — 2026-11-24 / 2026-11-25
 
-**Decision:** Production `TIKTOK_POST_MODE` went from `draft` to `direct` on 2026-11-24 (Salif). Until `TIKTOK_APP_AUDITED=true`, the approval panel offers only « Moi seulement » and the worker sends `SELF_ONLY` even when older saved settings say « Public » ([#124](https://github.com/saliftankoano/roogo-web/pull/124)). The panel starts pre-filled with Salif's defaults: « Moi seulement », comments on (when the account allows), « Contenu commercial · Votre marque » on, duos and collages off ([#125](https://github.com/saliftankoano/roogo-web/pull/125)). The team makes each video public by hand in TikTok Studio on the web.
+**Decision:** Production `TIKTOK_POST_MODE` went from `draft` to `direct` on 2026-11-24 (Salif). Until `TIKTOK_APP_AUDITED=true`, the approval panel offers only « Moi seulement » and the worker sends `SELF_ONLY` even when older saved settings say « Public » ([#124](https://github.com/saliftankoano/roogo-web/pull/124)). (Superseded the same day: [no preset choices](#tiktok-panel-no-preset-choices-for-the-audit--2026-11-25).) The panel started pre-filled with Salif's defaults: « Moi seulement », comments on (when the account allows), « Contenu commercial · Votre marque » on, duos and collages off ([#125](https://github.com/saliftankoano/roogo-web/pull/125)). The team makes each video public by hand in TikTok Studio on the web.
 
 **Why:** Draft mode never worked for this team. Checked 2026-11-24: about 10 Studio videos (3 to 15 Nov) reached `SEND_TO_USER_INBOX`, but an inbox upload is only a notification in the TikTok phone app, not Profile › Drafts nor tiktok.com, so nobody finished them; TikTok then refused one with `spam_risk_too_many_pending_share`; the Studio had published zero public TikToks. Direct posts at least land on @roogo.226 where the web shows them. On 2026-11-25 TikTok refused a direct post set to « Public » (`unaudited_client_can_only_post_to_private_accounts`): an unaudited app's post is refused, not made private, although creator info lists every privacy level. Defaults: every Roogo video promotes Roogo's own services, so « Votre marque » is the honest disclosure, and leaving it off on a sales video risks TikTok limiting it.
 
