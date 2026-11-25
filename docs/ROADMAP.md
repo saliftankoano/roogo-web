@@ -23,6 +23,8 @@ work continues in the **Feature Checklist** and detailed sections that follow.
   - [ ] Moubarak needs a staff account with a level to open Mon espace (open since 2026-10-02).
   - [ ] Test day with Moubarak on his phone: a call logged in under one minute (PRD guardrail).
   - [ ] Later: hand a sequence to another caller, four-week history per caller, lower goal on shoot days.
+- [ ] **Studio carousels** — the team imports a carousel made by the social-carousels skill, swaps any photo or setting per slide, and plans it like a video; Salif validates and the worker posts it. Built 2026-10-22 on `feat/studio-carousels` ([system](./SYSTEM.md#how-does-a-studio-carousel-get-made-and-published), [decision](./DECISIONS.md#social-carousels-in-the-studio-one-source-file-rendered-in-the-browser--2026-10-22)); not merged.
+  - [ ] **Run migration 112** (adds the `carousel` result kind), then import « 7 signes d'une arnaque à la parcelle » for real and publish it once end to end.
 
 - [ ] **Roll out staff access levels** — a person's level decides what they can do in the back office; the founder and directors invite people and the founder reads the journal. Built 2026-10-16 (see [system behavior](./SYSTEM.md#how-do-staff-access-levels-work) and [decision](./DECISIONS.md#staff-access-by-job-title-with-invitations-instead-of-a-shared-code--2026-10-11)); pull request pending merge, not deployed.
   - [x] **Migration 089 executed 2026-10-16** (confirmed by Salif; [ledger](../supabase/migrations/README.md)).

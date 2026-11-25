@@ -828,6 +828,34 @@ The diagram leaves out failures: a render that fails or takes more than 15 minut
 
 Why templates and separate budgets: [decision](./DECISIONS.md#studio-videos-are-built-from-listing-photos-and-templates--2026-10-10).
 
+## How does a Studio carousel get made and published?
+
+A carousel arrives from the social-carousels skill as a folder: `carrousel.json` and its photos. « Nouveau > Carrousel » reads the folder in the browser and shows every slide live before anything is uploaded. « Importer dans le Studio » creates the project and the carousel, sends each photo straight to the bucket with a signed upload URL, then renders the slides.
+
+```mermaid
+sequenceDiagram
+  participant E as Studio (browser)
+  participant S as roogo-web
+  participant B as Storage (content-studio)
+  E->>S: POST /carousels (spec, photo list)
+  S->>B: signed upload URLs (carousels/<id>/photos/)
+  E->>B: upload photos
+  E->>S: PUT /carousels/<id> (spec)
+  S-->>E: version + one upload URL per slide
+  loop each slide
+    E->>E: draw slide (SVG foreignObject, photos and fonts inlined) to JPEG
+    E->>B: upload slides/<version>/NN.jpg
+  end
+  E->>S: POST /carousels/<id>/rendered (version)
+  S->>S: check every slide exists, make version current, remove old versions
+```
+
+- **Modular source:** `studio_artifacts.meta.spec` is the carousel file. The editor changes a slide's photo (any photo of the carousel's folder, or a new upload), framing, brightness, darkening and texts; « Enregistrer les slides » renders a new version. The previews are the same page in a sandboxed iframe, so what staff see is what is exported.
+- **Checks:** `parseCarouselSpec` refuses unknown slide types, missing photos or titles, bad framing, em dashes and emoji on slides, and warns above 30 words per slide or 10 slides. A saved spec may only use the carousel's own photos.
+- **Publishing:** media type `carousel` with the carousel as `artifact_id`; the worker signs the current slides in order and posts them to Facebook and Instagram. The description step reuses the carousel's caption through `finalizeCaption` (no AI call). Rendering new slides sends an approved post back to « à valider ».
+
+Why: [decision](./DECISIONS.md#social-carousels-in-the-studio-one-source-file-rendered-in-the-browser--2026-10-22).
+
 ## How does music play in a Studio video?
 
 The music is one audio track under the whole video, from the first frame to the last. Its level follows a curve written into the page as a HyperFrames volume lane: it fades in, sits at 0.32 while nobody speaks, drops to 0.08 about 0.3 s before the voice and rises again just after it, then fades out over the last 1.6 s. "Fin seule" has no voice, so the song stays up the whole time. The editor preview plays the music with the same curve (`musicEnvelope`, `musicLevelAt`), so what staff hear is what renders.

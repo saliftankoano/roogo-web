@@ -459,6 +459,8 @@ export type MediaCheckInput = {
   networks: Network[];
   hasArtifact: boolean;
   artifactKind?: string | null;
+  /** Slides of a Studio carousel (artifact kind "carousel"). */
+  artifactSlideCount?: number;
   photoCount: number;
   step?: CadenceStep | null;
   /** TikTok account connected with a publishing scope (server check). */
@@ -484,7 +486,13 @@ export function mediaProblems(input: MediaCheckInput): CaptionProblem[] {
     const count = (input.hasArtifact && input.artifactKind === "image" ? 1 : 0) + input.photoCount;
     if (count !== 1) problems.push({ code: "one-image", message: "Choisissez une seule image." });
   } else if (input.mediaType === "carousel") {
-    if (input.photoCount < 2 || input.photoCount > 10) problems.push({ code: "carousel-size", message: "Un carrousel compte entre 2 et 10 photos." });
+    const studioCarousel = input.hasArtifact && input.artifactKind === "carousel";
+    if (studioCarousel && input.photoCount > 0) {
+      problems.push({ code: "carousel-mix", message: "Un carrousel du Studio se publie seul, sans photos de l'annonce." });
+    }
+    const count = studioCarousel ? input.artifactSlideCount ?? 0 : input.photoCount;
+    if (studioCarousel && count === 0) problems.push({ code: "carousel-render", message: "Enregistrez d'abord les slides du carrousel." });
+    else if (count < 2 || count > 10) problems.push({ code: "carousel-size", message: "Un carrousel compte entre 2 et 10 photos." });
   }
   return problems;
 }

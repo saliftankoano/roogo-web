@@ -19,10 +19,10 @@ export type ConversationItem = {
   /** Who started the project. */
   author: string | null;
   isMine: boolean;
-  /** "video" arrives with the template render. */
-  kind: "chat" | "visual" | "video";
+  /** "video" arrives with the template render; "carousel" with a social-carousels import. */
+  kind: "chat" | "visual" | "video" | "carousel";
   /** Every filter the project matches (a property project can hold visuals too). */
-  contains: Array<"chat" | "visual" | "video">;
+  contains: Array<"chat" | "visual" | "video" | "carousel">;
   /** The latest result, for the history line ("Script v3", "Voix off (Sandrine) prête"). */
   summary: string | null;
 };
@@ -36,7 +36,7 @@ export type ChatMessage = {
 
 export type Artifact = {
   id: string;
-  kind: "script" | "voiceover" | "image" | "captions" | "video";
+  kind: "script" | "voiceover" | "image" | "captions" | "video" | "carousel";
   title: string;
   text: string;
   voiceKey: string | null;

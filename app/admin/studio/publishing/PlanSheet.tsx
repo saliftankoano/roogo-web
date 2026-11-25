@@ -426,7 +426,7 @@ export function PlanSheet({ mode, artifactId, publication, slots, daySlots, star
                 ? publication?.status === "valide"
                   ? "La nouvelle date repasse par la validation de Salif."
                   : "Salif voit la nouvelle date avant de valider."
-                : "Salif valide, puis la vidéo part seule à cette date."}
+                : `Salif valide, puis ${publication?.mediaType === "carousel" ? "le carrousel" : "la vidéo"} part seul${publication?.mediaType === "carousel" ? "" : "e"} à cette date.`}
             </p>
           </div>
           <button
@@ -445,7 +445,7 @@ export function PlanSheet({ mode, artifactId, publication, slots, daySlots, star
               <div className="flex gap-2.5 rounded-2xl bg-[#FCEFD4] px-3.5 py-3 text-[13px] text-[#6E4300]">
                 <WarningCircleIcon size={18} weight="bold" className="mt-0.5 shrink-0" />
                 <span className="min-w-0">
-                  <span className="block font-bold">{publication?.returnedByName ?? "Salif"} a renvoyé la vidéo</span>
+                  <span className="block font-bold">{publication?.returnedByName ?? "Salif"} a renvoyé {publication?.mediaType === "carousel" ? "le carrousel" : "la vidéo"}</span>
                   <span className="block">« {publication?.reviewComment} »</span>
                 </span>
               </div>

@@ -141,6 +141,12 @@ export type ArtifactInfo = {
   property_id: string | null;
 };
 
+/** The rendered JPEG slides of a Studio carousel, in order (meta.slides). */
+export function carouselSlidePaths(artifact: Pick<ArtifactInfo, "meta">): string[] {
+  const slides = (artifact.meta as { slides?: unknown }).slides;
+  return Array.isArray(slides) ? slides.filter((p): p is string => typeof p === "string" && p.length > 0) : [];
+}
+
 export async function loadArtifactInfo(id: string): Promise<ArtifactInfo | null> {
   const { data } = await supabaseAdmin
     .from("studio_artifacts")
@@ -203,13 +209,18 @@ export async function approvalProblems(row: PublicationRow): Promise<CaptionProb
       networks: row.networks,
       hasArtifact: Boolean(artifact?.output_path),
       artifactKind: artifact?.kind ?? null,
+      artifactSlideCount: artifact?.kind === "carousel" ? carouselSlidePaths(artifact).length : 0,
       photoCount: row.photo_urls.length,
       step: row.cadence_step,
       tiktokEnabled: row.networks.includes("tiktok") ? (await tiktokPublishStatus()).enabled : false,
     }),
   ];
   if (row.networks.includes("instagram") && (row.media_type === "image" || row.media_type === "carousel")) {
-    const urls = [...row.photo_urls, ...(artifact?.kind === "image" && artifact.output_path ? [artifact.output_path] : [])];
+    const urls = [
+      ...row.photo_urls,
+      ...(artifact?.kind === "image" && artifact.output_path ? [artifact.output_path] : []),
+      ...(artifact?.kind === "carousel" ? carouselSlidePaths(artifact) : []),
+    ];
     if (urls.some((u) => !isJpegUrl(u))) {
       problems.push({ code: "ig-jpeg", message: "Instagram n'accepte que des images JPEG." });
     }
@@ -283,6 +294,18 @@ async function mediaFor(row: PublicationRow): Promise<{ media: PublishMedia | nu
     const { data } = await storage.createSignedUrl(artifact.output_path, PUBLISH_SIGNED_URL_SECONDS);
     if (!data?.signedUrl) return { media: null, error: "Le lien de la vidéo n'a pas pu être créé." };
     return { media: { kind: "video", url: data.signedUrl }, error: null };
+  }
+  if (row.media_type === "carousel" && row.artifact_id) {
+    const artifact = await loadArtifactInfo(row.artifact_id);
+    if (artifact?.kind === "carousel") {
+      const paths = carouselSlidePaths(artifact);
+      if (paths.length < 2) return { media: null, error: "Les slides du carrousel ne sont pas enregistrées." };
+      const { data } = await storage.createSignedUrls(paths, PUBLISH_SIGNED_URL_SECONDS);
+      const byPath = new Map((data ?? []).map((s) => [s.path, s.signedUrl]));
+      const signed = paths.map((p) => byPath.get(p) ?? null);
+      if (signed.some((u) => !u)) return { media: null, error: "Les liens des slides n'ont pas pu être créés." };
+      return { media: { kind: "images", urls: signed as string[] }, error: null };
+    }
   }
   const urls = [...row.photo_urls];
   if (row.artifact_id) {
@@ -659,7 +682,7 @@ export type PublicationDto = {
   propertyId: string | null;
   property: { title: string; place: string; image: string | null } | null;
   artifactId: string | null;
-  artifact: { kind: string; title: string; url: string | null } | null;
+  artifact: { kind: string; title: string; url: string | null; slides?: string[] } | null;
   title: string;
   cadenceStep: CadenceStep | null;
   visitDate: string | null;
@@ -711,16 +734,24 @@ function publicResults(results: PublicationResults): PublicationResults {
 export async function toDtos(rows: PublicationRow[]): Promise<PublicationDto[]> {
   const properties = await propertySummaries(rows.map((r) => r.property_id ?? ""));
   const artifactIds = [...new Set(rows.map((r) => r.artifact_id).filter((id): id is string => Boolean(id)))];
-  const artifacts = new Map<string, { kind: string; title: string; url: string | null }>();
+  const artifacts = new Map<string, { kind: string; title: string; url: string | null; slides?: string[] }>();
   if (artifactIds.length) {
-    const { data } = await supabaseAdmin.from("studio_artifacts").select("id, kind, title, output_path").in("id", artifactIds);
-    const paths = (data ?? []).map((a) => a.output_path).filter((p): p is string => Boolean(p));
+    const { data } = await supabaseAdmin.from("studio_artifacts").select("id, kind, title, output_path, meta").in("id", artifactIds);
+    // A carousel shows all its slides in the calendar and the approval preview.
+    const slidesOf = (a: { kind: string; meta: unknown }) => (a.kind === "carousel" ? carouselSlidePaths({ meta: (a.meta ?? {}) as Record<string, unknown> }) : []);
+    const paths = (data ?? []).flatMap((a) => [a.output_path, ...slidesOf(a)]).filter((p): p is string => Boolean(p));
     const { data: signed } = paths.length
-      ? await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrls(paths, 3600)
+      ? await supabaseAdmin.storage.from(STUDIO_BUCKET).createSignedUrls([...new Set(paths)], 3600)
       : { data: [] as Array<{ path: string | null; signedUrl: string }> };
     const byPath = new Map((signed ?? []).map((s) => [s.path, s.signedUrl]));
     for (const a of data ?? []) {
-      artifacts.set(a.id, { kind: a.kind, title: a.title, url: a.output_path ? byPath.get(a.output_path) ?? null : null });
+      const slides = slidesOf(a).map((p) => byPath.get(p)).filter((u): u is string => Boolean(u));
+      artifacts.set(a.id, {
+        kind: a.kind,
+        title: a.title,
+        url: a.output_path ? byPath.get(a.output_path) ?? null : null,
+        ...(a.kind === "carousel" ? { slides } : {}),
+      });
     }
   }
   const videoIds = [...new Set(rows.map((r) => r.final_video_id).filter((id): id is string => Boolean(id)))];
@@ -947,7 +978,8 @@ export async function parsePostInput(
   }
   if (artifactId && (values.artifact_id !== undefined || values.property_id !== undefined)) {
     const artifact = await loadArtifactInfo(artifactId);
-    if (!artifact || !["video", "image"].includes(artifact.kind)) return { values, error: "Choisissez une vidéo ou un visuel du Studio." };
+    if (!artifact || !["video", "image", "carousel"].includes(artifact.kind)) return { values, error: "Choisissez une vidéo, un visuel ou un carrousel du Studio." };
+    if (artifact.kind === "carousel" && photos.length) return { values, error: "Un carrousel du Studio se publie seul, sans photos de l'annonce." };
     if (propertyId && artifact.property_id && artifact.property_id !== propertyId) {
       return { values, error: "Ce média appartient à un autre bien." };
     }

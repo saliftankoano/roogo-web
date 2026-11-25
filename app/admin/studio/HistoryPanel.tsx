@@ -8,6 +8,7 @@ import {
   MagnifyingGlassIcon,
   PlusIcon,
   SidebarSimpleIcon,
+  CardsThreeIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { avatarTone, initials } from "./studio-ui";
@@ -21,12 +22,14 @@ const FILTERS: { key: Filter; label: string }[] = [
   { key: "chat", label: "Chats" },
   { key: "visual", label: "Visuels" },
   { key: "video", label: "Vidéos" },
+  { key: "carousel", label: "Carrousels" },
 ];
 
 const KIND_BADGE: Record<Kind, { label: string; className: string }> = {
   chat: { label: "Chat", className: "bg-primary/12 text-[#b45a22]" },
   visual: { label: "Visuel", className: "bg-[rgba(63,166,217,0.15)] text-[#1f6f97]" },
   video: { label: "Vidéo", className: "bg-[rgba(91,58,122,0.12)] text-[#5b3a7a]" },
+  carousel: { label: "Carrousel", className: "bg-[rgba(46,125,90,0.13)] text-[#256b4c]" },
 };
 
 function dayLabel(iso: string) {
@@ -62,6 +65,7 @@ export function HistoryPanel({
   onSelect,
   onNewChat,
   onNewVisual,
+  onNewCarousel,
   collapsed = false,
   onToggle,
 }: {
@@ -70,6 +74,8 @@ export function HistoryPanel({
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onNewVisual: () => void;
+  /** Imports a carousel made by the social-carousels skill (its folder). */
+  onNewCarousel?: () => void;
   /** Folded to a slim rail: recent projects as initials. */
   collapsed?: boolean;
   onToggle?: () => void;
@@ -175,6 +181,7 @@ export function HistoryPanel({
               {[
                 { label: "Conversation", hint: "Script et voix d'un bien ou d'une demande", icon: ChatsCircleIcon, run: onNewChat },
                 { label: "Visuel", hint: "Affiche, voeux, annonce", icon: ImageSquareIcon, run: onNewVisual },
+                ...(onNewCarousel ? [{ label: "Carrousel", hint: "Importer le dossier du skill", icon: CardsThreeIcon, run: onNewCarousel }] : []),
               ].map((option) => (
                 <button
                   key={option.label}
@@ -234,6 +241,8 @@ export function HistoryPanel({
             ? "Rien ne correspond à cette recherche."
             : filter === "video"
               ? "Les vidéos créées depuis l'éditeur apparaîtront ici."
+              : filter === "carousel"
+                ? "Aucun carrousel pour l'instant. Importez-en un avec Nouveau."
               : filter === "visual"
                 ? "Aucun visuel pour l'instant. Créez-en un avec Nouveau."
                 : filter === "chat"
