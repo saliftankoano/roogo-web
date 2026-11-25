@@ -2,11 +2,12 @@
 
 import { createPortal } from "react-dom";
 
-import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import gsap from "gsap";
 import { AnimatePresence, motion } from "framer-motion";
 import {
   ArrowLeftIcon,
+  CardsThreeIcon,
   FilmSlateIcon,
   ImageSquareIcon,
   TranslateIcon,
@@ -21,7 +22,9 @@ import { DEFAULT_FCFA_PER_USD, formatMoney, type StudioCurrency } from "@/lib/st
 import { parseSseBuffer } from "@/lib/studio/sse";
 import { orderArtifacts } from "./ArtifactsPanel";
 import { ProjectView, ProjectSkeleton } from "./ProjectView";
+import { CarouselStudio, type CarouselDraft } from "./CarouselStudio";
 import { CloneVoice } from "./CloneVoice";
+import { parseCarouselSpec, blockingProblems } from "@/lib/studio/carousel";
 import { GlossaryPanel } from "./GlossaryPanel";
 import { HistoryPanel } from "./HistoryPanel";
 import { ProjectPanel, type CenterView } from "./ProjectPanel";
@@ -57,7 +60,13 @@ const VIEW_TITLE: Record<Exclude<CenterView, "chat">, string> = {
   voices: "Gérer les voix",
   voiceover: "Voix off",
   clone: "Cloner une voix",
+  carousel: "Carrousel",
 };
+
+/** Which view opens a project from the history. */
+function viewFor(kind: ConversationItem["kind"] | undefined): CenterView {
+  return kind === "visual" ? "visuals" : kind === "carousel" ? "carousel" : "chat";
+}
 
 function readStored(key: string, fallback: string): string {
   try {
@@ -157,6 +166,10 @@ export function StudioApp() {
   const [glossaryVersion, setGlossaryVersion] = useState(0);
   const [budget, setBudget] = useState<Budget | null>(null);
   const [creatingVisual, setCreatingVisual] = useState(false);
+  // A carousel folder picked from disk, previewed before it is imported.
+  const [carouselDraft, setCarouselDraft] = useState<CarouselDraft | null>(null);
+  const carouselInput = useRef<HTMLInputElement | null>(null);
+  const carouselPicked = useRef(false);
   const [switching, setSwitching] = useState(false);
   // Overlays render on <body>: the Studio wrapper is translated, and a transform
   // turns "fixed" into "relative to the wrapper", so they opened wherever the chat was scrolled.
@@ -251,6 +264,7 @@ export function StudioApp() {
     async (id: string, nextView: CenterView = "chat") => {
       activeRef.current = id;
       setActiveId(id);
+      setCarouselDraft(null);
       setError(null);
       setStreamingText("");
       setView(nextView);
@@ -278,7 +292,8 @@ export function StudioApp() {
         return;
       }
       const first = list.find((item) => item.isMine) ?? list[0];
-      if (first) await open(first.id, first.kind === "visual" ? "visuals" : "chat");
+      // A carousel folder picked while the Studio was loading stays on screen.
+      if (first && !carouselPicked.current) await open(first.id, viewFor(first.kind));
       setBooted(true);
     })();
   }, [loadVoices, loadBudget, loadConversations, open]);
@@ -304,6 +319,7 @@ export function StudioApp() {
   );
 
   function newConversation() {
+    setCarouselDraft(null);
     activeRef.current = null;
     setActiveId(null);
     setDetail(null);
@@ -532,6 +548,41 @@ export function StudioApp() {
     await open(id, "visuals");
   }
 
+  // "Nouveau > Carrousel": the folder made by the social-carousels skill
+  // (carrousel.json and its photos). Previewed first; imported on "Importer".
+  async function pickCarouselFolder(list: FileList | null) {
+    const files = [...(list ?? [])];
+    if (!files.length) return;
+    setError(null);
+    const json = files.find((f) => f.name === "carrousel.json") ?? files.find((f) => f.name.endsWith(".json"));
+    if (!json) return setError("Choisissez le dossier qui contient carrousel.json et ses photos.");
+    let raw: unknown;
+    try {
+      raw = JSON.parse(await json.text());
+    } catch {
+      return setError("Le fichier carrousel.json est illisible.");
+    }
+    const { spec, problems } = parseCarouselSpec(raw);
+    const blocking = blockingProblems(problems);
+    if (!spec || blocking.length) return setError(blocking[0]?.message ?? "Carrousel invalide.");
+    // A slide's photo ("photos/01.jpg") is matched by its path in the folder, else by its name.
+    const rel = (f: File) => (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name;
+    const byRef = new Map<string, File>();
+    for (const ref of new Set(spec.slides.map((s) => s.photo))) {
+      if (/^https:\/\//.test(ref)) continue;
+      const hit = files.find((f) => rel(f).endsWith(`/${ref}`) || rel(f) === ref) ?? files.find((f) => f.name === ref.split("/").pop());
+      if (!hit) return setError(`Photo manquante dans le dossier : ${ref}`);
+      byRef.set(ref, hit);
+    }
+    activeRef.current = null;
+    setActiveId(null);
+    setDetail(null);
+    carouselPicked.current = true;
+    setCarouselDraft({ spec, files: byRef });
+    setView("carousel");
+    setSheet(null);
+  }
+
   // "Réutiliser": a new project on the same property, starting from a script.
   async function rework(artifact: Artifact) {
     const id = await createConversation(detail?.property?.id);
@@ -617,6 +668,19 @@ export function StudioApp() {
   const canWrite = detail ? detail.conversation.isMine : true;
   const activeItem = conversations.find((c) => c.id === activeId) ?? null;
 
+  // The carousel shown in the "carousel" view: a folder being previewed, else the project's newest carousel.
+  const carouselArtifactId =
+    [...(detail?.artifacts ?? [])].filter((a) => a.kind === "carousel").sort((a, b) => b.createdAt.localeCompare(a.createdAt))[0]?.id ?? null;
+  const carouselSource = useMemo(
+    () =>
+      carouselDraft && !activeId
+        ? ({ kind: "draft", draft: carouselDraft } as const)
+        : carouselArtifactId
+          ? ({ kind: "saved", artifactId: carouselArtifactId } as const)
+          : null,
+    [carouselDraft, activeId, carouselArtifactId],
+  );
+
   const cardProps = {
     voiceKey: voice,
     voiceLabel,
@@ -642,10 +706,11 @@ export function StudioApp() {
       activeId={activeId}
       onSelect={(id: string) => {
         const item = conversations.find((c) => c.id === id);
-        void open(id, item?.kind === "visual" ? "visuals" : "chat");
+        void open(id, viewFor(item?.kind));
       }}
       onNewChat={newConversation}
       onNewVisual={() => void newVisualProject()}
+      onNewCarousel={canWrite ? () => carouselInput.current?.click() : undefined}
     />
   );
 
@@ -655,10 +720,11 @@ export function StudioApp() {
       activeId={activeId}
       onSelect={(id: string) => {
         const item = conversations.find((c) => c.id === id);
-        void open(id, item?.kind === "visual" ? "visuals" : "chat");
+        void open(id, viewFor(item?.kind));
       }}
       onNewChat={newConversation}
       onNewVisual={() => void newVisualProject()}
+      onNewCarousel={canWrite ? () => carouselInput.current?.click() : undefined}
       collapsed={historyCollapsed}
       onToggle={toggleHistory}
     />
@@ -717,13 +783,18 @@ export function StudioApp() {
         <div className="flex items-center gap-2 border-b border-[rgba(74,52,36,0.10)] px-3 py-2.5">
           <nav aria-label="Outils du projet" className="-mx-1 flex min-w-0 flex-1 gap-1 overflow-x-auto px-1 [scrollbar-width:none]">
             {(
-              [
-                ["chat", "Projet", ArrowLeftIcon],
-                ["voiceover", "Voix off", WaveformIcon],
-                ["visuals", "Visuels", ImageSquareIcon],
-                ["editor", "Éditeur vidéo", FilmSlateIcon],
-                ["glossary", "Prononciation", TranslateIcon],
-              ] as const
+              carouselSource
+                ? ([
+                    ...(activeId ? ([["chat", "Projet", ArrowLeftIcon]] as const) : []),
+                    ["carousel", "Carrousel", CardsThreeIcon],
+                  ] as const)
+                : ([
+                    ["chat", "Projet", ArrowLeftIcon],
+                    ["voiceover", "Voix off", WaveformIcon],
+                    ["visuals", "Visuels", ImageSquareIcon],
+                    ["editor", "Éditeur vidéo", FilmSlateIcon],
+                    ["glossary", "Prononciation", TranslateIcon],
+                  ] as const)
             ).map(([key, label, Icon]) => (
               <button
                 key={key}
@@ -754,6 +825,24 @@ export function StudioApp() {
             )}
           </nav>
         </div>
+        {view === "carousel" && carouselSource && (
+          <CarouselStudio
+            source={carouselSource}
+            canWrite={carouselSource.kind === "draft" || canWrite}
+            madeBy={activeItem?.author ?? null}
+            onImported={(conversationId) => {
+              void (async () => {
+                await loadConversations();
+                setCarouselDraft(null);
+                await open(conversationId, "carousel");
+              })();
+            }}
+            onChanged={() => void loadConversations()}
+          />
+        )}
+        {view === "carousel" && !carouselSource && (
+          <p className="p-5 text-sm text-neutral-500">Ce projet n&apos;a pas de carrousel.</p>
+        )}
         {view === "editor" && (
           <StudioEditor
             conversationId={detail?.conversation.id ?? null}
@@ -827,6 +916,21 @@ export function StudioApp() {
   return (
     // Break out of the admin container so the Studio uses the whole width.
     <div className="relative left-1/2 w-[calc(100vw-1rem)] max-w-[1840px] -translate-x-1/2 md:w-[calc(100vw-3rem)]">
+      {/* "Nouveau > Carrousel": pick the skill's folder (carrousel.json + photos/). */}
+      <input
+        ref={carouselInput}
+        type="file"
+        multiple
+        className="hidden"
+        // @ts-expect-error webkitdirectory is supported by every browser the team uses, not typed by React.
+        webkitdirectory=""
+        onChange={(e) => {
+          const list = e.target.files;
+          void pickCarouselFolder(list).finally(() => {
+            e.target.value = "";
+          });
+        }}
+      />
       {/* Studio header (design canvas 2026-10-21): title and plain tabs, the open project on the right. */}
       <StudioHeader
         className="mb-3"

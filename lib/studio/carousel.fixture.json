@@ -1,0 +1,35 @@
+{
+  "file_title": "Roogo - 7 signes d'une arnaque à la parcelle",
+  "topic": "Arnaques foncières",
+  "audience": "Acheteurs de parcelles à Ouagadougou et dans la diaspora",
+  "sources": [
+    "https://www.wakatsera.com/burkina-acheter-une-parcelle-aujourdhui-cest-illegal-dg-de-lonc-ac/",
+    "https://burkina24.com/?p=147562"
+  ],
+  "slides": [
+    {"type": "cover", "label": "Foncier · Ouagadougou", "title": "La même parcelle, vendue à *trois personnes.*",
+     "subtitle": "7 signes à repérer avant de verser un franc.", "photo": "photos/01.jpg", "photo_source": "real"},
+    {"type": "point", "label": "Signe d'arnaque", "number": 1, "title": "Les papiers ne sont pas à son nom.",
+     "action": "Exigez le PUH, l'attestation d'attribution ou le titre foncier, au nom du vendeur.", "photo": "photos/02.jpg", "photo_source": "generated"},
+    {"type": "point", "label": "Signe d'arnaque", "number": 2, "title": "Un papier tout neuf pour un *vieux* lotissement.",
+     "action": "Comparez la date du papier avec celle du lotissement, à la mairie.", "photo": "photos/03.jpg", "photo_source": "generated"},
+    {"type": "point", "label": "Signe d'arnaque", "number": 3, "title": "« Il faut payer aujourd'hui, sinon un autre prend. »",
+     "action_label": "À retenir", "action": "Une vraie parcelle attend le temps d'une vérification. La pression, c'est l'outil de l'arnaqueur.",
+     "photo": "photos/04.jpg", "photo_position": "50% 40%", "photo_source": "generated"},
+    {"type": "point", "label": "Signe d'arnaque", "number": 4, "title": "Personne n'est passé à la mairie.",
+     "action": "Vérifiez à la mairie et au guichet unique du foncier que la parcelle n'est pas déjà attribuée.", "photo": "photos/05.jpg", "photo_source": "generated"},
+    {"type": "point", "label": "Signe d'arnaque", "number": 5, "title": "Des bornes que personne n'a vérifiées.",
+     "action": "Faites passer un géomètre agréé avant de payer.", "photo": "photos/06.jpg", "photo_position": "50% 70%", "photo_source": "generated"},
+    {"type": "point", "label": "Signe d'arnaque", "number": 6, "title": "Un gros acompte, *sans rien d'écrit.*",
+     "action": "Pas un franc sans promesse de vente écrite. Le notaire sécurise la transaction.", "photo": "photos/07.jpg", "photo_source": "generated"},
+    {"type": "point", "label": "Signe d'arnaque", "number": 7, "title": "Un lotissement que la mairie *ne connaît pas.*",
+     "action": "Demandez à la mairie si le lotissement est approuvé avant de choisir votre parcelle.", "photo": "photos/08.jpg", "photo_source": "generated"},
+    {"type": "roogo", "label": "Sur Roogo", "title": "Les papiers, *d'abord.*",
+     "steps": ["Papiers contrôlés avant publication", "Mandat signé par le propriétaire", "Vente conclue chez le notaire"],
+     "photo": "photos/09.jpg", "photo_source": "generated"},
+    {"type": "cta", "label": "Avant d'acheter", "title": "Enregistrez ce post. *Il vous servira.*",
+     "actions": [{"icon": "save", "text": "Enregistrer"}, {"icon": "share", "text": "Envoyer à qui cherche une parcelle"}],
+     "whatsapp_line": "Une parcelle à vérifier ? Écrivez-nous sur WhatsApp", "photo": "photos/10.jpg", "photo_position": "50% 60%", "photo_source": "generated"}
+  ],
+  "caption": "La même parcelle, vendue à trois personnes. Ça arrive encore à Ouaga.\n\nAvant de verser un franc, vérifiez ces 7 signes. Enregistrez ce post et envoyez-le à celui qui cherche une parcelle.\n\nSur Roogo, les papiers d'un bien sont contrôlés avant sa mise en ligne, et la vente se conclut chez le notaire.\n\nUne parcelle à vérifier ? Écrivez-nous sur WhatsApp : (+226) 67 00 61 16\nToutes nos annonces sur roogobf.com\n\n#Roogo #Ouagadougou #Parcelle #ImmobilierBurkina #Foncier"
+}

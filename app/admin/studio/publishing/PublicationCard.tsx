@@ -64,11 +64,21 @@ function writeSeen(id: string, value: string) {
 const lower = (text: string) => text.replace(/^./, (c) => c.toLowerCase());
 
 /**
- * The video's publication in its Studio project (design steps 1, 6, 9b, 10):
+ * The video's (or carousel's) publication in its Studio project (design steps 1, 6, 9b, 10):
  * the status pill, the four-step stepper and the one action that fits the
  * stage and the viewer's role.
  */
-export function PublicationCard({ artifactId, madeBy }: { artifactId: string; madeBy: string | null }) {
+export function PublicationCard({
+  artifactId,
+  madeBy,
+  noun = "video",
+}: {
+  artifactId: string;
+  madeBy: string | null;
+  /** What is published: a Studio video, or a social carousel (2026-10-22). */
+  noun?: "video" | "carousel";
+}) {
+  const the = noun === "carousel" ? "le carrousel" : "la vidéo";
   const [data, setData] = useState<Data | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [sheet, setSheet] = useState<null | { mode: "plan" | "reschedule"; phase?: "when" | "describe" }>(null);
@@ -128,17 +138,19 @@ export function PublicationCard({ artifactId, madeBy }: { artifactId: string; ma
     const seen = readSeen(post.id);
     if (role !== "founder" && seen === "propose") {
       if (stage === "programme") say(`${post.approvedByName ?? "Salif"} a validé. Part ${lower(slotLabel(post.scheduledAt))}.`);
-      if (stage === "renvoye") say(`${post.returnedByName ?? "Salif"} a renvoyé la vidéo. Voyez son commentaire.`, "warn");
+      if (stage === "renvoye") say(`${post.returnedByName ?? "Salif"} a renvoyé ${the}. Voyez son commentaire.`, "warn");
     }
     writeSeen(post.id, stage);
-  }, [data, stage, post, role, say]);
+  }, [data, stage, post, role, say, the]);
 
   const tone = STAGE_TONE[stage];
   const at = stageStep(stage);
   const when = post ? slotLabel(post.scheduledAt) : null;
   const nets = post?.networks ?? [];
   const steps = [
-    { title: "Vidéo prête", detail: madeBy ? `Rendue et vérifiée par ${madeBy}` : "Rendue dans le Studio" },
+    noun === "carousel"
+      ? { title: "Carrousel prêt", detail: madeBy ? `Slides enregistrées par ${madeBy}` : "Slides enregistrées dans le Studio" }
+      : { title: "Vidéo prête", detail: madeBy ? `Rendue et vérifiée par ${madeBy}` : "Rendue dans le Studio" },
     {
       title: "Proposée à Salif",
       detail:
@@ -187,7 +199,7 @@ export function PublicationCard({ artifactId, madeBy }: { artifactId: string; ma
     action = (
       <div ref={noteRef} className="grid gap-3">
         <div className="rounded-2xl bg-[#FCEFD4] px-3.5 py-3 text-[13px] text-[#6E4300]">
-          <p className="font-bold">{post?.returnedByName ?? "Salif"} a renvoyé la vidéo</p>
+          <p className="font-bold">{post?.returnedByName ?? "Salif"} a renvoyé {the}</p>
           <p>« {post?.reviewComment} »</p>
           {post && post.reviewTags.length > 0 && (
             <p className="mt-1.5 flex flex-wrap gap-1.5">

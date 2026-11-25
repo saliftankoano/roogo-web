@@ -18,7 +18,7 @@ import type { StudioCurrency } from "@/lib/studio/currency";
 import type { VoiceInfo } from "./VoicePicker";
 import type { Budget, ConversationDetail } from "./studio-types";
 
-export type CenterView = "chat" | "editor" | "visuals" | "glossary" | "voices" | "voiceover" | "clone";
+export type CenterView = "chat" | "editor" | "visuals" | "glossary" | "voices" | "voiceover" | "clone" | "carousel";
 
 /**
  * The open project: what it holds and what you can do with it. A summary and

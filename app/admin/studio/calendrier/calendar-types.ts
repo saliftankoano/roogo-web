@@ -14,7 +14,7 @@ export type Post = {
   propertyId: string | null;
   property: { title: string; place: string; image: string | null } | null;
   artifactId: string | null;
-  artifact: { kind: string; title: string; url: string | null } | null;
+  artifact: { kind: string; title: string; url: string | null; slides?: string[] } | null;
   title: string;
   cadenceStep: CadenceStep | null;
   visitDate: string | null;

@@ -169,6 +169,17 @@ A wrong link or a wrong video is corrected by the founder with « Annuler », wh
 **Ruled out:** Several fields sharing one line as in the paper form (Salif asked for atomic fields). Adding structured fields (ID number, issue date, issue place, profession, BP, lot, parcelle, section, secteur, title deed number and date) in the same change: proposed as a follow-up migration instead. Ticking NON when an amenity is missing. Translating the template for daily stays.
 
 **Status:** Template layout merged in PR #86 on 2026-10-22. Drawn signatures on branch `feat/signature-contrat-bail`, not merged, migration 103 run by Salif on 2026-10-22. Not a legal review: wording is Salif's template, typos aside.
+### Social carousels in the Studio: one source file, rendered in the browser — 2026-10-22
+
+**Decision:** Educational social carousels (the social-carousels skill, roogo-skills) become a Studio result kind, `carousel`. The source is the skill's `carrousel.json`, kept in `studio_artifacts.meta.spec`: every slide's text, photo, framing, brightness and darkening, plus logo, colours and fonts. Photos live one by one in `content-studio` under `carousels/<id>/photos/` and can be swapped per slide; the JPEG slides are outputs, rebuilt in the browser from the source on "Enregistrer" and stored as a new version folder. A carousel is planned, sent to Salif and published exactly like a Studio video (same card, plan sheet, approval preview and worker). Salif, 2026-10-21: "ensure the images used for background and things of that nature remain modular, not fixed assets they can't change"; « let's go » on the integration the same day.
+
+**Why:** The skill and the Studio must give the same slides from the same file, and nothing visual may be baked in. Rendering in the browser (SVG foreignObject on a canvas, photos and fonts inlined) uses the same engine as the skill's headless Chrome: the four slides compared differ by about 1/255 on average (JPEG compression), no extra dependency, nothing heavy on Vercel. Instagram takes JPEG only, so slides are JPEG.
+
+**Ruled out:** Server-side rendering (no Chromium on Vercel functions). Storing only the flattened slides (not modular). A secret-token upload route for agents (the team imports the skill's folder with « Nouveau > Carrousel », under normal staff auth). Letting a carousel fill a planned « Visite commentée » slot (that slot waits for a video).
+
+**Design source:** the slide CSS is copied verbatim from the skill (`CAROUSEL_CSS` in `lib/studio/carousel.ts`); change it in the skill first, then paste it here. The HTML builder is a port of `build_carrousel.py`; on 2026-10-22 its output was identical for all 10 slides of the approved carousel.
+
+**Status:** Branch `feat/studio-carousels`, not merged. Migration `112_studio_carousels.sql` not run; importing answers « migration 112 à lancer » until then.
 
 ---
 

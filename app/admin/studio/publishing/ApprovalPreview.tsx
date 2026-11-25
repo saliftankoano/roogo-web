@@ -278,7 +278,19 @@ export function ApprovalPreview({
   const heading = post.finalVideo ? post.title : [post.title, place].filter(Boolean).join(", ");
   const nextOne = items[Math.min(index, items.length - 1)] ?? null;
 
-  const video = (
+  const slides = post.artifact?.kind === "carousel" ? post.artifact.slides ?? [] : [];
+  const video = slides.length ? (
+    // A Studio carousel: every slide, swiped like on Instagram (2026-10-22).
+    <div
+      className="mx-auto flex w-full max-w-[150px] snap-x snap-mandatory gap-2 overflow-x-auto rounded-2xl [scrollbar-width:none] md:max-w-[300px]"
+      aria-label={`Carrousel : ${post.title}, ${slides.length} slides`}
+    >
+      {slides.map((src, i) => (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img key={src} src={src} alt={`Slide ${i + 1}`} className="aspect-[4/5] w-full shrink-0 snap-center rounded-2xl object-cover" />
+      ))}
+    </div>
+  ) : (
     <div className="relative mx-auto aspect-[9/16] w-full max-w-[150px] overflow-hidden rounded-2xl bg-[linear-gradient(160deg,#d4a985,#8a5a3a)] md:max-w-[300px]">
       {videoUrl ? (
         <video

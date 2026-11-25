@@ -20,9 +20,25 @@ export async function POST(req: Request) {
   if (!staff) return errorResponse("Forbidden", 403, req);
   const body = (await req.json().catch(() => null)) as { artifactId?: unknown } | null;
   const artifactId = typeof body?.artifactId === "string" ? body.artifactId : "";
-  if (!artifactId) return errorResponse("Vidéo manquante", 400, req);
+  if (!artifactId) return errorResponse("Média manquant", 400, req);
   const artifact = await loadArtifactInfo(artifactId);
-  if (!artifact || artifact.kind !== "video") return errorResponse("Vidéo introuvable", 404, req);
+  if (!artifact || (artifact.kind !== "video" && artifact.kind !== "carousel")) return errorResponse("Média introuvable", 404, req);
+
+  // A carousel already has its caption, written and checked with the slides
+  // (social-carousels skill): reuse it, through the same house rules, no AI call.
+  if (artifact.kind === "carousel") {
+    const clean = finalizeCaption({ caption: artifact.text ?? "", hashtags: [] });
+    return cors(
+      NextResponse.json({
+        caption: clean.caption,
+        hashtags: clean.hashtags,
+        model: "carrousel",
+        generatedAt: new Date().toISOString(),
+        checks: captionChecks(clean.caption, clean.hashtags),
+      }),
+      req,
+    );
+  }
 
   const [property, texts] = await Promise.all([
     artifact.property_id ? loadPropertyRow(artifact.property_id) : Promise.resolve(null),

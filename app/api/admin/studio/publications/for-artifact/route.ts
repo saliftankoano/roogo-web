@@ -20,17 +20,17 @@ export async function OPTIONS(req: Request) {
   return corsOptions(req);
 }
 
-// The video card of a Studio project: its publication (if any) and the slot
-// list of "Planifier la publication".
+// The video or carousel card of a Studio project: its publication (if any)
+// and the slot list of "Planifier la publication".
 export async function GET(req: Request) {
   const staff = await getStaffOrFounder(req);
   if (!staff) return errorResponse("Forbidden", 403, req);
   const artifactId = new URL(req.url).searchParams.get("artifactId") ?? "";
-  if (!artifactId) return errorResponse("Vidéo manquante", 400, req);
+  if (!artifactId) return errorResponse("Média manquant", 400, req);
   const artifact = await loadArtifactInfo(artifactId);
-  if (!artifact || artifact.kind !== "video") return errorResponse("Vidéo introuvable", 404, req);
+  if (!artifact || (artifact.kind !== "video" && artifact.kind !== "carousel")) return errorResponse("Média introuvable", 404, req);
 
-  const { row, cadence } = await publicationForArtifact(artifact.id, artifact.property_id);
+  const { row, cadence } = await publicationForArtifact(artifact.id, artifact.kind === "carousel" ? null : artifact.property_id);
   const now = new Date();
   const today = now.toISOString().slice(0, 10);
   const [visitDate, taken, property] = await Promise.all([

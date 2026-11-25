@@ -33,13 +33,18 @@ export async function POST(req: Request) {
   if (!body) return errorResponse("Requête invalide", 400, req);
   const artifactId = typeof body.artifactId === "string" ? body.artifactId : "";
   const artifact = artifactId ? await loadArtifactInfo(artifactId) : null;
-  if (!artifact || artifact.kind !== "video" || !artifact.output_path) return errorResponse("Vidéo introuvable", 404, req);
+  const isCarousel = artifact?.kind === "carousel";
+  if (!artifact || (artifact.kind !== "video" && !isCarousel) || !artifact.output_path) {
+    return errorResponse(isCarousel ? "Enregistrez d'abord les slides du carrousel." : "Vidéo introuvable", 404, req);
+  }
+  const what = isCarousel ? "Ce carrousel" : "Cette vidéo";
 
-  const { row: existing, cadence } = await publicationForArtifact(artifact.id, artifact.property_id);
+  // A carousel never fills a planned "Visite commentée" (that slot waits for a video).
+  const { row: existing, cadence } = await publicationForArtifact(artifact.id, isCarousel ? null : artifact.property_id);
   const current = existing ?? cadence;
   if (existing && existing.status !== "a_faire") {
     return errorResponse(
-      existing.status === "a_valider" ? "Cette vidéo attend déjà la validation de Salif." : "Cette vidéo est déjà validée ou publiée.",
+      existing.status === "a_valider" ? `${what} attend déjà la validation de Salif.` : `${what} est déjà validé ou publié.`,
       409,
       req,
     );
@@ -47,7 +52,7 @@ export async function POST(req: Request) {
 
   const { values, error } = await parsePostInput(
     {
-      mediaType: "video",
+      mediaType: isCarousel ? "carousel" : "video",
       artifactId: artifact.id,
       caption: body.caption,
       hashtags: Array.isArray(body.hashtags) ? body.hashtags : [],
@@ -107,7 +112,7 @@ export async function POST(req: Request) {
       .from("studio_publications")
       .insert({
         ...update,
-        title: (artifact.text || "").trim().slice(0, 120) || "Vidéo du bien",
+        title: isCarousel ? artifact.title.slice(0, 120) : (artifact.text || "").trim().slice(0, 120) || "Vidéo du bien",
         assignee_id: staff.id,
         created_by: staff.id,
       })

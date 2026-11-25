@@ -61,6 +61,12 @@ export async function GET(req: Request, { params }: Ctx) {
       let url: string | null = null;
       let downloadUrl: string | null = null;
       if (
+        artifact.kind === "carousel" &&
+        artifact.output_path
+      ) {
+        // The cover of the current render; the editor loads the rest itself.
+        url = (await storage.createSignedUrl(artifact.output_path, 3600)).data?.signedUrl ?? null;
+      } else if (
         (artifact.kind === "voiceover" || artifact.kind === "image" || artifact.kind === "video") &&
         artifact.output_path
       ) {
