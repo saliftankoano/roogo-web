@@ -34,7 +34,7 @@ import {
   type DestinationOption,
 } from "@/lib/studio/publish-everywhere";
 import { formatBytes } from "@/lib/studio/field-media-rules";
-import { canMarkManual, handoffCopy, handoffMessage, tiktokHandoff, whatsappShareUrl } from "@/lib/studio/tiktok-handoff";
+import { TIKTOK_LINK_ERROR, canMarkManual, handoffCopy, handoffMessage, parseTikTokLink, tiktokHandoff, whatsappShareUrl } from "@/lib/studio/tiktok-handoff";
 import { StudioHeader } from "../StudioHeader";
 import { readVideoShape, uploadResumableToDrive, UploadError } from "../field-upload";
 import { DestinationIcon } from "../calendrier/NetworkIcons";
@@ -399,14 +399,13 @@ export function PublishVideo() {
   }
 
   /** TikTok by hand: the team posted it in the TikTok app, the Studio records it. */
-  async function markTikTokDone(post: Post) {
-    if (!window.confirm(`Confirmer : « ${post.title} » est bien en ligne sur TikTok ?`)) return;
+  async function markTikTokDone(post: Post, link: string) {
     setBusy(`manual-${post.id}`);
     try {
       const res = await fetch(`/api/admin/studio/publications/${post.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ action: "tiktok_manual" }),
+        body: JSON.stringify({ action: "tiktok_manual", link }),
       });
       if (!res.ok) throw new Error(await readError(res));
       setToast({ id: Date.now(), text: "TikTok : noté comme publié à la main." });
@@ -694,7 +693,7 @@ export function PublishVideo() {
           </div>
         </div>
 
-        <MyVideos data={data} busy={busy} onRetry={retry} onManual={(post) => void markTikTokDone(post)} onFix={startFix} onRemove={(item) => void removeFromList(item)} onPreview={setPreview} onReload={() => void load()} />
+        <MyVideos data={data} busy={busy} onRetry={retry} onManual={(post, link) => void markTikTokDone(post, link)} onFix={startFix} onRemove={(item) => void removeFromList(item)} onPreview={setPreview} onReload={() => void load()} />
       </div>
 
       {preview && data && (
@@ -813,7 +812,10 @@ function canRemove(post: Post | null): boolean {
  * and the text ready, the person picks the team group and sends. « C'est
  * publié » records it once the video is online in the TikTok app.
  */
-function TikTokByHand({ post, video, busy, onManual }: { post: Post; video: FinalVideo; busy: string | null; onManual: (post: Post) => void }) {
+function TikTokByHand({ post, video, busy, onManual }: { post: Post; video: FinalVideo; busy: string | null; onManual: (post: Post, link: string) => void }) {
+  const [asking, setAsking] = useState(false);
+  const [link, setLink] = useState("");
+  const [bad, setBad] = useState(false);
   const message = video.driveUrl
     ? handoffMessage({
         title: post.title || video.title,
@@ -834,15 +836,58 @@ function TikTokByHand({ post, video, busy, onManual }: { post: Post; video: Fina
           Envoyer sur WhatsApp
         </a>
       )}
-      {canMarkManual(post) && (
+      {canMarkManual(post) && !asking && (
         <button
           type="button"
-          onClick={() => onManual(post)}
+          onClick={() => setAsking(true)}
           disabled={busy !== null}
           className="h-9 rounded-full px-3 text-[12px] font-bold text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)] disabled:opacity-50"
         >
-          {busy === `manual-${post.id}` ? "Enregistrement…" : "C'est publié"}
+          C&apos;est publié
         </button>
+      )}
+      {canMarkManual(post) && asking && (
+        <form
+          className="grid w-full gap-1.5 pt-1"
+          onSubmit={(e) => {
+            e.preventDefault();
+            const clean = parseTikTokLink(link);
+            setBad(!clean);
+            if (clean) onManual(post, clean);
+          }}
+        >
+          <label htmlFor={`tiktok-link-${post.id}`} className="text-[12px] font-bold text-[#1F1A16]">
+            Lien de la vidéo sur TikTok
+          </label>
+          <div className="flex flex-wrap items-center gap-2">
+            <input
+              id={`tiktok-link-${post.id}`}
+              type="url"
+              inputMode="url"
+              autoFocus
+              value={link}
+              onChange={(e) => {
+                setLink(e.target.value);
+                setBad(false);
+              }}
+              placeholder="https://vm.tiktok.com/..."
+              aria-invalid={bad}
+              aria-describedby={bad ? `tiktok-link-error-${post.id}` : undefined}
+              className="h-11 min-w-0 flex-1 rounded-xl bg-white px-3 text-[14px] text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)] outline-none focus:ring-2 focus:ring-[#C96A2E]"
+            />
+            <button type="submit" disabled={busy !== null || !link.trim()} className="h-11 rounded-full bg-[#1F1A16] px-4 text-[13px] font-bold text-white disabled:opacity-50">
+              {busy === `manual-${post.id}` ? "Enregistrement…" : "Enregistrer"}
+            </button>
+            <button type="button" onClick={() => setAsking(false)} className="h-11 rounded-full px-3 text-[13px] font-bold text-neutral-600">
+              Annuler
+            </button>
+          </div>
+          {bad && (
+            <p id={`tiktok-link-error-${post.id}`} className="text-[12px] text-[#8E2A1E]">
+              {TIKTOK_LINK_ERROR}
+            </p>
+          )}
+        </form>
       )}
     </>
   );
@@ -861,7 +906,7 @@ function MyVideos({
   data: PageData | null;
   busy: string | null;
   onRetry: (post: Post, n: Network) => void;
-  onManual: (post: Post) => void;
+  onManual: (post: Post, link: string) => void;
   onFix: (item: Item) => void;
   onRemove: (item: Item) => void;
   onPreview: (post: Post) => void;
@@ -981,7 +1026,15 @@ function MyVideos({
                       <DestinationIcon destination="tiktok" size={16} />
                       <span className="font-semibold text-[#1F1A16]">{NETWORK_LABELS.tiktok}</span>
                       {tiktokHandoff(post) === "done" ? (
-                        <span className="text-[#245C33]">{post.results.tiktok?.note ?? "Publiée à la main"}</span>
+                        <>
+                          <span className="text-[#245C33]">{post.results.tiktok?.note ?? "Publiée à la main"}</span>
+                          {post.results.tiktok?.permalink && (
+                            <a href={post.results.tiktok.permalink} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 font-semibold text-[#A8521D] underline underline-offset-2">
+                              Voir
+                              <ArrowSquareOutIcon size={12} weight="bold" />
+                            </a>
+                          )}
+                        </>
                       ) : (
                         <>
                           <span className="text-neutral-600">À publier à la main</span>

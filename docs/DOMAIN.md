@@ -416,7 +416,7 @@ and review state independently govern what the user may submit or edit.
 
 **Origin:** Coined 2026-11-25 by Salif's decision, while TikTok refuses posts from the unaudited app.
 
-**Why it matters for building:** « Publiée » on a TikTok line does not always mean the Studio posted it: a manual one has no TikTok id or link. The Studio never sends the WhatsApp message itself.
+**Why it matters for building:** « Publiée » on a TikTok line does not always mean the Studio posted it: a manual one has no TikTok id, only the link the team member pasted. The Studio never sends the WhatsApp message itself.
 
 **Evidence:** [decision](./DECISIONS.md#tiktok-goes-out-by-hand-through-the-team-whatsapp-group--2026-11-25), [system](./SYSTEM.md#how-does-publier-une-vidéo-work-2026-10-23).
 
