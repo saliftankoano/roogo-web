@@ -127,13 +127,49 @@ export type RemoveResult = { ok: true } | { ok: false; status: number; error: st
  * recover it), then the row is deleted. A file already gone from Drive does not
  * block the removal.
  */
+/** Post states that can still be removed with their video: nothing is online, nothing is being sent. */
+const REMOVABLE_POST_STATUSES = ["a_faire", "a_valider", "valide"];
+
+export function postBlocksRemoval(post: { status: string; claimed_at: string | null; results: unknown }): string | null {
+  if (post.claimed_at) return "Cette vidéo est en cours de publication : attendez la fin, puis réessayez.";
+  if (!REMOVABLE_POST_STATUSES.includes(post.status)) return "Cette vidéo est déjà en ligne sur au moins un réseau : supprimez-la sur le réseau, elle ne peut plus être retirée ici.";
+  const results = (post.results ?? {}) as Record<string, { status?: string; publish_id?: string } | undefined>;
+  for (const r of Object.values(results)) {
+    if (r?.status === "published" || r?.publish_id) return "Cette vidéo est déjà en ligne sur au moins un réseau : supprimez-la sur le réseau, elle ne peut plus être retirée ici.";
+  }
+  return null;
+}
+
+/**
+ * « Retirer »: removes a video that is not online anywhere, with its post when
+ * it was already sent to Salif (« À valider », « À corriger », or « Validée »
+ * but not started). The post rows go first (guarded so a run that starts in
+ * between keeps its post), then the Drive file goes to the bin (30 days to
+ * recover it), then the video row. A file already gone from Drive does not
+ * block the removal.
+ */
 export async function removeFinalVideo(row: FinalVideoRow): Promise<RemoveResult> {
-  const { count, error } = await supabaseAdmin
+  const { data: posts, error } = await supabaseAdmin
     .from("studio_publications")
-    .select("id", { count: "exact", head: true })
+    .select("id, status, claimed_at, results")
     .eq("final_video_id", row.id);
   if (error) return { ok: false, status: 500, error: "Erreur du Studio" };
-  if ((count ?? 0) > 0) return { ok: false, status: 409, error: "Cette vidéo est déjà envoyée à Salif : elle ne peut plus être retirée ici." };
+  for (const p of (posts ?? []) as { id: string; status: string; claimed_at: string | null; results: unknown }[]) {
+    const blocked = postBlocksRemoval(p);
+    if (blocked) return { ok: false, status: 409, error: blocked };
+  }
+  if (posts?.length) {
+    const ids = posts.map((p) => (p as { id: string }).id);
+    const { data: gone, error: postError } = await supabaseAdmin
+      .from("studio_publications")
+      .delete()
+      .in("id", ids)
+      .in("status", REMOVABLE_POST_STATUSES)
+      .is("claimed_at", null)
+      .select("id");
+    if (postError) return { ok: false, status: 500, error: "Erreur du Studio" };
+    if ((gone?.length ?? 0) !== ids.length) return { ok: false, status: 409, error: "La publication a changé entre-temps. Rechargez la page." };
+  }
   if (row.drive_file_id) {
     try {
       await trashDriveFile(row.drive_file_id);

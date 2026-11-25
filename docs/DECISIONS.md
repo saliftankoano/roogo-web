@@ -27,11 +27,11 @@ out. Newest first. For what shipped and when, see
 
 ### A wrong upload is removed, not hidden — 2026-11-25
 
-**Decision:** « Changer de vidéo » / « Retirer » under the preview and « Retirer » in « Mes vidéos » delete the `studio_final_videos` row and move its Drive file to the bin (30 days), only for videos never sent to Salif, only by the uploader or the founder ([#122](https://github.com/saliftankoano/roogo-web/pull/122)).
+**Decision:** « Changer de vidéo » / « Retirer » under the preview and « Retirer » in « Mes vidéos » delete the `studio_final_videos` row and move its Drive file to the bin (30 days), only by the uploader or the founder ([#122](https://github.com/saliftankoano/roogo-web/pull/122)). Since the same day, Salif asked to delete videos already listed for his approval too: any video not online on any network and not being sent can be removed with its post.
 
 **Why:** Salif uploaded the wrong video and could not get rid of it; unsent uploads (« WhatsApp Video … ») were piling up in the list and in « Vidéos finales ».
 
-**Ruled out / alternatives:** a « removed » status (needs a migration, and nothing references an unsent video); hard-deleting the Drive file (the bin keeps a way back); removing a video already sent (its post owns the file).
+**Ruled out / alternatives:** a « removed » status (needs a migration, and nothing references an unsent video); hard-deleting the Drive file (the bin keeps a way back); removing a video already online on a network (the network copy stays, so « Retirer » would lie; delete it on the network).
 
 **Status:** Settled.
 
