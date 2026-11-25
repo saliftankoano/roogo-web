@@ -7,6 +7,7 @@ import {
   ArrowsClockwiseIcon,
   CheckCircleIcon,
   CloudArrowUpIcon,
+  CopyIcon,
   FilmSlateIcon,
   InfoIcon,
   SparkleIcon,
@@ -836,6 +837,17 @@ function TikTokByHand({ post, video, busy, onManual }: { post: Post; video: Fina
   const [asking, setAsking] = useState(false);
   const [link, setLink] = useState("");
   const [bad, setBad] = useState(false);
+  const [copied, setCopied] = useState(false);
+  /** Some WhatsApp apps keep only the link of a prefilled message: the full text is always in the clipboard too. */
+  async function copyMessage(text: string) {
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 4000);
+    } catch {
+      setCopied(false);
+    }
+  }
   const message = video.driveUrl
     ? handoffMessage({
         title: post.title || video.title,
@@ -850,12 +862,24 @@ function TikTokByHand({ post, video, busy, onManual }: { post: Post; video: Fina
           href={whatsappShareUrl(message)}
           target="_blank"
           rel="noreferrer"
+          onClick={() => void copyMessage(message)}
           className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#1F7A4D] px-3 text-[12px] font-bold text-white"
         >
           <WhatsappLogoIcon size={14} weight="bold" />
           Envoyer sur WhatsApp
         </a>
       )}
+      {message && (
+        <button
+          type="button"
+          onClick={() => void copyMessage(message)}
+          className="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-[12px] font-bold text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)]"
+        >
+          <CopyIcon size={14} weight="bold" />
+          <span aria-live="polite">{copied ? "Message copié" : "Copier le message"}</span>
+        </button>
+      )}
+      {message && copied && <span className="w-full text-[12px] text-neutral-600">Si WhatsApp ne garde que le lien, collez le message dans la discussion.</span>}
       {canMarkManual(post) && !asking && (
         <button
           type="button"

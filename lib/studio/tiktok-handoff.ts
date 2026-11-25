@@ -126,7 +126,14 @@ export function handoffMessage(input: { title: string; driveUrl: string; copy: C
     .trim();
 }
 
-/** WhatsApp's share link: it opens the chat picker, the person chooses the group and sends. */
+/**
+ * WhatsApp's share link: it opens the chat picker, the person chooses the
+ * group and sends. On a computer WhatsApp first shows its own « Share on
+ * WhatsApp » page, whose preview draws emoji as « ? » (checked 2026-11-25,
+ * same on api.whatsapp.com); the message it passes on is intact. The desktop
+ * app can keep only the link of a long message, so the screen also copies
+ * the full message to the clipboard.
+ */
 export function whatsappShareUrl(message: string): string {
   return `https://wa.me/?text=${encodeURIComponent(message)}`;
 }
