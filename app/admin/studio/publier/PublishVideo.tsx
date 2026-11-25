@@ -11,6 +11,7 @@ import {
   InfoIcon,
   SparkleIcon,
   WarningCircleIcon,
+  WhatsappLogoIcon,
 } from "@phosphor-icons/react";
 import { cn } from "@/lib/utils";
 import { TimeSelect24h } from "@/components/ui/TimeSelect24h";
@@ -33,6 +34,7 @@ import {
   type DestinationOption,
 } from "@/lib/studio/publish-everywhere";
 import { formatBytes } from "@/lib/studio/field-media-rules";
+import { canMarkManual, handoffCopy, handoffMessage, tiktokHandoff, whatsappShareUrl } from "@/lib/studio/tiktok-handoff";
 import { StudioHeader } from "../StudioHeader";
 import { readVideoShape, uploadResumableToDrive, UploadError } from "../field-upload";
 import { DestinationIcon } from "../calendrier/NetworkIcons";
@@ -396,6 +398,26 @@ export function PublishVideo() {
     }
   }
 
+  /** TikTok by hand: the team posted it in the TikTok app, the Studio records it. */
+  async function markTikTokDone(post: Post) {
+    if (!window.confirm(`Confirmer : « ${post.title} » est bien en ligne sur TikTok ?`)) return;
+    setBusy(`manual-${post.id}`);
+    try {
+      const res = await fetch(`/api/admin/studio/publications/${post.id}`, {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "tiktok_manual" }),
+      });
+      if (!res.ok) throw new Error(await readError(res));
+      setToast({ id: Date.now(), text: "TikTok : noté comme publié à la main." });
+      void load();
+    } catch (e) {
+      setToast({ id: Date.now(), text: e instanceof Error ? e.message : "Enregistrement impossible", tone: "warn" });
+    } finally {
+      setBusy(null);
+    }
+  }
+
   async function retry(post: Post, network: Network) {
     setBusy(`retry-${post.id}-${network}`);
     try {
@@ -672,7 +694,7 @@ export function PublishVideo() {
           </div>
         </div>
 
-        <MyVideos data={data} busy={busy} onRetry={retry} onFix={startFix} onRemove={(item) => void removeFromList(item)} onPreview={setPreview} onReload={() => void load()} />
+        <MyVideos data={data} busy={busy} onRetry={retry} onManual={(post) => void markTikTokDone(post)} onFix={startFix} onRemove={(item) => void removeFromList(item)} onPreview={setPreview} onReload={() => void load()} />
       </div>
 
       {preview && data && (
@@ -786,10 +808,51 @@ function canRemove(post: Post | null): boolean {
   return !Object.values(post.results ?? {}).some((r) => r?.status === "published");
 }
 
+/**
+ * TikTok by hand: « Envoyer sur WhatsApp » opens WhatsApp with the Drive link
+ * and the text ready, the person picks the team group and sends. « C'est
+ * publié » records it once the video is online in the TikTok app.
+ */
+function TikTokByHand({ post, video, busy, onManual }: { post: Post; video: FinalVideo; busy: string | null; onManual: (post: Post) => void }) {
+  const message = video.driveUrl
+    ? handoffMessage({
+        title: post.title || video.title,
+        driveUrl: video.driveUrl,
+        copy: handoffCopy(post.networkCopy, { text: post.caption, hashtags: post.hashtags }),
+      })
+    : null;
+  return (
+    <>
+      {message && (
+        <a
+          href={whatsappShareUrl(message)}
+          target="_blank"
+          rel="noreferrer"
+          className="inline-flex h-9 items-center gap-1.5 rounded-full bg-[#1F7A4D] px-3 text-[12px] font-bold text-white"
+        >
+          <WhatsappLogoIcon size={14} weight="bold" />
+          Envoyer sur WhatsApp
+        </a>
+      )}
+      {canMarkManual(post) && (
+        <button
+          type="button"
+          onClick={() => onManual(post)}
+          disabled={busy !== null}
+          className="h-9 rounded-full px-3 text-[12px] font-bold text-[#1F1A16] ring-1 ring-[rgba(74,52,36,0.18)] disabled:opacity-50"
+        >
+          {busy === `manual-${post.id}` ? "Enregistrement…" : "C'est publié"}
+        </button>
+      )}
+    </>
+  );
+}
+
 function MyVideos({
   data,
   busy,
   onRetry,
+  onManual,
   onFix,
   onRemove,
   onPreview,
@@ -798,6 +861,7 @@ function MyVideos({
   data: PageData | null;
   busy: string | null;
   onRetry: (post: Post, n: Network) => void;
+  onManual: (post: Post) => void;
   onFix: (item: Item) => void;
   onRemove: (item: Item) => void;
   onPreview: (post: Post) => void;
@@ -904,6 +968,7 @@ function MyVideos({
                                 {busy === `retry-${post.id}-${n}` ? "Relance…" : "Réessayer"}
                               </button>
                             )}
+                            {n === "tiktok" && tiktokHandoff(post) === "todo" && <TikTokByHand post={post} video={video} busy={busy} onManual={onManual} />}
                           </>
                         ) : (
                           <span className="text-neutral-500">{post.publishing ? "En cours…" : "En attente"}</span>
@@ -911,6 +976,20 @@ function MyVideos({
                       </li>
                     );
                   })}
+                  {!post.networks.includes("tiktok") && tiktokHandoff(post) && tiktokHandoff(post) !== "auto" && (
+                    <li className="flex min-h-9 flex-wrap items-center gap-x-2 gap-y-1 text-[13px]">
+                      <DestinationIcon destination="tiktok" size={16} />
+                      <span className="font-semibold text-[#1F1A16]">{NETWORK_LABELS.tiktok}</span>
+                      {tiktokHandoff(post) === "done" ? (
+                        <span className="text-[#245C33]">{post.results.tiktok?.note ?? "Publiée à la main"}</span>
+                      ) : (
+                        <>
+                          <span className="text-neutral-600">À publier à la main</span>
+                          <TikTokByHand post={post} video={video} busy={busy} onManual={onManual} />
+                        </>
+                      )}
+                    </li>
+                  )}
                 </ul>
               )}
             </li>
