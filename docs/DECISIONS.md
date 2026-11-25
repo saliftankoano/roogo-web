@@ -13,7 +13,7 @@ out. Newest first. For what shipped and when, see
 
 **Ruled out / alternatives:** keeping draft mode (invisible to the team); unticking TikTok entirely (kept as the fallback if a private API post cannot be switched to « Everyone »); the 2026-10-31 rule of no preset values (TikTok's guideline for audited apps; it stays only in the `STUDIO_TIKTOK_DEMO` panel used to film an audit video). The audit itself was never submitted (portal checked 2026-11-24) and TikTok excludes internal tools, so it is not counted on.
 
-**Status:** Open. Reopens on the first test: if TikTok refuses switching a Studio post from « Moi seulement » to « Everyone », untick TikTok in the Studio. How it works: [system](./SYSTEM.md#how-does-the-studio-publishing-calendar-post-to-facebook-and-instagram) (TikTok and TikTok panel). Terms: [Brouillon TikTok](./DOMAIN.md#brouillon-tiktok-inbox-upload), [Moi seulement](./DOMAIN.md#moi-seulement-tiktok-privacy).
+**Status:** Settled for now (2026-11-25). The first test failed earlier than expected: even « Moi seulement » was refused (`unaudited_client_can_only_post_to_private_accounts`, Vercel logs 12:46 and 13:03 UTC), i.e. TikTok lets an unaudited app post only to a private account, and @roogo.226 is public. Salif chose the fallback: TikTok is no longer ticked by default in Publier; the team posts TikToks in the app. Reopens only if TikTok audits the app. How it works: [system](./SYSTEM.md#how-does-the-studio-publishing-calendar-post-to-facebook-and-instagram) (TikTok and TikTok panel). Terms: [Brouillon TikTok](./DOMAIN.md#brouillon-tiktok-inbox-upload), [Moi seulement](./DOMAIN.md#moi-seulement-tiktok-privacy).
 
 ### Salif's own videos skip « Envoyer à Salif » — 2026-11-25
 
